@@ -117,7 +117,9 @@ class StaleEventDetectorTests {
         final StaleEventDetector detector = new DefaultStaleEventDetector(platformContext, selfId);
 
         final long ancientThreshold = randotron.nextPositiveLong() + 100;
-        final long eventBirthRound = ancientThreshold - randotron.nextLong(100);
+        final long eventBirthRound = ancientThreshold
+                - (randotron.nextLong(100)
+                        + 1); // +1, because birthRound==ancientThreshold is not yet considered ancient
 
         final PlatformEvent event = new TestingEventBuilder(randotron)
                 .setCreatorId(selfId)

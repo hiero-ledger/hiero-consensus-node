@@ -7,8 +7,6 @@ import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.SnapshotPlatformStateAccessor;
@@ -52,12 +50,6 @@ public interface StandaloneModule {
     static AccountID provideNodeSelfId(EntityIdFactory entityIdFactory) {
         // This is only used to check the shard and realm of account ids
         return entityIdFactory.newDefaultAccountId();
-    }
-
-    @Provides
-    @Singleton
-    static Cryptography provideCryptography() {
-        return CryptographyHolder.get();
     }
 
     @Provides

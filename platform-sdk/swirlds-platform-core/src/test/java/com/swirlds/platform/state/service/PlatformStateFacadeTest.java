@@ -4,8 +4,8 @@ package com.swirlds.platform.state.service;
 import static com.swirlds.common.test.fixtures.RandomUtils.nextLong;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
-import static com.swirlds.platform.test.PlatformStateUtils.randomPlatformState;
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -43,7 +43,7 @@ class PlatformStateFacadeTest {
     @BeforeAll
     static void beforeAll() {
         state = new TestMerkleStateRoot();
-        FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(state);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
         emptyState = new TestMerkleStateRoot();
         platformStateFacade = new TestPlatformStateFacade(VERSION_FACTORY);
         platformStateModifier = randomPlatformState(state, platformStateFacade);
@@ -172,11 +172,6 @@ class PlatformStateFacadeTest {
     }
 
     @Test
-    void testPreviousAddressBookOf() {
-        assertEquals(platformStateModifier.getPreviousAddressBook(), platformStateFacade.previousAddressBookOf(state));
-    }
-
-    @Test
     void testBulkUpdateOf() {
         final Instant newFreezeTime = Instant.now();
         final Instant lastFrozenTime = Instant.now();
@@ -194,7 +189,7 @@ class PlatformStateFacadeTest {
     @Test
     void testSetSnapshotTo() {
         TestMerkleStateRoot randomState = new TestMerkleStateRoot();
-        FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(randomState);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState, platformStateFacade);
         final var newSnapshot = randomPlatformState.getSnapshot();
         platformStateFacade.setSnapshotTo(state, newSnapshot);

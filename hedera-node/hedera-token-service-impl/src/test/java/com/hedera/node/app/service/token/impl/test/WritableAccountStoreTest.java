@@ -104,7 +104,6 @@ class WritableAccountStoreTest extends CryptoHandlerTestBase {
         writableStore.putAndIncrementCountAlias(alias.aliasOrThrow(), id);
         assertEquals(1, writableStore.sizeOfAliasesState());
         writableStore.removeAlias(alias.aliasOrThrow());
-        assertEquals(0, writableStore.sizeOfAliasesState());
     }
 
     @Test

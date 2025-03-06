@@ -3,7 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.allowance.GetAllowanceTranslator.ERC_GET_ALLOWANCE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.allowance.GetAllowanceTranslator.GET_ALLOWANCE;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V3;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V3;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVED_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;

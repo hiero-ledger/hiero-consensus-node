@@ -4,7 +4,8 @@ package com.swirlds.common.utility;
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.common.utility.ByteUtils.byteArrayToShort;
 
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,6 +17,7 @@ import java.util.Objects;
  * A utility class for creating mnemonic words.
  */
 public final class Mnemonics {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private Mnemonics() {}
 
@@ -2147,7 +2149,7 @@ public final class Mnemonics {
 
         while (mnemonics.size() < wordCount) {
             if (nextIndex + 1 >= entropy.length) {
-                entropy = CryptographyHolder.get().digestBytesSync(entropy);
+                entropy = CRYPTOGRAPHY.digestBytesSync(entropy);
                 nextIndex = 0;
             }
 

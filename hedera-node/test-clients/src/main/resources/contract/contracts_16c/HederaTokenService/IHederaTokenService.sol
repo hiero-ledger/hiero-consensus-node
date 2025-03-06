@@ -869,4 +869,7 @@ interface IHederaTokenService {
     /// @param nftIDs Array of NFT IDs to reject
     /// @return responseCode The response code for the status of the request. SUCCESS is 22.
     function rejectTokens(address rejectingAddress, address[] memory ftAddresses, NftID[] memory nftIDs) external returns (int64 responseCode);
+
+
+    function updateNFTsMetadata(address nftToken, int64[] memory serialNumbers, bytes memory metadata) external returns (int64 responseCode);
 }

@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import java.nio.charset.StandardCharsets;
@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 class VirtualHashRecordTest {
-    private static final Cryptography CRYPTO = CryptographyHolder.get();
+    private static final Cryptography CRYPTO = CryptographyFactory.create();
 
     @Test
     @Tag(TestComponentTags.VMAP)

@@ -7,10 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.crypto.PlatformSigner;
@@ -20,6 +20,7 @@ import java.security.PublicKey;
 import org.junit.jupiter.api.Test;
 
 class RandomAddressBookBuilderTests {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     /**
      * Assert that the given keys are unique.
@@ -60,10 +61,8 @@ class RandomAddressBookBuilderTests {
         final AddressBook addressBookB = builderB.build();
 
         // The address book should be the same (keys should be deterministic)
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        platformContext.getCryptography().digestSync(addressBookA);
-        platformContext.getCryptography().digestSync(addressBookB);
+        CRYPTOGRAPHY.digestSync(addressBookA);
+        CRYPTOGRAPHY.digestSync(addressBookB);
         assertEquals(addressBookA.getHash(), addressBookB.getHash());
 
         // Verify that each address has unique keys

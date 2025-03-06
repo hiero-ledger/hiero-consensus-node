@@ -18,8 +18,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class SigningProviderTest {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
     private static CryptoConfig cryptoConfig;
-    private static Cryptography cryptography;
     private static int TEST_TIMES = 100;
 
     @BeforeAll
@@ -28,7 +28,6 @@ public class SigningProviderTest {
         cryptoConfig = configuration.getConfigData(CryptoConfig.class);
 
         assertTrue(cryptoConfig.computeCpuDigestThreadCount() > 1, "Check cpu digest thread count");
-        cryptography = CryptographyHolder.get();
     }
 
     @ParameterizedTest
@@ -47,7 +46,7 @@ public class SigningProviderTest {
             random.nextBytes(msg);
             final byte[] signature = ecdsaSigningProvider.sign(msg);
             assertTrue(
-                    cryptography.verifySync(
+                    CRYPTOGRAPHY.verifySync(
                             msg, signature, ecdsaSigningProvider.getPublicKeyBytes(), SignatureType.ECDSA_SECP256K1),
                     "check ECDSA result");
         }
@@ -73,7 +72,7 @@ public class SigningProviderTest {
             random.nextBytes(msg);
             final byte[] signature = ed25519SigningProvider.sign(msg);
             assertTrue(
-                    cryptography.verifySync(
+                    CRYPTOGRAPHY.verifySync(
                             msg, signature, ed25519SigningProvider.getPublicKeyBytes(), SignatureType.ED25519),
                     "check ED25519 result");
         }

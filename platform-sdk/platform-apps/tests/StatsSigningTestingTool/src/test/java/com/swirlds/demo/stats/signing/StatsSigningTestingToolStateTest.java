@@ -42,7 +42,7 @@ class StatsSigningTestingToolStateTest {
     private static final int transactionSize = 100;
     private Random random;
     private StatsSigningTestingToolState state;
-    private StatsSigningTestingToolStateLifecycles stateLifecycles;
+    private StatsSigningTestingToolConsensusStateEventHandler consensusStateEventHandler;
     private StatsSigningTestingToolMain main;
     private Round round;
     private PlatformEvent event;
@@ -56,7 +56,7 @@ class StatsSigningTestingToolStateTest {
         final SttTransactionPool transactionPool = mock(SttTransactionPool.class);
         final Supplier<SttTransactionPool> transactionPoolSupplier = mock(Supplier.class);
         state = new StatsSigningTestingToolState();
-        stateLifecycles = new StatsSigningTestingToolStateLifecycles(transactionPoolSupplier);
+        consensusStateEventHandler = new StatsSigningTestingToolConsensusStateEventHandler(transactionPoolSupplier);
         main = new StatsSigningTestingToolMain();
         random = new Random();
         event = mock(PlatformEvent.class);
@@ -96,7 +96,7 @@ class StatsSigningTestingToolStateTest {
         when(consensusTransaction.getApplicationTransaction()).thenReturn(transactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isZero();
@@ -111,7 +111,7 @@ class StatsSigningTestingToolStateTest {
         when(consensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isEqualTo(1);
@@ -134,7 +134,7 @@ class StatsSigningTestingToolStateTest {
         when(thirdConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isEqualTo(3);
@@ -154,7 +154,7 @@ class StatsSigningTestingToolStateTest {
         event = new PlatformEvent(gossipEvent);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isZero();
@@ -172,7 +172,7 @@ class StatsSigningTestingToolStateTest {
         event = new PlatformEvent(gossipEvent);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isEqualTo(1);
@@ -197,7 +197,7 @@ class StatsSigningTestingToolStateTest {
         event = new PlatformEvent(gossipEvent);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isEqualTo(3);
@@ -216,7 +216,7 @@ class StatsSigningTestingToolStateTest {
         event = new PlatformEvent(gossipEvent);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isZero();
@@ -227,7 +227,7 @@ class StatsSigningTestingToolStateTest {
         // Given (empty)
 
         // When
-        final boolean result = stateLifecycles.onSealConsensusRound(round, state);
+        final boolean result = consensusStateEventHandler.onSealConsensusRound(round, state);
 
         // Then
         assertThat(result).isTrue();

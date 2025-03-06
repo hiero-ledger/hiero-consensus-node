@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof.tree;
 
-import com.swirlds.common.crypto.Cryptography;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
 
@@ -15,15 +14,14 @@ public interface StateProofNode {
      * {@link #getHashableBytes()} is called. This method is called on each state proof node in a post-ordered depth
      * first traversal of the state proof tree.
      *
-     * @param cryptography provides cryptographic primitives
-     * @param digest       builds running hashes
+     * @param digest builds running hashes
      * @throws IllegalStateException if this method is called before this object has been fully deserialized
      */
-    void computeHashableBytes(@NonNull final Cryptography cryptography, @NonNull final MessageDigest digest);
+    void computeHashableBytes(@NonNull final MessageDigest digest);
 
     /**
      * Get the bytes that this node contributes to its parent's hash. Guaranteed to be called after
-     * {@link #computeHashableBytes(Cryptography, MessageDigest)}.
+     * {@link #computeHashableBytes(MessageDigest)}.
      *
      * @return the bytes that this node contributes to its parent's hash
      * @throws IllegalStateException if this method is called before this object has been fully deserialized

@@ -5,7 +5,6 @@ import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomString;
-import static com.swirlds.platform.state.service.PbjConverter.toPbjAddressBook;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
 import static java.util.Arrays.asList;
@@ -72,7 +71,6 @@ class PbjConverterTest {
                 pbjPlatformState.firstVersionInBirthRoundMode());
 
         assertEquals(platformState.getSnapshot(), pbjPlatformState.consensusSnapshot());
-        assertAddressBook(platformState.getAddressBook(), pbjPlatformState.addressBook());
     }
 
     @Test
@@ -258,44 +256,6 @@ class PbjConverterTest {
     }
 
     @Test
-    void testToPbjPlatformState_acc_addressBook() {
-        var oldState = randomPbjPlatformState();
-        var accumulator = new PlatformStateValueAccumulator();
-
-        // no change without update is expected
-        assertEquals(
-                oldState.addressBook(),
-                toPbjPlatformState(oldState, accumulator).addressBook());
-
-        var newValue = randomAddressBook(randotron);
-
-        accumulator.setAddressBook(newValue);
-
-        assertEquals(
-                toPbjAddressBook(newValue),
-                toPbjPlatformState(oldState, accumulator).addressBook());
-    }
-
-    @Test
-    void testToPbjPlatformState_acc_previousBook() {
-        var oldState = randomPbjPlatformState();
-        var accumulator = new PlatformStateValueAccumulator();
-
-        // no change without update is expected
-        assertEquals(
-                oldState.previousAddressBook(),
-                toPbjPlatformState(oldState, accumulator).previousAddressBook());
-
-        var newValue = randomAddressBook(randotron);
-
-        accumulator.setPreviousAddressBook(newValue);
-
-        assertEquals(
-                toPbjAddressBook(newValue),
-                toPbjPlatformState(oldState, accumulator).previousAddressBook());
-    }
-
-    @Test
     void testToPbjPlatformState_acc_round() {
         var oldState = randomPbjPlatformState();
         var accumulator = new PlatformStateValueAccumulator();
@@ -384,7 +344,6 @@ class PbjConverterTest {
                 newValue.getLowestJudgeGenerationBeforeBirthRoundMode());
         accumulator.setFirstVersionInBirthRoundMode(newValue.getFirstVersionInBirthRoundMode());
         accumulator.setLastRoundBeforeBirthRoundMode(newValue.getLastRoundBeforeBirthRoundMode());
-        accumulator.setAddressBook(newValue.getAddressBook());
 
         var pbjState = toPbjPlatformState(oldState, accumulator);
 
@@ -403,7 +362,6 @@ class PbjConverterTest {
                 newValue.getFirstVersionInBirthRoundMode().getPbjSemanticVersion(),
                 pbjState.firstVersionInBirthRoundMode());
         assertEquals(newValue.getLastRoundBeforeBirthRoundMode(), pbjState.lastRoundBeforeBirthRoundMode());
-        assertEquals(toPbjAddressBook(newValue.getAddressBook()), pbjState.addressBook());
     }
 
     static PlatformStateModifier randomPlatformState(Randotron randotron) {
@@ -416,7 +374,6 @@ class PbjConverterTest {
         platformState.setLastRoundBeforeBirthRoundMode(nextInt());
         platformState.setFirstVersionInBirthRoundMode(randomSoftwareVersion());
         platformState.setSnapshot(randomSnapshot(randotron));
-        platformState.setAddressBook(randomAddressBook(randotron));
         return platformState;
     }
 

@@ -5,7 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LoggingUtils.plural;
 
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.merkle.MerkleInternal;
@@ -21,6 +21,7 @@ import org.apache.logging.log4j.Logger;
 public final class MerkleHashChecker {
 
     private static final Logger logger = LogManager.getLogger(MerkleHashChecker.class);
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private MerkleHashChecker() {}
 
@@ -58,8 +59,8 @@ public final class MerkleHashChecker {
 
         final Hash recalculated;
         if (node.isLeaf()) {
-            recalculated = CryptographyHolder.get()
-                    .digestSync((SerializableHashable) node, Cryptography.DEFAULT_DIGEST_TYPE, false);
+            recalculated =
+                    CRYPTOGRAPHY.digestSync((SerializableHashable) node, Cryptography.DEFAULT_DIGEST_TYPE, false);
         } else {
             final MerkleInternal internal = node.asInternal();
             for (int childIndex = 0; childIndex < internal.getNumberOfChildren(); childIndex++) {

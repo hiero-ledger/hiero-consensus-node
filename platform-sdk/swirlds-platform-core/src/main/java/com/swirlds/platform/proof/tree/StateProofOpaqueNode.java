@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof.tree;
 
-import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
@@ -57,7 +56,7 @@ public class StateProofOpaqueNode extends AbstractStateProofNode implements Self
      * {@inheritDoc}
      */
     @Override
-    public void computeHashableBytes(@NonNull final Cryptography cryptography, @NonNull final MessageDigest digest) {
+    public void computeHashableBytes(@NonNull final MessageDigest digest) {
         if (data == null) {
             throw new IllegalStateException("StateProofOpaqueData has not been properly initialized");
         }

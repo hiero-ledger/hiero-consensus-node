@@ -9,7 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.utility.SerializableLong;
@@ -64,6 +65,7 @@ class MerkleMapEntryKeyTests {
     @Tag(TestComponentTags.MMAP)
     @DisplayName("Equals and Hash Test")
     void equalsAndHashTest() {
+        final Cryptography cryptography = CryptographyFactory.create();
         final MerkleMapEntryKey<SerializableLong> key1 = new MerkleMapEntryKey<>(new SerializableLong(1));
         final MerkleMapEntryKey<SerializableLong> key2 = new MerkleMapEntryKey<>(new SerializableLong(1));
         final MerkleMapEntryKey<SerializableLong> key3 = new MerkleMapEntryKey<>(new SerializableLong(2));
@@ -86,9 +88,9 @@ class MerkleMapEntryKeyTests {
         final String hashEquals = "expected hash to be equal";
         final String hashNotEquals = "expected hash to not be equal";
 
-        CryptographyHolder.get().digestSync(key1);
-        CryptographyHolder.get().digestSync(key2);
-        CryptographyHolder.get().digestSync(key3);
+        cryptography.digestSync(key1);
+        cryptography.digestSync(key2);
+        cryptography.digestSync(key3);
 
         assertEquals(key1.getHash(), key1.getHash(), hashEquals);
         assertEquals(key1.getHash(), key2.getHash(), hashEquals);

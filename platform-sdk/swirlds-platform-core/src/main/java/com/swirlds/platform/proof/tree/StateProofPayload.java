@@ -2,6 +2,7 @@
 package com.swirlds.platform.proof.tree;
 
 import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
@@ -17,6 +18,7 @@ import java.security.MessageDigest;
  */
 public class StateProofPayload extends AbstractStateProofNode implements SelfSerializable {
     private static final long CLASS_ID = 0xd21870ecd467b717L;
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private static final class ClassVersion {
         public static final int ORIGINAL = 1;
@@ -58,12 +60,12 @@ public class StateProofPayload extends AbstractStateProofNode implements SelfSer
      * {@inheritDoc}
      */
     @Override
-    public void computeHashableBytes(@NonNull final Cryptography cryptography, @NonNull final MessageDigest digest) {
+    public void computeHashableBytes(@NonNull final MessageDigest digest) {
         if (!initialized) {
             throw new IllegalStateException("StateProofPayload has not been properly initialized");
         }
         if (payload.getHash() == null) {
-            cryptography.digestSync(payload);
+            CRYPTOGRAPHY.digestSync(payload);
         }
         setHashableBytes(payload.getHash().copyToByteArray());
     }

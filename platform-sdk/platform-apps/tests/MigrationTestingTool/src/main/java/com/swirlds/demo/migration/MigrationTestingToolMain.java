@@ -3,8 +3,8 @@ package com.swirlds.demo.migration;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -18,7 +18,7 @@ import com.swirlds.logging.legacy.payload.ApplicationFinishedPayload;
 import com.swirlds.merkle.map.MerkleMapMetrics;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -167,13 +167,13 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     @Override
     public MigrationTestingToolState newStateRoot() {
         final MigrationTestingToolState state = new MigrationTestingToolState();
-        FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
         return state;
     }
 
     @Override
-    public StateLifecycles<MigrationTestingToolState> newStateLifecycles() {
-        return new MigrationTestToolStateLifecycles();
+    public ConsensusStateEventHandler<MigrationTestingToolState> newConsensusStateEvenHandler() {
+        return new MigrationTestToolConsensusStateEventHandler();
     }
 
     /**

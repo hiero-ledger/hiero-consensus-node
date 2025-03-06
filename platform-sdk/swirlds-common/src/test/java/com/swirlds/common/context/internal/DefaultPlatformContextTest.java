@@ -8,7 +8,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.concurrent.ExecutorFactory;
 import com.swirlds.common.context.DefaultPlatformContext;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.metrics.PlatformMetricsProvider;
@@ -35,7 +34,6 @@ class DefaultPlatformContextTest {
         final PlatformContext context = new DefaultPlatformContext(
                 configuration,
                 metricsProvider.createPlatformMetrics(nodeId),
-                CryptographyHolder.get(),
                 Time.getCurrent(),
                 ExecutorFactory.create("test", new PlatformUncaughtExceptionHandler()),
                 new TestFileSystemManager(Path.of("/tmp/test")),
@@ -45,7 +43,6 @@ class DefaultPlatformContextTest {
         // then
         assertNotNull(context.getConfiguration(), "Configuration must not be null");
         assertNotNull(context.getMetrics(), "Metrics must not be null");
-        assertNotNull(context.getCryptography(), "Cryptography must not be null");
         assertNotNull(context.getTime(), "Time must not be null");
         assertNotNull(context.getFileSystemManager(), "FileSystemManager must not be null");
         assertNotNull(context.getExecutorFactory(), "ExecutorFactory must not be null");

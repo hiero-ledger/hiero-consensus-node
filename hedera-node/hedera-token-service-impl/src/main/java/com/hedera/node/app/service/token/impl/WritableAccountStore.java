@@ -2,7 +2,10 @@
 package com.hedera.node.app.service.token.impl;
 
 import static com.hedera.hapi.node.base.AccountID.AccountOneOfType.ACCOUNT_NUM;
+import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAlias;
+import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.isAlias;
+import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -122,6 +125,14 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
         // We really shouldn't ever see an empty alias. But, if we do, we don't want to do any additional work.
         // FUTURE: It might be worth adding a log statement here if we see an empty alias, but maybe not.
         if (alias.length() > 0) {
+            if (!isOfEvmAddressSize(alias)) {
+                final var key = asKeyFromAlias(alias);
+                final var evmAddress = extractEvmAddress(key);
+                if (evmAddress != null) {
+                    aliases().remove(new ProtoBytes(evmAddress));
+                    entityCounters.decrementEntityTypeCounter(EntityType.ALIAS);
+                }
+            }
             aliases().remove(new ProtoBytes(alias));
             entityCounters.decrementEntityTypeCounter(EntityType.ALIAS);
         }

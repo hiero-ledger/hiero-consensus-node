@@ -3,6 +3,8 @@ package com.hedera.node.app.service.token.impl.test.handlers.util;
 
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAlias;
+import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ACCOUNTS;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ALIASES;
 import static com.hedera.node.app.service.token.impl.test.util.SigReqAdapterUtils.UNSET_STAKED_ID;
@@ -129,10 +131,17 @@ public class CryptoHandlerTestBase {
     protected final Long accountNum = id.accountNumOrThrow();
 
     protected static final Key aPrimitiveKey = Key.newBuilder()
-            .ed25519(Bytes.wrap("01234567890123456789012345678901"))
+            .ed25519(Bytes.fromHex("3a21030edcc130e13fb5102e7c883535af8c2b0a5a617231f77fd127ce5f3b9a620591"))
             .build();
+    protected static final Key aEcdsaKey = Key.newBuilder()
+            .ecdsaSecp256k1(Bytes.fromHex("3a210358d7847a8d9a1beb784e367318bad30e89b5d3f3fa1a67f259e40a63e45ad8e5"))
+            .build();
+
     protected static final ProtoBytes edKeyAlias = new ProtoBytes(aPrimitiveKey.ed25519());
+    protected static final ProtoBytes ecdsaKeyAlias = new ProtoBytes(aEcdsaKey.ecdsaSecp256k1());
     protected final AccountID alias = idFactory.newAccountIdWithAlias(edKeyAlias.value());
+    protected final AccountID ecdsaAlias = idFactory.newAccountIdWithAlias(ecdsaKeyAlias.value());
+    protected Bytes aliasEvmAddress = null;
     protected final byte[] evmAddress = CommonUtils.unhex("6aea3773ea468a814d954e6dec795bfee7d76e26");
     protected final ContractID contractAlias =
             ContractID.newBuilder().evmAddress(Bytes.wrap(evmAddress)).build();
@@ -141,7 +150,7 @@ public class CryptoHandlerTestBase {
             ContractID.newBuilder().contractNum(1234).build();
     protected final AccountID deleteAccountId = idFactory.newAccountId(3213);
     protected final AccountID transferAccountId = idFactory.newAccountId(32134);
-    protected final Long deleteAccountNum = deleteAccountId.accountNum();
+    protected final Long deleteAccountNum = deleteAccountId.accountNumOrThrow();
     protected final Long transferAccountNum = transferAccountId.accountNum();
 
     protected final TokenID nft = TokenID.newBuilder().tokenNum(56789).build();
@@ -322,6 +331,23 @@ public class CryptoHandlerTestBase {
     @NonNull
     protected MapReadableKVState.Builder<ProtoBytes, AccountID> emptyReadableAliasStateBuilder() {
         return MapReadableKVState.builder(ALIASES);
+    }
+
+    @NonNull
+    protected MapReadableKVState<ProtoBytes, AccountID> readableEcdsaKeyAliasState() {
+        return emptyReadableAliasStateBuilder()
+                .value(new ProtoBytes(ecdsaAlias.alias()), idFactory.newAccountId(accountNum))
+                .build();
+    }
+
+    @NonNull
+    protected MapWritableKVState<ProtoBytes, AccountID> writableAliasesStateWithEcdsaKey() {
+        final var aliaskey = asKeyFromAlias(ecdsaAlias.aliasOrThrow());
+        aliasEvmAddress = extractEvmAddress(aliaskey);
+        return emptyWritableAliasStateBuilder()
+                .value(new ProtoBytes(ecdsaAlias.alias()), idFactory.newAccountId(deleteAccountNum))
+                .value(new ProtoBytes(aliasEvmAddress), idFactory.newAccountId(deleteAccountNum))
+                .build();
     }
 
     protected Account givenValidAccount(final long accountNum) {

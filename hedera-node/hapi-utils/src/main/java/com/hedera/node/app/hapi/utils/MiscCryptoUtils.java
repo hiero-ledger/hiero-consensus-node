@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.sun.jna.ptr.LongByReference;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
@@ -47,6 +49,12 @@ public class MiscCryptoUtils {
 
     public static byte[] keccak256DigestOf(final byte[] msg) {
         return new Keccak.Digest256().digest(msg);
+    }
+
+    public static Bytes keccak256DigestOf(final Bytes msg) {
+        final MessageDigest digest = new Keccak.Digest256();
+        msg.writeTo(digest);
+        return Bytes.wrap(digest.digest());
     }
 
     /**

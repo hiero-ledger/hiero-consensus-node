@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof.tree;
 
-import com.swirlds.common.crypto.Cryptography;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -41,7 +40,7 @@ public class StateProofInternalNode extends AbstractStateProofNode {
      * {@inheritDoc}
      */
     @Override
-    public void computeHashableBytes(@NonNull final Cryptography cryptography, @NonNull final MessageDigest digest) {
+    public void computeHashableBytes(@NonNull final MessageDigest digest) {
         if (children == null) {
             throw new IllegalStateException("StateProofInternalNode has not been properly initialized");
         }

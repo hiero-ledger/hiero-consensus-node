@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins { id("org.hiero.gradle.build") version "0.3.3" }
+plugins { id("org.hiero.gradle.build") version "0.3.6" }
 
 // Downgrade 'dependency-analysis-gradle-plugin' as 2.8.0 delivers unexpected results
 // we need to investigate
@@ -24,9 +24,6 @@ javaModules {
         group = "com.swirlds"
         module("swirlds") // not actually a Module as it has no module-info.java
         module("swirlds-benchmarks") // not actually a Module as it has no module-info.java
-        module(
-            "swirlds-unit-tests/core/swirlds-platform-test"
-        ) // nested module is not found automatically
     }
 
     // The Hedera services modules

@@ -7,8 +7,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.concurrent.ExecutorFactory;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -58,12 +57,6 @@ public class FakePlatformContext implements PlatformContext {
 
     @NonNull
     @Override
-    public Cryptography getCryptography() {
-        return CryptographyHolder.get();
-    }
-
-    @NonNull
-    @Override
     public Metrics getMetrics() {
         return metrics;
     }
@@ -95,6 +88,6 @@ public class FakePlatformContext implements PlatformContext {
     @NonNull
     @Override
     public MerkleCryptography getMerkleCryptography() {
-        return MerkleCryptographyFactory.create(PLATFORM_CONFIG, getCryptography());
+        return MerkleCryptographyFactory.create(PLATFORM_CONFIG, CryptographyFactory.create());
     }
 }

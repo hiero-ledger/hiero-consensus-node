@@ -5,6 +5,7 @@ import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebug
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SUPPORTED_SIGSET_VERSIONS;
 import static java.nio.file.Files.exists;
+import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.RosterStateId;
 import com.swirlds.common.context.PlatformContext;
@@ -30,7 +31,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
-import java.util.Objects;
 
 /**
  * Utility methods for reading a signed state from disk.
@@ -41,20 +41,19 @@ public final class SignedStateFileReader {
     /**
      * Reads a SignedState from disk. If the reader throws an exception, it is propagated by this method to the caller.
      *
-     * @param configuration                 the configuration for this node
      * @param stateFile                     the file to read from
      * @return a signed state with it's associated hash (as computed when the state was serialized)
      * @throws IOException if there is any problems with reading from a file
      */
     public static @NonNull DeserializedSignedState readStateFile(
-            @NonNull final Configuration configuration,
             @NonNull final Path stateFile,
             @NonNull final PlatformStateFacade stateFacade,
             @NonNull final PlatformContext platformContext)
             throws IOException {
 
-        Objects.requireNonNull(configuration);
-        Objects.requireNonNull(stateFile);
+        requireNonNull(stateFile);
+        requireNonNull(platformContext);
+        final Configuration conf = platformContext.getConfiguration();
 
         checkSignedStatePath(stateFile);
 
@@ -69,7 +68,7 @@ public final class SignedStateFileReader {
                 });
 
         final SignedState newSignedState = new SignedState(
-                configuration,
+                conf,
                 CryptoStatic::verifySignature,
                 (MerkleNodeState) data.stateRoot(),
                 "SignedStateFileReader.readStateFile()",

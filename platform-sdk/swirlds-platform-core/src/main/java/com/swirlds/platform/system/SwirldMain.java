@@ -4,8 +4,8 @@ package com.swirlds.platform.system;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.platform.NodeId;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -35,7 +35,7 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
      *
      * <p>
      * Any changes necessary to initialize {@link State} should be made in
-     * {@link StateLifecycles#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SoftwareVersion)}
+     * {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SoftwareVersion)}
      * </p>
      *
      * @param platform the Platform that instantiated this SwirldMain
@@ -59,10 +59,10 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
     T newStateRoot();
 
     /**
-     * Instantiate and return a new instance of the state lifecycles for this SwirldMain object.
-     * @return state lifecycles
+     * Instantiate and return a new instance of the consensus state event handler for this SwirldMain object.
+     * @return consensus state event handler
      */
-    StateLifecycles<T> newStateLifecycles();
+    ConsensusStateEventHandler<T> newConsensusStateEvenHandler();
 
     /**
      * <p>

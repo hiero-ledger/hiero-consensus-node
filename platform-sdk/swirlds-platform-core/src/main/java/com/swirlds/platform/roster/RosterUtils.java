@@ -249,12 +249,11 @@ public final class RosterUtils {
     /**
      * Build an instance of RosterHistory from the current/previous rosters as reported by the RosterRetriever.
      * <p>
-     * The RosterRetriever implementation fetches the rosters from the RosterState/RosterMap,
-     * and automatically falls back to fetching them from the PlatformState if the RosterState is empty.
+     * The RosterRetriever implementation fetches the rosters from the RosterState/RosterMap.
      *
      * @param state a State object to fetch data from
      * @return a RosterHistory
-     * @deprecated To be removed once AddressBook to Roster refactoring is complete.
+     * @deprecated To be removed once AddressBook to Roster refactoring is complete and Browser/Turtle stop using it
      */
     @Deprecated(forRemoval = true)
     @NonNull
@@ -268,7 +267,7 @@ public final class RosterUtils {
         roundRosterPairList.add(new RoundRosterPair(platformStateFacade.roundOf(state), currentHash));
         rosterMap.put(currentHash, currentRoster);
 
-        final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state, platformStateFacade);
+        final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state);
         if (previousRoster != null) {
             final Bytes previousHash = RosterUtils.hash(previousRoster).getBytes();
             roundRosterPairList.add(new RoundRosterPair(0, previousHash));

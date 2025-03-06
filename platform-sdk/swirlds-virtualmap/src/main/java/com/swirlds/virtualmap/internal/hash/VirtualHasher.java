@@ -8,7 +8,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashBuilder;
 import com.swirlds.virtualmap.VirtualKey;
@@ -75,7 +75,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
      * the {@link #hash(LongFunction, Iterator, long, long, VirtualMapConfig)} method and used by all hashing
      * tasks.
      */
-    private Cryptography cryptography;
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     /**
      * Tracks if this virtual hasher has been shut down. If true (indicating that the hasher
@@ -186,7 +186,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         protected boolean onExecute() {
             final Hash hash;
             if (leaf != null) {
-                hash = cryptography.digestSync(leaf);
+                hash = CRYPTOGRAPHY.digestSync(leaf);
                 listener.onLeafHashed(leaf);
                 listener.onNodeHashed(path, hash);
             } else {
@@ -291,8 +291,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
 
         this.hashReader = hashReader;
         this.listener = listener;
-        this.cryptography = CryptographyHolder.get();
-        final Hash NULL_HASH = cryptography.getNullHash();
+        final Hash NULL_HASH = CRYPTOGRAPHY.getNullHash();
 
         // Algo v6. This version is task based, where every task is responsible for hashing a small
         // chunk of the tree. Tasks are running in a fork-join pool, which is shared across all
@@ -501,7 +500,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
     }
 
     public Hash emptyRootHash() {
-        final Hash NULL_HASH = CryptographyHolder.get().getNullHash();
+        final Hash NULL_HASH = CRYPTOGRAPHY.getNullHash();
         return ChunkHashTask.hash(ROOT_PATH, NULL_HASH, NULL_HASH);
     }
 }
