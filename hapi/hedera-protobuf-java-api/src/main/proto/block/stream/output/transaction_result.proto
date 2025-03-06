@@ -19,6 +19,7 @@ option java_package = "com.hedera.hapi.block.stream.output.protoc";
 option java_multiple_files = true;
 
 import "services/basic_types.proto";
+import "services/custom_fees.proto";
 import "services/response_code.proto";
 import "services/timestamp.proto";
 
@@ -141,4 +142,11 @@ message TransactionResult {
      * fees charged for this transaction.
      */
     uint64 congestion_pricing_multiplier = 11;
+
+    /**
+     * Custom fees assessed during a transaction execution.
+     * <p>
+     * These fees SHALL be present in the full transfer list for the transaction.
+     */
+    repeated proto.AssessedCustomFee assessed_custom_fees = 12;
 }
