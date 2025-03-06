@@ -41,8 +41,6 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.MerkleStateRoot;
-import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
-import com.swirlds.state.merkle.disk.OnDiskValueSerializer;
 import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -156,20 +154,11 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
                                         null));
                     } else if (def.onDisk()) {
                         state.putServiceStateIfAbsent(md, () -> {
-                            final var keySerializer = new OnDiskKeySerializer<>(
-                                    md.onDiskKeySerializerClassId(),
-                                    md.onDiskKeyClassId(),
-                                    md.stateDefinition().keyCodec());
-                            final var valueSerializer = new OnDiskValueSerializer<>(
-                                    md.onDiskValueSerializerClassId(),
-                                    md.onDiskValueClassId(),
-                                    md.stateDefinition().valueCodec());
                             final var tableConfig =
                                     new MerkleDbTableConfig((short) 1, DigestType.SHA_384, def.maxKeysHint(), 16);
                             final var label = StateMetadata.computeLabel(RosterStateId.NAME, def.stateKey());
                             final var dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
-                            final var virtualMap =
-                                    new VirtualMap<>(label, keySerializer, valueSerializer, dsBuilder, CONFIGURATION);
+                            final var virtualMap = new VirtualMap(label, dsBuilder, CONFIGURATION);
                             return virtualMap;
                         });
                     } else {

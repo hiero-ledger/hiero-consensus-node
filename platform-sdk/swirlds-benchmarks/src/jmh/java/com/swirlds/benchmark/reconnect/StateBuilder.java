@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.benchmark.BenchmarkValue;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -11,11 +13,11 @@ import java.util.stream.LongStream;
 /**
  * A utility class to help build random states.
  */
-public record StateBuilder<K, V>(
+public record StateBuilder(
         /** Build a key for index 1..size. */
-        Function<Long, K> keyBuilder,
+        Function<Long, Bytes> keyBuilder,
         /** Build a value for key index 1..size. */
-        Function<Long, V> valueBuilder) {
+        Function<Long, BenchmarkValue> valueBuilder) {
 
     /** Return {@code true} with the given probability. */
     private static boolean isRandomOutcome(final Random random, final double probability) {
@@ -55,17 +57,17 @@ public record StateBuilder<K, V>(
             final double teacherAddProbability,
             final double teacherRemoveProbability,
             final double teacherModifyProbability,
-            final BiConsumer<K, V> teacherPopulator,
-            final BiConsumer<K, V> learnerPopulator,
+            final BiConsumer<Bytes, BenchmarkValue> teacherPopulator,
+            final BiConsumer<Bytes, BenchmarkValue> learnerPopulator,
             final Consumer<Long> storageOptimizer) {
         System.err.printf("Building a state of size %,d\n", size);
 
         LongStream.range(1, size).forEach(i -> {
             storageOptimizer.accept(i);
 
-            final K key = keyBuilder.apply(i);
+            final Bytes key = keyBuilder.apply(i);
             // Original values indexes 1..size-1
-            final V value = valueBuilder.apply(i);
+            final BenchmarkValue value = valueBuilder.apply(i);
             teacherPopulator.accept(key, value);
             learnerPopulator.accept(key, value);
         });
@@ -82,9 +84,9 @@ public record StateBuilder<K, V>(
             final boolean teacherRemove = isRandomOutcome(random, teacherRemoveProbability);
 
             if (teacherAdd) {
-                final K key = keyBuilder.apply(i + size);
+                final Bytes key = keyBuilder.apply(i + size);
                 // Added values indexes (size + 1)..(2 * size)
-                final V value = valueBuilder.apply(i + size);
+                final BenchmarkValue value = valueBuilder.apply(i + size);
                 teacherPopulator.accept(key, value);
                 curSize.incrementAndGet();
             }
@@ -93,14 +95,14 @@ public record StateBuilder<K, V>(
             final long iRemove = random.nextLong(curSize.get()) + 1;
 
             if (teacherModify) {
-                final K key = keyBuilder.apply(iModify);
+                final Bytes key = keyBuilder.apply(iModify);
                 // Modified values indexes (2 * size + 1)..(3 * size)
-                final V value = valueBuilder.apply(iModify + 2L * size);
+                final BenchmarkValue value = valueBuilder.apply(iModify + 2L * size);
                 teacherPopulator.accept(key, value);
             }
 
             if (teacherRemove) {
-                final K key = keyBuilder.apply(iRemove);
+                final Bytes key = keyBuilder.apply(iRemove);
                 teacherPopulator.accept(key, null);
                 curSize.decrementAndGet();
             }
