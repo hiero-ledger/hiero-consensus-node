@@ -1,37 +1,22 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.eventhandling;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
-import static com.swirlds.platform.components.transaction.system.SystemTransactionExtractionUtils.extractFromEvent;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.stats.AverageTimeStat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -56,7 +41,7 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
      */
     private final AverageTimeStat preHandleTime;
 
-    private final StateLifecycles stateLifecycles;
+    private final ConsensusStateEventHandler consensusStateEventHandler;
 
     private final Time time;
 
@@ -66,12 +51,12 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
      * @param platformContext     the platform context
      * @param latestStateSupplier provides access to the latest immutable state, may return null (implementation detail
      *                            of locking mechanism within the supplier)
-     * @param stateLifecycles    the state lifecycles
+     * @param consensusStateEventHandler    the state lifecycles
      */
     public DefaultTransactionPrehandler(
             @NonNull final PlatformContext platformContext,
             @NonNull final Supplier<ReservedSignedState> latestStateSupplier,
-            @NonNull StateLifecycles<?> stateLifecycles) {
+            @NonNull ConsensusStateEventHandler<?> consensusStateEventHandler) {
         this.time = platformContext.getTime();
         this.latestStateSupplier = Objects.requireNonNull(latestStateSupplier);
 
@@ -81,16 +66,19 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
                 INTERNAL_CATEGORY,
                 "preHandleMicros",
                 "average time it takes to perform preHandle (in microseconds)");
-        this.stateLifecycles = stateLifecycles;
+        this.consensusStateEventHandler = consensusStateEventHandler;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public List<ScopedSystemTransaction<StateSignatureTransaction>> prehandleApplicationTransactions(
+    public Queue<ScopedSystemTransaction<StateSignatureTransaction>> prehandleApplicationTransactions(
             @NonNull final PlatformEvent event) {
         final long startTime = time.nanoTime();
+        final Queue<ScopedSystemTransaction<StateSignatureTransaction>> scopedSystemTransactions =
+                new ConcurrentLinkedQueue<>();
+        final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> consumer = scopedSystemTransactions::add;
 
         ReservedSignedState latestImmutableState = null;
         try {
@@ -100,10 +88,14 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
             }
 
             try {
-                stateLifecycles.onPreHandle(event, latestImmutableState.get().getState(), NO_OP_CONSUMER);
+                consensusStateEventHandler.onPreHandle(
+                        event, latestImmutableState.get().getState(), consumer);
             } catch (final Throwable t) {
                 logger.error(
-                        EXCEPTION.getMarker(), "error invoking StateLifecycles.onPreHandle() for event {}", event, t);
+                        EXCEPTION.getMarker(),
+                        "error invoking ConsensusStateEventHandler.onPreHandle() for event {}",
+                        event,
+                        t);
             }
         } finally {
             event.signalPrehandleCompletion();
@@ -112,9 +104,6 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
             preHandleTime.update(startTime, time.nanoTime());
         }
 
-        // TODO adapt this logic to read transactions directly from the callback passed in StateLifecycles.onOreHandle()
-        // when
-        // implemented
-        return extractFromEvent(event, StateSignatureTransaction.class);
+        return scopedSystemTransactions;
     }
 }

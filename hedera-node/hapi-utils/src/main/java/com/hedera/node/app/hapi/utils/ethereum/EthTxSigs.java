@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.ethereum;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
@@ -27,13 +12,17 @@ import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.sun.jna.ptr.LongByReference;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.commons.codec.binary.Hex;
+import org.bouncycastle.asn1.sec.SECNamedCurves;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 public record EthTxSigs(byte[] publicKey, byte[] address) {
+    private static final BigInteger N = SECNamedCurves.getByName("secp256k1").getN();
 
     public static EthTxSigs extractSignatures(EthTxData ethTx) {
         final var message = calculateSignableMessage(ethTx);
@@ -46,7 +35,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     public static byte[] calculateSignableMessage(EthTxData ethTx) {
         return switch (ethTx.type()) {
             case LEGACY_ETHEREUM -> (ethTx.chainId() != null && ethTx.chainId().length > 0)
-                    ? RLPEncoder.encodeAsList(
+                    ? RLPEncoder.list(
                             Integers.toBytes(ethTx.nonce()),
                             ethTx.gasPrice(),
                             Integers.toBytes(ethTx.gasLimit()),
@@ -56,14 +45,14 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
                             ethTx.chainId(),
                             Integers.toBytes(0),
                             Integers.toBytes(0))
-                    : RLPEncoder.encodeAsList(
+                    : RLPEncoder.list(
                             Integers.toBytes(ethTx.nonce()),
                             ethTx.gasPrice(),
                             Integers.toBytes(ethTx.gasLimit()),
                             ethTx.to(),
                             Integers.toBytesUnsigned(ethTx.value()),
                             ethTx.callData());
-            case EIP1559 -> RLPEncoder.encodeSequentially(Integers.toBytes(2), new Object[] {
+            case EIP1559 -> RLPEncoder.sequence(Integers.toBytes(2), new Object[] {
                 ethTx.chainId(),
                 Integers.toBytes(ethTx.nonce()),
                 ethTx.maxPriorityGas(),
@@ -74,7 +63,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
                 ethTx.callData(),
                 new Object[0]
             });
-            case EIP2930 -> RLPEncoder.encodeSequentially(Integers.toBytes(1), new Object[] {
+            case EIP2930 -> RLPEncoder.sequence(Integers.toBytes(1), new Object[] {
                 ethTx.chainId(),
                 Integers.toBytes(ethTx.nonce()),
                 ethTx.gasPrice(),
@@ -96,8 +85,14 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     }
 
     private static LibSecp256k1.secp256k1_pubkey extractSig(int recId, byte[] r, byte[] s, byte[] message) {
+        // The only meaningful recovery ids are 0 and 1 (even if the high order bytes
+        // were used to encode the chain id, the parity is all that matters here)
+        recId = Math.floorMod(recId, 2);
+
         byte[] dataHash = new Keccak.Digest256().digest(message);
 
+        checkInBounds(r);
+        checkInBounds(s);
         // The RLP library output won't include leading zeros, which means
         // a simple (r, s) concatenation breaks signature verification below
         byte[] signature = concatLeftPadded(r, s);
@@ -150,5 +145,19 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
                 .add("publicKey", Hex.encodeHexString(publicKey))
                 .add("address", Hex.encodeHexString(address))
                 .toString();
+    }
+
+    /**
+     * Returns whether the given curve point is in bounds for the Secp256k1 curve.
+     * @param curvePoint the curve point to check
+     */
+    private static void checkInBounds(@NonNull byte[] curvePoint) {
+        final var bi = new BigInteger(1, curvePoint);
+        if (bi.compareTo(BigInteger.ONE) < 0) {
+            throw new IllegalArgumentException("Curve point must be >= 1");
+        }
+        if (bi.compareTo(N) >= 0) {
+            throw new IllegalArgumentException("Curve point must be < N");
+        }
     }
 }

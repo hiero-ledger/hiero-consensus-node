@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
@@ -35,14 +20,15 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.standardized;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.stackIncludesActiveAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static java.util.Objects.requireNonNull;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
@@ -56,6 +42,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.EitherOrVerification
 import com.hedera.node.app.service.contract.impl.exec.scope.SpecificCryptoVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.config.data.ContractsConfig;
@@ -130,7 +117,7 @@ public class ClassicCreatesCall extends AbstractCall {
                     FIXED_GAS_COST,
                     systemContractOperations()
                             .externalizePreemptedDispatch(syntheticCreate, INSUFFICIENT_TX_FEE, TOKEN_CREATE),
-                    RC_AND_ADDRESS_ENCODER.encodeElements((long) INSUFFICIENT_TX_FEE.protoOrdinal(), ZERO_ADDRESS));
+                    RC_AND_ADDRESS_ENCODER.encode(Tuple.of((long) INSUFFICIENT_TX_FEE.protoOrdinal(), ZERO_ADDRESS)));
         } else {
             operations().collectFee(spenderId, nonGasCost);
         }
@@ -157,21 +144,25 @@ public class ClassicCreatesCall extends AbstractCall {
                 if (customFees.isEmpty()) {
                     encodedOutput = CreateTranslator.CREATE_FUNGIBLE_TOKEN_V1
                             .getOutputs()
-                            .encodeElements((long) SUCCESS.protoOrdinal(), headlongAddressOf(recordBuilder.tokenID()));
+                            .encode(Tuple.of(
+                                    (long) SUCCESS.protoOrdinal(), headlongAddressOf(recordBuilder.tokenID())));
                 } else {
                     encodedOutput = CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V1
                             .getOutputs()
-                            .encodeElements((long) SUCCESS.protoOrdinal(), headlongAddressOf(recordBuilder.tokenID()));
+                            .encode(Tuple.of(
+                                    (long) SUCCESS.protoOrdinal(), headlongAddressOf(recordBuilder.tokenID())));
                 }
             } else {
                 if (customFees.isEmpty()) {
                     encodedOutput = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_V1
                             .getOutputs()
-                            .encodeElements((long) SUCCESS.protoOrdinal(), headlongAddressOf(recordBuilder.tokenID()));
+                            .encode(Tuple.of(
+                                    (long) SUCCESS.protoOrdinal(), headlongAddressOf(recordBuilder.tokenID())));
                 } else {
                     encodedOutput = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V1
                             .getOutputs()
-                            .encodeElements((long) SUCCESS.protoOrdinal(), headlongAddressOf(recordBuilder.tokenID()));
+                            .encode(Tuple.of(
+                                    (long) SUCCESS.protoOrdinal(), headlongAddressOf(recordBuilder.tokenID())));
                 }
             }
             return gasPlus(successResult(encodedOutput, FIXED_GAS_COST, recordBuilder), status, false, nonGasCost);
@@ -216,9 +207,7 @@ public class ClassicCreatesCall extends AbstractCall {
                 ? new EitherOrVerificationStrategy(
                         baseVerificationStrategy,
                         new ActiveContractVerificationStrategy(
-                                ContractID.newBuilder()
-                                        .contractNum(legacyActivation.contractNum())
-                                        .build(),
+                                entityIdFactory(frame).newContractId(legacyActivation.contractNum()),
                                 legacyActivation.pbjAddress(),
                                 false,
                                 UseTopLevelSigs.NO))
@@ -233,7 +222,8 @@ public class ClassicCreatesCall extends AbstractCall {
     private LegacyActivation legacyActivationIn(@NonNull final MessageFrame frame) {
         final var literal = configOf(frame).getConfigData(ContractsConfig.class).keysLegacyActivations();
         final var contractNum = Long.parseLong(literal.substring(literal.indexOf("[") + 1, literal.indexOf("]")));
-        final var pbjAddress = com.hedera.pbj.runtime.io.buffer.Bytes.wrap(asEvmAddress(contractNum));
+        final var pbjAddress =
+                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(asEvmAddress(entityIdFactory(frame), contractNum));
         return new LegacyActivation(contractNum, pbjAddress, pbjToBesuAddress(pbjAddress));
     }
 }

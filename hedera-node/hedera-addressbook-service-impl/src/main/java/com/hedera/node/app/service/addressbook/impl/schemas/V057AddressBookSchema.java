@@ -8,14 +8,13 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.internal.network.Network;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * A genesis-only schema that ensures address book state reflects the genesis {@link Network}s returned from
- * {@link MigrationContext#startupNetworks()} on disk at startup when using the roster lifecycle.
+ * {@link MigrationContext#startupNetworks()} on disk at startup.
  */
 public class V057AddressBookSchema extends Schema implements AddressBookTransplantSchema {
     private static final SemanticVersion VERSION =
@@ -28,9 +27,6 @@ public class V057AddressBookSchema extends Schema implements AddressBookTranspla
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
         requireNonNull(ctx);
-        if (!ctx.appConfig().getConfigData(AddressBookConfig.class).useRosterLifecycle()) {
-            return;
-        }
         if (ctx.isGenesis()) {
             final var network = ctx.startupNetworks().genesisNetworkOrThrow(ctx.platformConfig());
             setNodeMetadata(withBootstrapAdminKeysWhereMissing(network, ctx.appConfig()), ctx.newStates());

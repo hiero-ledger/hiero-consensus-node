@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
@@ -28,6 +13,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asNumericContractId;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -53,7 +39,9 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -66,6 +54,9 @@ class ContractDeleteHandlerTest {
 
     @Mock
     private PreHandleContext preHandleContext;
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     @Mock
     private StoreFactory storeFactory;
@@ -82,7 +73,12 @@ class ContractDeleteHandlerTest {
     @Mock
     private HandleContext.SavepointStack stack;
 
-    private final ContractDeleteHandler subject = new ContractDeleteHandler();
+    private ContractDeleteHandler subject;
+
+    @BeforeEach
+    void setUp() {
+        subject = new ContractDeleteHandler(entityIdFactory);
+    }
 
     @Test
     void preHandleRecognizesContractIdKeyAsImmutable() {
@@ -103,8 +99,9 @@ class ContractDeleteHandlerTest {
                 .contractDeleteInstance(
                         ContractDeleteTransactionBody.newBuilder().permanentRemoval(true))
                 .build();
-        final var ex = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
-        assertEquals(PERMANENT_REMOVAL_REQUIRES_SYSTEM_INITIATION, ex.responseCode());
+        given(pureChecksContext.body()).willReturn(txn);
+        final var exc = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(PERMANENT_REMOVAL_REQUIRES_SYSTEM_INITIATION, exc.responseCode(), "Incorrect response code");
     }
 
     @Test
@@ -138,7 +135,8 @@ class ContractDeleteHandlerTest {
         final var txn = TransactionBody.newBuilder()
                 .contractDeleteInstance(missingObtainer(VALID_CONTRACT_ADDRESS))
                 .build();
-        final var ex = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        final var ex = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(OBTAINER_REQUIRED, ex.responseCode());
     }
 

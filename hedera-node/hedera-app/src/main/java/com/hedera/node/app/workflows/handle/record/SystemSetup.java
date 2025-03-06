@@ -1,22 +1,8 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
@@ -45,6 +31,7 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.transaction
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
@@ -53,6 +40,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
@@ -62,11 +50,13 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.networkadmin.impl.schemas.SyntheticNodeCreator;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.schemas.SyntheticAccountCreator;
@@ -82,12 +72,12 @@ import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -126,16 +116,19 @@ public class SystemSetup {
     private static final String TREASURY_CLONE_MEMO = "Synthetic zero-balance treasury clone";
     private static final Comparator<Account> ACCOUNT_COMPARATOR =
             Comparator.comparing(Account::accountId, ACCOUNT_ID_COMPARATOR);
+    public static final Comparator<Node> NODE_COMPARATOR = Comparator.comparing(Node::nodeId, Long::compare);
 
     private SortedSet<Account> systemAccounts = new TreeSet<>(ACCOUNT_COMPARATOR);
     private SortedSet<Account> stakingAccounts = new TreeSet<>(ACCOUNT_COMPARATOR);
     private SortedSet<Account> miscAccounts = new TreeSet<>(ACCOUNT_COMPARATOR);
     private SortedSet<Account> treasuryClones = new TreeSet<>(ACCOUNT_COMPARATOR);
     private SortedSet<Account> blocklistAccounts = new TreeSet<>(ACCOUNT_COMPARATOR);
+    private SortedSet<Node> genesisNodes = new TreeSet<>(NODE_COMPARATOR);
 
     private final AtomicInteger nextDispatchNonce = new AtomicInteger(1);
     private final FileServiceImpl fileService;
     private final SyntheticAccountCreator syntheticAccountCreator;
+    private final SyntheticNodeCreator syntheticNodeCreator;
 
     /**
      * Constructs a new {@link SystemSetup}.
@@ -143,9 +136,11 @@ public class SystemSetup {
     @Inject
     public SystemSetup(
             @NonNull final FileServiceImpl fileService,
-            @NonNull final SyntheticAccountCreator syntheticAccountCreator) {
+            @NonNull final SyntheticAccountCreator syntheticAccountCreator,
+            @NonNull final SyntheticNodeCreator syntheticNodeCreator) {
         this.fileService = requireNonNull(fileService);
         this.syntheticAccountCreator = requireNonNull(syntheticAccountCreator);
+        this.syntheticNodeCreator = requireNonNull(syntheticNodeCreator);
     }
 
     /**
@@ -305,6 +300,7 @@ public class SystemSetup {
 
         entityCountsState.put(entityCountsUpdated);
         log.info("Initialized entity counts for post-upgrade state to {}", entityCountsUpdated);
+        dispatch.stack().commitFullStack();
     }
 
     /**
@@ -435,7 +431,7 @@ public class SystemSetup {
     /**
      * Called only once, before handling the first transaction in network history. Externalizes
      * side effects of genesis setup done in
-     * {@link StateLifecycles#onStateInitialized(MerkleStateRoot, Platform, InitTrigger, SoftwareVersion)}.
+     * {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SoftwareVersion)}.
      *
      * @throws NullPointerException if called more than once
      */
@@ -455,6 +451,8 @@ public class SystemSetup {
                 this::treasuryClones,
                 this::miscAccounts,
                 this::blocklistAccounts);
+
+        syntheticNodeCreator.generateSyntheticNodes(context.readableStore(ReadableNodeStore.class), this::nodes);
 
         if (!systemAccounts.isEmpty()) {
             createAccountRecordBuilders(systemAccounts, context, SYSTEM_ACCOUNT_CREATION_MEMO, exchangeRateSet);
@@ -487,6 +485,12 @@ public class SystemSetup {
             log.info("Queued {} blocklist account records", blocklistAccounts.size());
             blocklistAccounts = null;
         }
+
+        if (!genesisNodes.isEmpty()) {
+            createNodeRecordBuilders(genesisNodes, context, exchangeRateSet);
+            log.info(" - Queued {} node create records", genesisNodes.size());
+            genesisNodes = null;
+        }
     }
 
     private void systemAccounts(@NonNull final SortedSet<Account> accounts) {
@@ -509,12 +513,35 @@ public class SystemSetup {
         requireNonNull(blocklistAccounts, "Genesis records already exported").addAll(requireNonNull(accounts));
     }
 
+    private void nodes(@NonNull final SortedSet<Node> nodes) {
+        requireNonNull(genesisNodes, "Genesis records already exported").addAll(requireNonNull(nodes));
+    }
+
     private void createAccountRecordBuilders(
             @NonNull final SortedSet<Account> map,
             @NonNull final TokenContext context,
             @Nullable final String recordMemo,
             @NonNull final ExchangeRateSet exchangeRateSet) {
         createAccountRecordBuilders(map, context, recordMemo, null, exchangeRateSet);
+    }
+
+    private void createNodeRecordBuilders(
+            SortedSet<Node> nodes,
+            @NonNull final TokenContext context,
+            @NonNull final ExchangeRateSet exchangeRateSet) {
+        for (final Node node : nodes) {
+            final var recordBuilder =
+                    context.addPrecedingChildRecordBuilder(NodeCreateStreamBuilder.class, NODE_CREATE);
+            recordBuilder.nodeID(node.nodeId()).exchangeRate(exchangeRateSet);
+
+            final var op = newNodeCreate(node);
+            final var bodyBuilder = TransactionBody.newBuilder().nodeCreate(op);
+            final var body = bodyBuilder.build();
+            recordBuilder.transaction(transactionWith(body));
+            recordBuilder.status(SUCCESS);
+
+            log.debug("Queued synthetic NodeCreate for node {}", node);
+        }
     }
 
     private void createAccountRecordBuilders(
@@ -573,6 +600,17 @@ public class SystemSetup {
                         .build())
                 .initialBalance(account.tinybarBalance())
                 .alias(account.alias());
+    }
+
+    private static NodeCreateTransactionBody.Builder newNodeCreate(Node node) {
+        return NodeCreateTransactionBody.newBuilder()
+                .accountId(node.accountId())
+                .description(node.description())
+                .gossipEndpoint(node.gossipEndpoint())
+                .serviceEndpoint(node.serviceEndpoint())
+                .gossipCaCertificate(node.gossipCaCertificate())
+                .grpcCertificateHash(node.grpcCertificateHash())
+                .adminKey(node.adminKey());
     }
 
     private static Bytes parseFeeSchedules(@NonNull final InputStream in) {

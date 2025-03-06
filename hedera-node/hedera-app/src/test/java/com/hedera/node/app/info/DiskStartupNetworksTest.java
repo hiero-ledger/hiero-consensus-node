@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.info;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
@@ -27,6 +12,7 @@ import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBo
 import static com.hedera.node.app.workflows.standalone.TransactionExecutorsTest.FAKE_NETWORK_INFO;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutorsTest.NO_OP_METRICS;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
@@ -46,13 +32,12 @@ import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
+import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
-import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.tss.TssBaseServiceImpl;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
-import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -90,6 +75,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class DiskStartupNetworksTest {
+
+    @Mock
+    private ConfigProviderImpl configProvider;
+
+    @Mock
+    private StoreMetricsServiceImpl storeMetricsService;
+
     private static final long ROUND_NO = 666L;
 
     private static Network NETWORK;
@@ -100,12 +92,6 @@ class DiskStartupNetworksTest {
             NETWORK = Network.JSON.parse(new ReadableStreamingData(requireNonNull(fin)));
         }
     }
-
-    @Mock
-    private ConfigProvider configProvider;
-
-    @Mock
-    private AppContext appContext;
 
     @Mock
     private StartupNetworks startupNetworks;
@@ -136,7 +122,7 @@ class DiskStartupNetworksTest {
     @Test
     void findsAvailableGenesisNetwork() throws IOException {
         givenConfig();
-        putJsonAt(GENESIS_NETWORK_JSON, WithTssState.NO);
+        putJsonAt(GENESIS_NETWORK_JSON);
         final var network = subject.genesisNetworkOrThrow(DEFAULT_CONFIG);
         assertThat(network).isEqualTo(NETWORK);
     }
@@ -144,7 +130,7 @@ class DiskStartupNetworksTest {
     @Test
     void findsAvailableMigrationNetwork() throws IOException {
         givenConfig();
-        putJsonAt(OVERRIDE_NETWORK_JSON, WithTssState.YES);
+        putJsonAt(OVERRIDE_NETWORK_JSON);
         final var network = subject.migrationNetworkOrThrow(configProvider.getConfiguration());
         assertThat(network).isEqualTo(NETWORK);
     }
@@ -179,7 +165,7 @@ class DiskStartupNetworksTest {
     @Test
     void archivesGenesisNetworks() throws IOException {
         givenConfig();
-        putJsonAt(GENESIS_NETWORK_JSON, WithTssState.NO);
+        putJsonAt(GENESIS_NETWORK_JSON);
         final var genesisJson = tempDir.resolve(GENESIS_NETWORK_JSON);
 
         assertThat(Files.exists(genesisJson)).isTrue();
@@ -195,7 +181,7 @@ class DiskStartupNetworksTest {
     @Test
     void archivesUnscopedOverrideNetwork() throws IOException {
         givenConfig();
-        putJsonAt(OVERRIDE_NETWORK_JSON, WithTssState.YES);
+        putJsonAt(OVERRIDE_NETWORK_JSON);
         final var overrideJson = tempDir.resolve(OVERRIDE_NETWORK_JSON);
 
         assertThat(Files.exists(overrideJson)).isTrue();
@@ -211,7 +197,7 @@ class DiskStartupNetworksTest {
     void archivesScopedOverrideNetwork() throws IOException {
         givenConfig();
         Files.createDirectory(tempDir.resolve("" + ROUND_NO));
-        putJsonAt(ROUND_NO + File.separator + OVERRIDE_NETWORK_JSON, WithTssState.YES);
+        putJsonAt(ROUND_NO + File.separator + OVERRIDE_NETWORK_JSON);
         final var overrideJson = tempDir.resolve(ROUND_NO + File.separator + OVERRIDE_NETWORK_JSON);
 
         assertThat(Files.exists(overrideJson)).isTrue();
@@ -227,9 +213,9 @@ class DiskStartupNetworksTest {
     @Test
     void overrideNetworkOnlyStillAvailableAtSameRound() throws IOException {
         givenConfig();
-        putJsonAt(OVERRIDE_NETWORK_JSON, WithTssState.YES);
+        putJsonAt(OVERRIDE_NETWORK_JSON);
 
-        final var maybeOverrideNetwork = subject.overrideNetworkFor(ROUND_NO);
+        final var maybeOverrideNetwork = subject.overrideNetworkFor(ROUND_NO, DEFAULT_CONFIG);
         assertThat(maybeOverrideNetwork).isPresent();
         final var overrideNetwork = maybeOverrideNetwork.orElseThrow();
         assertThat(overrideNetwork).isEqualTo(NETWORK);
@@ -240,12 +226,12 @@ class DiskStartupNetworksTest {
         final var scopedOverrideJson = tempDir.resolve(+ROUND_NO + File.separator + OVERRIDE_NETWORK_JSON);
         assertThat(Files.exists(scopedOverrideJson)).isTrue();
 
-        final var maybeRepeatedOverrideNetwork = subject.overrideNetworkFor(ROUND_NO);
+        final var maybeRepeatedOverrideNetwork = subject.overrideNetworkFor(ROUND_NO, DEFAULT_CONFIG);
         assertThat(maybeRepeatedOverrideNetwork).isPresent();
         final var repeatedOverrideNetwork = maybeRepeatedOverrideNetwork.orElseThrow();
         assertThat(repeatedOverrideNetwork).isEqualTo(NETWORK);
 
-        final var maybeOverrideNetworkAfterRound = subject.overrideNetworkFor(ROUND_NO + 1);
+        final var maybeOverrideNetworkAfterRound = subject.overrideNetworkFor(ROUND_NO + 1, DEFAULT_CONFIG);
         assertThat(maybeOverrideNetworkAfterRound).isEmpty();
     }
 
@@ -253,20 +239,14 @@ class DiskStartupNetworksTest {
     void writesExpectedStateInfo() throws IOException, ParseException {
         final var state = stateContainingInfoFrom(NETWORK);
         final var loc = tempDir.resolve("reproduced-network.json");
-        DiskStartupNetworks.writeNetworkInfo(state, loc, EnumSet.allOf(InfoType.class));
+        DiskStartupNetworks.writeNetworkInfo(state, loc, EnumSet.allOf(InfoType.class), TEST_PLATFORM_STATE_FACADE);
         try (final var fin = Files.newInputStream(loc)) {
             final var network = Network.JSON.parse(new ReadableStreamingData(fin));
             Assertions.assertThat(network).isEqualTo(NETWORK);
         }
     }
 
-    private enum WithTssState {
-        YES,
-        NO
-    }
-
-    private void putJsonAt(@NonNull final String fileName, @NonNull final WithTssState withTssState)
-            throws IOException {
+    private void putJsonAt(@NonNull final String fileName) throws IOException {
         final var loc = tempDir.resolve(fileName);
         try (final var fout = Files.newOutputStream(loc)) {
             Network.JSON.write(NETWORK, new WritableStreamingData(fout));
@@ -277,28 +257,32 @@ class DiskStartupNetworksTest {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
         final var tssBaseService = new TssBaseServiceImpl();
+        given(startupNetworks.genesisNetworkOrThrow(DEFAULT_CONFIG)).willReturn(network);
+        final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
+        ServicesSoftwareVersion currentVersion = new ServicesSoftwareVersion(
+                bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion());
         PLATFORM_STATE_SERVICE.setAppVersionFn(ServicesSoftwareVersion::from);
-        PLATFORM_STATE_SERVICE.setDiskAddressBook(new AddressBook());
         Set.of(
                         tssBaseService,
                         PLATFORM_STATE_SERVICE,
                         new EntityIdService(),
-                        new RosterService(roster -> true, () -> state),
+                        new RosterService(roster -> true, () -> {}, () -> state, TEST_PLATFORM_STATE_FACADE),
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
-        final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         migrator.doMigrations(
                 state,
                 servicesRegistry,
                 null,
-                new ServicesSoftwareVersion(
-                        bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion()),
+                currentVersion,
                 new ConfigProviderImpl().getConfiguration(),
                 DEFAULT_CONFIG,
                 FAKE_NETWORK_INFO,
                 NO_OP_METRICS,
-                startupNetworks);
+                startupNetworks,
+                storeMetricsService,
+                configProvider,
+                TEST_PLATFORM_STATE_FACADE);
         addRosterInfo(state, network);
         addAddressBookInfo(state, network);
         return state;

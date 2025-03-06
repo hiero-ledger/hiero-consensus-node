@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.wires;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -50,18 +35,15 @@ public class OutputWireTests {
                 TestPlatformContextBuilder.create().build();
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 
-        final TaskScheduler<Integer> intForwarder = model.schedulerBuilder("intForwarder")
+        final TaskScheduler<Integer> intForwarder = model.<Integer>schedulerBuilder("intForwarder")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
-        final TaskScheduler<Void> firstComponent = model.schedulerBuilder("firstComponent")
+                .build();
+        final TaskScheduler<Void> firstComponent = model.<Void>schedulerBuilder("firstComponent")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
-        final TaskScheduler<Void> secondComponent = model.schedulerBuilder("secondComponent")
+                .build();
+        final TaskScheduler<Void> secondComponent = model.<Void>schedulerBuilder("secondComponent")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
+                .build();
 
         final BindableInputWire<Integer, Integer> intInput = intForwarder.buildInputWire("intInput");
         final BindableInputWire<Integer, Void> firstComponentInput = firstComponent.buildInputWire("ints");
@@ -106,14 +88,12 @@ public class OutputWireTests {
                 TestPlatformContextBuilder.create().build();
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 
-        final TaskScheduler<Integer> schedulerA = model.schedulerBuilder("schedulerA")
+        final TaskScheduler<Integer> schedulerA = model.<Integer>schedulerBuilder("schedulerA")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
-        final TaskScheduler<Integer> schedulerB = model.schedulerBuilder("schedulerB")
+                .build();
+        final TaskScheduler<Integer> schedulerB = model.<Integer>schedulerBuilder("schedulerB")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
+                .build();
 
         InputWire<Integer> inputWire = schedulerB.buildInputWire("inputWire");
         assertThrows(

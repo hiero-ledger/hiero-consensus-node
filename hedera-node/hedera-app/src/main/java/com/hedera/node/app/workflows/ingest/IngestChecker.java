@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.ingest;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
@@ -37,6 +22,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.token.Account;
@@ -63,10 +49,12 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeBuffer;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
+import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
@@ -74,6 +62,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -102,6 +91,7 @@ public final class IngestChecker {
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
     private final OpWorkflowMetrics workflowMetrics;
+    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     /**
      * Constructor of the {@code IngestChecker}
@@ -134,7 +124,8 @@ public final class IngestChecker {
             @NonNull final Authorizer authorizer,
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
-            @NonNull final OpWorkflowMetrics workflowMetrics) {
+            @NonNull final OpWorkflowMetrics workflowMetrics,
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         this.nodeAccount = requireNonNull(nodeAccount, "nodeAccount must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
         this.blockStreamManager = requireNonNull(blockStreamManager);
@@ -149,6 +140,7 @@ public final class IngestChecker {
         this.synchronizedThrottleAccumulator = requireNonNull(synchronizedThrottleAccumulator);
         this.instantSource = requireNonNull(instantSource);
         this.workflowMetrics = requireNonNull(workflowMetrics);
+        this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
     }
 
     /**
@@ -178,19 +170,21 @@ public final class IngestChecker {
      * Runs all the ingest checks on a {@link Transaction}
      *
      * @param state the {@link State} to use
-     * @param tx the {@link Transaction} to check
+     * @param serializedTransaction the {@link Bytes} of the {@link Transaction} to check
      * @param configuration the {@link Configuration} to use
      * @return the {@link TransactionInfo} with the extracted information
      * @throws PreCheckException if a check fails
      */
     public TransactionInfo runAllChecks(
-            @NonNull final State state, @NonNull final Transaction tx, @NonNull final Configuration configuration)
+            @NonNull final State state,
+            @NonNull final Bytes serializedTransaction,
+            @NonNull final Configuration configuration)
             throws PreCheckException {
         // During ingest we approximate consensus time with wall clock time
         final var consensusTime = instantSource.instant();
 
         // 1. Check the syntax
-        final var txInfo = transactionChecker.check(tx, null);
+        final var txInfo = transactionChecker.parseAndCheck(serializedTransaction);
         final var txBody = txInfo.txBody();
         final var functionality = txInfo.functionality();
 
@@ -221,10 +215,11 @@ public final class IngestChecker {
         }
 
         // 4a. Run pure checks
-        dispatcher.dispatchPureChecks(txBody);
+        final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
+        dispatcher.dispatchPureChecks(pureChecksContext);
 
         // 5. Get payer account
-        final var storeFactory = new ReadableStoreFactory(state);
+        final var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
         final var payer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
         final var payerKey = payer.key();
         // There should, absolutely, be a key for this account. If there isn't, then something is wrong in

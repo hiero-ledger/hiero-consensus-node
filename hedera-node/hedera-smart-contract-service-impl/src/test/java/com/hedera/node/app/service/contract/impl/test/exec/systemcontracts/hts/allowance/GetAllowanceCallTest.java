@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.allowance;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
@@ -24,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.allowance.GetAllowanceCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.allowance.GetAllowanceTranslator;
@@ -96,7 +82,7 @@ class GetAllowanceCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(GetAllowanceTranslator.ERC_GET_ALLOWANCE
                         .getOutputs()
-                        .encodeElements(BigInteger.valueOf(0L))
+                        .encode(Tuple.singleton(BigInteger.valueOf(0L)))
                         .array()),
                 result.getOutput());
     }
@@ -120,7 +106,7 @@ class GetAllowanceCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(GetAllowanceTranslator.GET_ALLOWANCE
                         .getOutputs()
-                        .encodeElements((long) SUCCESS.getNumber(), BigInteger.valueOf(0L))
+                        .encode(Tuple.of((long) SUCCESS.getNumber(), BigInteger.valueOf(0L)))
                         .array()),
                 result.getOutput());
     }

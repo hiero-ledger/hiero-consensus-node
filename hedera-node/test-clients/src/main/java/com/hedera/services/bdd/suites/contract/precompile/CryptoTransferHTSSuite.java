@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
@@ -72,7 +57,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.existingSystemAccounts;
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.nonExistingSystemAccounts;
 import static com.hedera.services.bdd.suites.contract.precompile.ERCPrecompileSuite.TRANSFER_SIGNATURE;
-import static com.hedera.services.bdd.suites.leaky.LeakyContractTestsSuite.GAS_TO_OFFER;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE;
@@ -99,6 +83,7 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.math.BigInteger;
@@ -269,8 +254,9 @@ public class CryptoTransferHTSSuite {
                                                 .forFunction(FunctionType.HAPI_TRANSFER_FROM)
                                                 .withStatus(SUCCESS)))),
                 withOpContext((spec, log) -> {
-                    final var idOfToken =
-                            "0.0." + (spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
+                    final var idOfToken = toTokenIdString(spec.registry().getTokenID(FUNGIBLE_TOKEN));
+                    final var sender = spec.registry().getAccountID(OWNER);
+                    final var receiver = spec.registry().getAccountID(RECEIVER);
                     final var txnRecord = getTxnRecord(successfulTransferFromTxn)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -279,13 +265,13 @@ public class CryptoTransferHTSSuite {
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(TRANSFER_SIGNATURE),
                                                             parsedToByteString(
-                                                                    spec.registry()
-                                                                            .getAccountID(OWNER)
-                                                                            .getAccountNum()),
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getAccountNum()),
                                                             parsedToByteString(
-                                                                    spec.registry()
-                                                                            .getAccountID(RECEIVER)
-                                                                            .getAccountNum())))
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum())))
                                                     .longValue(allowance / 2)))))
                             .andAllChildRecords();
                     allRunFor(spec, txnRecord);
@@ -300,8 +286,9 @@ public class CryptoTransferHTSSuite {
                                                 .forFunction(FunctionType.HAPI_TRANSFER_FROM)
                                                 .withStatus(SUCCESS)))),
                 withOpContext((spec, log) -> {
-                    final var idOfToken =
-                            "0.0." + (spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
+                    final var idOfToken = toTokenIdString(spec.registry().getTokenID(FUNGIBLE_TOKEN));
+                    final var sender = spec.registry().getAccountID(OWNER);
+                    final var receiver = spec.registry().getAccountID(RECEIVER);
                     final var txnRecord = getTxnRecord(successfulTransferFromTxn2)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -310,13 +297,13 @@ public class CryptoTransferHTSSuite {
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(TRANSFER_SIGNATURE),
                                                             parsedToByteString(
-                                                                    spec.registry()
-                                                                            .getAccountID(OWNER)
-                                                                            .getAccountNum()),
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getAccountNum()),
                                                             parsedToByteString(
-                                                                    spec.registry()
-                                                                            .getAccountID(RECEIVER)
-                                                                            .getAccountNum())))
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum())))
                                                     .longValue(allowance / 2)))))
                             .andAllChildRecords()
                             .logged();
@@ -788,8 +775,9 @@ public class CryptoTransferHTSSuite {
                                                 .forFunction(FunctionType.HAPI_TRANSFER_FROM_NFT)
                                                 .withStatus(SUCCESS)))),
                 withOpContext((spec, log) -> {
-                    final var idOfToken =
-                            "0.0." + (spec.registry().getTokenID(NFT_TOKEN).getTokenNum());
+                    final var idOfToken = toTokenIdString(spec.registry().getTokenID(NFT_TOKEN));
+                    final var sender = spec.registry().getAccountID(OWNER);
+                    final var receiver = spec.registry().getAccountID(RECEIVER);
                     final var txnRecord = getTxnRecord(successfulTransferFromTxn)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -798,14 +786,17 @@ public class CryptoTransferHTSSuite {
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(TRANSFER_SIGNATURE),
                                                             parsedToByteString(
-                                                                    spec.registry()
-                                                                            .getAccountID(OWNER)
-                                                                            .getAccountNum()),
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getAccountNum()),
                                                             parsedToByteString(
-                                                                    spec.registry()
-                                                                            .getAccountID(RECEIVER)
-                                                                            .getAccountNum()),
-                                                            parsedToByteString(2L)))))))
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum()),
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    2L)))))))
                             .andAllChildRecords()
                             .logged();
                     allRunFor(spec, txnRecord);
@@ -1772,5 +1763,9 @@ public class CryptoTransferHTSSuite {
                 tokenAssociate(SENDER, List.of(FUNGIBLE_TOKEN)),
                 cryptoTransfer(moving(200L, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
                 opsArray));
+    }
+
+    private String toTokenIdString(TokenID tokenId) {
+        return String.format("%d.%d.%d", tokenId.getShardNum(), tokenId.getRealmNum(), tokenId.getTokenNum());
     }
 }

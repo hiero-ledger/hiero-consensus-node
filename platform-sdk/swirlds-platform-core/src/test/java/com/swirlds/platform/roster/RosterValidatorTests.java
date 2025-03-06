@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.roster;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -221,6 +206,8 @@ public class RosterValidatorTests {
 
     @Test
     void zeroPortTest() {
+        final ServiceEndpoint invalidEndpoint =
+                ServiceEndpoint.newBuilder().domainName("domain.com").port(0).build();
         final Exception ex = assertThrows(
                 InvalidRosterException.class,
                 () -> RosterValidator.validate(Roster.newBuilder()
@@ -229,10 +216,7 @@ public class RosterValidatorTests {
                                         .nodeId(1)
                                         .weight(1)
                                         .gossipCaCertificate(Bytes.wrap("test"))
-                                        .gossipEndpoint(ServiceEndpoint.newBuilder()
-                                                .domainName("domain.com")
-                                                .port(0)
-                                                .build())
+                                        .gossipEndpoint(invalidEndpoint)
                                         .build(),
                                 RosterEntry.newBuilder()
                                         .nodeId(2)
@@ -253,13 +237,16 @@ public class RosterValidatorTests {
                                                 .build())
                                         .build())
                         .build()));
-        assertEquals(
-                "gossipPort is zero for NodeId 1 and ServiceEndpoint ServiceEndpoint[ipAddressV4=, port=0, domainName=domain.com]",
-                ex.getMessage());
+        assertEquals("gossipPort is zero for NodeId 1 and ServiceEndpoint " + invalidEndpoint, ex.getMessage());
     }
 
     @Test
     void domainAndIpTest() {
+        final ServiceEndpoint invalidEndpoint = ServiceEndpoint.newBuilder()
+                .domainName("domain.com")
+                .ipAddressV4(Bytes.wrap("test"))
+                .port(666)
+                .build();
         final Exception ex = assertThrows(
                 InvalidRosterException.class,
                 () -> RosterValidator.validate(Roster.newBuilder()
@@ -277,11 +264,7 @@ public class RosterValidatorTests {
                                         .nodeId(2)
                                         .weight(2)
                                         .gossipCaCertificate(Bytes.wrap("test"))
-                                        .gossipEndpoint(ServiceEndpoint.newBuilder()
-                                                .domainName("domain.com")
-                                                .ipAddressV4(Bytes.wrap("test"))
-                                                .port(666)
-                                                .build())
+                                        .gossipEndpoint(invalidEndpoint)
                                         .build(),
                                 RosterEntry.newBuilder()
                                         .nodeId(3)
@@ -294,7 +277,8 @@ public class RosterValidatorTests {
                                         .build())
                         .build()));
         assertEquals(
-                "ServiceEndpoint must specify either a domainName or an ipAddressV4, but not both. For NodeId 2 found ServiceEndpoint ServiceEndpoint[ipAddressV4=74657374, port=666, domainName=domain.com]",
+                "ServiceEndpoint must specify either a domainName or an ipAddressV4, but not both. For NodeId 2 found ServiceEndpoint "
+                        + invalidEndpoint,
                 ex.getMessage());
     }
 

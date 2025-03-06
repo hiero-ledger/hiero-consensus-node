@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl.test.handlers;
 
 import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
@@ -128,7 +113,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
         readableTopicState.reset();
         final var state = MapReadableKVState.<Long, Topic>builder(TOPICS_KEY).build();
         given(readableStates.<Long, Topic>get(TOPICS_KEY)).willReturn(state);
-        final var store = new ReadableTopicStoreImpl(readableStates);
+        final var store = new ReadableTopicStoreImpl(readableStates, entityCounters);
 
         final var query = createGetTopicInfoQuery(topicEntityNum);
         when(context.query()).thenReturn(query);
@@ -145,7 +130,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
         readableTopicState.reset();
         final var state = MapReadableKVState.<Long, Topic>builder(TOPICS_KEY).build();
         given(readableStates.<Long, Topic>get(TOPICS_KEY)).willReturn(state);
-        final var store = new ReadableTopicStoreImpl(readableStates);
+        final var store = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createEmptyGetTopicInfoQuery();
         when(context.query()).thenReturn(query);
@@ -162,7 +147,7 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
         givenValidTopic(autoRenewId, true);
         readableTopicState = readableTopicState();
         given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
-        readableStore = new ReadableTopicStoreImpl(readableStates);
+        readableStore = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createGetTopicInfoQuery(topicEntityNum);
         when(context.query()).thenReturn(query);
@@ -228,6 +213,9 @@ class ConsensusGetTopicInfoTest extends ConsensusTestBase {
                 .autoRenewAccount(topic.autoRenewAccountId())
                 .autoRenewPeriod(WELL_KNOWN_AUTO_RENEW_PERIOD)
                 .ledgerId(new BytesConverter().convert("0x03"))
+                .feeScheduleKey(feeScheduleKey)
+                .feeExemptKeyList(key, anotherKey)
+                .customFees(customFees)
                 .build();
     }
 

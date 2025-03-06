@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
 import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_KEY;
@@ -21,13 +6,11 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.config.data.TokensConfig;
-import com.swirlds.config.api.Configuration;
+import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
  * Provides write methods for modifying underlying data storage mechanisms for
@@ -42,21 +25,18 @@ public class WritableAirdropStore extends ReadableAirdropStoreImpl {
      */
     private final WritableKVState<PendingAirdropId, AccountPendingAirdrop> airdropState;
 
+    private final WritableEntityCounters entityCounters;
+
     /**
      * Create a new {@link WritableAirdropStore} instance.
      *
      * @param states The state to use.
      */
     public WritableAirdropStore(
-            @NonNull final WritableStates states,
-            @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService) {
-        super(states);
+            @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
+        super(states, entityCounters);
         airdropState = states.get(AIRDROPS_KEY);
-
-        final long maxCapacity = configuration.getConfigData(TokensConfig.class).maxAllowedPendingAirdrops();
-        final var storeMetrics = storeMetricsService.get(StoreMetricsService.StoreType.AIRDROP, maxCapacity);
-        airdropState.setMetrics(storeMetrics);
+        this.entityCounters = entityCounters;
     }
 
     /**
@@ -73,26 +53,25 @@ public class WritableAirdropStore extends ReadableAirdropStoreImpl {
     }
 
     /**
+     * Persists a new {@link PendingAirdropId} with given {@link AccountPendingAirdrop} into the state.
+     * It also increments the entity counts for {@link EntityType#AIRDROP}.
+     * @param airdropId the airdropId to be persisted
+     * @param accountAirdrop the account airdrop mapping for the given airdropId to be persisted
+     */
+    public void putAndIncrementCount(
+            @NonNull final PendingAirdropId airdropId, @NonNull final AccountPendingAirdrop accountAirdrop) {
+        put(airdropId, accountAirdrop);
+        entityCounters.incrementEntityTypeCount(EntityType.AIRDROP);
+    }
+
+    /**
      * Removes a {@link PendingAirdropId} from the state.
      *
      * @param airdropId the {@code PendingAirdropId} to be removed
      */
     public void remove(@NonNull final PendingAirdropId airdropId) {
         airdropState.remove(requireNonNull(airdropId));
-    }
-
-    /**
-     * Returns the {@link AccountPendingAirdrop} with the given airdrop id. If the airdrop contains only NFT return {@code null}.
-     * If no such airdrop exists, returns {@code null}
-     *
-     * @param airdropId - the id of the airdrop, which value should be retrieved
-     * @return the fungible airdrop value, or {@code null} if no such
-     * airdrop exists
-     */
-    @Nullable
-    public AccountPendingAirdrop getForModify(@NonNull final PendingAirdropId airdropId) {
-        requireNonNull(airdropId);
-        return airdropState.getForModify(airdropId);
+        entityCounters.decrementEntityTypeCounter(EntityType.AIRDROP);
     }
 
     public boolean contains(final PendingAirdropId pendingId) {

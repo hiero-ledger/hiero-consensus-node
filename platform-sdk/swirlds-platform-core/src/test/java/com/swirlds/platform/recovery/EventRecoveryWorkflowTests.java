@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -41,8 +26,8 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
 import com.swirlds.platform.recovery.internal.StreamedRound;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.system.events.ConsensusEvent;
@@ -119,28 +104,29 @@ class EventRecoveryWorkflowTests {
         final List<PlatformEvent> preHandleList = new ArrayList<>();
         final AtomicBoolean roundHandled = new AtomicBoolean(false);
 
-        final StateLifecycles<PlatformMerkleStateRoot> stateLifecycles = mock(StateLifecycles.class);
-        final PlatformMerkleStateRoot immutableState = mock(PlatformMerkleStateRoot.class);
+        final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler =
+                mock(ConsensusStateEventHandler.class);
+        final MerkleNodeState immutableState = mock(MerkleNodeState.class);
         doAnswer(invocation -> {
                     assertFalse(roundHandled.get(), "round should not have been handled yet");
                     preHandleList.add(invocation.getArgument(0));
                     return null;
                 })
-                .when(stateLifecycles)
+                .when(consensusStateEventHandler)
                 .onPreHandle(any(), same(immutableState), any());
         doAnswer(invocation -> {
                     fail("mutable state should handle transactions");
                     return null;
                 })
-                .when(stateLifecycles)
+                .when(consensusStateEventHandler)
                 .onHandleConsensusRound(any(), same(immutableState), any());
 
-        final PlatformMerkleStateRoot mutableState = mock(PlatformMerkleStateRoot.class);
+        final MerkleNodeState mutableState = mock(MerkleNodeState.class);
         doAnswer(invocation -> {
                     fail("immutable state should pre-handle transactions");
                     return null;
                 })
-                .when(stateLifecycles)
+                .when(consensusStateEventHandler)
                 .onPreHandle(any(), same(mutableState), any());
         doAnswer(invocation -> {
                     assertFalse(roundHandled.get(), "round should only be handled once");
@@ -148,10 +134,10 @@ class EventRecoveryWorkflowTests {
                     roundHandled.set(true);
                     return null;
                 })
-                .when(stateLifecycles)
+                .when(consensusStateEventHandler)
                 .onHandleConsensusRound(any(), same(mutableState), any());
 
-        EventRecoveryWorkflow.applyTransactions(stateLifecycles, immutableState, mutableState, round);
+        EventRecoveryWorkflow.applyTransactions(consensusStateEventHandler, immutableState, mutableState, round);
 
         assertEquals(events.size(), preHandleList.size(), "incorrect number of pre-handle calls");
         for (int index = 0; index < events.size(); index++) {

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.schedulers;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -48,19 +33,17 @@ class DirectTaskSchedulerTests {
 
         final StandardObjectCounter counter = new StandardObjectCounter(Duration.ofMillis(1));
 
-        final TaskScheduler<Integer> schedulerA = model.schedulerBuilder("A")
+        final TaskScheduler<Integer> schedulerA = model.<Integer>schedulerBuilder("A")
                 .withType(type)
                 .withOnRamp(counter)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Integer, Integer> inA = schedulerA.buildInputWire("inA");
         final OutputWire<Integer> outA = schedulerA.getOutputWire();
 
-        final TaskScheduler<Void> schedulerB = model.schedulerBuilder("B")
+        final TaskScheduler<Void> schedulerB = model.<Void>schedulerBuilder("B")
                 .withType(type)
                 .withOffRamp(counter)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Integer, Void> inB = schedulerB.buildInputWire("inB");
 
         final SolderType solderType;
@@ -129,11 +112,10 @@ class DirectTaskSchedulerTests {
             assertEquals("intentional", e.getMessage());
         };
 
-        final TaskScheduler<Void> scheduler = model.schedulerBuilder("test")
+        final TaskScheduler<Void> scheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
                 .withUncaughtExceptionHandler(handler)
-                .build()
-                .cast();
+                .build();
 
         final BindableInputWire<Integer, Void> in = scheduler.buildInputWire("in");
 
@@ -173,11 +155,10 @@ class DirectTaskSchedulerTests {
         final Thread mainThread = Thread.currentThread();
         final TaskSchedulerType type = threadsafe ? TaskSchedulerType.DIRECT_THREADSAFE : TaskSchedulerType.DIRECT;
 
-        final TaskScheduler<Integer> scheduler = model.schedulerBuilder("A")
+        final TaskScheduler<Integer> scheduler = model.<Integer>schedulerBuilder("A")
                 .withType(type)
                 .withSquelchingEnabled(true)
-                .build()
-                .cast();
+                .build();
         final BindableInputWire<Integer, Integer> inputWire = scheduler.buildInputWire("input");
 
         final AtomicInteger handleCount = new AtomicInteger(0);

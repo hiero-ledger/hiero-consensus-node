@@ -1,44 +1,25 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.token.Units.HBARS_TO_TINYBARS;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
-import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater.rescaleWeight;
-import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater.scaleStakeToWeight;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
-import com.hedera.hapi.node.transaction.SignedTransaction;
-import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
@@ -55,8 +36,8 @@ import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
@@ -68,11 +49,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -92,7 +71,7 @@ public class EndOfStakingPeriodUpdaterTest {
     private NodeStakeUpdateStreamBuilder nodeStakeUpdateRecordBuilder;
 
     @Mock
-    private BiConsumer<Long, Integer> weightUpdates;
+    private EntityIdFactory entityIdFactory;
 
     private ReadableAccountStore accountStore;
 
@@ -107,11 +86,11 @@ public class EndOfStakingPeriodUpdaterTest {
     @BeforeEach
     void setup() {
         accountStore = TestStoreFactory.newReadableStoreWithAccounts(Account.newBuilder()
-                .accountId(asAccount(800))
+                .accountId(asAccount(0L, 0L, 800))
                 .tinybarBalance(100_000_000_000L)
                 .build());
         subject = new EndOfStakingPeriodUpdater(
-                new StakingRewardsHelper(DEFAULT_CONFIG_PROVIDER), DEFAULT_CONFIG_PROVIDER);
+                new StakingRewardsHelper(DEFAULT_CONFIG_PROVIDER), DEFAULT_CONFIG_PROVIDER, entityIdFactory);
     }
 
     @Test
@@ -125,149 +104,9 @@ public class EndOfStakingPeriodUpdaterTest {
         final var stakingInfoStore = mock(WritableStakingInfoStore.class);
         final var stakingRewardsStore = mock(WritableNetworkStakingRewardsStore.class);
 
-        subject.updateNodes(context, ExchangeRateSet.DEFAULT, weightUpdates, false);
+        subject.updateNodes(context, ExchangeRateSet.DEFAULT);
 
         verifyNoInteractions(stakingInfoStore, stakingRewardsStore);
-    }
-
-    @Test
-    void convertsStakeValueToWeightCorrectly() {
-        final var stake1 = 100_000_000L;
-        final var stake2 = 123_456_789_123L;
-        final var stake3 = 500_000_867_919L;
-        final var stake4 = 900_000_789_111L;
-        final var stake5 = 0L;
-        final var totalStake = stake1 + stake2 + stake3 + stake4;
-        final var updatedWeight1 = scaleStakeToWeight(stake1, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var updatedWeight2 = scaleStakeToWeight(stake2, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var updatedWeight3 = scaleStakeToWeight(stake3, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var updatedWeight4 = scaleStakeToWeight(stake4, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var updatedWeight5 = scaleStakeToWeight(stake5, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var totalWeight = updatedWeight1 + updatedWeight2 + updatedWeight3 + updatedWeight4 + updatedWeight5;
-        assertThat(totalWeight).isLessThanOrEqualTo(SUM_OF_CONSENSUS_WEIGHTS);
-        assertThat(updatedWeight1).isEqualTo(1);
-        assertThat(updatedWeight2).isEqualTo((stake2 * SUM_OF_CONSENSUS_WEIGHTS) / totalStake);
-        assertThat(updatedWeight3).isEqualTo((stake3 * SUM_OF_CONSENSUS_WEIGHTS) / totalStake);
-        assertThat(updatedWeight4).isEqualTo((stake4 * SUM_OF_CONSENSUS_WEIGHTS) / totalStake);
-        assertThat(updatedWeight5).isZero();
-    }
-
-    @Test
-    void scalesBackWeightToStake() {
-        final var minStake = 100_000_000L;
-        final var maxStake = 900_000_789_000L;
-
-        final var equalsMinStake = 100_000_000L;
-        final var stakeInBetween1 = 123_456_789_123L;
-        final var stakeInBetween2 = 123_456_000_000L;
-        final var stakeEqualsMax = 900_000_789_000L;
-        final var zeroStake = 0L;
-        // calculate weights
-        final var totalStake = equalsMinStake + stakeInBetween1 + stakeInBetween2 + stakeEqualsMax + zeroStake;
-        final var weightForEqualsMin = scaleStakeToWeight(equalsMinStake, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var weightInBetween1 = scaleStakeToWeight(stakeInBetween1, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var weightInBetween2 = scaleStakeToWeight(stakeInBetween2, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var weightForEqualsMax = scaleStakeToWeight(stakeEqualsMax, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var weightForZeroStake = scaleStakeToWeight(zeroStake, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var totalWeight =
-                weightForEqualsMin + weightInBetween1 + weightInBetween2 + weightForEqualsMax + weightForZeroStake;
-        // total of all weights should be less than or equal to SUM_OF_CONSENSUS_WEIGHTS
-        assertThat(totalWeight).isLessThanOrEqualTo(SUM_OF_CONSENSUS_WEIGHTS);
-        assertThat(weightForEqualsMin).isEqualTo(1);
-        assertThat(weightInBetween1).isEqualTo((stakeInBetween1 * SUM_OF_CONSENSUS_WEIGHTS) / totalStake);
-        assertThat(weightInBetween2).isEqualTo((stakeInBetween2 * SUM_OF_CONSENSUS_WEIGHTS) / totalStake);
-        assertThat(weightForEqualsMax).isEqualTo((stakeEqualsMax * SUM_OF_CONSENSUS_WEIGHTS) / totalStake);
-        assertThat(weightForZeroStake).isZero();
-
-        final var scaledStake1 =
-                rescaleWeight(weightForEqualsMin, minStake, maxStake, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var scaledStake2 =
-                rescaleWeight(weightInBetween1, minStake, maxStake, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var scaledStake3 =
-                rescaleWeight(weightInBetween2, minStake, maxStake, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var scaledStake4 =
-                rescaleWeight(weightForEqualsMax, minStake, maxStake, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-        final var scaledStake5 =
-                rescaleWeight(weightForZeroStake, minStake, maxStake, totalStake, SUM_OF_CONSENSUS_WEIGHTS);
-
-        // calculate scaled weight based on the max weight allocated and max stake of all nodes
-        final var maxWeight = Math.max(
-                weightForEqualsMin, Math.max(weightInBetween1, Math.max(weightInBetween2, weightForEqualsMax)));
-        final var expectedEqualScaledStake =
-                ((maxStake - minStake) * (weightInBetween2 - 1)) / (maxWeight - 1) + minStake;
-        // stake equals min stake
-        assertThat(scaledStake1).isEqualTo(equalsMinStake);
-        // Both these fall in the same bucket since their weight is the same. So, they get same scaled weight
-        assertThat(scaledStake2).isEqualTo(expectedEqualScaledStake);
-        assertThat(scaledStake3).isEqualTo(expectedEqualScaledStake);
-        // stake equals max stake, will return max stake
-        assertThat(scaledStake4).isEqualTo(stakeEqualsMax);
-        // stake equals zero, will return zero
-        assertThat(scaledStake5).isEqualTo(zeroStake);
-    }
-
-    @Test
-    void deletedNodesGetsZeroPendingRewards() throws ParseException {
-        final var captor = ArgumentCaptor.forClass(Transaction.class);
-        commonSetup(
-                1_000_000_000L,
-                STAKING_INFO_1.copyBuilder().deleted(true).build(),
-                STAKING_INFO_2,
-                STAKING_INFO_3.copyBuilder().deleted(true).build());
-        // Assert preconditions
-        assertThat(STAKING_INFO_1.weight()).isZero();
-        assertThat(STAKING_INFO_2.weight()).isZero();
-        assertThat(STAKING_INFO_3.weight()).isZero();
-        assertThat(STAKING_INFO_1.pendingRewards()).isZero();
-        assertThat(STAKING_INFO_2.pendingRewards()).isZero();
-        assertThat(STAKING_INFO_3.pendingRewards()).isZero();
-        given(nodeStakeUpdateRecordBuilder.transaction(any())).willReturn(nodeStakeUpdateRecordBuilder);
-        given(nodeStakeUpdateRecordBuilder.memo(any())).willReturn(nodeStakeUpdateRecordBuilder);
-        given(nodeStakeUpdateRecordBuilder.exchangeRate(ExchangeRateSet.DEFAULT))
-                .willReturn(nodeStakeUpdateRecordBuilder);
-        given(nodeStakeUpdateRecordBuilder.transaction(captor.capture())).willReturn(nodeStakeUpdateRecordBuilder);
-
-        subject.updateNodes(context, ExchangeRateSet.DEFAULT, weightUpdates, false);
-
-        assertThat(stakingRewardsStore.totalStakeRewardStart())
-                .isEqualTo(STAKE_TO_REWARD_1 + STAKE_TO_REWARD_2 + STAKE_TO_REWARD_3);
-        assertThat(stakingRewardsStore.totalStakedStart()).isEqualTo(130000000000L);
-        final var resultStakingInfo1 = stakingInfoStore.get(NODE_NUM_1.number());
-        final var resultStakingInfo2 = stakingInfoStore.get(NODE_NUM_2.number());
-        final var resultStakingInfo3 = stakingInfoStore.get(NODE_NUM_3.number());
-        assertThat(resultStakingInfo1.stake()).isEqualTo(80000000000L);
-        assertThat(resultStakingInfo2.stake()).isEqualTo(50000000000L);
-        assertThat(resultStakingInfo3.stake()).isZero();
-        assertThat(resultStakingInfo1.unclaimedStakeRewardStart()).isZero();
-        assertThat(resultStakingInfo2.unclaimedStakeRewardStart()).isZero();
-        assertThat(resultStakingInfo3.unclaimedStakeRewardStart()).isZero();
-        assertThat(resultStakingInfo1.rewardSumHistory()).isEqualTo(List.of(6L, 6L, 5L));
-        assertThat(resultStakingInfo2.rewardSumHistory()).isEqualTo(List.of(101L, 1L, 1L));
-        assertThat(resultStakingInfo3.rewardSumHistory()).isEqualTo(List.of(3L, 3L, 1L));
-        assertThat(resultStakingInfo1.weight()).isZero();
-        assertThat(resultStakingInfo2.weight()).isEqualTo(192);
-        assertThat(resultStakingInfo3.weight()).isZero();
-        assertThat(resultStakingInfo1.pendingRewards()).isZero();
-        assertThat(resultStakingInfo2.pendingRewards()).isEqualTo(63000L);
-        assertThat(resultStakingInfo3.pendingRewards()).isZero();
-        assertThat(resultStakingInfo1.weight() + resultStakingInfo2.weight() + resultStakingInfo3.weight())
-                .isLessThanOrEqualTo(SUM_OF_CONSENSUS_WEIGHTS);
-
-        assertThat(logCaptor.infoLogs()).contains("Non-zero reward sum history for node number 1 is now [6, 6, 5]");
-        assertThat(logCaptor.infoLogs()).contains("Non-zero reward sum history for node number 2 is now [101, 1, 1]");
-        assertThat(logCaptor.infoLogs()).contains("Non-zero reward sum history for node number 3 is now [3, 3, 1]");
-
-        // Doesn't export deleted nodes nodeStakeUpdates
-        verify(context).addPrecedingChildRecordBuilder(NodeStakeUpdateStreamBuilder.class, NODE_STAKE_UPDATE);
-        final var transaction = captor.getValue();
-        final var nodeStakeUpdate = TransactionBody.PROTOBUF
-                .parse(SignedTransaction.PROTOBUF
-                        .parse(transaction.signedTransactionBytes())
-                        .bodyBytes())
-                .nodeStakeUpdate();
-        final var nodeStakes = nodeStakeUpdate.nodeStake();
-        assertThat(nodeStakes).hasSize(1);
-        assertThat(nodeStakes.get(0).nodeId()).isEqualTo(NODE_NUM_2.number());
     }
 
     @Test
@@ -279,179 +118,10 @@ public class EndOfStakingPeriodUpdaterTest {
         final var stakingInfoStore = mock(WritableStakingInfoStore.class);
         final var stakingRewardsStore = mock(WritableNetworkStakingRewardsStore.class);
 
-        subject.updateNodes(context, ExchangeRateSet.DEFAULT, weightUpdates, false);
+        subject.updateNodes(context, ExchangeRateSet.DEFAULT);
 
         verifyNoInteractions(stakingInfoStore, stakingRewardsStore);
         assertThat(logCaptor.infoLogs()).contains("Staking not enabled, nothing to do");
-    }
-
-    @Test
-    void calculatesNewEndOfPeriodStakingFieldsAsExpected() {
-        commonSetup(1_000_000_000L, STAKING_INFO_1, STAKING_INFO_2, STAKING_INFO_3);
-
-        // Assert preconditions
-        assertThat(STAKING_INFO_1.weight()).isZero();
-        assertThat(STAKING_INFO_2.weight()).isZero();
-        assertThat(STAKING_INFO_3.weight()).isZero();
-        assertThat(STAKING_INFO_1.pendingRewards()).isZero();
-        assertThat(STAKING_INFO_2.pendingRewards()).isZero();
-        assertThat(STAKING_INFO_3.pendingRewards()).isZero();
-        given(nodeStakeUpdateRecordBuilder.transaction(any())).willReturn(nodeStakeUpdateRecordBuilder);
-        given(nodeStakeUpdateRecordBuilder.memo(any())).willReturn(nodeStakeUpdateRecordBuilder);
-        given(nodeStakeUpdateRecordBuilder.exchangeRate(ExchangeRateSet.DEFAULT))
-                .willReturn(nodeStakeUpdateRecordBuilder);
-
-        subject.updateNodes(context, ExchangeRateSet.DEFAULT, weightUpdates, false);
-
-        assertThat(stakingRewardsStore.totalStakeRewardStart())
-                .isEqualTo(STAKE_TO_REWARD_1 + STAKE_TO_REWARD_2 + STAKE_TO_REWARD_3);
-        assertThat(stakingRewardsStore.totalStakedStart()).isEqualTo(130000000000L);
-        final var resultStakingInfo1 = stakingInfoStore.get(NODE_NUM_1.number());
-        final var resultStakingInfo2 = stakingInfoStore.get(NODE_NUM_2.number());
-        final var resultStakingInfo3 = stakingInfoStore.get(NODE_NUM_3.number());
-        assertThat(resultStakingInfo1.stake()).isEqualTo(80000000000L);
-        assertThat(resultStakingInfo2.stake()).isEqualTo(50000000000L);
-        assertThat(resultStakingInfo3.stake()).isZero();
-        assertThat(resultStakingInfo1.unclaimedStakeRewardStart()).isZero();
-        assertThat(resultStakingInfo2.unclaimedStakeRewardStart()).isZero();
-        assertThat(resultStakingInfo3.unclaimedStakeRewardStart()).isZero();
-        assertThat(resultStakingInfo1.rewardSumHistory()).isEqualTo(List.of(86L, 6L, 5L));
-        assertThat(resultStakingInfo2.rewardSumHistory()).isEqualTo(List.of(101L, 1L, 1L));
-        assertThat(resultStakingInfo3.rewardSumHistory()).isEqualTo(List.of(11L, 3L, 1L));
-        assertThat(resultStakingInfo1.weight()).isEqualTo(307);
-        assertThat(resultStakingInfo2.weight()).isEqualTo(192);
-        assertThat(resultStakingInfo3.weight()).isZero();
-        assertThat(resultStakingInfo1.pendingRewards()).isEqualTo(72000);
-        assertThat(resultStakingInfo2.pendingRewards()).isEqualTo(63000L);
-        assertThat(resultStakingInfo3.pendingRewards()).isEqualTo(72000L);
-        assertThat(resultStakingInfo1.weight() + resultStakingInfo2.weight() + resultStakingInfo3.weight())
-                .isLessThanOrEqualTo(SUM_OF_CONSENSUS_WEIGHTS);
-    }
-
-    @Test
-    void doesntUpdateWeightWhenUseRosterLifecycleIsTrue() {
-        commonSetup(1_000_000_000L, STAKING_INFO_1, STAKING_INFO_2, STAKING_INFO_3);
-
-        // Assert preconditions
-        assertThat(STAKING_INFO_1.weight()).isZero();
-        assertThat(STAKING_INFO_2.weight()).isZero();
-        assertThat(STAKING_INFO_3.weight()).isZero();
-        assertThat(STAKING_INFO_1.pendingRewards()).isZero();
-        assertThat(STAKING_INFO_2.pendingRewards()).isZero();
-        assertThat(STAKING_INFO_3.pendingRewards()).isZero();
-        given(nodeStakeUpdateRecordBuilder.transaction(any())).willReturn(nodeStakeUpdateRecordBuilder);
-        given(nodeStakeUpdateRecordBuilder.memo(any())).willReturn(nodeStakeUpdateRecordBuilder);
-        given(nodeStakeUpdateRecordBuilder.exchangeRate(ExchangeRateSet.DEFAULT))
-                .willReturn(nodeStakeUpdateRecordBuilder);
-
-        subject.updateNodes(context, ExchangeRateSet.DEFAULT, weightUpdates, true);
-
-        assertThat(stakingRewardsStore.totalStakeRewardStart())
-                .isEqualTo(STAKE_TO_REWARD_1 + STAKE_TO_REWARD_2 + STAKE_TO_REWARD_3);
-        assertThat(stakingRewardsStore.totalStakedStart()).isEqualTo(130000000000L);
-        final var resultStakingInfo1 = stakingInfoStore.get(NODE_NUM_1.number());
-        final var resultStakingInfo2 = stakingInfoStore.get(NODE_NUM_2.number());
-        final var resultStakingInfo3 = stakingInfoStore.get(NODE_NUM_3.number());
-        assertThat(resultStakingInfo1.stake()).isEqualTo(80000000000L);
-        assertThat(resultStakingInfo2.stake()).isEqualTo(50000000000L);
-        assertThat(resultStakingInfo3.stake()).isZero();
-        assertThat(resultStakingInfo1.unclaimedStakeRewardStart()).isZero();
-        assertThat(resultStakingInfo2.unclaimedStakeRewardStart()).isZero();
-        assertThat(resultStakingInfo3.unclaimedStakeRewardStart()).isZero();
-        assertThat(resultStakingInfo1.rewardSumHistory()).isEqualTo(List.of(86L, 6L, 5L));
-        assertThat(resultStakingInfo2.rewardSumHistory()).isEqualTo(List.of(101L, 1L, 1L));
-        assertThat(resultStakingInfo3.rewardSumHistory()).isEqualTo(List.of(11L, 3L, 1L));
-        // Weight will not be updated, stake will be used as weight in roster
-        assertThat(resultStakingInfo1.weight()).isZero();
-        assertThat(resultStakingInfo2.weight()).isZero();
-        assertThat(resultStakingInfo3.weight()).isZero();
-        assertThat(resultStakingInfo1.pendingRewards()).isEqualTo(72000);
-        assertThat(resultStakingInfo2.pendingRewards()).isEqualTo(63000L);
-        assertThat(resultStakingInfo3.pendingRewards()).isEqualTo(72000L);
-    }
-
-    @Test
-    void calculatesNewEndOfPeriodStakingFieldsAsExpectedWhenMaxStakeIsLessThanTotalStake() {
-        commonSetup(1_000_000_000L, STAKING_INFO_1, STAKING_INFO_2, STAKING_INFO_3);
-        given(context.configuration())
-                .willReturn(newStakingConfig()
-                        .withValue("staking.rewardBalanceThreshold", 100000)
-                        .withValue("staking.maxStakeRewarded", 0L)
-                        .getOrCreateConfig());
-        given(nodeStakeUpdateRecordBuilder.transaction(any())).willReturn(nodeStakeUpdateRecordBuilder);
-        given(nodeStakeUpdateRecordBuilder.memo(any())).willReturn(nodeStakeUpdateRecordBuilder);
-        given(nodeStakeUpdateRecordBuilder.exchangeRate(ExchangeRateSet.DEFAULT))
-                .willReturn(nodeStakeUpdateRecordBuilder);
-
-        subject.updateNodes(context, ExchangeRateSet.DEFAULT, weightUpdates, false);
-
-        assertThat(stakingRewardsStore.totalStakeRewardStart())
-                .isEqualTo(STAKE_TO_REWARD_1 + STAKE_TO_REWARD_2 + STAKE_TO_REWARD_3);
-        assertThat(stakingRewardsStore.totalStakedStart()).isEqualTo(130000000000L);
-        final var resultStakingInfo1 = stakingInfoStore.get(NODE_NUM_1.number());
-        final var resultStakingInfo2 = stakingInfoStore.get(NODE_NUM_2.number());
-        final var resultStakingInfo3 = stakingInfoStore.get(NODE_NUM_3.number());
-        assertThat(resultStakingInfo1.stake()).isEqualTo(80000000000L);
-        assertThat(resultStakingInfo2.stake()).isEqualTo(50000000000L);
-        assertThat(resultStakingInfo3.stake()).isZero();
-        assertThat(resultStakingInfo1.unclaimedStakeRewardStart()).isZero();
-        assertThat(resultStakingInfo2.unclaimedStakeRewardStart()).isZero();
-        assertThat(resultStakingInfo3.unclaimedStakeRewardStart()).isZero();
-        assertThat(resultStakingInfo1.rewardSumHistory()).isEqualTo(List.of(6L, 6L, 5L));
-        assertThat(resultStakingInfo2.rewardSumHistory()).isEqualTo(List.of(1L, 1L, 1L));
-        assertThat(resultStakingInfo3.rewardSumHistory()).isEqualTo(List.of(3L, 3L, 1L));
-        assertThat(resultStakingInfo1.weight()).isEqualTo(307);
-        assertThat(resultStakingInfo2.weight()).isEqualTo(192);
-        assertThat(resultStakingInfo3.weight()).isZero();
-        // Since max stake rewarded is 0, all pending rewards should be 0
-        assertThat(resultStakingInfo1.pendingRewards()).isEqualTo(0L);
-        assertThat(resultStakingInfo2.pendingRewards()).isEqualTo(0L);
-        assertThat(resultStakingInfo3.pendingRewards()).isEqualTo(0L);
-        assertThat(resultStakingInfo1.weight() + resultStakingInfo2.weight() + resultStakingInfo3.weight())
-                .isLessThanOrEqualTo(SUM_OF_CONSENSUS_WEIGHTS);
-    }
-
-    @Test
-    void zeroWholeHbarsStakedCaseWorks() {
-        commonSetup(
-                0L,
-                STAKING_INFO_1.copyBuilder().stakeRewardStart(0).build(),
-                STAKING_INFO_2.copyBuilder().stakeRewardStart(0).build(),
-                STAKING_INFO_3.copyBuilder().stakeRewardStart(0).build());
-        assertThat(stakingRewardsStore.totalStakeRewardStart()).isZero();
-        given(nodeStakeUpdateRecordBuilder.transaction(any())).willReturn(nodeStakeUpdateRecordBuilder);
-        given(nodeStakeUpdateRecordBuilder.memo(any())).willReturn(nodeStakeUpdateRecordBuilder);
-        given(nodeStakeUpdateRecordBuilder.exchangeRate(ExchangeRateSet.DEFAULT))
-                .willReturn(nodeStakeUpdateRecordBuilder);
-
-        subject.updateNodes(context, ExchangeRateSet.DEFAULT, weightUpdates, false);
-
-        assertThat(stakingRewardsStore.totalStakeRewardStart())
-                .isEqualTo(STAKE_TO_REWARD_1 + STAKE_TO_REWARD_2 + STAKE_TO_REWARD_3);
-        assertThat(stakingRewardsStore.totalStakedStart()).isEqualTo(130000000000L);
-        final var resultStakingInfo1 = stakingInfoStore.get(NODE_NUM_1.number());
-        final var resultStakingInfo2 = stakingInfoStore.get(NODE_NUM_2.number());
-        final var resultStakingInfo3 = stakingInfoStore.get(NODE_NUM_3.number());
-        assertThat(resultStakingInfo1.rewardSumHistory()).isEqualTo(List.of(6L, 6L, 5L));
-        assertThat(resultStakingInfo2.rewardSumHistory()).isEqualTo(List.of(1L, 1L, 1L));
-        assertThat(resultStakingInfo3.rewardSumHistory()).isEqualTo(List.of(3L, 3L, 1L));
-    }
-
-    @Test
-    void returnsZeroWeightIfTotalStakeOfAllNodeIsZero() {
-        final var weight = scaleStakeToWeight(10, 0, 500);
-        assertThat(weight).isEqualTo(0);
-        assertThat(logCaptor.errorLogs()).contains("Scaling 10 to zero weight because total stake is 0");
-    }
-
-    @Test
-    void returnsZeroScaledUpWeightIfTotalStakeOfAllNodeIsZero() {
-        final var weight = rescaleWeight(10, 1000, 1000, 0, 500);
-        assertThat(weight).isEqualTo(0);
-        assertThat(logCaptor.warnLogs())
-                .contains(
-                        "Total stake of all nodes is 0, "
-                                + "which shouldn't happen (weight=10, minStake=1000, maxStake=1000, sumOfConsensusWeights=500)");
     }
 
     @Test
@@ -488,8 +158,13 @@ public class EndOfStakingPeriodUpdaterTest {
                 .value(NODE_NUM_2, info2)
                 .value(NODE_NUM_3, info3)
                 .build();
-        stakingInfoStore =
-                new WritableStakingInfoStore(new MapWritableStates(Map.of(STAKING_INFO_KEY, stakingInfosState)));
+        final var entityIdStore = new WritableEntityIdStore(new MapWritableStates(Map.of(
+                ENTITY_ID_STATE_KEY,
+                new WritableSingletonStateBase<>(ENTITY_ID_STATE_KEY, () -> null, c -> {}),
+                ENTITY_COUNTS_KEY,
+                new WritableSingletonStateBase<>(ENTITY_COUNTS_KEY, () -> null, c -> {}))));
+        stakingInfoStore = new WritableStakingInfoStore(
+                new MapWritableStates(Map.of(STAKING_INFO_KEY, stakingInfosState)), entityIdStore);
         given(context.writableStore(WritableStakingInfoStore.class)).willReturn(stakingInfoStore);
 
         // Create staking reward store (with data)

@@ -10,6 +10,10 @@ git clone https://github.com/hashgraph/hedera-services.git
 
 From IntelliJ, choose `File -> Open` the _hedera-services/_ directory you just cloned.
 
+For more information, also refer to the
+[documentation of the Hiero Gradle Conventions](https://github.com/hiero-ledger/hiero-gradle-conventions#build)
+which this project uses.
+
 ### (optional) IntelliJ plugins
 
 The following plugins add comfort features for working with certain parts of the code base:

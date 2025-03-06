@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -25,7 +10,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
@@ -34,6 +18,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -51,6 +36,17 @@ public class TokenUnpauseHandler implements TransactionHandler {
     @Inject
     public TokenUnpauseHandler() {
         // Exists for injection
+    }
+
+    @Override
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
+        requireNonNull(txn);
+        final var op = txn.tokenUnpauseOrThrow();
+        if (!op.hasToken()) {
+            throw new PreCheckException(INVALID_TOKEN_ID);
+        }
     }
 
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
@@ -88,14 +84,6 @@ public class TokenUnpauseHandler implements TransactionHandler {
         tokenStore.put(copyBuilder.build());
         final var recordBuilder = context.savepointStack().getBaseBuilder(TokenBaseStreamBuilder.class);
         recordBuilder.tokenType(token.tokenType());
-    }
-
-    @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
-        final var op = txn.tokenUnpauseOrThrow();
-        if (!op.hasToken()) {
-            throw new PreCheckException(INVALID_TOKEN_ID);
-        }
     }
 
     @NonNull

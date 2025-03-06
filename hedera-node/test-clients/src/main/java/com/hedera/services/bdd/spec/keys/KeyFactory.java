@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.keys;
 
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
@@ -25,7 +10,7 @@ import static java.util.stream.Collectors.toList;
 
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.SignatureGenerator;
-import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
+import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
@@ -37,10 +22,6 @@ import com.hederahashgraph.api.proto.java.ThresholdKey;
 import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.interfaces.ECPrivateKey;
@@ -111,7 +92,7 @@ public class KeyFactory {
     public KeyFactory(@NonNull final HapiSpecSetup setup, @NonNull final HapiSpecRegistry registry) throws Exception {
         this.setup = requireNonNull(setup);
         this.registry = requireNonNull(registry);
-        final var genesisKey = setup.payerKey();
+        final var genesisKey = setup.payerKeyAsEd25519();
         incorporate(setup.genesisAccountName(), genesisKey, KeyShape.listSigs(ON));
     }
 
@@ -200,8 +181,8 @@ public class KeyFactory {
      *
      * @param name the name of the key to export
      */
-    public void exportEcdsaKey(@NonNull final String name) {
-        exportEcdsaKey(name, key -> key.getECDSASecp256K1().toByteArray());
+    public void exportEcdsaKey(@NonNull final String name, @NonNull final String loc, @NonNull final String pass) {
+        exportEcdsaKey(name, loc, pass, key -> key.getECDSASecp256K1().toByteArray());
     }
 
     /**
@@ -589,19 +570,19 @@ public class KeyFactory {
         final var pubKeyBytes = targetKeyExtractor.apply(registry.getKey(name));
         final var hexedPubKey = com.swirlds.common.utility.CommonUtils.hex(pubKeyBytes);
         final var key = (EdDSAPrivateKey) pkMap.get(hexedPubKey);
-        Ed25519Utils.writeKeyTo(key, loc, passphrase);
+        KeyUtils.writeKeyTo(key, loc, passphrase);
     }
 
-    private void exportEcdsaKey(@NonNull final String name, @NonNull final Function<Key, byte[]> targetKeyExtractor) {
+    private void exportEcdsaKey(
+            @NonNull final String name,
+            @NonNull final String loc,
+            @NonNull final String pass,
+            @NonNull final Function<Key, byte[]> targetKeyExtractor) {
         final var pubKeyBytes = targetKeyExtractor.apply(registry.getKey(name));
         final var hexedPubKey = com.swirlds.common.utility.CommonUtils.hex(pubKeyBytes);
         final var key = (ECPrivateKey) pkMap.get(hexedPubKey);
-        final var loc = explicitEcdsaLocFor(name);
-        try {
-            Files.writeString(Paths.get(loc), hexedPubKey + "|" + key.getS().toString(16));
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        final var explicitLoc = loc != null ? loc : explicitEcdsaLocFor(name);
+        KeyUtils.writeKeyTo(key, explicitLoc, pass);
     }
 
     private List<Entry<Key, SigControl>> authorsFor(

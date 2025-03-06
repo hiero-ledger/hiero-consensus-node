@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -56,6 +41,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUppercase;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -66,11 +52,13 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.systemFileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFeeScheduleUpdate;
@@ -93,7 +81,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeSpecSecondTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.keyFromMutation;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
@@ -119,14 +106,18 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
+import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.CREATE_TXN;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.NEW_SENDER_KEY;
+import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.ORIG_FILE;
+import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.PAYING_ACCOUNT_2;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.SENDER_KEY;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.SENDER_TXN;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.TRIGGERING_TXN;
+import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.VALID_SCHEDULE;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.transferListCheck;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.triggerSchedule;
 import static com.hedera.services.bdd.suites.integration.RepeatableScheduleLongTermExecutionTest.BASIC_XFER;
@@ -192,6 +183,7 @@ import com.hederahashgraph.api.proto.java.TokenType;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.WritableKVState;
+import com.swirlds.state.test.fixtures.MapReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.time.Duration;
@@ -1580,9 +1572,7 @@ public class RepeatableHip423Tests {
                         .payingWith(PAYING_ACCOUNT)
                         .recordingScheduledTxn()
                         .via(CREATE_TX),
-                logIt("WTF"),
                 scheduleSign(BASIC_XFER).alsoSigningWith(SENDER).via(SIGN_TX),
-                logIt("SERIOUSLY"),
                 getScheduleInfo(BASIC_XFER)
                         .hasScheduleId(BASIC_XFER)
                         .hasWaitForExpiry()
@@ -1707,6 +1697,21 @@ public class RepeatableHip423Tests {
                 getAccountBalance(receiver).hasTinyBars(1L)));
     }
 
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> scheduledSystemDeleteUnauthorizedPayerFails() {
+        return hapiTest(
+                cryptoCreate(PAYING_ACCOUNT).via("creation"),
+                cryptoCreate(PAYING_ACCOUNT_2),
+                fileCreate("tbd").lifetime(THREE_MONTHS_IN_SECONDS).contents(ORIG_FILE),
+                scheduleCreate(VALID_SCHEDULE, systemFileDelete("tbd").updatingExpiry(1L))
+                        .withEntityMemo(randomUppercase(100))
+                        .designatingPayer(PAYING_ACCOUNT_2)
+                        .payingWith(PAYING_ACCOUNT)
+                        .waitForExpiry()
+                        .withRelativeExpiry("creation", 4)
+                        .hasKnownStatus(SCHEDULE_EXPIRY_IS_BUSY));
+    }
+
     private SpecOperation[] uploadTestContracts(String... contracts) {
         final var ops = new ArrayList<>(List.of(
                 uploadScheduledContractPrices(GENESIS),
@@ -1802,11 +1807,11 @@ public class RepeatableHip423Tests {
 
     private interface ScheduleStateConsumer {
         void accept(
-                @NonNull ReadableKVState<ScheduleID, Schedule> schedulesById,
-                @NonNull ReadableKVState<TimestampSeconds, ScheduledCounts> scheduledCounts,
-                @NonNull ReadableKVState<TimestampSeconds, ThrottleUsageSnapshots> scheduledUsages,
-                @NonNull ReadableKVState<ScheduledOrder, ScheduleID> scheduledOrders,
-                @NonNull ReadableKVState<ProtoBytes, ScheduleID> scheduleIdByEquality);
+                @NonNull MapReadableKVState<ScheduleID, Schedule> schedulesById,
+                @NonNull MapReadableKVState<TimestampSeconds, ScheduledCounts> scheduledCounts,
+                @NonNull MapReadableKVState<TimestampSeconds, ThrottleUsageSnapshots> scheduledUsages,
+                @NonNull MapReadableKVState<ScheduledOrder, ScheduleID> scheduledOrders,
+                @NonNull MapReadableKVState<ProtoBytes, ScheduleID> scheduleIdByEquality);
     }
 
     private static SpecOperation viewScheduleStateSizes(@NonNull final Consumer<ScheduleStateSizes> consumer) {
@@ -1820,11 +1825,16 @@ public class RepeatableHip423Tests {
             final var state = spec.embeddedStateOrThrow();
             final var readableStates = state.getReadableStates(ScheduleService.NAME);
             consumer.accept(
-                    readableStates.get(SCHEDULES_BY_ID_KEY),
-                    readableStates.get(SCHEDULED_COUNTS_KEY),
-                    readableStates.get(SCHEDULED_USAGES_KEY),
-                    readableStates.get(SCHEDULED_ORDERS_KEY),
-                    readableStates.get(SCHEDULE_ID_BY_EQUALITY_KEY));
+                    (MapReadableKVState<ScheduleID, Schedule>)
+                            readableStates.<ScheduleID, Schedule>get(SCHEDULES_BY_ID_KEY),
+                    (MapReadableKVState<TimestampSeconds, ScheduledCounts>)
+                            readableStates.<TimestampSeconds, ScheduledCounts>get(SCHEDULED_COUNTS_KEY),
+                    (MapReadableKVState<TimestampSeconds, ThrottleUsageSnapshots>)
+                            readableStates.<TimestampSeconds, ThrottleUsageSnapshots>get(SCHEDULED_USAGES_KEY),
+                    (MapReadableKVState<ScheduledOrder, ScheduleID>)
+                            readableStates.<ScheduledOrder, ScheduleID>get(SCHEDULED_ORDERS_KEY),
+                    (MapReadableKVState<ProtoBytes, ScheduleID>)
+                            readableStates.<ProtoBytes, ScheduleID>get(SCHEDULE_ID_BY_EQUALITY_KEY));
         });
     }
 

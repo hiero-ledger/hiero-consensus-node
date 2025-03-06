@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,26 +20,6 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         @BeforeEach
         void setUp() {
             setupFruitVirtualMap();
-        }
-
-        @Test
-        @DisplayName("The size of the state is the size of the virtual map")
-        void sizeWorks() {
-            final var state = new OnDiskWritableKVState<>(
-                    FRUIT_STATE_KEY,
-                    onDiskKeyClassId(),
-                    STRING_CODEC,
-                    onDiskValueClassId(),
-                    STRING_CODEC,
-                    fruitVirtualMap);
-            assertThat(state.size()).isZero();
-
-            add(A_KEY, APPLE);
-            add(B_KEY, BANANA);
-            add(C_KEY, CHERRY);
-
-            assertThat(state.size()).isEqualTo(fruitVirtualMap.size());
-            assertThat(state.size()).isEqualTo(3);
         }
 
         @Test
@@ -269,8 +234,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         @DisplayName("The Smörgåsbord of modifications, rollbacks, commits, and fast copies")
         void smorgasbord() {
             //            setupConstructableRegistry();
-            // Let's read with get and getForModify, remove something, put a modification, and
-            // put something new.
+            // Let's read with get, remove something, put a modification, and put something new
             assertThat(state.get(A_KEY)).isEqualTo(APPLE);
             assertThat(state.get(B_KEY)).isEqualTo(BANANA);
             state.put(C_KEY, CHERRY);
@@ -296,7 +260,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
                     onDiskValueClassId(),
                     STRING_CODEC,
                     fruitVirtualMap);
-            assertThat(state.getForModify(A_KEY)).isEqualTo(APPLE);
+            assertThat(state.get(A_KEY)).isEqualTo(APPLE);
             state.remove(B_KEY);
             assertThat(state.get(C_KEY)).isEqualTo(CHERRY);
             state.put(D_KEY, DATE);

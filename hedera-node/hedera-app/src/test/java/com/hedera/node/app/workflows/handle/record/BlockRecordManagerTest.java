@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
@@ -51,15 +36,14 @@ import com.hedera.node.app.records.impl.producers.StreamFileProducerSingleThread
 import com.hedera.node.app.records.impl.producers.formats.BlockRecordWriterFactoryImpl;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
-import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
@@ -106,7 +90,6 @@ final class BlockRecordManagerTest extends AppTestBase {
 
     @BeforeEach
     void setUpEach() throws Exception {
-        PLATFORM_STATE_SERVICE.setAppVersionFn(ServicesSoftwareVersion::from);
         // create in memory temp dir
         fs = Jimfs.newFileSystem(Configuration.unix());
         final var tempDir = fs.getPath("/temp");
@@ -442,7 +425,7 @@ final class BlockRecordManagerTest extends AppTestBase {
     }
 
     private static State simpleBlockInfoState(final BlockInfo blockInfo) {
-        return new State() {
+        return new TestMerkleStateRoot() {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull final String serviceName) {
@@ -451,12 +434,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                         new ReadableSingletonStateBase<>(V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY, () -> blockInfo),
                         RUNNING_HASHES_STATE_KEY,
                         new ReadableSingletonStateBase<>(RUNNING_HASHES_STATE_KEY, () -> RunningHashes.DEFAULT)));
-            }
-
-            @NonNull
-            @Override
-            public WritableStates getWritableStates(@NonNull String serviceName) {
-                throw new UnsupportedOperationException("Shouldn't be needed for this test");
             }
         };
     }

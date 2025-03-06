@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 /*
  * This file is public domain.
@@ -26,17 +11,19 @@ package com.swirlds.demo.iss;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
-import com.hedera.hapi.node.base.SemanticVersion;
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+
 import com.swirlds.common.constructable.ConstructableIgnored;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.platform.test.fixtures.state.FakeStateLifecycles;
+import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
@@ -44,23 +31,23 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
  * State for the ISSTestingTool.
  */
 @ConstructableIgnored
-public class ISSTestingToolState extends PlatformMerkleStateRoot {
+public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> implements MerkleNodeState {
 
     private static class ClassVersion {
         public static final int ORIGINAL = 1;
     }
 
     static {
-        FakeStateLifecycles.registerMerkleStateRootClassIds();
+        FakeConsensusStateEventHandler.registerMerkleStateRootClassIds();
     }
 
     private static final long CLASS_ID = 0xf059378c7764ef47L;
@@ -91,11 +78,20 @@ public class ISSTestingToolState extends PlatformMerkleStateRoot {
      */
     private List<PlannedLogError> plannedLogErrorList = new LinkedList<>();
 
-    public ISSTestingToolState(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        super(versionFactory);
+    public ISSTestingToolState() {
+        // no-op
     }
 
     public void initState(InitTrigger trigger, Platform platform) {
+        throwIfImmutable();
+
+        final PlatformContext platformContext = platform.getContext();
+        super.init(
+                platformContext.getTime(),
+                platformContext.getMetrics(),
+                platformContext.getMerkleCryptography(),
+                () -> DEFAULT_PLATFORM_STATE_FACADE.roundOf(this));
+
         // since the test occurrences are relative to the genesis timestamp, the data only needs to be parsed at genesis
         if (trigger == InitTrigger.GENESIS) {
             final ISSTestingToolConfig testingToolConfig =
@@ -177,11 +173,16 @@ public class ISSTestingToolState extends PlatformMerkleStateRoot {
      */
     private ISSTestingToolState(final ISSTestingToolState that) {
         super(that);
+        this.runningSum = that.runningSum;
+        this.genesisTimestamp = that.genesisTimestamp;
+        this.plannedIssList = new ArrayList<>(that.plannedIssList);
+        this.plannedLogErrorList = new ArrayList<>(that.plannedLogErrorList);
     }
 
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public synchronized ISSTestingToolState copy() {
         throwIfImmutable();
@@ -208,5 +209,10 @@ public class ISSTestingToolState extends PlatformMerkleStateRoot {
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.ORIGINAL;
+    }
+
+    @Override
+    protected ISSTestingToolState copyingConstructor() {
+        return new ISSTestingToolState(this);
     }
 }

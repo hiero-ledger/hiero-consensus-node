@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
@@ -43,13 +28,11 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.schedule.ScheduledOrder;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
@@ -59,16 +42,17 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.throttle.Throttle;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -88,18 +72,26 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
     private static final Logger log = LogManager.getLogger(ScheduleCreateHandler.class);
 
     private final ScheduleOpsUsage scheduleOpsUsage = new ScheduleOpsUsage();
+    private final EntityIdFactory idFactory;
     private final InstantSource instantSource;
     private final Throttle.Factory throttleFactory;
 
     @Inject
     public ScheduleCreateHandler(
-            @NonNull final InstantSource instantSource, @NonNull final Throttle.Factory throttleFactory) {
+            @NonNull final EntityIdFactory idFactory,
+            @NonNull final InstantSource instantSource,
+            @NonNull final Throttle.Factory throttleFactory,
+            @NonNull final ScheduleFeeCharging feeCharging) {
+        super(feeCharging);
+        this.idFactory = requireNonNull(idFactory);
         this.instantSource = requireNonNull(instantSource);
         this.throttleFactory = requireNonNull(throttleFactory);
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody body) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var body = context.body();
         requireNonNull(body);
         validateTruePreCheck(body.hasScheduleCreate(), INVALID_TRANSACTION_BODY);
         final var op = body.scheduleCreateOrThrow();
@@ -218,11 +210,8 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final var schedulingTxnId =
                 provisionalSchedule.originalCreateTransactionOrThrow().transactionIDOrThrow();
         final var schedulerId = schedulingTxnId.accountIDOrThrow();
-        final var scheduleId = ScheduleID.newBuilder()
-                .shardNum(schedulerId.shardNum())
-                .realmNum(schedulerId.realmNum())
-                .scheduleNum(context.entityNumGenerator().newEntityNum(EntityType.SCHEDULE))
-                .build();
+        final var scheduleId =
+                idFactory.newScheduleId(context.entityNumGenerator().newEntityNum());
         var schedule = provisionalSchedule
                 .copyBuilder()
                 .scheduleId(scheduleId)
@@ -232,7 +221,7 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         if (tryToExecuteSchedule(context, schedule, requiredKeys, validationResult, isLongTermEnabled)) {
             schedule = markedExecuted(schedule, consensusNow);
         }
-        scheduleStore.put(schedule);
+        scheduleStore.putAndIncrementCount(schedule);
         context.savepointStack()
                 .getBaseBuilder(ScheduleStreamBuilder.class)
                 .scheduleID(schedule.scheduleId())

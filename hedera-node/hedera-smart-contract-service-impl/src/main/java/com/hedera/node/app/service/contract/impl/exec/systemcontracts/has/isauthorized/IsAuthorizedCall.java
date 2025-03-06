@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorized;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -26,6 +11,7 @@ import static com.hedera.pbj.runtime.io.buffer.Bytes.wrap;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
@@ -115,19 +101,21 @@ public class IsAuthorizedCall extends AbstractCall {
     protected PricedResult encodedOutput(
             final ResponseCodeEnum rce, final boolean authorized, final long gasRequirement) {
         final long code = rce.protoOrdinal();
-        final var output = IsAuthorizedTranslator.IS_AUTHORIZED.getOutputs().encodeElements(code, authorized);
+        final var output = IsAuthorizedTranslator.IS_AUTHORIZED.getOutputs().encode(Tuple.of(code, authorized));
         final var result = gasOnly(successResult(output, gasRequirement), SUCCESS, true);
         return result;
     }
 
     /**
-     * The Ethereum world uses 65 byte EC signatures, our cryptography library uses 64 byte EC signatures.  The
-     * difference is the addition of an extra "parity" byte at the end of the 64 byte signature (used so that
-     * `ECRECOVER` can recover the public key (== Ethereum address) from the signature.
+     * The Ethereum world uses 65+ byte EC signatures, our cryptography library uses 64 byte EC signatures.  The
+     * difference is the addition of an extra "parity" field at the end of the 64 byte signature (used so that
+     * `ECRECOVER` can recover the public key (== Ethereum address) from the signature.  And, the chain id can
+     * be encoded in that field (per EIP-155) and if the chain id is large enough (like Hedera mainnet/testnet
+     * chain ids) that last field can be more than one byte.
      *
-     * This method is a shim for that mismatch. It strips the extra byte off any 65 byte EC signatures it finds.
+     * This method is a shim for that mismatch. It strips the extra bytes off any 65+ byte EC signatures it finds.
      *
-     * @param sigMap Signature map from user - possibly contains 65 byte EC signatures
+     * @param sigMap Signature map from user - possibly contains 65+ byte EC signatures
      * @return Signature map with only 64 byte EC signatures (and all else unchanged)
      */
     public @NonNull SignatureMap fixEcSignaturesInMap(@NonNull final SignatureMap sigMap) {
@@ -135,7 +123,7 @@ public class IsAuthorizedCall extends AbstractCall {
         for (var spair : sigMap.sigPair()) {
             if (spair.hasEcdsaSecp256k1()) {
                 final var ecSig = requireNonNull(spair.ecdsaSecp256k1());
-                if (ecSig.length() == 65) {
+                if (ecSig.length() > 64) {
                     spair = new SignaturePair(
                             spair.pubKeyPrefix(), new OneOf<>(SignatureOneOfType.ECDSA_SECP256K1, ecSig.slice(0, 64)));
                 }

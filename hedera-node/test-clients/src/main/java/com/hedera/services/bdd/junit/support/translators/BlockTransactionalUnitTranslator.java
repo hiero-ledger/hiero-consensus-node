@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
@@ -36,6 +22,12 @@ import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_KEY_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_VOTE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_ASSEMBLY_SIGNATURE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_KEY_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
@@ -175,15 +167,21 @@ public class BlockTransactionalUnitTranslator {
                     put(TOKEN_UNPAUSE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(TOKEN_UPDATE, new TokenUpdateTranslator());
                     put(UTIL_PRNG, new UtilPrngTranslator());
+                    put(ATOMIC_BATCH, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HINTS_KEY_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HINTS_PARTIAL_SIGNATURE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HINTS_PREPROCESSING_VOTE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HISTORY_PROOF_KEY_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HISTORY_ASSEMBLY_SIGNATURE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HISTORY_PROOF_VOTE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                 }
             };
 
     /**
-     * Constructs a new {@link BlockTransactionalUnitTranslator} with the given network size.
-     * @param networkSize the network size
+     * Constructs a new {@link BlockTransactionalUnitTranslator}.
      */
-    public BlockTransactionalUnitTranslator(final int networkSize) {
-        baseTranslator = new BaseTranslator(networkSize - 1);
+    public BlockTransactionalUnitTranslator() {
+        baseTranslator = new BaseTranslator();
     }
 
     /**

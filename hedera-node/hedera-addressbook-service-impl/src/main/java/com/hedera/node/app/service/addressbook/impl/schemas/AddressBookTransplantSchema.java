@@ -9,7 +9,6 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
-import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableKVState;
@@ -30,16 +29,17 @@ public interface AddressBookTransplantSchema {
 
     default void restart(@NonNull final MigrationContext ctx) {
         requireNonNull(ctx);
-        if (ctx.appConfig().getConfigData(AddressBookConfig.class).useRosterLifecycle()) {
-            ctx.startupNetworks().overrideNetworkFor(ctx.roundNumber()).ifPresent(network -> {
-                final var count = setNodeMetadata(network, ctx.newStates());
-                log.info("Adopted {} node metadata entries from startup assets", count);
-            });
-        }
+        ctx.startupNetworks()
+                .overrideNetworkFor(ctx.roundNumber(), ctx.platformConfig())
+                .ifPresent(network -> {
+                    final var count = setNodeMetadata(network, ctx.newStates());
+                    log.info("Adopted {} node metadata entries from startup assets", count);
+                });
     }
 
     /**
      * Set the node metadata in the state from the provided network, for whatever nodes they are available.
+     *
      * @param network the network from which to extract the node metadata
      * @param writableStates the state in which to store the node metadata
      */

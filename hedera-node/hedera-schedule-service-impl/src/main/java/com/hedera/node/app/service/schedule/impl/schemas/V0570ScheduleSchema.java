@@ -1,26 +1,11 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.schemas;
 
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_EQUALITY_KEY;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_EXPIRY_SEC_KEY;
 import static java.util.Objects.requireNonNull;
 import static java.util.Spliterator.DISTINCT;
-import static java.util.Spliterators.spliterator;
+import static java.util.Spliterators.spliteratorUnknownSize;
 
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -106,7 +91,7 @@ public final class V0570ScheduleSchema extends Schema {
 
         final var secondsMigrated = new AtomicInteger();
         final var schedulesMigrated = new AtomicInteger();
-        StreamSupport.stream(spliterator(schedulesByExpiry.keys(), schedulesByExpiry.size(), DISTINCT), false)
+        StreamSupport.stream(spliteratorUnknownSize(schedulesByExpiry.keys(), DISTINCT), false)
                 .forEach(second -> {
                     final var scheduleList = schedulesByExpiry.get(second);
                     if (scheduleList != null) {
@@ -128,9 +113,7 @@ public final class V0570ScheduleSchema extends Schema {
                 ctx.newStates().get(SCHEDULE_ID_BY_EQUALITY_KEY);
         final ReadableKVState<ProtoBytes, ScheduleList> readableSchedulesByEquality =
                 ctx.previousStates().get(SCHEDULES_BY_EQUALITY_KEY);
-        StreamSupport.stream(
-                        spliterator(readableSchedulesByEquality.keys(), readableSchedulesByEquality.size(), DISTINCT),
-                        false)
+        StreamSupport.stream(spliteratorUnknownSize(readableSchedulesByEquality.keys(), DISTINCT), false)
                 .forEach(key -> {
                     final var scheduleList = readableSchedulesByEquality.get(key);
                     if (scheduleList != null) {
@@ -140,7 +123,7 @@ public final class V0570ScheduleSchema extends Schema {
                         writableScheduleByEquality.put(key, newScheduleId);
                     }
                 });
-        log.info("Migrated {} schedules from SCHEDULES_BY_EQUALITY_KEY", readableSchedulesByEquality.size());
+        log.info("Migrated schedules from SCHEDULES_BY_EQUALITY_KEY");
     }
 
     private static StateDefinition<TimestampSeconds, ScheduledCounts> scheduledCounts() {

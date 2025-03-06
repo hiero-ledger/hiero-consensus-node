@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.decimals;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
@@ -21,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.UNREASONABLY_DIVISIBLE_TOKEN;
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.hapi.utils.HederaExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.decimals.DecimalsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.decimals.DecimalsTranslator;
@@ -55,7 +41,7 @@ class DecimalsCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(DecimalsTranslator.DECIMALS
                         .getOutputs()
-                        .encodeElements(FUNGIBLE_TOKEN.decimals())
+                        .encode(Tuple.singleton(FUNGIBLE_TOKEN.decimals()))
                         .array()),
                 result.getOutput());
     }
@@ -70,7 +56,7 @@ class DecimalsCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(DecimalsTranslator.DECIMALS
                         .getOutputs()
-                        .encodeElements(0xFF)
+                        .encode(Tuple.singleton(0xFF))
                         .array()),
                 result.getOutput());
     }

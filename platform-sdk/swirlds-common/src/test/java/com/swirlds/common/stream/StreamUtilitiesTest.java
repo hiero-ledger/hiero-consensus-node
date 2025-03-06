@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream;
 
 import static com.swirlds.common.stream.HashCalculatorTest.PAY_LOAD_SIZE_4;
@@ -54,7 +39,8 @@ import static org.mockito.Mockito.mock;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.RunningHashable;
@@ -89,6 +75,7 @@ import org.junit.jupiter.api.Test;
  */
 class StreamUtilitiesTest {
     private static final Logger logger = LogManager.getLogger(StreamUtilitiesTest.class);
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
     private static final Marker LOGM_OBJECT_STREAM = MarkerManager.getMarker("OBJECT_STREAM");
     private static final Marker LOGM_EXCEPTION = MarkerManager.getMarker("EXCEPTION");
     private static final int logPeriodMs = 500;
@@ -292,8 +279,8 @@ class StreamUtilitiesTest {
                 // endRunningHash should be the last one in the iterator
                 assertFalse(iterator.hasNext());
             } else {
-                Hash objectHash = CryptographyHolder.get().digestSync(object);
-                runningHash = CryptographyHolder.get().calcRunningHash(runningHash, objectHash, DigestType.SHA_384);
+                Hash objectHash = CRYPTOGRAPHY.digestSync(object);
+                runningHash = CRYPTOGRAPHY.calcRunningHash(runningHash, objectHash, DigestType.SHA_384);
             }
             objectsCount++;
             logger.info(LOGM_OBJECT_STREAM, "parsed object: {}", object);

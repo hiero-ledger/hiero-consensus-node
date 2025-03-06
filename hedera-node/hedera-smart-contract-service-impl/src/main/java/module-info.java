@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * Module that provides the implementation of the Hedera Smart Contract Service.
  */

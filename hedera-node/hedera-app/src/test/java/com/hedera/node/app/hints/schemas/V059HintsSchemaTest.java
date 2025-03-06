@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.schemas;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -65,8 +50,8 @@ class V059HintsSchemaTest {
     @Test
     void definesStatesWithExpectedKeys() {
         final var expectedStateNames = Set.of(
-                V059HintsSchema.ACTIVE_CONSTRUCTION_KEY,
-                V059HintsSchema.NEXT_CONSTRUCTION_KEY,
+                V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY,
+                V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY,
                 V059HintsSchema.PREPROCESSING_VOTES_KEY,
                 V059HintsSchema.HINTS_KEY_SETS_KEY);
         final var actualStateNames =
@@ -77,9 +62,9 @@ class V059HintsSchemaTest {
     @Test
     void ensuresNonNullSingletonValues() {
         given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_CONSTRUCTION_KEY))
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY))
                 .willReturn(activeConstructionState);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_CONSTRUCTION_KEY))
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY))
                 .willReturn(nextConstructionState);
 
         subject.migrate(migrationContext);
@@ -91,7 +76,7 @@ class V059HintsSchemaTest {
     @Test
     void restartSetsFinishedConstructionInContext() {
         given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_CONSTRUCTION_KEY))
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY))
                 .willReturn(activeConstructionState);
         final var construction = HintsConstruction.newBuilder()
                 .hintsScheme(new HintsScheme(PreprocessedKeys.DEFAULT, List.of()))
@@ -106,7 +91,7 @@ class V059HintsSchemaTest {
     @Test
     void restartDoesNotSetUnfinishedConstructionInContext() {
         given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_CONSTRUCTION_KEY))
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY))
                 .willReturn(activeConstructionState);
         given(activeConstructionState.get()).willReturn(HintsConstruction.DEFAULT);
 

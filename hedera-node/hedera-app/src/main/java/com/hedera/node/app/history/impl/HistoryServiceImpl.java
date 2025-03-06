@@ -1,32 +1,20 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
+import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.schemas.V059HistorySchema;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -39,6 +27,9 @@ import java.util.function.Consumer;
  * Default implementation of the {@link HistoryService}.
  */
 public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof> {
+    @Deprecated
+    private final Configuration bootstrapConfig;
+
     private final HistoryServiceComponent component;
 
     /**
@@ -52,8 +43,23 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
             @NonNull final HistoryLibrary library,
-            @NonNull final HistoryLibraryCodec codec) {
-        component = DaggerHistoryServiceComponent.factory().create(library, codec, appContext, executor, metrics, this);
+            @NonNull final HistoryLibraryCodec codec,
+            @NonNull final Configuration bootstrapConfig) {
+        this.bootstrapConfig = requireNonNull(bootstrapConfig);
+        this.component =
+                DaggerHistoryServiceComponent.factory().create(library, codec, appContext, executor, metrics, this);
+    }
+
+    @VisibleForTesting
+    public HistoryServiceImpl(
+            @NonNull final HistoryServiceComponent component, @NonNull final Configuration bootstrapConfig) {
+        this.component = requireNonNull(component);
+        this.bootstrapConfig = requireNonNull(bootstrapConfig);
+    }
+
+    @Override
+    public HistoryHandlers handlers() {
+        return component.handlers();
     }
 
     @Override
@@ -67,7 +73,22 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
         requireNonNull(historyStore);
         requireNonNull(now);
         requireNonNull(tssConfig);
-        throw new UnsupportedOperationException();
+        switch (activeRosters.phase()) {
+            case BOOTSTRAP, TRANSITION -> {
+                final var construction = historyStore.getOrCreateConstruction(activeRosters, now, tssConfig);
+                if (!construction.hasTargetProof()) {
+                    final var controller =
+                            component.controllers().getOrCreateFor(activeRosters, construction, historyStore);
+                    controller.advanceConstruction(now, metadata, historyStore);
+                }
+            }
+            case HANDOFF -> {
+                if (historyStore.purgeStateAfterHandoff(activeRosters)) {
+                    final var construction = requireNonNull(historyStore.getConstructionFor(activeRosters));
+                    this.accept(construction.targetProofOrThrow());
+                }
+            }
+        }
     }
 
     @Override
@@ -95,6 +116,9 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
-        registry.register(new V059HistorySchema(this));
+        final var tssConfig = bootstrapConfig.getConfigData(TssConfig.class);
+        if (tssConfig.historyEnabled()) {
+            registry.register(new V059HistorySchema(this));
+        }
     }
 }

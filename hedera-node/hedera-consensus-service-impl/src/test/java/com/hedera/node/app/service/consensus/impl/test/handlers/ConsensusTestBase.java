@@ -1,36 +1,32 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl.test.handlers;
 
 import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.consensus.Topic;
+import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.state.token.Token;
+import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.hapi.node.transaction.FixedCustomFee;
+import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.ReadableTopicStoreImpl;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.ReadableTokenRelationStore;
+import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -41,6 +37,7 @@ import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.List;
 import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,6 +52,7 @@ public class ConsensusTestBase {
     private static final String A_NAME = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     private static final String B_NAME = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     private static final String C_NAME = "cccccccccccccccccccccccccccccccc";
+    private static final String SCHEDULE_KEY = "scheduleKey";
     private static final Function<String, Key.Builder> KEY_BUILDER =
             value -> Key.newBuilder().ed25519(Bytes.wrap(value.getBytes()));
     public static final Key A_THRESHOLD_KEY = Key.newBuilder()
@@ -86,12 +84,18 @@ public class ConsensusTestBase {
                                     KEY_BUILDER.apply(B_NAME).build(),
                                     A_COMPLEX_KEY)))
             .build();
+    public static final Key SHEDULE_KEY = Key.newBuilder()
+            .keyList(KeyList.newBuilder().keys(KEY_BUILDER.apply(SCHEDULE_KEY).build()))
+            .build();
     protected final Key key = A_COMPLEX_KEY;
     protected final Key anotherKey = B_COMPLEX_KEY;
+    protected final Key feeScheduleKey = SHEDULE_KEY;
     protected final AccountID payerId = AccountID.newBuilder().accountNum(3).build();
     public static final AccountID anotherPayer =
             AccountID.newBuilder().accountNum(13257).build();
+    protected final AccountID ownerId = AccountID.newBuilder().accountNum(555).build();
     protected final AccountID autoRenewId = AccountID.newBuilder().accountNum(1).build();
+    protected final TokenID fungibleTokenId = TokenID.newBuilder().tokenNum(1).build();
     protected final byte[] runningHash = "runningHash".getBytes();
 
     protected final Key adminKey = key;
@@ -106,6 +110,18 @@ public class ConsensusTestBase {
     protected final long sequenceNumber = 1L;
     protected final long autoRenewSecs = 100L;
     protected final Instant consensusTimestamp = Instant.ofEpochSecond(1_234_567L);
+    protected final FixedCustomFee tokenCustomFee = FixedCustomFee.newBuilder()
+            .fixedFee(FixedFee.newBuilder()
+                    .denominatingTokenId(fungibleTokenId)
+                    .amount(1)
+                    .build())
+            .feeCollectorAccountId(anotherPayer)
+            .build();
+    protected final FixedCustomFee hbarCustomFee = FixedCustomFee.newBuilder()
+            .fixedFee(FixedFee.newBuilder().amount(1).build())
+            .feeCollectorAccountId(anotherPayer)
+            .build();
+    protected final List<FixedCustomFee> customFees = List.of(tokenCustomFee, hbarCustomFee);
 
     protected Topic topic;
 
@@ -123,8 +139,20 @@ public class ConsensusTestBase {
     @Mock(strictness = LENIENT)
     protected StoreFactory storeFactory;
 
+    @Mock(strictness = LENIENT)
+    private ReadableAccountStore accountStore;
+
+    @Mock(strictness = LENIENT)
+    private ReadableTokenStore tokenStore;
+
+    @Mock(strictness = LENIENT)
+    private ReadableTokenRelationStore tokenRelStore;
+
     @Mock
-    private StoreMetricsService storeMetricsService;
+    protected WritableEntityCounters entityCounters;
+
+    @Mock
+    protected ReadableEntityCounters readableEntityCounters;
 
     protected MapReadableKVState<TopicID, Topic> readableTopicState;
     protected MapWritableKVState<TopicID, Topic> writableTopicState;
@@ -143,9 +171,9 @@ public class ConsensusTestBase {
         writableTopicState = emptyWritableTopicState();
         given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
         given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableTopicState);
-        readableStore = new ReadableTopicStoreImpl(readableStates);
+        readableStore = new ReadableTopicStoreImpl(readableStates, entityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableTopicStore(writableStates, configuration, storeMetricsService);
+        writableStore = new WritableTopicStore(writableStates, entityCounters);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableTopicStore.class)).willReturn(writableStore);
     }
@@ -155,9 +183,9 @@ public class ConsensusTestBase {
         writableTopicState = writableTopicStateWithOneKey();
         given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
         given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableTopicState);
-        readableStore = new ReadableTopicStoreImpl(readableStates);
+        readableStore = new ReadableTopicStoreImpl(readableStates, entityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableTopicStore(writableStates, configuration, storeMetricsService);
+        writableStore = new WritableTopicStore(writableStates, entityCounters);
         given(storeFactory.writableStore(WritableTopicStore.class)).willReturn(writableStore);
     }
 
@@ -185,6 +213,31 @@ public class ConsensusTestBase {
         return MapReadableKVState.<TopicID, Topic>builder(TOPICS_KEY).build();
     }
 
+    protected void setUpStores(final HandleContext context) {
+        given(context.storeFactory()).willReturn(storeFactory);
+        var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        when(handleContext.configuration()).thenReturn(config);
+        // Set up account store
+        var account = Account.newBuilder().accountId(ownerId).build();
+        when(accountStore.getAccountById(ownerId)).thenReturn(account);
+        when(storeFactory.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
+        // Set up token store
+        var token = Token.newBuilder().tokenId(fungibleTokenId).build();
+        var tokenRel = TokenRelation.newBuilder()
+                .tokenId(fungibleTokenId)
+                .accountId(ownerId)
+                .build();
+        when(tokenStore.get(fungibleTokenId)).thenReturn(token);
+        when(tokenRelStore.get(ownerId, fungibleTokenId)).thenReturn(tokenRel);
+        when(storeFactory.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+        when(storeFactory.readableStore(ReadableTokenRelationStore.class)).thenReturn(tokenRelStore);
+        // Set up topic store
+        //        givenValidTopic();
+        writableStore.put(topic);
+        when(storeFactory.readableStore(ReadableTopicStore.class)).thenReturn(readableStore);
+        when(storeFactory.writableStore(WritableTopicStore.class)).thenReturn(writableStore);
+    }
+
     protected void givenValidTopic() {
         givenValidTopic(autoRenewId);
     }
@@ -203,28 +256,31 @@ public class ConsensusTestBase {
 
     protected void givenValidTopic(
             AccountID autoRenewAccountId, boolean deleted, boolean withAdminKey, boolean withSubmitKey) {
-        topic = new Topic(
-                topicId,
-                sequenceNumber,
-                expirationTime,
-                autoRenewSecs,
-                autoRenewAccountId,
-                deleted,
-                Bytes.wrap(runningHash),
-                memo,
-                withAdminKey ? key : null,
-                withSubmitKey ? key : null);
-        topicNoKeys = new Topic(
-                topicId,
-                sequenceNumber,
-                expirationTime,
-                autoRenewSecs,
-                autoRenewAccountId,
-                deleted,
-                Bytes.wrap(runningHash),
-                memo,
-                null,
-                null);
+        topic = Topic.newBuilder()
+                .topicId(topicId)
+                .sequenceNumber(sequenceNumber)
+                .expirationSecond(expirationTime)
+                .autoRenewPeriod(autoRenewSecs)
+                .autoRenewAccountId(autoRenewAccountId)
+                .deleted(deleted)
+                .runningHash(Bytes.wrap(runningHash))
+                .memo(memo)
+                .adminKey(withAdminKey ? key : null)
+                .submitKey(withSubmitKey ? key : null)
+                .feeScheduleKey(feeScheduleKey)
+                .feeExemptKeyList(List.of(key, anotherKey))
+                .customFees(customFees)
+                .build();
+        topicNoKeys = Topic.newBuilder()
+                .topicId(topicId)
+                .sequenceNumber(sequenceNumber)
+                .expirationSecond(expirationTime)
+                .autoRenewPeriod(autoRenewSecs)
+                .autoRenewAccountId(autoRenewAccountId)
+                .deleted(deleted)
+                .runningHash(Bytes.wrap(runningHash))
+                .memo(memo)
+                .build();
     }
 
     protected Topic createTopic() {

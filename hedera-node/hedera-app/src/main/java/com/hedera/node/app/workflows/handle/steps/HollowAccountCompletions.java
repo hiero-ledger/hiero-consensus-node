@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
@@ -36,6 +21,7 @@ import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.workflows.handle.Dispatch;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -102,7 +88,8 @@ public class HollowAccountCompletions {
         if (maybeEthTxSigs != null) {
             final var alias = Bytes.wrap(maybeEthTxSigs.address());
             final var accountStore = userTxn.readableStoreFactory().getStore(ReadableAccountStore.class);
-            final var maybeHollowAccountId = accountStore.getAccountIDByAlias(alias);
+            final var config = userTxn.config().getConfigData(HederaConfig.class);
+            final var maybeHollowAccountId = accountStore.getAccountIDByAlias(config.shard(), config.realm(), alias);
             if (maybeHollowAccountId != null) {
                 final var maybeHollowAccount = requireNonNull(accountStore.getAccountById(maybeHollowAccountId));
                 if (isHollow(maybeHollowAccount)) {

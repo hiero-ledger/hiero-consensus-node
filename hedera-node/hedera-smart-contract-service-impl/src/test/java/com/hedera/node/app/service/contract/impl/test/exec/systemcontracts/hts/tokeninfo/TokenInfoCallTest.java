@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.tokeninfo;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -72,10 +57,10 @@ class TokenInfoCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TOKEN_INFO
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
-                                Tuple.of(
-                                        Tuple.of(
+                                Tuple.from(
+                                        Tuple.from(
                                                 "Fungible Everything Token",
                                                 "FET",
                                                 headlongAddressOf(SENDER_ID),
@@ -93,7 +78,7 @@ class TokenInfoCallTest extends CallTestBase {
                                         EXPECTED_FRACTIONAL_CUSTOM_FEES.toArray(new Tuple[0]),
                                         EXPECTED_ROYALTY_CUSTOM_FEES.toArray(new Tuple[0]),
                                         Bytes.wrap(expectedLedgerId.toByteArray())
-                                                .toString()))
+                                                .toString())))
                         .array()),
                 result.getOutput());
     }
@@ -118,10 +103,10 @@ class TokenInfoCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TOKEN_INFO_V2
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
-                                Tuple.of(
-                                        Tuple.of(
+                                Tuple.from(
+                                        Tuple.from(
                                                 "Fungible Everything Token",
                                                 "FET",
                                                 headlongAddressOf(SENDER_ID),
@@ -141,7 +126,7 @@ class TokenInfoCallTest extends CallTestBase {
                                         EXPECTED_FRACTIONAL_CUSTOM_FEES.toArray(new Tuple[0]),
                                         EXPECTED_ROYALTY_CUSTOM_FEES.toArray(new Tuple[0]),
                                         Bytes.wrap(expectedLedgerId.toByteArray())
-                                                .toString()))
+                                                .toString())))
                         .array()),
                 result.getOutput());
     }
@@ -161,10 +146,10 @@ class TokenInfoCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(TOKEN_INFO
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 INVALID_TOKEN_ID.protoOrdinal(),
-                                Tuple.of(
-                                        Tuple.of(
+                                Tuple.from(
+                                        Tuple.from(
                                                 "",
                                                 "",
                                                 headlongAddressOf(ZERO_ACCOUNT_ID),
@@ -182,7 +167,7 @@ class TokenInfoCallTest extends CallTestBase {
                                         Collections.emptyList().toArray(new Tuple[0]),
                                         Collections.emptyList().toArray(new Tuple[0]),
                                         Bytes.wrap(expectedLedgerId.toByteArray())
-                                                .toString()))
+                                                .toString())))
                         .array()),
                 result.getOutput());
     }

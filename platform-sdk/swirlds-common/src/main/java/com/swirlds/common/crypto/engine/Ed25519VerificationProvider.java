@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2019-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.crypto.engine;
 
 import static com.swirlds.common.utility.CommonUtils.hex;
@@ -24,7 +9,6 @@ import com.goterl.lazysodium.SodiumJava;
 import com.goterl.lazysodium.interfaces.Sign;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
-import java.nio.ByteBuffer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -105,9 +89,14 @@ public class Ed25519VerificationProvider
     protected Boolean handleItem(
             final Sign.Native algorithm,
             final SignatureType algorithmType,
-            final TransactionSignature item,
+            final TransactionSignature sig,
             final Void optionalData) {
-        return compute(algorithm, algorithmType, item);
+        return compute(
+                algorithm,
+                algorithmType,
+                sig.getMessage().toByteArray(),
+                sig.getSignature().toByteArray(),
+                sig.getPublicKey().toByteArray());
     }
 
     /**
@@ -144,38 +133,5 @@ public class Ed25519VerificationProvider
         }
 
         return isValid;
-    }
-
-    /**
-     * Computes the result of the cryptographic transformation using the provided sig and algorithm.
-     *
-     * @param algorithm
-     * 		the concrete instance of the required algorithm
-     * @param algorithmType
-     * 		the type of algorithm to be used when performing the transformation
-     * @param sig
-     * 		the input signature to be transformed
-     * @return true if the provided signature is valid; false otherwise
-     */
-    private boolean compute(
-            final Sign.Native algorithm, final SignatureType algorithmType, final TransactionSignature sig) {
-        final byte[] payload = sig.getContentsDirect();
-        final byte[] expandedPublicKey = sig.getExpandedPublicKey();
-
-        final ByteBuffer buffer = ByteBuffer.wrap(payload);
-        final ByteBuffer pkBuffer = (expandedPublicKey != null && expandedPublicKey.length > 0)
-                ? ByteBuffer.wrap(expandedPublicKey)
-                : buffer;
-        final byte[] signature = new byte[sig.getSignatureLength()];
-        final byte[] publicKey = new byte[sig.getPublicKeyLength()];
-        final byte[] message = new byte[sig.getMessageLength()];
-
-        buffer.position(sig.getMessageOffset())
-                .get(message)
-                .position(sig.getSignatureOffset())
-                .get(signature);
-        pkBuffer.position(sig.getPublicKeyOffset()).get(publicKey);
-
-        return compute(algorithm, algorithmType, message, signature, publicKey);
     }
 }

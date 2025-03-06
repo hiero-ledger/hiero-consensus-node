@@ -16,6 +16,8 @@ state.mainClassNameOverride,                   com.hedera.services.ServicesMain
                                           #############################
 
 event.enableEventStreaming,                    false                        # differs from mainnet
+transaction.transactionMaxBytes,               2621440                      # 2.5MB, differs from mainnet
+transaction.maxTransactionBytesPerEvent,       2621440                      # 2.5MB, differs from mainnet
 
                                           #############################
                                           #          Metrics          #

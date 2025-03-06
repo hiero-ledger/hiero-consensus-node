@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.NOT_SUPPORTED;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSamePrecompileResult;
 import static org.mockito.Mockito.when;
@@ -81,7 +67,7 @@ class HssSystemContractTest {
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(contractsConfig);
         when(contractsConfig.systemContractScheduleServiceEnabled()).thenReturn(false);
         final var expected = haltResult(NOT_SUPPORTED, frame.getRemainingGas());
-        final var result = subject.computeFully(validInput, frame);
+        final var result = subject.computeFully(HSS_CONTRACT_ID, validInput, frame);
         assertSamePrecompileResult(expected, result);
     }
 }

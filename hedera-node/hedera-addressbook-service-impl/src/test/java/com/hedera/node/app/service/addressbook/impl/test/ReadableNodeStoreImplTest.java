@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.test;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.asBytes;
@@ -32,6 +17,7 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.test.handlers.AddressBookTestBase;
@@ -48,7 +34,7 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new ReadableNodeStoreImpl(readableStates);
+        subject = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
     }
 
     @Test
@@ -71,26 +57,26 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
         final var state =
                 MapReadableKVState.<EntityNumber, Node>builder(NODES_KEY).build();
         given(readableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(state);
-        subject = new ReadableNodeStoreImpl(readableStates);
+        subject = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
 
         assertThat(subject.get(nodeId.number())).isNull();
     }
 
     @Test
     void constructorCreatesNodeState() {
-        final var store = new ReadableNodeStoreImpl(readableStates);
+        final var store = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
         assertNotNull(store);
     }
 
     @Test
     void nullArgsFail() {
-        assertThrows(NullPointerException.class, () -> new ReadableNodeStoreImpl(null));
+        assertThrows(NullPointerException.class, () -> new ReadableNodeStoreImpl(null, readableEntityCounters));
     }
 
     @Test
     void getSizeOfState() {
-        final var store = new ReadableNodeStoreImpl(readableStates);
-        assertEquals(readableStates.get(NODES_KEY).size(), store.sizeOfState());
+        final var store = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
+        assertEquals(readableEntityCounters.getCounterFor(EntityType.NODE), store.sizeOfState());
     }
 
     @Test
@@ -103,7 +89,7 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
                 .value(new EntityNumber(1), mock(Node.class));
         readableNodeState = stateBuilder.build();
         given(readableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(readableNodeState);
-        subject = new ReadableNodeStoreImpl(readableStates);
+        subject = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
         final var keys = subject.keys();
 
         assertTrue(keys.hasNext());
@@ -125,7 +111,7 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
                 .build();
         given(readableStates.<EntityNumber, Node>get(anyString())).willReturn(nodesState);
 
-        subject = new ReadableNodeStoreImpl(readableStates);
+        subject = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
         final var result = subject.snapshotOfFutureRoster(nodeId ->
                 nodesState.get(EntityNumber.newBuilder().number(nodeId).build()).weight());
         org.assertj.core.api.Assertions.assertThat(result.rosterEntries())

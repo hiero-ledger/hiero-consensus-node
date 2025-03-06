@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.ids;
 
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
@@ -22,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
@@ -114,6 +100,26 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
     @Override
     public long numAirdrops() {
         return requireNonNull(entityCountsState.get()).numAirdrops();
+    }
+
+    @Override
+    public long getCounterFor(final EntityType entityType) {
+        final var entityState = requireNonNull(entityCountsState.get());
+        return switch (entityType) {
+            case ACCOUNT -> entityState.numAccounts();
+            case TOKEN -> entityState.numTokens();
+            case NODE -> entityState.numNodes();
+            case FILE -> entityState.numFiles();
+            case TOPIC -> entityState.numTopics();
+            case CONTRACT_BYTECODE -> entityState.numContractBytecodes();
+            case CONTRACT_STORAGE -> entityState.numContractStorageSlots();
+            case NFT -> entityState.numNfts();
+            case TOKEN_ASSOCIATION -> entityState.numTokenRelations();
+            case ALIAS -> entityState.numAliases();
+            case SCHEDULE -> entityState.numSchedules();
+            case AIRDROP -> entityState.numAirdrops();
+            case STAKING_INFO -> entityState.numStakingInfos();
+        };
     }
 
     @Override

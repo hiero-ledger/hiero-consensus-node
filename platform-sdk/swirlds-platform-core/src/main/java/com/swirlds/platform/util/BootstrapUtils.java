@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.util;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -49,13 +34,14 @@ import com.swirlds.platform.health.OSHealthChecker;
 import com.swirlds.platform.health.clock.OSClockSpeedSourceChecker;
 import com.swirlds.platform.health.entropy.OSEntropyChecker;
 import com.swirlds.platform.health.filesystem.OSFileSystemChecker;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.swirldapp.AppLoaderException;
 import com.swirlds.platform.swirldapp.SwirldAppLoader;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.address.Address;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.awt.Dimension;
@@ -227,15 +213,17 @@ public final class BootstrapUtils {
      * @return true if there is a software upgrade, false otherwise
      */
     public static boolean detectSoftwareUpgrade(
-            @NonNull final SoftwareVersion appVersion, @Nullable final SignedState loadedSignedState) {
+            @NonNull final SoftwareVersion appVersion,
+            @Nullable final SignedState loadedSignedState,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         requireNonNull(appVersion, "The app version must not be null.");
 
         final SoftwareVersion loadedSoftwareVersion;
         if (loadedSignedState == null) {
             loadedSoftwareVersion = null;
         } else {
-            PlatformMerkleStateRoot state = loadedSignedState.getState();
-            loadedSoftwareVersion = state.getReadablePlatformState().getCreationSoftwareVersion();
+            final State state = loadedSignedState.getState();
+            loadedSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
         }
         final int versionComparison = loadedSoftwareVersion == null ? 1 : appVersion.compareTo(loadedSoftwareVersion);
         final boolean softwareUpgrade;

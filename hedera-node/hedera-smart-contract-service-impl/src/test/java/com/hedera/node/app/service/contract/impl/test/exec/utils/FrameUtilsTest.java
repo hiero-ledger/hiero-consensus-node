@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.utils;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
@@ -33,6 +18,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PERMITTED_ADDRESS_CALLER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PERMITTED_CALLERS_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -56,6 +42,8 @@ import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.OpcodeUtils;
 import com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayDeque;
 import java.util.Arrays;
@@ -194,6 +182,7 @@ class FrameUtilsTest {
 
         given(proxyWorldUpdater.getHederaAccount(EIP_1014_ADDRESS)).willReturn(proxyEvmContract);
         given(proxyEvmContract.isTokenFacade()).willReturn(false);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         assertEquals(UNQUALIFIED_DELEGATE, FrameUtils.callTypeOf(frame, EntityType.TOKEN));
     }
@@ -212,6 +201,7 @@ class FrameUtilsTest {
         given(initialFrame.getContractAddress()).willReturn(PERMITTED_ADDRESS_CALLER);
 
         given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(PERMITTED_CALLERS_CONFIG);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         assertEquals(QUALIFIED_DELEGATE, FrameUtils.callTypeOf(frame, EntityType.TOKEN));
     }
@@ -259,6 +249,7 @@ class FrameUtilsTest {
 
         given(proxyWorldUpdater.getHederaAccount(EIP_1014_ADDRESS)).willReturn(proxyEvmContract);
         given(proxyEvmContract.isRegularAccount()).willReturn(false);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         assertEquals(UNQUALIFIED_DELEGATE, FrameUtils.callTypeOf(frame, EntityType.REGULAR_ACCOUNT));
     }
@@ -306,6 +297,7 @@ class FrameUtilsTest {
 
         given(proxyWorldUpdater.getHederaAccount(EIP_1014_ADDRESS)).willReturn(proxyEvmContract);
         given(proxyEvmContract.isScheduleTxnFacade()).willReturn(false);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         assertEquals(UNQUALIFIED_DELEGATE, FrameUtils.callTypeOf(frame, EntityType.SCHEDULE_TXN));
     }
@@ -365,7 +357,9 @@ class FrameUtilsTest {
     void checkContractRequired() {
         givenNonInitialFrame();
         given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         assertTrue(FrameUtils.contractRequired(frame, EIP_1014_ADDRESS, featureFlags));
         verify(featureFlags).isAllowCallsToNonContractAccountsEnabled(DEFAULT_CONTRACTS_CONFIG, null);
     }
@@ -374,7 +368,9 @@ class FrameUtilsTest {
     void checkContractRequiredLongZero() {
         givenNonInitialFrame();
         given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         assertTrue(FrameUtils.contractRequired(frame, NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS, featureFlags));
         verify(featureFlags)
                 .isAllowCallsToNonContractAccountsEnabled(
@@ -388,9 +384,52 @@ class FrameUtilsTest {
     void checkContractRequiredLongZeroTooBig() {
         givenNonInitialFrame();
         given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         assertTrue(FrameUtils.contractRequired(frame, Address.fromHexString("0xFFFFFFFFFFFFFFFF"), featureFlags));
         verify(featureFlags).isAllowCallsToNonContractAccountsEnabled(DEFAULT_CONTRACTS_CONFIG, null);
+    }
+
+    @Test
+    void configuredPrecompileShouldBeDisabled() {
+        Configuration DISABLED_PRECOMPILE_CONFIG = HederaTestConfigBuilder.create()
+                .withValue("contracts.precompile.disabled", "2,4")
+                .getOrCreateConfig();
+        givenNonInitialFrame();
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DISABLED_PRECOMPILE_CONFIG);
+
+        var shouldBeFalse = FrameUtils.isPrecompileEnabled(Address.precompiled(2), frame);
+        assertFalse(shouldBeFalse);
+
+        shouldBeFalse = FrameUtils.isPrecompileEnabled(Address.precompiled(4), frame);
+        assertFalse(shouldBeFalse);
+
+        var shouldBeTrue = FrameUtils.isPrecompileEnabled(Address.precompiled(1), frame);
+        assertTrue(shouldBeTrue);
+
+        shouldBeTrue = FrameUtils.isPrecompileEnabled(Address.precompiled(3), frame);
+        assertTrue(shouldBeTrue);
+
+        shouldBeTrue = FrameUtils.isPrecompileEnabled(Address.precompiled(8), frame);
+        assertTrue(shouldBeTrue);
+    }
+
+    @Test
+    void allPrecompileEnabledIfDisabledListEmpty() {
+        Configuration DISABLED_PRECOMPILE_CONFIG = HederaTestConfigBuilder.create()
+                .withValue("contracts.precompile.disabled", "")
+                .getOrCreateConfig();
+        givenNonInitialFrame();
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DISABLED_PRECOMPILE_CONFIG);
+
+        boolean shouldBeTrue;
+        for (int i = 1; i < 10; i++) {
+            shouldBeTrue = FrameUtils.isPrecompileEnabled(Address.precompiled(3), frame);
+            assertTrue(shouldBeTrue);
+        }
     }
 
     void givenNonInitialFrame() {

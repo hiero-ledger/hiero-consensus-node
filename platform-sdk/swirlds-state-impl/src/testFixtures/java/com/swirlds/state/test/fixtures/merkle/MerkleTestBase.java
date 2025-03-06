@@ -1,25 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
-import static com.swirlds.state.merkle.StateUtils.computeClassId;
+import static com.swirlds.state.lifecycle.StateMetadata.computeClassId;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.constructable.ClassConstructorPair;
@@ -40,7 +24,7 @@ import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.disk.OnDiskKey;
 import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
 import com.swirlds.state.merkle.disk.OnDiskValue;
@@ -50,6 +34,7 @@ import com.swirlds.state.merkle.memory.InMemoryValue;
 import com.swirlds.state.merkle.queue.QueueNode;
 import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.test.fixtures.StateTestBase;
+import com.swirlds.state.test.fixtures.TestArgumentUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.serialize.KeySerializer;
@@ -96,17 +81,10 @@ public class MerkleTestBase extends StateTestBase {
             .withConfigDataType(FileSystemManagerConfig.class)
             .build();
 
-    public static final String FIRST_SERVICE = "First-Service";
-    public static final String SECOND_SERVICE = "Second-Service";
-    public static final String UNKNOWN_SERVICE = "Bogus-Service";
-
     /** A TEST ONLY {@link Codec} to be used with String data types */
     public static final Codec<String> STRING_CODEC = TestStringCodec.SINGLETON;
     /** A TEST ONLY {@link Codec} to be used with Long data types */
     public static final Codec<Long> LONG_CODEC = TestLongCodec.SINGLETON;
-
-    public static final SemanticVersion TEST_VERSION =
-            SemanticVersion.newBuilder().major(1).build();
 
     private static final String ON_DISK_KEY_CLASS_ID_SUFFIX = "OnDiskKey";
     private static final String ON_DISK_VALUE_CLASS_ID_SUFFIX = "OnDiskValue";
@@ -164,13 +142,13 @@ public class MerkleTestBase extends StateTestBase {
 
     /** Sets up the "Fruit" merkle map, label, and metadata. */
     protected void setupFruitMerkleMap() {
-        fruitLabel = StateUtils.computeLabel(FIRST_SERVICE, FRUIT_STATE_KEY);
+        fruitLabel = StateMetadata.computeLabel(FIRST_SERVICE, FRUIT_STATE_KEY);
         fruitMerkleMap = createMerkleMap(fruitLabel);
     }
 
     /** Sets up the "Fruit" virtual map, label, and metadata. */
     protected void setupFruitVirtualMap() {
-        fruitVirtualLabel = StateUtils.computeLabel(FIRST_SERVICE, FRUIT_STATE_KEY);
+        fruitVirtualLabel = StateMetadata.computeLabel(FIRST_SERVICE, FRUIT_STATE_KEY);
         fruitVirtualMap = createVirtualMap(
                 fruitVirtualLabel,
                 onDiskKeySerializerClassId(FRUIT_STATE_KEY),
@@ -227,18 +205,18 @@ public class MerkleTestBase extends StateTestBase {
 
     /** Sets up the "Animal" merkle map, label, and metadata. */
     protected void setupAnimalMerkleMap() {
-        animalLabel = StateUtils.computeLabel(FIRST_SERVICE, ANIMAL_STATE_KEY);
+        animalLabel = StateMetadata.computeLabel(FIRST_SERVICE, ANIMAL_STATE_KEY);
         animalMerkleMap = createMerkleMap(animalLabel);
     }
 
     /** Sets up the "Space" merkle map, label, and metadata. */
     protected void setupSpaceMerkleMap() {
-        spaceLabel = StateUtils.computeLabel(SECOND_SERVICE, SPACE_STATE_KEY);
+        spaceLabel = StateMetadata.computeLabel(SECOND_SERVICE, SPACE_STATE_KEY);
         spaceMerkleMap = createMerkleMap(spaceLabel);
     }
 
     protected void setupSingletonCountry() {
-        countryLabel = StateUtils.computeLabel(FIRST_SERVICE, COUNTRY_STATE_KEY);
+        countryLabel = StateMetadata.computeLabel(FIRST_SERVICE, COUNTRY_STATE_KEY);
         countrySingleton = new SingletonNode<>(
                 FIRST_SERVICE,
                 COUNTRY_STATE_KEY,
@@ -248,7 +226,7 @@ public class MerkleTestBase extends StateTestBase {
     }
 
     protected void setupSteamQueue() {
-        steamLabel = StateUtils.computeLabel(FIRST_SERVICE, STEAM_STATE_KEY);
+        steamLabel = StateMetadata.computeLabel(FIRST_SERVICE, STEAM_STATE_KEY);
         steamQueue = new QueueNode<>(
                 FIRST_SERVICE,
                 STEAM_STATE_KEY,
@@ -316,11 +294,6 @@ public class MerkleTestBase extends StateTestBase {
         merkleDbTableConfig.maxNumberOfKeys(100);
         final var builder = new MerkleDbDataSourceBuilder(virtualDbPath, merkleDbTableConfig, CONFIGURATION);
         return new VirtualMap<>(label, keySerializer, valueSerializer, builder, CONFIGURATION);
-    }
-
-    /** A convenience method for creating {@link SemanticVersion}. */
-    protected SemanticVersion version(int major, int minor, int patch) {
-        return new SemanticVersion(major, minor, patch, null, null);
     }
 
     /** A convenience method for adding a k/v pair to a merkle map */

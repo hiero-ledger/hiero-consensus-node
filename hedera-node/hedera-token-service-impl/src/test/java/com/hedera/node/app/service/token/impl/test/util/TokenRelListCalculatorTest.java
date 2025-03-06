@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.util;
 
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
@@ -30,6 +15,7 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.util.TokenRelListCalculator;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -119,7 +105,7 @@ class TokenRelListCalculatorTest {
     @Test
     void removeTokenRels_tokenRelsFromDifferentAccountPresent() {
         final var tokenRelFromDifferentAccount = TokenRelation.newBuilder()
-                .accountId(asAccount(2301L))
+                .accountId(asAccount(0L, 0L, 2301L))
                 .tokenId(TOKEN_ID_1)
                 .build();
         final var tokenRelsToRemove = List.of(LOCAL_TOKEN_REL_1, LOCAL_TOKEN_REL_2, tokenRelFromDifferentAccount);
@@ -305,6 +291,7 @@ class TokenRelListCalculatorTest {
                 LOCAL_TOKEN_REL_5);
 
         final var wrappedState = new MapReadableKVState<>(TOKEN_RELS_KEY, tokenRels);
-        return new ReadableTokenRelationStoreImpl(mockStates(Map.of(TOKEN_RELS_KEY, wrappedState)));
+        return new ReadableTokenRelationStoreImpl(
+                mockStates(Map.of(TOKEN_RELS_KEY, wrappedState)), mock(ReadableEntityCounters.class));
     }
 }

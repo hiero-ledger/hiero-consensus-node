@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SIGNATURE;
@@ -91,6 +76,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.key.KeyUtils;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
@@ -132,6 +118,9 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContrac
 
 public class TestHelpers {
     public static final String LEDGER_ID = "01";
+    public static final long shard = 0;
+    public static final long realm = 0;
+    public static final FakeEntityIdFactoryImpl entityIdFactory = new FakeEntityIdFactoryImpl(shard, realm);
     public static final Bytes ETH_WITH_CALL_DATA = Bytes.fromHex(
             "f864012f83018000947e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc18180827653820277a0f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2fa00c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
     public static final Bytes ETH_WITH_TO_ADDRESS = Bytes.fromHex(
@@ -228,12 +217,12 @@ public class TestHelpers {
     public static final TokenID FUNGIBLE_TOKEN_ID =
             TokenID.newBuilder().tokenNum(9876L).build();
     public static final com.esaulpaugh.headlong.abi.Address FUNGIBLE_TOKEN_HEADLONG_ADDRESS =
-            asHeadlongAddress(asEvmAddress(FUNGIBLE_TOKEN_ID.tokenNum()));
+            asHeadlongAddress(asEvmAddress(shard, realm, FUNGIBLE_TOKEN_ID.tokenNum()));
     public static final TokenID NON_FUNGIBLE_TOKEN_ID =
             TokenID.newBuilder().tokenNum(9898L).build();
 
     public static final com.esaulpaugh.headlong.abi.Address NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS =
-            asHeadlongAddress(asEvmAddress(NON_FUNGIBLE_TOKEN_ID.tokenNum()));
+            asHeadlongAddress(asEvmAddress(shard, realm, NON_FUNGIBLE_TOKEN_ID.tokenNum()));
 
     public static final Account A_DELETED_CONTRACT = Account.newBuilder()
             .deleted(true)
@@ -480,7 +469,7 @@ public class TestHelpers {
             org.apache.tuweni.bytes.Bytes.wrap("I prefer not to".getBytes());
     public static final Address EIP_1014_ADDRESS = Address.fromHexString("0x89abcdef89abcdef89abcdef89abcdef89abcdef");
     public static final Address PERMITTED_ADDRESS_CALLER =
-            Address.wrap((org.apache.tuweni.bytes.Bytes.wrap(asEvmAddress(1062787L))));
+            Address.wrap((org.apache.tuweni.bytes.Bytes.wrap(asEvmAddress(shard, realm, 1062787L))));
     public static final Account OPERATOR =
             Account.newBuilder().accountId(B_NEW_ACCOUNT_ID).build();
 
@@ -689,8 +678,8 @@ public class TestHelpers {
             AccountID.newBuilder().accountNum(OWNER_ACCOUNT_NUM).build();
     public static final Account OWNER_ACCOUNT =
             Account.newBuilder().accountId(OWNER_ID).build();
-    public static final com.esaulpaugh.headlong.abi.Address OWNER_ACCOUNT_AS_ADDRESS =
-            asHeadlongAddress(asEvmAddress(OWNER_ACCOUNT.accountIdOrThrow().accountNumOrThrow()));
+    public static final com.esaulpaugh.headlong.abi.Address OWNER_ACCOUNT_AS_ADDRESS = asHeadlongAddress(
+            asEvmAddress(shard, realm, OWNER_ACCOUNT.accountIdOrThrow().accountNumOrThrow()));
     public static final Bytes OWNER_ADDRESS = Bytes.fromHex("a213624b8b83a724438159ba7c0d333a2b6b3990");
     public static final com.esaulpaugh.headlong.abi.Address OWNER_HEADLONG_ADDRESS =
             asHeadlongAddress(OWNER_ADDRESS.toByteArray());
@@ -881,7 +870,7 @@ public class TestHelpers {
     }
 
     public static com.esaulpaugh.headlong.abi.Address asHeadlongAddress(final long entityNum) {
-        final var addressBytes = org.apache.tuweni.bytes.Bytes.wrap(asLongZeroAddress(entityNum));
+        final var addressBytes = org.apache.tuweni.bytes.Bytes.wrap(asLongZeroAddress(entityIdFactory, entityNum));
         final var addressAsInteger = addressBytes.toUnsignedBigInteger();
         return com.esaulpaugh.headlong.abi.Address.wrap(
                 com.esaulpaugh.headlong.abi.Address.toChecksumAddress(addressAsInteger));
@@ -904,7 +893,7 @@ public class TestHelpers {
 
     public static org.apache.tuweni.bytes.Bytes bytesForRedirect(
             final ByteBuffer encodedErcCall, final TokenID tokenId) {
-        return bytesForRedirect(encodedErcCall.array(), asLongZeroAddress(tokenId.tokenNum()));
+        return bytesForRedirect(encodedErcCall.array(), asLongZeroAddress(entityIdFactory, tokenId.tokenNum()));
     }
 
     public static org.apache.tuweni.bytes.Bytes bytesForRedirect(final byte[] subSelector, final Address tokenAddress) {
@@ -918,7 +907,7 @@ public class TestHelpers {
     // Largely, this is used to encode the call to redirectToAccount() proxy contract for testing purposes.
     public static org.apache.tuweni.bytes.Bytes bytesForRedirectAccount(
             final ByteBuffer encodedCall, final AccountID accountID) {
-        return bytesForRedirectAccount(encodedCall.array(), asLongZeroAddress(accountID.accountNum()));
+        return bytesForRedirectAccount(encodedCall.array(), asLongZeroAddress(entityIdFactory, accountID.accountNum()));
     }
 
     public static org.apache.tuweni.bytes.Bytes bytesForRedirectAccount(

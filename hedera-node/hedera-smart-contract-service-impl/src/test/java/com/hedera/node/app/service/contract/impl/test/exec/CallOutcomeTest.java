@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
@@ -33,6 +18,7 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,6 +36,9 @@ class CallOutcomeTest {
     @Mock
     private ContractCreateStreamBuilder contractCreateRecordBuilder;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     @Test
     void setsAbortCallResult() {
         final var abortedCall =
@@ -61,6 +50,7 @@ class CallOutcomeTest {
     @Test
     void recognizesCreatedIdWhenEvmAddressIsSet() {
         given(updater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
+        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome =
                 new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, NETWORK_GAS_PRICE, null, null);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientIdIfCreated());
@@ -68,6 +58,7 @@ class CallOutcomeTest {
 
     @Test
     void recognizesNoCreatedIdWhenEvmAddressNotSet() {
+        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome =
                 new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, NETWORK_GAS_PRICE, null, null);
         assertNull(outcome.recipientIdIfCreated());
@@ -75,6 +66,7 @@ class CallOutcomeTest {
 
     @Test
     void calledIdIsFromResult() {
+        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome = new CallOutcome(
                 SUCCESS_RESULT.asProtoResultOf(updater),
                 INVALID_CONTRACT_ID,

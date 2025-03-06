@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fixtures;
 
 import static com.swirlds.platform.roster.RosterRetriever.buildRoster;
@@ -23,12 +8,15 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fixtures.state.FakePlatform;
 import com.hedera.node.app.fixtures.state.FakeSchemaRegistry;
 import com.hedera.node.app.fixtures.state.FakeStartupNetworks;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.GenesisNetworkInfo;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.service.token.TokenService;
@@ -55,11 +43,14 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
@@ -100,14 +91,13 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     public static final ScheduledExecutorService METRIC_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
 
     public static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
-    public static final Configuration WITH_ROSTER_LIFECYCLE = HederaTestConfigBuilder.create()
-            .withValue("addressBook.useRosterLifecycle", true)
-            .getOrCreateConfig();
 
     private static final String ACCOUNTS_KEY = "ACCOUNTS";
     private static final String ALIASES_KEY = "ALIASES";
     protected MapWritableKVState<AccountID, Account> accountsState;
     protected MapWritableKVState<ProtoBytes, AccountID> aliasesState;
+    protected WritableSingletonState<EntityCounts> entityCountsState;
+    protected WritableSingletonState<EntityNumber> entityIdState;
     protected State state;
 
     protected void setupStandardStates() {
@@ -119,22 +109,31 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
         accountsState.put(nodeSelfAccountId, nodeSelfAccount);
         accountsState.commit();
         aliasesState = new MapWritableKVState<>(ALIASES_KEY);
+
+        entityIdState = new WritableSingletonStateBase<>("ENTITY_ID", () -> null, (a) -> {});
+        entityCountsState = new WritableSingletonStateBase<>("ENTITY_COUNTS", () -> EntityCounts.DEFAULT, (a) -> {});
         final var writableStates = MapWritableStates.builder()
                 .state(accountsState)
                 .state(aliasesState)
+                .state(entityIdState)
+                .state(entityCountsState)
                 .build();
 
-        state = new State() {
+        state = new TestMerkleStateRoot() {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull String serviceName) {
-                return TokenService.NAME.equals(serviceName) ? writableStates : null;
+                return TokenService.NAME.equals(serviceName) || EntityIdService.NAME.equals(serviceName)
+                        ? writableStates
+                        : null;
             }
 
             @NonNull
             @Override
             public WritableStates getWritableStates(@NonNull String serviceName) {
-                return TokenService.NAME.equals(serviceName) ? writableStates : null;
+                return TokenService.NAME.equals(serviceName) || EntityIdService.NAME.equals(serviceName)
+                        ? writableStates
+                        : null;
             }
         };
     }

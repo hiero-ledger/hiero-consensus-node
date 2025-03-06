@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.memory;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -56,19 +41,6 @@ class InMemoryReadableStateTest extends MerkleTestBase {
         void stateKey() {
             final var state = new InMemoryReadableKVState<>(FRUIT_STATE_KEY, fruitMerkleMap);
             assertThat(state.getStateKey()).isEqualTo(FRUIT_STATE_KEY);
-        }
-
-        @Test
-        @DisplayName("The size of the state is the size of the merkle map")
-        void sizeWorks() {
-            final var state = new InMemoryReadableKVState<>(FRUIT_STATE_KEY, fruitMerkleMap);
-            assertThat(state.size()).isZero();
-
-            add(A_KEY, APPLE);
-            add(B_KEY, BANANA);
-            add(C_KEY, CHERRY);
-            assertThat(state.size()).isEqualTo(fruitMerkleMap.size());
-            assertThat(state.size()).isEqualTo(3);
         }
     }
 

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.config.data;
 
 import com.hedera.hapi.streams.SidecarType;
@@ -76,6 +61,8 @@ public record ContractsConfig(
                 boolean precompileAtomicCryptoTransferEnabled,
         @ConfigProperty(value = "precompile.hrcFacade.associate.enabled", defaultValue = "true") @NetworkProperty
                 boolean precompileHrcFacadeAssociateEnabled,
+        @ConfigProperty(value = "precompile.disabled", defaultValue = "") @NetworkProperty
+                Set<Integer> disabledPrecompiles,
         @ConfigProperty(value = "systemContract.accountService.enabled", defaultValue = "true") @NetworkProperty
                 boolean systemContractAccountServiceEnabled,
         @ConfigProperty(value = "systemContract.scheduleService.enabled", defaultValue = "true") @NetworkProperty
@@ -107,10 +94,6 @@ public record ContractsConfig(
                 boolean systemContractUpdateCustomFeesEnabled,
         @ConfigProperty(value = "systemContract.tokenInfo.v2.enabled", defaultValue = "false") @NetworkProperty
                 boolean systemContractTokenInfoV2Enabled,
-        @ConfigProperty(value = "systemContract.precisionLossFixForGas.enabled", defaultValue = "true") @NetworkProperty
-                boolean isGasPrecisionLossFixEnabled,
-        @ConfigProperty(value = "systemContract.canonicalViewGas.enabled", defaultValue = "true") @NetworkProperty
-                boolean isCanonicalViewGasEnabled,
         @ConfigProperty(value = "systemContract.updateNFTsMetadata.enabled", defaultValue = "false") @NetworkProperty
                 boolean systemContractUpdateNFTsMetadataEnabled,
         @ConfigProperty(value = "systemContract.airdropTokens.enabled", defaultValue = "true") @NetworkProperty
@@ -124,6 +107,8 @@ public record ContractsConfig(
         @ConfigProperty(value = "systemContract.setUnlimitedAutoAssociations.enabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractSetUnlimitedAutoAssociationsEnabled,
+        @ConfigProperty(value = "systemContract.hts.addresses", defaultValue = "359") // 359 = 0x167, 364 = 0x16C
+                Set<Long> callableHTSAddresses,
         @ConfigProperty(value = "evm.ethTransaction.zeroHapiFees.enabled", defaultValue = "false") @NetworkProperty
                 boolean evmEthTransactionZeroHapiFeesEnabled,
         @ConfigProperty(value = "evm.allowCallsToNonContractAccounts", defaultValue = "true") @NetworkProperty

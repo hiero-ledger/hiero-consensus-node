@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
@@ -26,24 +11,23 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
-import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
-import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.DuplicateStatus.DUPLICATE;
-import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.ServiceFeeStatus.UNABLE_TO_PAY_SERVICE_FEE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.dispatch.DispatchValidator;
 import com.hedera.node.app.workflows.handle.dispatch.RecordFinalizer;
-import com.hedera.node.app.workflows.handle.dispatch.ValidationResult;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.steps.PlatformStateUpdates;
 import com.hedera.node.app.workflows.handle.steps.SystemFileUpdates;
@@ -79,6 +63,7 @@ public class DispatchProcessor {
     private final EthereumTransactionHandler ethereumTransactionHandler;
     private final NetworkInfo networkInfo;
     private final OpWorkflowMetrics workflowMetrics;
+    private final AppFeeCharging appFeeCharging;
 
     @Inject
     public DispatchProcessor(
@@ -92,7 +77,8 @@ public class DispatchProcessor {
             @NonNull final TransactionDispatcher dispatcher,
             @NonNull final EthereumTransactionHandler ethereumTransactionHandler,
             @NonNull final NetworkInfo networkInfo,
-            @NonNull final OpWorkflowMetrics workflowMetrics) {
+            @NonNull final OpWorkflowMetrics workflowMetrics,
+            @NonNull final AppFeeCharging appFeeCharging) {
         this.authorizer = requireNonNull(authorizer);
         this.validator = requireNonNull(validator);
         this.recordFinalizer = requireNonNull(recordFinalizer);
@@ -104,6 +90,7 @@ public class DispatchProcessor {
         this.ethereumTransactionHandler = requireNonNull(ethereumTransactionHandler);
         this.networkInfo = requireNonNull(networkInfo);
         this.workflowMetrics = requireNonNull(workflowMetrics);
+        this.appFeeCharging = requireNonNull(appFeeCharging);
     }
 
     /**
@@ -116,13 +103,13 @@ public class DispatchProcessor {
      */
     public void processDispatch(@NonNull final Dispatch dispatch) {
         requireNonNull(dispatch);
-        final var errorReport = validator.validationReportFor(dispatch);
-        if (errorReport.isCreatorError()) {
-            chargeCreator(dispatch, errorReport);
+        final var validation = validator.validateFeeChargingScenario(dispatch);
+        if (!validation.creatorDidDueDiligence()) {
+            chargeCreator(dispatch, validation);
         } else {
-            chargePayer(dispatch, errorReport);
-            if (!alreadyFailed(dispatch, errorReport)) {
-                tryHandle(dispatch, errorReport);
+            chargePayer(dispatch, validation, false);
+            if (!alreadyFailed(dispatch, validation)) {
+                tryHandle(dispatch, validation);
             }
         }
         dispatchUsageManager.finalizeAndSaveUsage(dispatch);
@@ -137,10 +124,10 @@ public class DispatchProcessor {
      * FEE_ONLY as work done. If it catches an unexpected exception, it will charge
      * the payer for the fees and return FEE_ONLY as work done.
      *
-     * @param dispatch the dispatch to be processed
-     * @param validationResult the due diligence report for the dispatch
+     * @param dispatch   the dispatch to be processed
+     * @param validation the due diligence report for the dispatch
      */
-    private void tryHandle(@NonNull final Dispatch dispatch, @NonNull final ValidationResult validationResult) {
+    private void tryHandle(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         try {
             dispatchUsageManager.screenForCapacity(dispatch);
             dispatcher.dispatchHandle(dispatch.handleContext());
@@ -150,20 +137,22 @@ public class DispatchProcessor {
             // In case of a ContractCall when it reverts, the gas charged should not be rolled back
             rollback(e.shouldRollbackStack(), e.getStatus(), dispatch.stack(), dispatch.recordBuilder());
             if (e.shouldRollbackStack()) {
-                chargePayer(dispatch, validationResult);
+                chargePayer(dispatch, validation, false);
+                e.maybeReplayFees(dispatch);
             }
             // Since there is no easy way to say how much work was done in the failed dispatch,
             // and current throttling is very rough-grained, we just return USER_TRANSACTION here
         } catch (final ThrottleException e) {
             final var functionality = dispatch.txnInfo().functionality();
             workflowMetrics.incrementThrottled(functionality);
-            rollbackAndRechargeFee(dispatch, validationResult, e.getStatus());
+            rollbackAndRechargeFee(dispatch, validation, e.getStatus());
             if (functionality == ETHEREUM_TRANSACTION) {
                 ethereumTransactionHandler.handleThrottled(dispatch.handleContext());
             }
         } catch (final Exception e) {
+            e.printStackTrace();
             logger.error("{} - exception thrown while handling dispatch", ALERT_MESSAGE, e);
-            rollbackAndRechargeFee(dispatch, validationResult, FAIL_INVALID);
+            rollbackAndRechargeFee(dispatch, validation, FAIL_INVALID);
         }
     }
 
@@ -196,39 +185,48 @@ public class DispatchProcessor {
      * Handles the exception for the dispatch. It will rollback the stack, charge
      * the payer for the fees and return FEE_ONLY as work done.
      *
-     * @param dispatch the dispatch to be processed
-     * @param validationResult the due diligence report for the dispatch
-     * @param status the status to set
+     * @param dispatch   the dispatch to be processed
+     * @param validation the due diligence report for the dispatch
+     * @param status     the status to set
      */
     private void rollbackAndRechargeFee(
             @NonNull final Dispatch dispatch,
-            @NonNull final ValidationResult validationResult,
+            @NonNull final FeeCharging.Validation validation,
             @NonNull final ResponseCodeEnum status) {
         rollback(true, status, dispatch.stack(), dispatch.recordBuilder());
-        chargePayer(dispatch, validationResult.withoutServiceFee());
+        chargePayer(dispatch, validation, true);
         dispatchUsageManager.trackFeePayments(dispatch);
     }
 
     /**
      * Charges the creator for the network fee. This will be called when there is a due diligence failure.
      *
-     * @param dispatch the dispatch to be processed
-     * @param report the due diligence report for the dispatch
+     * @param dispatch   the dispatch to be processed
+     * @param validation the validation of the charging scenario
      */
-    private void chargeCreator(@NonNull final Dispatch dispatch, @NonNull final ValidationResult report) {
-        dispatch.recordBuilder().status(report.creatorErrorOrThrow());
+    private void chargeCreator(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
+        dispatch.recordBuilder().status(validation.errorStatusOrThrow());
+        // If the transaction is a batch inner transaction, we don't charge the creator
+        if (dispatch.category() == BATCH) {
+            return;
+        }
         dispatch.feeAccumulator()
-                .chargeNetworkFee(report.creatorId(), dispatch.fees().networkFee());
+                .chargeNetworkFee(
+                        dispatch.creatorInfo().accountId(), dispatch.fees().networkFee(), null);
     }
 
     /**
      * Charges the payer for the fees. If the payer is unable to pay the service fee, the service fee
      * will be charged to the creator. If the transaction is a duplicate, the service fee will be waived.
      *
-     * @param dispatch the dispatch to be processed
-     * @param report the due diligence report for the dispatch
+     * @param dispatch        the dispatch to be processed
+     * @param validation      the validation of the charging scenario
+     * @param waiveServiceFee whether to waive the service fee from the dispatch
      */
-    private void chargePayer(@NonNull final Dispatch dispatch, @NonNull final ValidationResult report) {
+    private void chargePayer(
+            @NonNull final Dispatch dispatch,
+            @NonNull final FeeCharging.Validation validation,
+            final boolean waiveServiceFee) {
         final var fees = dispatch.fees();
         if (fees.nothingToCharge()) {
             return;
@@ -240,27 +238,17 @@ public class DispatchProcessor {
         if (hasWaivedFees) {
             return;
         }
-        final var shouldWaiveServiceFee =
-                report.serviceFeeStatus() == UNABLE_TO_PAY_SERVICE_FEE || report.duplicateStatus() == DUPLICATE;
-        final var feesToCharge = shouldWaiveServiceFee ? fees.withoutServiceComponent() : fees;
-        if (dispatch.txnCategory() == USER || dispatch.txnCategory() == NODE) {
-            dispatch.feeAccumulator()
-                    .chargeFees(report.payerOrThrow().accountIdOrThrow(), report.creatorId(), feesToCharge);
-        } else {
-            // The node only does work for submitting user transactions, so for other categories,
-            // we charge fees that are collected without a disbursement to the node account
-            dispatch.feeAccumulator()
-                    .chargeNetworkFee(report.payerOrThrow().accountIdOrThrow(), feesToCharge.totalFee());
-        }
+        final var feesToCharge = waiveServiceFee ? fees.withoutServiceComponent() : fees;
+        dispatch.feeChargingOrElse(appFeeCharging).charge(dispatch, validation, feesToCharge);
     }
 
     /**
      * Rolls back the stack and sets the status of the transaction in case of a failure.
      *
      * @param rollbackStack whether to rollback the stack. Will be false when the failure is due to a
-     * {@link HandleException} that is due to a contract call revert.
-     * @param status the status to set
-     * @param stack the save point stack to rollback
+     *                      {@link HandleException} that is due to a contract call revert.
+     * @param status        the status to set
+     * @param stack         the save point stack to rollback
      */
     private void rollback(
             final boolean rollbackStack,
@@ -278,13 +266,13 @@ public class DispatchProcessor {
      * the dispatch. If it has, it will set the status of the dispatch's record builder and return true.
      * Otherwise, it will return false.
      *
-     * @param dispatch the dispatch to be processed
-     * @param validationResult the due diligence report for the dispatch
+     * @param dispatch   the dispatch to be processed
+     * @param validation the due diligence report for the dispatch
      * @return true if the transaction has already failed, false otherwise
      */
-    private boolean alreadyFailed(@NonNull final Dispatch dispatch, @NonNull final ValidationResult validationResult) {
-        if (validationResult.isPayerError()) {
-            dispatch.recordBuilder().status(validationResult.payerErrorOrThrow());
+    private boolean alreadyFailed(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
+        if (validation.maybeErrorStatus() != null) {
+            dispatch.recordBuilder().status(validation.errorStatusOrThrow());
             return true;
         }
         final var authorizationFailure = maybeAuthorizationFailure(dispatch);

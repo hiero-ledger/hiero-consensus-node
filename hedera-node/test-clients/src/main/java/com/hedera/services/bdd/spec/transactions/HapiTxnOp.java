@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions;
 
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
@@ -56,6 +41,7 @@ import com.hedera.services.bdd.spec.keys.SigMapGenerator;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
 import com.hedera.services.bdd.spec.verification.Condition;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.CustomFeeLimit;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Query;
@@ -66,6 +52,7 @@ import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionGetReceiptResponse;
 import com.hederahashgraph.api.proto.java.TransactionReceipt;
+import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.hederahashgraph.api.proto.java.TransactionResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -241,10 +228,10 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                         throw new HapiTxnCheckStateException("Unable to resolve txn status");
                     }
                 }
+            } finally {
+                /* Used by superclass to perform standard housekeeping. */
+                txnSubmitted = txn;
             }
-
-            /* Used by superclass to perform standard housekeeping. */
-            txnSubmitted = txn;
 
             actualPrecheck = response.getNodeTransactionPrecheckCode();
             if (retryPrechecks.isPresent()
@@ -577,7 +564,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     }
 
     protected byte[] gasLongToBytes(final Long gas) {
-        return Bytes.wrap(LONG_TUPLE.encode(Tuple.of(gas)).array()).toArray();
+        return Bytes.wrap(LONG_TUPLE.encode(Tuple.singleton(gas)).array()).toArray();
     }
 
     /* Fluent builder methods to chain. */
@@ -632,6 +619,11 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public T feeUsd(double price) {
         usdFee = OptionalDouble.of(price);
+        return self();
+    }
+
+    public T maxCustomFee(Function<HapiSpec, CustomFeeLimit> f) {
+        maxCustomFeeList.add(f);
         return self();
     }
 
@@ -864,5 +856,20 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public ResponseCodeEnum getActualStatus() {
         return lastReceipt.getStatus();
+    }
+
+    public void updateStateFromRecord(TransactionRecord record, HapiSpec spec) throws Throwable {
+        this.actualStatus = record.getReceipt().getStatus();
+        this.lastReceipt = record.getReceipt();
+        updateStateOf(spec);
+    }
+
+    public T batchKey(String key) {
+        batchKey = Optional.of(spec -> spec.registry().getKey(key));
+        return self();
+    }
+
+    public Optional<AccountID> getNode() {
+        return node;
     }
 }

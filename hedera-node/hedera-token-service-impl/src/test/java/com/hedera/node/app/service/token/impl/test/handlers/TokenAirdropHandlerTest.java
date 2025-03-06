@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
@@ -59,10 +44,11 @@ import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import java.util.ArrayList;
@@ -96,7 +82,7 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     private FeeCalculator feeCalculator;
 
     @Mock
-    private StoreMetricsService storeMetricsService;
+    private PureChecksContext pureChecksContext;
 
     @SuppressWarnings("DataFlowIssue")
     @Test
@@ -111,7 +97,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                 .token((TokenID) null)
                 .transfers(ACCT_4444_MINUS_5, ACCT_3333_PLUS_5)
                 .build());
-        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TOKEN_ID));
     }
@@ -128,7 +116,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                                 .accountID((AccountID) null)
                                 .build())
                 .build());
-        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID));
     }
@@ -141,7 +131,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                         ACCT_4444_MINUS_5,
                         ACCT_4444_MINUS_5.copyBuilder().amount(5).build())
                 .build());
-        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS));
     }
@@ -154,7 +146,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                         ACCT_3333_MINUS_10,
                         ACCT_4444_PLUS_10.copyBuilder().amount(5).build())
                 .build());
-        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN));
     }
@@ -165,7 +159,10 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                 .token(TOKEN_2468)
                 .transfers(ACCT_4444_MINUS_5, ACCT_3333_PLUS_5)
                 .build());
-        Assertions.assertThatCode(() -> tokenAirdropHandler.pureChecks(txn)).doesNotThrowAnyException();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatCode(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -175,7 +172,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                 // These are nft transfers, not hbar or fungible token transfers
                 .nftTransfers(SERIAL_1_FROM_3333_TO_4444)
                 .build());
-        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TOKEN_ID));
     }
@@ -188,7 +187,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                 .nftTransfers(
                         SERIAL_1_FROM_3333_TO_4444.copyBuilder().serialNumber(0).build())
                 .build());
-        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER));
     }
@@ -203,7 +204,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                         .senderAccountID((AccountID) null)
                         .build())
                 .build());
-        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID));
     }
@@ -217,7 +220,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                         .receiverAccountID((AccountID) null)
                         .build())
                 .build());
-        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID));
     }
@@ -233,7 +238,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                         .token(TOKEN_2468)
                         .nftTransfers(SERIAL_2_FROM_4444_TO_3333)
                         .build());
-        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ResponseCodeEnum.TOKEN_ID_REPEATED_IN_TOKEN_LIST));
     }
@@ -249,7 +256,10 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                         SERIAL_2_FROM_4444_TO_3333,
                         SERIAL_1_FROM_3333_TO_4444.copyBuilder().serialNumber(3).build())
                 .build());
-        Assertions.assertThatCode(() -> tokenAirdropHandler.pureChecks(txn)).doesNotThrowAnyException();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatCode(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -262,8 +272,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                 .transfers()
                 .nftTransfers()
                 .build());
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(EMPTY_TOKEN_TRANSFER_ACCOUNT_AMOUNTS));
     }
@@ -277,8 +288,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                 .transfers(ACCT_3333_MINUS_10, ACCT_4444_PLUS_10)
                 .nftTransfers(SERIAL_1_FROM_3333_TO_4444, SERIAL_1_FROM_3333_TO_4444)
                 .build());
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
     }
@@ -287,7 +299,9 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     void pureChecksForEmptyHbarTransferAndEmptyTokenTransfers() {
         // It's actually valid to have no token transfers
         final var txn = newTokenAirdrop(Collections.emptyList());
-        Assertions.assertThatCode(() -> tokenAirdropHandler.pureChecks(txn))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        Assertions.assertThatCode(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(EMPTY_TOKEN_TRANSFER_BODY));
     }
@@ -313,8 +327,10 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                         .token(token9753)
                         .nftTransfers(SERIAL_1_FROM_3333_TO_4444, SERIAL_2_FROM_4444_TO_3333)
                         .build()));
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatCode(() -> tokenAirdropHandler.pureChecks(txn)).doesNotThrowAnyException();
+        Assertions.assertThatCode(() -> tokenAirdropHandler.pureChecks(pureChecksContext))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -322,6 +338,7 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         givenStoresAndConfig(handleContext);
         tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator);
         given(handleContext.savepointStack()).willReturn(stack);
+        given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         given(stack.getBaseBuilder(TokenAirdropStreamBuilder.class)).willReturn(tokenAirdropRecordBuilder);
         var tokenWithNoCustomFees =
                 fungibleToken.copyBuilder().customFees(Collections.emptyList()).build();
@@ -329,8 +346,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                 .copyBuilder()
                 .customFees(Collections.emptyList())
                 .build();
-        writableTokenStore.put(tokenWithNoCustomFees);
-        writableTokenStore.put(nftWithNoCustomFees);
+        writableTokenStore.putAndIncrementCount(tokenWithNoCustomFees);
+        writableTokenStore.putAndIncrementCount(nftWithNoCustomFees);
         given(storeFactory.writableStore(WritableTokenStore.class)).willReturn(writableTokenStore);
         given(storeFactory.readableStore(ReadableTokenStore.class)).willReturn(writableTokenStore);
         givenAirdropTxn();
@@ -338,7 +355,7 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         given(handleContext.dispatch(
                         argThat(options -> TokenAirdropStreamBuilder.class.equals(options.streamBuilderType())
                                 && payerId.equals(options.payerId()))))
-                .will((invocation) -> {
+                .will(invocation -> {
                     var pendingAirdropId = PendingAirdropId.newBuilder().build();
                     var pendingAirdropValue = PendingAirdropValue.newBuilder().build();
                     var pendingAirdropRecord = PendingAirdropRecord.newBuilder()
@@ -415,7 +432,7 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         refreshReadableStores();
         refreshWritableStores();
         givenStoresAndConfig(handleContext);
-
+        given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         // mock record builder
         tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator);
         var tokenWithNoCustomFees =
@@ -527,7 +544,7 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                 .build();
         given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS))
                 .willReturn(writableAirdropState);
-        writableAirdropStore = new WritableAirdropStore(writableStates, configuration, storeMetricsService);
+        writableAirdropStore = new WritableAirdropStore(writableStates, writableEntityCounters);
         tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator);
 
         final var newAirdropValue = airdropWithValue(20);

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.utils;
 
 import static java.util.Objects.requireNonNull;
@@ -21,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
+import com.hedera.hapi.node.base.ContractID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -39,6 +25,9 @@ import org.apache.tuweni.bytes.Bytes;
  * @param categories Set of category flags possibly empty
  * @param modifier An optional Solidity function modifier (e.g., pure or view)
  * @param variants Set of method variants (e.g., version number, or FT vs NFT), possibly empty
+ * @param supportedAddresses Set of supported contract addresses, cannot be empty.  Default is ALL and is denoted by ContractID.Default.
+ *                           Unlike the other fields on set like with[Contract,Via,Modifier], when setting the new value with `withSupportedAddress` method,
+ *                           the existing supported addresses are replaced.
  */
 public record SystemContractMethod(
         @NonNull Function function,
@@ -46,7 +35,11 @@ public record SystemContractMethod(
         @NonNull CallVia via,
         @NonNull EnumSet<Category> categories,
         @NonNull Optional<Modifier> modifier,
-        @NonNull EnumSet<Variant> variants) {
+        @NonNull EnumSet<Variant> variants,
+        @NonNull Set<ContractID> supportedAddresses) {
+
+    // Denote all supported addresses by ContractID.DEFAULT
+    public static final ContractID ALL_CONTRACT_ID = ContractID.DEFAULT;
 
     public SystemContractMethod {
         requireNonNull(function);
@@ -55,6 +48,7 @@ public record SystemContractMethod(
         requireNonNull(categories);
         requireNonNull(modifier);
         requireNonNull(variants);
+        requireNonNull(supportedAddresses);
     }
 
     /**
@@ -71,7 +65,8 @@ public record SystemContractMethod(
                 CallVia.DIRECT,
                 EnumSet.noneOf(Category.class),
                 Optional.empty(),
-                EnumSet.noneOf(Variant.class));
+                EnumSet.noneOf(Variant.class),
+                Set.of(ALL_CONTRACT_ID));
     }
 
     /**
@@ -88,7 +83,8 @@ public record SystemContractMethod(
                 CallVia.DIRECT,
                 EnumSet.noneOf(Category.class),
                 Optional.empty(),
-                EnumSet.noneOf(Variant.class));
+                EnumSet.noneOf(Variant.class),
+                Set.of(ALL_CONTRACT_ID));
     }
 
     /**
@@ -223,39 +219,58 @@ public record SystemContractMethod(
     // Fluent builders
 
     public @NonNull SystemContractMethod withContract(@NonNull final SystemContract systemContract) {
-        return new SystemContractMethod(function, Optional.of(systemContract), via, categories, modifier, variants);
+        return new SystemContractMethod(
+                function, Optional.of(systemContract), via, categories, modifier, variants, supportedAddresses);
     }
 
     public @NonNull SystemContractMethod withVia(@NonNull final CallVia via) {
-        return new SystemContractMethod(function, systemContract, via, categories, modifier, variants);
+        return new SystemContractMethod(
+                function, systemContract, via, categories, modifier, variants, supportedAddresses);
     }
 
     public @NonNull SystemContractMethod withCategories(@NonNull final Category... categories) {
         final var c = EnumSet.copyOf(this.categories);
         c.addAll(Arrays.asList(categories));
-        return new SystemContractMethod(function, systemContract, via, c, modifier, variants);
+        return new SystemContractMethod(function, systemContract, via, c, modifier, variants, supportedAddresses);
     }
 
     public @NonNull SystemContractMethod withCategory(@NonNull final Category category) {
         final var c = EnumSet.copyOf(categories);
         c.add(category);
-        return new SystemContractMethod(function, systemContract, via, c, modifier, variants);
+        return new SystemContractMethod(function, systemContract, via, c, modifier, variants, supportedAddresses);
     }
 
     public @NonNull SystemContractMethod withModifier(@NonNull final Modifier modifier) {
-        return new SystemContractMethod(function, systemContract, via, categories, Optional.of(modifier), variants);
+        return new SystemContractMethod(
+                function, systemContract, via, categories, Optional.of(modifier), variants, supportedAddresses);
     }
 
     public @NonNull SystemContractMethod withVariants(@NonNull final Variant... variants) {
         final var v = EnumSet.copyOf(this.variants);
         v.addAll(Arrays.asList(variants));
-        return new SystemContractMethod(function, systemContract, via, categories, modifier, v);
+        return new SystemContractMethod(function, systemContract, via, categories, modifier, v, supportedAddresses);
     }
 
     public @NonNull SystemContractMethod withVariant(@NonNull final Variant variant) {
         final var v = EnumSet.copyOf(variants);
         v.add(variant);
-        return new SystemContractMethod(function, systemContract, via, categories, modifier, v);
+        return new SystemContractMethod(function, systemContract, via, categories, modifier, v, supportedAddresses);
+    }
+
+    public @NonNull SystemContractMethod withSupportedAddresses(@NonNull final ContractID... supportedAddresses) {
+        // Unlike the other with methods, this one replaces the set of supported addresses as the default of ALL should
+        // be overridden
+        if (supportedAddresses.length == 0) {
+            return new SystemContractMethod(
+                    function, systemContract, via, categories, modifier, variants, Set.of(ALL_CONTRACT_ID));
+        }
+        final var sa = new java.util.HashSet<ContractID>();
+        sa.addAll(Arrays.asList(supportedAddresses));
+        return new SystemContractMethod(function, systemContract, via, categories, modifier, variants, sa);
+    }
+
+    public @NonNull SystemContractMethod withSupportedAddress(@NonNull final ContractID supportedAddress) {
+        return withSupportedAddresses(supportedAddress);
     }
 
     // Forwarding to com.esaulpaugh.headlong.abi.Function
@@ -272,7 +287,7 @@ public record SystemContractMethod(
         return function.encodeCallWithArgs(args);
     }
 
-    public TupleType getOutputs() {
+    public <T extends Tuple> TupleType<T> getOutputs() {
         return function.getOutputs();
     }
 
@@ -308,6 +323,10 @@ public record SystemContractMethod(
         var intersection = this.categories.clone();
         intersection.retainAll(categories);
         return !intersection.isEmpty();
+    }
+
+    public boolean hasSupportedAddress(@NonNull final ContractID supportedAddress) {
+        return supportedAddresses.contains(ContractID.DEFAULT) || supportedAddresses.contains(supportedAddress);
     }
 
     /**

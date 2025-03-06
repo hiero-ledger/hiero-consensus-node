@@ -1,26 +1,14 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_BESU_ADDRESS;
 
-import com.esaulpaugh.headlong.abi.Function;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
@@ -42,40 +30,6 @@ import org.apache.tuweni.bytes.Bytes;
  */
 public final class CallAttemptHelpers {
 
-    /**
-     * @param function the selector to match against
-     * @param translator the translator for this specific call attempt
-     * @param enhancement the enhancement that is used
-     * @param addressIdConverter the address ID converter for this call
-     * @param verificationStrategies the verification strategy currently used
-     * @param gasCalculator the gas calculator used for the system contract
-     * @return the call attempt
-     */
-    public static HtsCallAttempt prepareHtsAttemptWithSelector(
-            final Function function,
-            final CallTranslator<HtsCallAttempt> translator,
-            final HederaWorldUpdater.Enhancement enhancement,
-            final AddressIdConverter addressIdConverter,
-            final VerificationStrategies verificationStrategies,
-            final SystemContractGasCalculator gasCalculator,
-            final SystemContractMethodRegistry systemContractMethodRegistry) {
-        final var input = Bytes.wrap(function.selector());
-
-        return new HtsCallAttempt(
-                input,
-                OWNER_BESU_ADDRESS,
-                OWNER_BESU_ADDRESS,
-                false,
-                enhancement,
-                DEFAULT_CONFIG,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                List.of(translator),
-                systemContractMethodRegistry,
-                false);
-    }
-
     public static HtsCallAttempt prepareHtsAttemptWithSelector(
             final SystemContractMethod systemContractMethod,
             final CallTranslator<HtsCallAttempt> translator,
@@ -87,6 +41,7 @@ public final class CallAttemptHelpers {
         final var input = Bytes.wrap(systemContractMethod.selector());
 
         return new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 OWNER_BESU_ADDRESS,
                 OWNER_BESU_ADDRESS,
@@ -101,26 +56,19 @@ public final class CallAttemptHelpers {
                 false);
     }
 
-    /**
-     * @param function the selector to match against
-     * @param translator the translator for this specific call attempt
-     * @param enhancement the enhancement that is used
-     * @param addressIdConverter the address ID converter for this call
-     * @param verificationStrategies the verification strategy currently used
-     * @param gasCalculator the gas calculator used for the system contract
-     * @return the call attempt
-     */
-    public static HtsCallAttempt prepareHtsAttemptWithSelectorForRedirect(
-            final Function function,
+    public static HtsCallAttempt prepareHtsAttemptWithSelectorWithContractID(
+            final ContractID contractID,
+            final SystemContractMethod systemContractMethod,
             final CallTranslator<HtsCallAttempt> translator,
             final HederaWorldUpdater.Enhancement enhancement,
             final AddressIdConverter addressIdConverter,
             final VerificationStrategies verificationStrategies,
             final SystemContractGasCalculator gasCalculator,
             final SystemContractMethodRegistry systemContractMethodRegistry) {
-        final var input = TestHelpers.bytesForRedirect(function.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS);
+        final var input = Bytes.wrap(systemContractMethod.selector());
 
         return new HtsCallAttempt(
+                contractID,
                 input,
                 OWNER_BESU_ADDRESS,
                 OWNER_BESU_ADDRESS,
@@ -146,48 +94,13 @@ public final class CallAttemptHelpers {
         final var input = TestHelpers.bytesForRedirect(systemContractMethod.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS);
 
         return new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 OWNER_BESU_ADDRESS,
                 OWNER_BESU_ADDRESS,
                 false,
                 enhancement,
                 DEFAULT_CONFIG,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                List.of(translator),
-                systemContractMethodRegistry,
-                false);
-    }
-
-    /**
-     * @param function the selector to match against
-     * @param translator the translator for this specific call attempt
-     * @param enhancement the enhancement that is used
-     * @param addressIdConverter the address ID converter for this call
-     * @param verificationStrategies the verification strategy currently used
-     * @param gasCalculator the gas calculator used for the system contract
-     * @param config the current configuration that is used
-     * @return the call attempt
-     */
-    public static HtsCallAttempt prepareHtsAttemptWithSelectorForRedirectWithConfig(
-            final Function function,
-            final CallTranslator<HtsCallAttempt> translator,
-            final HederaWorldUpdater.Enhancement enhancement,
-            final AddressIdConverter addressIdConverter,
-            final VerificationStrategies verificationStrategies,
-            final SystemContractGasCalculator gasCalculator,
-            final SystemContractMethodRegistry systemContractMethodRegistry,
-            final Configuration config) {
-        final var input = TestHelpers.bytesForRedirect(function.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS);
-
-        return new HtsCallAttempt(
-                input,
-                OWNER_BESU_ADDRESS,
-                OWNER_BESU_ADDRESS,
-                false,
-                enhancement,
-                config,
                 addressIdConverter,
                 verificationStrategies,
                 gasCalculator,
@@ -208,42 +121,7 @@ public final class CallAttemptHelpers {
         final var input = TestHelpers.bytesForRedirect(systemContractMethod.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS);
 
         return new HtsCallAttempt(
-                input,
-                OWNER_BESU_ADDRESS,
-                OWNER_BESU_ADDRESS,
-                false,
-                enhancement,
-                config,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                List.of(translator),
-                systemContractMethodRegistry,
-                false);
-    }
-
-    /**
-     * @param function the selector to match against
-     * @param translator the translator for this specific call attempt
-     * @param enhancement the enhancement that is used
-     * @param addressIdConverter the address ID converter for this call
-     * @param verificationStrategies the verification strategy currently used
-     * @param gasCalculator the gas calculator used for the system contract
-     * @param config the current configuration that is used
-     * @return the call attempt
-     */
-    public static HtsCallAttempt prepareHtsAttemptWithSelectorAndCustomConfig(
-            final Function function,
-            final CallTranslator<HtsCallAttempt> translator,
-            final HederaWorldUpdater.Enhancement enhancement,
-            final AddressIdConverter addressIdConverter,
-            final VerificationStrategies verificationStrategies,
-            final SystemContractGasCalculator gasCalculator,
-            final SystemContractMethodRegistry systemContractMethodRegistry,
-            final Configuration config) {
-        final var input = Bytes.wrap(function.selector());
-
-        return new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
                 input,
                 OWNER_BESU_ADDRESS,
                 OWNER_BESU_ADDRESS,
@@ -270,6 +148,35 @@ public final class CallAttemptHelpers {
         final var input = Bytes.wrap(systemContractMethod.selector());
 
         return new HtsCallAttempt(
+                HTS_167_CONTRACT_ID,
+                input,
+                OWNER_BESU_ADDRESS,
+                OWNER_BESU_ADDRESS,
+                false,
+                enhancement,
+                config,
+                addressIdConverter,
+                verificationStrategies,
+                gasCalculator,
+                List.of(translator),
+                systemContractMethodRegistry,
+                false);
+    }
+
+    public static HtsCallAttempt prepareHtsAttemptWithSelectorWithContractIDAndCustomConfig(
+            final ContractID contractID,
+            final SystemContractMethod systemContractMethod,
+            final CallTranslator<HtsCallAttempt> translator,
+            final HederaWorldUpdater.Enhancement enhancement,
+            final AddressIdConverter addressIdConverter,
+            final VerificationStrategies verificationStrategies,
+            final SystemContractGasCalculator gasCalculator,
+            final SystemContractMethodRegistry systemContractMethodRegistry,
+            final Configuration config) {
+        final var input = Bytes.wrap(systemContractMethod.selector());
+
+        return new HtsCallAttempt(
+                contractID,
                 input,
                 OWNER_BESU_ADDRESS,
                 OWNER_BESU_ADDRESS,
@@ -371,6 +278,7 @@ public final class CallAttemptHelpers {
             final SystemContractMethodRegistry systemContractMethodRegistry,
             final Configuration config) {
         return new HasCallAttempt(
+                HAS_CONTRACT_ID,
                 input,
                 OWNER_BESU_ADDRESS,
                 false,
@@ -397,6 +305,7 @@ public final class CallAttemptHelpers {
             final SystemContractMethodRegistry systemContractMethodRegistry,
             final Configuration config) {
         return new HasCallAttempt(
+                HAS_CONTRACT_ID,
                 input,
                 OWNER_BESU_ADDRESS,
                 false,
@@ -434,6 +343,7 @@ public final class CallAttemptHelpers {
         final var input = Bytes.wrap(systemContractMethod.selector());
 
         return new HssCallAttempt(
+                HSS_CONTRACT_ID,
                 input,
                 OWNER_BESU_ADDRESS,
                 false,
@@ -461,6 +371,7 @@ public final class CallAttemptHelpers {
         final var input = Bytes.wrap(systemContractMethod.selector());
 
         return new HssCallAttempt(
+                HSS_CONTRACT_ID,
                 input,
                 OWNER_BESU_ADDRESS,
                 false,
@@ -487,6 +398,7 @@ public final class CallAttemptHelpers {
             final Configuration config) {
 
         return new HssCallAttempt(
+                HSS_CONTRACT_ID,
                 input,
                 OWNER_BESU_ADDRESS,
                 false,
@@ -513,6 +425,7 @@ public final class CallAttemptHelpers {
             final Configuration config) {
 
         return new HssCallAttempt(
+                HSS_CONTRACT_ID,
                 input,
                 OWNER_BESU_ADDRESS,
                 true,

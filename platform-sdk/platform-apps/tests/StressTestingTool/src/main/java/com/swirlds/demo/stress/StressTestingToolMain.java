@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.stress;
 /*
  * This file is public domain.
@@ -31,8 +16,8 @@ import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MICROSECONDS;
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -46,7 +31,7 @@ import com.swirlds.common.threading.framework.config.StoppableThreadConfiguratio
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.Browser;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -67,9 +52,8 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
         try {
             logger.info(STARTUP.getMarker(), "Registering StressTestingToolState with ConstructableRegistry");
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
-            constructableRegistry.registerConstructable(new ClassConstructorPair(
-                    StressTestingToolState.class,
-                    () -> new StressTestingToolState(version -> new BasicSoftwareVersion(version.major()))));
+            constructableRegistry.registerConstructable(
+                    new ClassConstructorPair(StressTestingToolState.class, () -> new StressTestingToolState()));
             registerMerkleStateRootClassIds();
             logger.info(STARTUP.getMarker(), "StressTestingToolState is registered with ConstructableRegistry");
         } catch (final ConstructableRegistryException e) {
@@ -253,16 +237,15 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
     }
 
     @Override
-    public StressTestingToolState newMerkleStateRoot() {
-        final StressTestingToolState state =
-                new StressTestingToolState(version -> new BasicSoftwareVersion(SOFTWARE_VERSION.getSoftwareVersion()));
-        FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
+    public StressTestingToolState newStateRoot() {
+        final StressTestingToolState state = new StressTestingToolState();
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
         return state;
     }
 
     @Override
-    public StateLifecycles<StressTestingToolState> newStateLifecycles() {
-        return new StressTestingToolStateLifecycles();
+    public ConsensusStateEventHandler<StressTestingToolState> newConsensusStateEvenHandler() {
+        return new StressTestingToolConsensusStateEventHandler();
     }
 
     /**

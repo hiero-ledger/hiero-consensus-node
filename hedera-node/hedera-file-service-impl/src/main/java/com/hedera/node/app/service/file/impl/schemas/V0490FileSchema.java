@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.schemas;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.fromString;
@@ -102,7 +87,7 @@ public class V0490FileSchema extends Schema {
 
     public static final String BLOBS_KEY = "FILES";
     public static final String UPGRADE_FILE_KEY = "UPGRADE_FILE";
-    public static final String UPGRADE_DATA_KEY = "UPGRADE_DATA[%s]";
+    public static final String UPGRADE_DATA_KEY = "UPGRADE_DATA[FileID[shardNum=%d, realmNum=%d, fileNum=%d]]";
 
     /**
      * The default throttle definitions resource. Used as the ultimate fallback if the configured file and resource is
@@ -144,12 +129,8 @@ public class V0490FileSchema extends Schema {
 
         // initializing the files 150 -159
         for (var updateNum = firstUpdateNum; updateNum <= lastUpdateNum; updateNum++) {
-            final var fileId = FileID.newBuilder()
-                    .shardNum(hederaConfig.shard())
-                    .realmNum(hederaConfig.realm())
-                    .fileNum(updateNum)
-                    .build();
-            definitions.add(StateDefinition.queue(UPGRADE_DATA_KEY.formatted(fileId), ProtoBytes.PROTOBUF));
+            final var stateKey = UPGRADE_DATA_KEY.formatted(hederaConfig.shard(), hederaConfig.realm(), updateNum);
+            definitions.add(StateDefinition.queue(stateKey, ProtoBytes.PROTOBUF));
         }
 
         return definitions;

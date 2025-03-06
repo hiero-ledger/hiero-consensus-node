@@ -1,31 +1,16 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.services;
 
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.ids.WritableEntityIdStore;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.merkle.MerkleStateRoot.MerkleWritableStates;
 import com.swirlds.state.spi.FilteredWritableStates;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -55,29 +40,30 @@ public record MigrationContextImpl(
         @Nullable SemanticVersion previousVersion,
         long roundNumber,
         @NonNull Map<String, Object> sharedValues,
-        @NonNull StartupNetworks startupNetworks)
+        @NonNull StartupNetworks startupNetworks,
+        @NonNull EntityIdFactory entityIdFactory)
         implements MigrationContext {
     public MigrationContextImpl {
         requireNonNull(previousStates);
         requireNonNull(newStates);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
+        requireNonNull(entityIdFactory);
     }
 
     @Override
     public long newEntityNumForAccount() {
         return requireNonNull(writableEntityIdStore, "Entity ID store needs to exist first")
-                .incrementAndGet(EntityType.ACCOUNT);
+                .incrementAndGet();
     }
 
     @Override
     public void copyAndReleaseOnDiskState(@NonNull final String stateKey) {
         requireNonNull(stateKey);
-        if (newStates instanceof MerkleStateRoot.MerkleWritableStates merkleWritableStates) {
+        if (newStates instanceof MerkleWritableStates merkleWritableStates) {
             merkleWritableStates.copyAndReleaseVirtualMap(stateKey);
         } else if (newStates instanceof FilteredWritableStates filteredWritableStates
-                && filteredWritableStates.getDelegate()
-                        instanceof MerkleStateRoot.MerkleWritableStates merkleWritableStates) {
+                && filteredWritableStates.getDelegate() instanceof MerkleWritableStates merkleWritableStates) {
             merkleWritableStates.copyAndReleaseVirtualMap(stateKey);
         } else {
             throw new UnsupportedOperationException("On-disk state is inaccessible");

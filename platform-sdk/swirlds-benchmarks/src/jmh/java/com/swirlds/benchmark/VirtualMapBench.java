@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
 import com.swirlds.virtualmap.VirtualMap;
@@ -63,7 +48,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
             for (int j = 0; j < numRecords; ++j) {
                 long id = Utils.randomLong(maxKey);
                 BenchmarkKey key = new BenchmarkKey(id);
-                BenchmarkValue value = virtualMap.getForModify(key);
+                BenchmarkValue value = virtualMap.get(key);
                 long val = nextValue();
                 if (value != null) {
                     if ((val & 0xff) == 0) {
@@ -71,6 +56,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                         if (verify) map[(int) id] = 0L;
                     } else {
                         value.update(l -> l + val);
+                        virtualMap.put(key, value);
                         if (verify) map[(int) id] += val;
                     }
                 } else {
@@ -164,16 +150,16 @@ public class VirtualMapBench extends VirtualMapBaseBench {
             for (int j = 0; j < numRecords; ++j) {
                 final long id = Utils.randomLong(maxKey);
                 final BenchmarkKey key = new BenchmarkKey(id);
-                BenchmarkValue value = virtualMap.getForModify(key);
+                BenchmarkValue value = virtualMap.get(key);
                 final long val = nextValue();
                 if (value != null) {
                     value.update(l -> l + val);
                     if (verify) map[(int) id] += val;
                 } else {
                     value = new BenchmarkValue(val);
-                    virtualMap.put(key, value);
                     if (verify) map[(int) id] = val;
                 }
+                virtualMap.put(key, value);
                 expirables.addLast(new Expirable(System.currentTimeMillis() + EXPIRY_DELAY, id));
             }
 
@@ -260,67 +246,5 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                 System.currentTimeMillis() - start);
 
         afterTest(true);
-    }
-
-    @Benchmark
-    public void queueMode() throws Exception {
-        beforeTest("queueMode");
-
-        final long[] map = new long[verify ? maxKey : 0];
-        VirtualMap<BenchmarkKey, BenchmarkValue> virtualMap = createMap(map);
-
-        final int roundsPerCopy = maxKey / numFiles;
-        for (int i = 0; i < maxKey; i++) {
-            // Add
-            int index = i;
-            final BenchmarkKey keyToAdd = new BenchmarkKey(index);
-            long val = nextValue();
-            virtualMap.put(keyToAdd, new BenchmarkValue(val));
-            if (verify) {
-                map[index] = val;
-            }
-            // Update
-            if (i >= numRecords / 2) {
-                index = i - numRecords / 2;
-                final BenchmarkKey keyToUpdate = new BenchmarkKey(index);
-                val = nextValue();
-                virtualMap.put(keyToUpdate, new BenchmarkValue(val));
-                if (verify) {
-                    map[index] = val;
-                }
-            }
-            // Remove
-            if (i >= numRecords) {
-                index = i - numRecords;
-                final BenchmarkKey keyToRemove = new BenchmarkKey(index);
-                virtualMap.remove(keyToRemove);
-                if (verify) {
-                    map[index] = 0;
-                }
-            }
-
-            if (i % roundsPerCopy == 0) {
-                virtualMap = copyMap(virtualMap);
-            }
-        }
-
-        // Ensure the map is done with hashing/merging/flushing
-        final var finalMap = flushMap(virtualMap);
-
-        verifyMap(map, finalMap);
-
-        afterTest(true, () -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
-    }
-
-    public static void main(String[] args) throws Exception {
-        final VirtualMapBench bench = new VirtualMapBench();
-        bench.setup();
-        bench.beforeTest();
-        bench.queueMode();
-        bench.afterTest();
-        bench.destroy();
     }
 }

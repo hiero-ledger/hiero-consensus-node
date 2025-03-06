@@ -243,6 +243,7 @@ public class ProcessUtils {
             throw new IllegalStateException("Cannot discover the classpath. Was --module-path used instead?");
         }
         return Arrays.stream(classpath.split(":"))
+                .map(String::trim) // may have picked up a '\n' in the original classpath String
                 .filter(s -> !s.contains("test-clients"))
                 .collect(Collectors.joining(":"));
     }

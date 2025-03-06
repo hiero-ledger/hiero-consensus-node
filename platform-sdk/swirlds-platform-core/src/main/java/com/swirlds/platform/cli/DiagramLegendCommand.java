@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
 import com.swirlds.cli.utility.AbstractCommand;
@@ -58,28 +43,23 @@ public final class DiagramLegendCommand extends AbstractCommand {
 
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 
-        final TaskScheduler<Integer> sequentialScheduler = model.schedulerBuilder("SequentialScheduler")
+        final TaskScheduler<Integer> sequentialScheduler = model.<Integer>schedulerBuilder("SequentialScheduler")
                 .withType(TaskSchedulerType.SEQUENTIAL)
                 .withUnhandledTaskCapacity(1)
-                .build()
-                .cast();
-        final TaskScheduler<Void> sequentialThreadScheduler = model.schedulerBuilder("SequentialThreadScheduler")
+                .build();
+        final TaskScheduler<Void> sequentialThreadScheduler = model.<Void>schedulerBuilder("SequentialThreadScheduler")
                 .withType(TaskSchedulerType.SEQUENTIAL_THREAD)
                 .withUnhandledTaskCapacity(1)
-                .build()
-                .cast();
-        final TaskScheduler<Void> directScheduler = model.schedulerBuilder("DirectScheduler")
+                .build();
+        final TaskScheduler<Void> directScheduler = model.<Void>schedulerBuilder("DirectScheduler")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
-        final TaskScheduler<Void> directThreadsafeScheduler = model.schedulerBuilder("DirectThreadsafeScheduler")
+                .build();
+        final TaskScheduler<Void> directThreadsafeScheduler = model.<Void>schedulerBuilder("DirectThreadsafeScheduler")
                 .withType(TaskSchedulerType.DIRECT_THREADSAFE)
-                .build()
-                .cast();
-        final TaskScheduler<Void> concurrentScheduler = model.schedulerBuilder("ConcurrentScheduler")
+                .build();
+        final TaskScheduler<Void> concurrentScheduler = model.<Void>schedulerBuilder("ConcurrentScheduler")
                 .withType(TaskSchedulerType.CONCURRENT)
-                .build()
-                .cast();
+                .build();
 
         final String wireSubstitutionString = "wire substitution (for readability)";
         sequentialScheduler.getOutputWire().solderTo(sequentialThreadScheduler.buildInputWire(wireSubstitutionString));

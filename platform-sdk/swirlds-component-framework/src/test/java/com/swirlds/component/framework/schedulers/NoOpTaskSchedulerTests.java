@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.schedulers;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.NO_OP;
@@ -42,7 +27,7 @@ class NoOpTaskSchedulerTests {
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 
         final TaskScheduler<List<Integer>> realFakeScheduler =
-                model.schedulerBuilder("A").withType(NO_OP).build().cast();
+                model.<List<Integer>>schedulerBuilder("A").withType(NO_OP).build();
 
         final AtomicBoolean shouldAlwaysBeFalse = new AtomicBoolean(false);
 
@@ -74,10 +59,9 @@ class NoOpTaskSchedulerTests {
         splitter.solderTo("handler", "handler input", value -> shouldAlwaysBeFalse.set(true));
 
         // Solder the fake scheduler to a real one. No data should be passed.
-        final TaskScheduler<Void> realScheduler = model.schedulerBuilder("B")
+        final TaskScheduler<Void> realScheduler = model.<Void>schedulerBuilder("B")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
+                .build();
 
         final BindableInputWire<List<Integer>, Void> realInA = realScheduler.buildInputWire("realInA");
         realInA.bindConsumer((value) -> shouldAlwaysBeFalse.set(true));

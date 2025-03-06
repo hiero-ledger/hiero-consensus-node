@@ -1,19 +1,4 @@
-##
-# Copyright (C) 2022-2025 Hedera Hashgraph, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-##
-
+# SPDX-License-Identifier: Apache-2.0
 name: "ZXF: Deploy Production Release"
 on:
   push:
@@ -37,14 +22,14 @@ permissions:
 jobs:
   prepare-tag-release:
     name: Prepare Release [Tag]
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     outputs:
       version: ${{ steps.tag.outputs.version }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
@@ -130,19 +115,19 @@ jobs:
 
   deploy-ci-trigger:
     name: Trigger CI Flows
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - release-branch
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: '0'
+          fetch-depth: "0"
           ref: main
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
@@ -159,10 +144,10 @@ jobs:
 
       - name: Trigger ZXF Prepare Extended Test Suite
         if: ${{ needs.release-branch.result == 'success' && steps.check-xts-job.outputs.enabled == 'true' }}
-        uses: step-security/workflow-dispatch@4d1049025980f72b1327cbfdeecb07fe7a20f577 # v1.2.4
+        uses: step-security/workflow-dispatch@05938d638f4ddc45d2c59dfd122d3ba247fb7015 # v1.2.6
         with:
           workflow: .github/workflows/zxf-prepare-extended-test-suite.yaml
-          repo: hashgraph/hedera-services # ensure we are executing in the hashgraph org
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{ "ref": "${{ inputs.ref }}" }'
@@ -174,30 +159,30 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           JOB_ENABLED="true"
-          JOB_STATE=$(gh workflow list --all --json name,state | jq -r '.[]|select(.name=="ZXF: [Node] Deploy Integration Network Release")|.state')
+          JOB_STATE=$(gh workflow list --all --json name,state --limit 200 | jq -r '.[]|select(.name=="ZXF: [Node] Deploy Integration Network Release")|.state')
           [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
           echo "enabled=${JOB_ENABLED}" >> $GITHUB_OUTPUT
 
       - name: Trigger ZXF Deploy Integration
         if: ${{ needs.release-branch.result == 'success' && steps.check-integration-job.outputs.enabled == 'true' && !cancelled() }}
-        uses: step-security/workflow-dispatch@4d1049025980f72b1327cbfdeecb07fe7a20f577 # v1.2.4
+        uses: step-security/workflow-dispatch@05938d638f4ddc45d2c59dfd122d3ba247fb7015 # v1.2.6
         with:
           workflow: .github/workflows/node-zxf-deploy-integration.yaml
-          repo: hashgraph/hedera-services # ensure we are executing in the hashgraph org
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-              "ref": "${{ inputs.ref }}"
+            "ref": "${{ inputs.ref }}"
             }'
 
   update-hedera-protobufs:
     name: Update Hedera Protobufs
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     needs:
       - prepare-tag-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c95a14d0e5bab51a9f56296a4eb0e416910cd350 # v2.10.3
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
@@ -206,13 +191,13 @@ jobs:
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           ref: main
-          fetch-depth: '0'
+          fetch-depth: "0"
 
       - name: Checkout Hedera Protobufs Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.PROTOBUFS_GH_ACCESS_TOKEN }}
-          fetch-depth: '0'
+          fetch-depth: "0"
           repository: hashgraph/hedera-protobufs
           path: hedera-protobufs
 
@@ -239,7 +224,7 @@ jobs:
       - name: Add & Commit
         uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
         with:
-          cwd: 'hedera-protobufs'
+          cwd: "hedera-protobufs"
           author_name: swirlds-eng-automation
           author_email: ${{ secrets.PROTOBUFS_GPG_USER_EMAIL }}
           commit: --signoff

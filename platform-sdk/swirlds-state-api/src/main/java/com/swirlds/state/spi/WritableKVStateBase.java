@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.spi;
 
 import static java.util.Objects.requireNonNull;
@@ -30,7 +15,7 @@ import java.util.*;
  */
 public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V> implements WritableKVState<K, V> {
     /** A map of all modified values buffered in this mutable state */
-    private final Map<K, V> modifications = new LinkedHashMap<>();
+    private final Map<K, V> modifications;
     /**
      * A list of listeners to be notified of changes to the state.
      */
@@ -42,7 +27,18 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
      * @param stateKey The state key. Cannot be null.
      */
     protected WritableKVStateBase(@NonNull final String stateKey) {
+        this(stateKey, new LinkedHashMap<>());
+    }
+
+    /**
+     * Create a new StateBase from the provided map.
+     *
+     * @param stateKey The state key. Cannot be null.
+     * @param modifications A map that is used to init the cache.
+     */
+    protected WritableKVStateBase(@NonNull final String stateKey, @NonNull final Map<K, V> modifications) {
         super(stateKey);
+        this.modifications = Objects.requireNonNull(modifications);
     }
 
     /**
@@ -106,31 +102,6 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
     @Override
     public V getOriginalValue(@NonNull K key) {
         return super.get(key);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    @Nullable
-    public final V getForModify(@NonNull final K key) {
-        Objects.requireNonNull(key);
-        // If there is a modification, then we've already done a "put" or "remove"
-        // and should return based on the modification
-        if (modifications.containsKey(key)) {
-            return modifications.get(key);
-        }
-
-        // If the modifications map does not contain an answer, but the read cache of the
-        // super class does, then it means we've looked this up before but never modified it.
-        // So we can just delegate to the super class.
-        if (hasBeenRead(key)) {
-            return super.get(key);
-        }
-
-        // We have not queried this key before, so let's look it up and store that we have
-        // read this key. And then return the value.
-        final var val = getForModifyFromDataSource(key);
-        markRead(key, val);
-        return val;
     }
 
     /** {@inheritDoc} */
@@ -203,6 +174,7 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
      * </ol>
      * @return The size of the state.
      */
+    @Deprecated
     public long size() {
         final var sizeOfBackingMap = sizeOfDataSource();
         int numAdditions = 0;
@@ -220,15 +192,6 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
         }
         return sizeOfBackingMap + numAdditions - numRemovals;
     }
-
-    /**
-     * Reads from the underlying data source in such a way as to cause any fast-copyable data
-     * structures underneath to make a fast copy.
-     *
-     * @param key key to read from state
-     * @return The value read from the underlying data source. May be null.
-     */
-    protected abstract V getForModifyFromDataSource(@NonNull K key);
 
     /**
      * Puts the given key/value pair into the underlying data source.

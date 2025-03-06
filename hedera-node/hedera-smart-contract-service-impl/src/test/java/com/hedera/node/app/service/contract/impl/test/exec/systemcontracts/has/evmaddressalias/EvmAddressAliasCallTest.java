@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has.evmaddressalias;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.getevmaddressalias.EvmAddressAliasTranslator.EVM_ADDRESS_ALIAS;
@@ -22,11 +7,13 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OPERATOR;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.getevmaddressalias.EvmAddressAliasCall;
@@ -49,6 +36,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
     void invalidAccountIdWhenNotLongZero() {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject = new EvmAddressAliasCall(attempt, APPROVED_HEADLONG_ADDRESS);
 
         final var result = subject.execute(frame).fullResult().result();
@@ -57,9 +45,9 @@ class EvmAddressAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(EVM_ADDRESS_ALIAS
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 (long) com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID.protoOrdinal(),
-                                ZERO_ADDRESS)
+                                ZERO_ADDRESS))
                         .array()),
                 result.getOutput());
     }
@@ -68,6 +56,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
     void invalidAccountIdWhenNoAccount() {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));
 
         final var result = subject.execute(frame).fullResult().result();
@@ -76,9 +65,9 @@ class EvmAddressAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(EVM_ADDRESS_ALIAS
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 (long) com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID.protoOrdinal(),
-                                ZERO_ADDRESS)
+                                ZERO_ADDRESS))
                         .array()),
                 result.getOutput());
     }
@@ -89,6 +78,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(nativeOperations.getAccount(numberOfLongZero(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS)))
                 .willReturn(OPERATOR);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));
 
         final var result = subject.execute(frame).fullResult().result();
@@ -97,9 +87,9 @@ class EvmAddressAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(EVM_ADDRESS_ALIAS
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 (long) com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID.protoOrdinal(),
-                                ZERO_ADDRESS)
+                                ZERO_ADDRESS))
                         .array()),
                 result.getOutput());
     }
@@ -111,6 +101,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
         given(nativeOperations.getAccount(numberOfLongZero(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS)))
                 .willReturn(account);
         given(account.alias()).willReturn(RECEIVER_ADDRESS);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));
 
         final var result = subject.execute(frame).fullResult().result();
@@ -119,9 +110,9 @@ class EvmAddressAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(EVM_ADDRESS_ALIAS
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 (long) ResponseCodeEnum.SUCCESS.protoOrdinal(),
-                                asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()))
+                                asHeadlongAddress(RECEIVER_ADDRESS.toByteArray())))
                         .array()),
                 result.getOutput());
     }

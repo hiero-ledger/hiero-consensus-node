@@ -1,29 +1,15 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiPropertySource.accountIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTopicString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -56,21 +42,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.revokeTokenKyc;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDissociate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnfreeze;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.allowanceTinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithAlias;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
@@ -82,7 +61,6 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.roy
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.royaltyFeeWithFallback;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
-import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbarWithAllowance;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUniqueWithAllowance;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithAllowance;
@@ -119,12 +97,8 @@ import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.e
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.nonExistingSystemAccounts;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.A_TOKEN;
 import static com.hedera.services.bdd.suites.file.FileUpdateSuite.CIVILIAN;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
@@ -136,9 +110,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AU
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNEXPECTED_TOKEN_DECIMALS;
@@ -154,6 +126,7 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts;
 import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.TokenID;
@@ -172,7 +145,6 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
-@Tag(ADHOC)
 public class CryptoTransferSuite {
     private static final String OWNER = "owner";
     private static final String OTHER_OWNER = "otherOwner";
@@ -572,7 +544,8 @@ public class CryptoTransferSuite {
                         .hasKnownStatus(INVALID_SIGNATURE),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(nftId.get())
-                                .addNftTransfers(ocWith(accountId(partyAliasAddr.get()), counterId.get(), 1L))))
+                                .addNftTransfers(
+                                        ocWith(accountId(shard, realm, partyAliasAddr.get()), counterId.get(), 1L))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
@@ -590,7 +563,9 @@ public class CryptoTransferSuite {
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(nftId.get())
                                 .addNftTransfers(ocWith(
-                                        accountId(partyAliasAddr.get()), accountId(counterAliasAddr.get()), 1L))))
+                                        accountId(shard, realm, partyAliasAddr.get()),
+                                        accountId(shard, realm, counterAliasAddr.get()),
+                                        1L))))
                         .signedBy(DEFAULT_PAYER, MULTI_KEY)
                         .via(NFT_XFER),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
@@ -706,342 +681,35 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> allowanceTransfersWithComplexTransfersWork() {
+    final Stream<DynamicTest> autoCreationWithBothFormsOfSameLogicalAutoCreationImpliesRepeatedAccounts() {
         return hapiTest(
-                newKeyNamed(ADMIN_KEY),
-                newKeyNamed(FREEZE_KEY),
-                newKeyNamed(KYC_KEY),
-                newKeyNamed(SUPPLY_KEY),
-                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(OTHER_OWNER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                cryptoCreate(OTHER_RECEIVER).balance(ONE_HBAR),
-                cryptoCreate(ANOTHER_RECEIVER).balance(0L),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .treasury(TOKEN_TREASURY)
-                        .maxSupply(10000)
-                        .initialSupply(5000)
-                        .adminKey(ADMIN_KEY)
-                        .kycKey(KYC_KEY),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .treasury(TOKEN_TREASURY)
-                        .maxSupply(12L)
-                        .supplyKey(SUPPLY_KEY)
-                        .adminKey(ADMIN_KEY)
-                        .kycKey(KYC_KEY)
-                        .initialSupply(0L),
-                mintToken(
-                        NON_FUNGIBLE_TOKEN,
-                        List.of(
-                                ByteString.copyFromUtf8("a"),
-                                ByteString.copyFromUtf8("b"),
-                                ByteString.copyFromUtf8("c"),
-                                ByteString.copyFromUtf8("d"),
-                                ByteString.copyFromUtf8("e"))),
-                tokenAssociate(OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
-                tokenAssociate(OTHER_OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
-                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
-                tokenAssociate(SPENDER, FUNGIBLE_TOKEN),
-                tokenAssociate(ANOTHER_RECEIVER, FUNGIBLE_TOKEN),
-                grantTokenKyc(FUNGIBLE_TOKEN, OWNER),
-                grantTokenKyc(FUNGIBLE_TOKEN, OTHER_OWNER),
-                grantTokenKyc(FUNGIBLE_TOKEN, RECEIVER),
-                grantTokenKyc(FUNGIBLE_TOKEN, ANOTHER_RECEIVER),
-                grantTokenKyc(FUNGIBLE_TOKEN, SPENDER),
-                grantTokenKyc(NON_FUNGIBLE_TOKEN, OWNER),
-                grantTokenKyc(NON_FUNGIBLE_TOKEN, OTHER_OWNER),
-                grantTokenKyc(NON_FUNGIBLE_TOKEN, RECEIVER),
-                cryptoTransfer(
-                        moving(100, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SPENDER),
-                        moving(1000, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER),
-                        movingUnique(NON_FUNGIBLE_TOKEN, 1, 2).between(TOKEN_TREASURY, OWNER),
-                        moving(1000, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OTHER_OWNER),
-                        movingUnique(NON_FUNGIBLE_TOKEN, 3, 4).between(TOKEN_TREASURY, OTHER_OWNER)),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addCryptoAllowance(OWNER, SPENDER, 10 * ONE_HBAR)
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 500)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L, 2L))
-                        .fee(ONE_HUNDRED_HBARS),
-                cryptoApproveAllowance()
-                        .payingWith(OTHER_OWNER)
-                        .addCryptoAllowance(OTHER_OWNER, SPENDER, 5 * ONE_HBAR)
-                        .addTokenAllowance(OTHER_OWNER, FUNGIBLE_TOKEN, SPENDER, 100)
-                        .addNftAllowance(OTHER_OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of(3L))
-                        .fee(ONE_HUNDRED_HBARS),
-                cryptoTransfer(
-                                movingHbar(ONE_HBAR).between(SPENDER, RECEIVER),
-                                movingHbar(ONE_HBAR).between(OTHER_RECEIVER, ANOTHER_RECEIVER),
-                                movingHbar(ONE_HBAR).between(OWNER, RECEIVER),
-                                movingHbar(ONE_HBAR).between(OTHER_OWNER, RECEIVER),
-                                movingHbarWithAllowance(ONE_HBAR).between(OWNER, RECEIVER),
-                                movingHbarWithAllowance(ONE_HBAR).between(OTHER_OWNER, RECEIVER),
-                                moving(50, FUNGIBLE_TOKEN).between(RECEIVER, ANOTHER_RECEIVER),
-                                moving(50, FUNGIBLE_TOKEN).between(SPENDER, RECEIVER),
-                                moving(50, FUNGIBLE_TOKEN).between(OWNER, RECEIVER),
-                                moving(15, FUNGIBLE_TOKEN).between(OTHER_OWNER, RECEIVER),
-                                movingWithAllowance(30, FUNGIBLE_TOKEN).between(OWNER, RECEIVER),
-                                movingWithAllowance(10, FUNGIBLE_TOKEN).between(OTHER_OWNER, RECEIVER),
-                                movingWithAllowance(5, FUNGIBLE_TOKEN).between(OTHER_OWNER, OWNER),
-                                movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER),
-                                movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 2L)
-                                        .between(OWNER, RECEIVER),
-                                movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 4L)
-                                        .between(OTHER_OWNER, RECEIVER),
-                                movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 3L)
-                                        .between(OTHER_OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER, OWNER, OTHER_RECEIVER, OTHER_OWNER)
-                        .via("complexAllowanceTransfer"),
-                getTxnRecord("complexAllowanceTransfer").logged(),
-                getAccountDetails(OWNER)
+                newKeyNamed("ecdsaKey").shape(SECP_256K1_SHAPE),
+                cryptoTransfer((spec, builder) -> {
+                            final var key = spec.registry().getKey("ecdsaKey");
+                            final var keyAlias = key.toByteString();
+                            final var evmAddress = ByteString.copyFrom(recoverAddressFromPubKey(
+                                    key.getECDSASecp256K1().toByteArray()));
+                            builder.setTransfers(TransferList.newBuilder()
+                                    .addAccountAmounts(AccountAmount.newBuilder()
+                                            .setAccountID(AccountID.newBuilder()
+                                                    .setAccountNum(2L)
+                                                    .build())
+                                            .setAmount(-2 * ONE_HBAR))
+                                    .addAccountAmounts(AccountAmount.newBuilder()
+                                            .setAccountID(AccountID.newBuilder()
+                                                    .setAlias(evmAddress)
+                                                    .build())
+                                            .setAmount(+ONE_HBAR))
+                                    .addAccountAmounts(AccountAmount.newBuilder()
+                                            .setAccountID(AccountID.newBuilder()
+                                                    .setAlias(keyAlias)
+                                                    .build())
+                                            .setAmount(+ONE_HBAR))
+                                    .build());
+                        })
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(GENESIS)
-                        .hasToken(relationshipWith(FUNGIBLE_TOKEN).balance(925))
-                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN).balance(0))
-                        .has(AccountDetailsAsserts.accountDetailsWith()
-                                .balanceLessThan(98 * ONE_HBAR)
-                                .cryptoAllowancesContaining(SPENDER, 9 * ONE_HBAR)
-                                .tokenAllowancesContaining(FUNGIBLE_TOKEN, SPENDER, 475)),
-                getAccountDetails(OTHER_OWNER)
-                        .payingWith(GENESIS)
-                        .hasToken(relationshipWith(FUNGIBLE_TOKEN).balance(970))
-                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN).balance(0))
-                        .has(AccountDetailsAsserts.accountDetailsWith()
-                                .balanceLessThan(98 * ONE_HBAR)
-                                .cryptoAllowancesContaining(SPENDER, 4 * ONE_HBAR)
-                                .tokenAllowancesContaining(FUNGIBLE_TOKEN, SPENDER, 85)
-                                .nftApprovedAllowancesContaining(NON_FUNGIBLE_TOKEN, SPENDER)),
-                getAccountInfo(RECEIVER)
-                        .hasToken(relationshipWith(FUNGIBLE_TOKEN).balance(105))
-                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN).balance(4))
-                        .has(accountWith().balance(5 * ONE_HBAR)),
-                getAccountInfo(ANOTHER_RECEIVER)
-                        .hasToken(relationshipWith(FUNGIBLE_TOKEN).balance(50))
-                        .has(accountWith().balance(ONE_HBAR)));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> allowanceTransfersWorkAsExpected() {
-        return hapiTest(
-                newKeyNamed(ADMIN_KEY),
-                newKeyNamed(FREEZE_KEY),
-                newKeyNamed(KYC_KEY),
-                newKeyNamed(PAUSE_KEY),
-                newKeyNamed(SUPPLY_KEY),
-                newKeyNamed(WIPE_KEY),
-                cryptoCreate(TOKEN_TREASURY),
-                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER),
-                cryptoCreate(OTHER_RECEIVER).balance(ONE_HBAR).maxAutomaticTokenAssociations(1),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .treasury(TOKEN_TREASURY)
-                        .maxSupply(10000)
-                        .initialSupply(5000)
-                        .adminKey(ADMIN_KEY)
-                        .pauseKey(PAUSE_KEY)
-                        .kycKey(KYC_KEY)
-                        .freezeKey(FREEZE_KEY),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .treasury(TOKEN_TREASURY)
-                        .maxSupply(12L)
-                        .supplyKey(SUPPLY_KEY)
-                        .adminKey(ADMIN_KEY)
-                        .freezeKey(FREEZE_KEY)
-                        .wipeKey(WIPE_KEY)
-                        .pauseKey(PAUSE_KEY)
-                        .initialSupply(0L),
-                tokenCreate(TOKEN_WITH_CUSTOM_FEE)
-                        .treasury(TOKEN_TREASURY)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .initialSupply(1000)
-                        .maxSupply(5000)
-                        .adminKey(ADMIN_KEY)
-                        .withCustom(fixedHtsFee(10, "0.0.0", TOKEN_TREASURY)),
-                mintToken(
-                        NON_FUNGIBLE_TOKEN,
-                        List.of(
-                                ByteString.copyFromUtf8("a"),
-                                ByteString.copyFromUtf8("b"),
-                                ByteString.copyFromUtf8("c"),
-                                ByteString.copyFromUtf8("d"),
-                                ByteString.copyFromUtf8("e"),
-                                ByteString.copyFromUtf8("f"))),
-                tokenAssociate(OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN, TOKEN_WITH_CUSTOM_FEE),
-                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN, TOKEN_WITH_CUSTOM_FEE),
-                grantTokenKyc(FUNGIBLE_TOKEN, OWNER),
-                grantTokenKyc(FUNGIBLE_TOKEN, RECEIVER),
-                cryptoTransfer(
-                        moving(1000, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER),
-                        moving(15, TOKEN_WITH_CUSTOM_FEE).between(TOKEN_TREASURY, OWNER),
-                        movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L, 4L, 5L, 6L).between(TOKEN_TREASURY, OWNER)),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addCryptoAllowance(OWNER, SPENDER, 10 * ONE_HBAR)
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 1500)
-                        .addTokenAllowance(OWNER, TOKEN_WITH_CUSTOM_FEE, SPENDER, 100)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L, 2L, 3L, 4L, 6L))
-                        .fee(ONE_HUNDRED_HBARS),
-                cryptoTransfer(movingWithAllowance(10, TOKEN_WITH_CUSTOM_FEE).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .fee(ONE_HBAR)
-                        // INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE is the expected mono service
-                        // outcome here, but the modularized implementation doesn't provide enough information
-                        // to differentiate these error codes. Since this is an extreme edge case and a
-                        // difficult issue to fix, we'll allow either error code here for now. However, we may
-                        // need to revert back to only accepting the original error code in the future.
-                        .hasKnownStatusFrom(
-                                INSUFFICIENT_TOKEN_BALANCE, INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
-                cryptoTransfer(movingWithAllowance(100, FUNGIBLE_TOKEN).between(OWNER, OWNER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .dontFullyAggregateTokenTransfers()
-                        .hasPrecheck(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 3).between(OWNER, OTHER_RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER),
-                cryptoTransfer(movingWithAllowance(100, FUNGIBLE_TOKEN).between(OWNER, OTHER_RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .hasKnownStatus(NO_REMAINING_AUTOMATIC_ASSOCIATIONS),
-                cryptoUpdate(OTHER_RECEIVER).receiverSigRequired(true).maxAutomaticAssociations(2),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 4).between(OWNER, OTHER_RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .hasKnownStatus(INVALID_SIGNATURE),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 4).between(OWNER, OTHER_RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER, OTHER_RECEIVER),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 6).between(OWNER, RECEIVER)),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 6).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 6).between(RECEIVER, OWNER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 6).between(RECEIVER, OWNER)),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 6).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 6).between(OWNER, RECEIVER)),
-                tokenAssociate(OTHER_RECEIVER, FUNGIBLE_TOKEN),
-                grantTokenKyc(FUNGIBLE_TOKEN, OTHER_RECEIVER),
-                cryptoTransfer(movingWithAllowance(1100, FUNGIBLE_TOKEN).between(OWNER, OTHER_RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER, OTHER_RECEIVER)
-                        .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE),
-                cryptoTransfer(allowanceTinyBarsFromTo(OWNER, RECEIVER, 5 * ONE_HBAR))
-                        .payingWith(DEFAULT_PAYER)
-                        .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
-                tokenPause(FUNGIBLE_TOKEN),
-                cryptoTransfer(
-                                movingWithAllowance(50, FUNGIBLE_TOKEN).between(OWNER, RECEIVER),
-                                movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .hasKnownStatus(TOKEN_IS_PAUSED),
-                tokenUnpause(FUNGIBLE_TOKEN),
-                tokenFreeze(FUNGIBLE_TOKEN, OWNER),
-                cryptoTransfer(
-                                movingWithAllowance(50, FUNGIBLE_TOKEN).between(OWNER, RECEIVER),
-                                movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN),
-                tokenUnfreeze(FUNGIBLE_TOKEN, OWNER),
-                revokeTokenKyc(FUNGIBLE_TOKEN, RECEIVER),
-                cryptoTransfer(
-                                movingWithAllowance(50, FUNGIBLE_TOKEN).between(OWNER, RECEIVER),
-                                movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .hasKnownStatus(ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN),
-                grantTokenKyc(FUNGIBLE_TOKEN, RECEIVER),
-                cryptoTransfer(
-                                allowanceTinyBarsFromTo(OWNER, RECEIVER, 5 * ONE_HBAR),
-                                tinyBarsFromTo(SPENDER, RECEIVER, ONE_HBAR))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER),
-                cryptoTransfer(
-                                movingWithAllowance(50, FUNGIBLE_TOKEN).between(OWNER, RECEIVER),
-                                movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER),
-                cryptoTransfer(allowanceTinyBarsFromTo(OWNER, RECEIVER, 5 * ONE_HBAR + 1))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .hasKnownStatus(AMOUNT_EXCEEDS_ALLOWANCE),
-                cryptoTransfer(
-                                movingWithAllowance(50, FUNGIBLE_TOKEN).between(OWNER, RECEIVER),
-                                movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 5).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
-                getAccountDetails(OWNER)
-                        .payingWith(GENESIS)
-                        .has(AccountDetailsAsserts.accountDetailsWith()
-                                .tokenAllowancesContaining(FUNGIBLE_TOKEN, SPENDER, 1450))
-                        .hasToken(relationshipWith(FUNGIBLE_TOKEN).balance(950L)),
-                cryptoTransfer(moving(1000, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER)),
-                cryptoTransfer(
-                                movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 2L)
-                                        .between(OWNER, RECEIVER),
-                                movingWithAllowance(1451, FUNGIBLE_TOKEN).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .hasKnownStatus(AMOUNT_EXCEEDS_ALLOWANCE),
-                getAccountInfo(OWNER)
-                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN).balance(2)),
-                cryptoTransfer(allowanceTinyBarsFromTo(OWNER, RECEIVER, 5 * ONE_HBAR))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER),
-                cryptoTransfer(
-                                movingWithAllowance(50, FUNGIBLE_TOKEN).between(OWNER, RECEIVER),
-                                movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 2L)
-                                        .between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER),
-                cryptoTransfer(allowanceTinyBarsFromTo(OWNER, RECEIVER, 5 * ONE_HBAR))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 2L).between(RECEIVER, OWNER)),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 2L).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of())
-                        .fee(ONE_HUNDRED_HBARS),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 2L).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 2L).between(RECEIVER, OWNER)),
-                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 2L).between(OWNER, RECEIVER))
-                        .payingWith(SPENDER)
-                        .signedBy(SPENDER),
-                getAccountDetails(OWNER)
-                        .payingWith(GENESIS)
-                        .has(AccountDetailsAsserts.accountDetailsWith()
-                                .cryptoAllowancesCount(0)
-                                .tokenAllowancesContaining(FUNGIBLE_TOKEN, SPENDER, 1400)
-                                .nftApprovedAllowancesContaining(NON_FUNGIBLE_TOKEN, SPENDER)));
+                        .hasKnownStatus(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS));
     }
 
     @HapiTest
@@ -1569,7 +1237,7 @@ public class CryptoTransferSuite {
     final Stream<DynamicTest> transferWithMissingAccountGetsInvalidAccountId() {
         return hapiTest(
                 cryptoCreate(PAYEE_SIG_REQ).receiverSigRequired(true),
-                cryptoTransfer(tinyBarsFromTo("1.2.3", PAYEE_SIG_REQ, 1_000L))
+                cryptoTransfer(tinyBarsFromTo("5.5.3", PAYEE_SIG_REQ, 1_000L))
                         .signedBy(DEFAULT_PAYER, PAYEE_SIG_REQ)
                         .hasKnownStatus(INVALID_ACCOUNT_ID));
     }

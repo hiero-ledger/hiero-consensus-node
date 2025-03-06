@@ -1,24 +1,9 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.update;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator.UPDATE_TOKEN_EXPIRY_INFO_V1;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator.UPDATE_TOKEN_EXPIRY_INFO_V2;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateKeysTranslator.TOKEN_UPDATE_KEYS_FUNCTION;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateKeysTranslator.TOKEN_UPDATE_KEYS_FUNCTION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
@@ -35,8 +20,8 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import java.time.Instant;
@@ -126,8 +111,8 @@ class UpdateExpiryTranslatorTest {
 
     @Test
     void callFromUpdateTest() {
-        Tuple tuple = new Tuple(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, expiry);
-        Bytes inputBytes = Bytes.wrapByteBuffer(UPDATE_TOKEN_EXPIRY_INFO_V1.encodeCall(tuple));
+        final Tuple tuple = Tuple.of(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, expiry);
+        final Bytes inputBytes = Bytes.wrapByteBuffer(UPDATE_TOKEN_EXPIRY_INFO_V1.encodeCall(tuple));
         given(attempt.input()).willReturn(inputBytes);
         given(attempt.selector()).willReturn(UPDATE_TOKEN_EXPIRY_INFO_V1.selector());
         given(attempt.enhancement()).willReturn(enhancement);

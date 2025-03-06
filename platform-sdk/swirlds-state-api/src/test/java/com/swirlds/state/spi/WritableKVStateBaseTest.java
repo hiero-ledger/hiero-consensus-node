@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.spi;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.inOrder;
@@ -140,290 +124,6 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
     }
 
     @Nested
-    @DisplayName("getForModify")
-    final class GetForModifyTest {
-
-        /**
-         * Using getForModify on an unknown value MUST return null, and it MUST record the key in
-         * "readKeys", since nothing was modified as a result of this call, but it was read. When
-         * committed, nothing should change on the backing store.
-         */
-        @Test
-        @DisplayName("Call on an unknown value returns null and is a read key")
-        void getForModifyUnknownValue() {
-            // Before running getForModify, readKeys and modifiedKeys must be empty
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).isEmpty();
-
-            // Verify the value is null
-            final var value = state.getForModify(UNKNOWN_KEY);
-            assertThat(value).isNull();
-            assertThat(state.readKeys()).contains(UNKNOWN_KEY);
-            assertThat(state.readKeys()).contains(UNKNOWN_KEY);
-
-            // Note, it is NOT a modified key, because it didn't exist in the underlying data store
-            assertThat(state.modifiedKeys()).doesNotContain(UNKNOWN_KEY);
-
-            // Commit should cause no changes to the backing store
-            state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyString(), anyString());
-            verify(state, Mockito.never()).removeFromDataSource(anyString());
-        }
-
-        /**
-         * Using getForModify on an unknown value twice MUST only hit the backend data source once.
-         */
-        @Test
-        @DisplayName("Call on an unknown value twice hits the backend only once")
-        void getForModifyUnknownValueTwice() {
-            // Call getForModify twice and verify the spied on backingMap was called only once.
-            state.getForModify(A_KEY);
-            state.getForModify(A_KEY);
-            verify(backingMap, Mockito.times(1)).get(A_KEY);
-        }
-
-        /**
-         * Using getForModify on an existing key MUST return the associated value, and it MUST
-         * record the key in "readKeys". When committed, nothing is changed on the backing store,
-         * since getForModify only signals to the backend that something should be prepared to be
-         * modified, but the actual modification is done through "put".
-         */
-        @Test
-        @DisplayName("Call on an existing value gets it and marks it as read and modified")
-        void getForModifyKnownValue() {
-            // Before running getForModify, readKeys and modifiedKeys must be empty
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).isEmpty();
-
-            // Verify the value is what we expected
-            final var value = state.getForModify(A_KEY);
-            assertThat(value).isEqualTo(APPLE);
-
-            // Verify the key used in lookup is now in readKeys but NOT modifiedKeys
-            assertThat(state.readKeys()).contains(A_KEY);
-            assertThat(state.modifiedKeys()).isEmpty();
-
-            // Commit should cause no changes to the backing store
-            state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyString(), anyString());
-            verify(state, Mockito.never()).removeFromDataSource(anyString());
-        }
-
-        /**
-         * Using getForModify on an existing key more than once MUST return the associated value,
-         * and it MUST record the key in "readKeys" where it is present only once.
-         */
-        @Test
-        @DisplayName("Called twice on an existing value")
-        void getForModifyKnownValueTwice() {
-            // Before running getForModify, readKeys and modifiedKeys must be empty
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).isEmpty();
-
-            // Verify the value is what we expected
-            for (int i = 0; i < 2; i++) {
-                final var value = state.getForModify(A_KEY);
-                assertThat(value).isEqualTo(APPLE);
-
-                // Verify the key used in lookup is now in readKeys and NOT in modifiedKeys
-                assertThat(state.readKeys()).contains(A_KEY);
-                assertThat(state.modifiedKeys()).doesNotContain(A_KEY);
-            }
-        }
-
-        /**
-         * Using getForModify on a key that has already been "put" MUST return the associated value
-         * that was previously put. The key MUST NOT be in "readKeys", and MUST be in
-         * "modifiedKeys".
-         *
-         * <p>Given transaction T1 that modifies the value for some key K, and transaction T2 that
-         * *never* reads the value of K but always does a {@code put(K, V)}, and then subsequently
-         * does a {@code getForModify}, it doesn't matter <b>at all</b> what T1 did with the value
-         * for K. T2 is just going to overwrite it. So in this flow, it should not register K as a
-         * "readKey" because it is never actually read from the backing data source.
-         *
-         * <p>When committed, the most current "put" value is sent to the backing store.
-         */
-        @Test
-        @DisplayName("A key that was put and did not exist before")
-        void getForModifyAfterPut() {
-            // Put some value
-            state.put(C_KEY, CHERRY);
-
-            // Before running getForModify, readKeys is empty and modified keys contains C_KEY
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).hasSize(1);
-            assertThat(state.modifiedKeys()).contains(C_KEY);
-
-            // Verify the value is what we expected
-            final var value = state.getForModify(C_KEY);
-            assertThat(value).isEqualTo(CHERRY);
-
-            // Verify the key used in lookup is not in readKeys and is in modifiedKeys
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).contains(C_KEY);
-            assertThat(state.modifiedKeys()).hasSize(1);
-
-            // Commit should cause the most recent put value to be saved
-            state.commit();
-            verify(state, Mockito.times(1)).putIntoDataSource(anyString(), anyString());
-            verify(state, Mockito.times(1)).putIntoDataSource(C_KEY, CHERRY);
-            verify(state, Mockito.never()).removeFromDataSource(anyString());
-        }
-
-        /**
-         * Using getForModify on a key that has already been "put", where that key DID exist in the
-         * backend already, MUST return the associated value that was previously put. The key MUST
-         * NOT be in "readKeys", and MUST be in "modifiedKeys". The reasoning here is the same as
-         * with {@link #getForModifyAfterPut()}.
-         *
-         * <p>When committed, the most current "put" value is sent to the backing store.
-         */
-        @Test
-        @DisplayName("A key that was put (and did exist before) first")
-        void getForModifyAfterPutOnExistingKey() {
-            // Put some value
-            state.put(B_KEY, BLACKBERRY);
-
-            // Before running getForModify, readKeys is empty and modified keys contains B_KEY
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).hasSize(1);
-            assertThat(state.modifiedKeys()).contains(B_KEY);
-
-            // Verify the value is what we expected
-            final var value = state.getForModify(B_KEY);
-            assertThat(value).isEqualTo(BLACKBERRY);
-
-            // Verify the key used in lookup is not in readKeys and is in modifiedKeys
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).contains(B_KEY);
-            assertThat(state.modifiedKeys()).hasSize(1);
-
-            // Commit should cause the most recent put value to be saved
-            state.commit();
-            verify(state, Mockito.times(1)).putIntoDataSource(anyString(), anyString());
-            verify(state, Mockito.times(1)).putIntoDataSource(B_KEY, BLACKBERRY);
-            verify(state, Mockito.never()).removeFromDataSource(anyString());
-        }
-
-        /**
-         * Using getForModify on a key that has already been "removed" MUST return null. The key
-         * MUST be in "modifiedKeys", but must not be in "readKeys". When committed, the key will be
-         * removed.
-         */
-        @Test
-        @DisplayName("A key that has been previously removed will return null for the value")
-        void getForModifyAfterRemove() {
-            // Remove some value
-            state.remove(A_KEY);
-
-            // Before running getForModify, readKeys is empty and modified keys contains A_KEY
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).hasSize(1);
-            assertThat(state.modifiedKeys()).contains(A_KEY);
-
-            // Verify the value is null
-            final var value = state.getForModify(A_KEY);
-            assertThat(value).isNull();
-
-            // Verify the key used in lookup is not in readKeys and is in modifiedKeys
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).contains(A_KEY);
-            assertThat(state.modifiedKeys()).hasSize(1);
-
-            // Commit should cause the value to be removed
-            state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyString(), anyString());
-            verify(state, Mockito.times(1)).removeFromDataSource(anyString());
-            verify(state, Mockito.times(1)).removeFromDataSource(A_KEY);
-        }
-    }
-
-    /**
-     * Gives size of backing store plus modifications (additions or removals).
-     * If a new key is added by calling {@code put()}, then size increases, as new key is added to modifications map for addition.
-     * If an existing key is removed by calling {@code remove()}, then size decreases, as new key is added to modifications map for removal.
-     */
-    @Nested
-    @DisplayName("size")
-    final class SizeTest {
-        @Test
-        @DisplayName("Adding a key that does not already exist in the backing store impacts size")
-        void putNew() {
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).isEmpty();
-
-            // Before doing put, the size should be 2 (setup of the test adds 2 keys)
-            assertEquals(2, state.size());
-            state.put(C_KEY, CHERRY);
-
-            // After put, size includes modifications as well. So the size should be 3.
-            assertEquals(3, state.size());
-
-            // Commit should keep the size, as the modifications are considered in size.
-            state.commit();
-            verify(state, Mockito.times(1)).putIntoDataSource(anyString(), anyString());
-            verify(state, Mockito.times(1)).putIntoDataSource(C_KEY, CHERRY);
-            verify(state, Mockito.never()).removeFromDataSource(anyString());
-            assertEquals(3, state.size());
-        }
-
-        @Test
-        @DisplayName("Removing a key that exists in the backing store impacts size")
-        void removeExisting() {
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).isEmpty();
-
-            // Before remove, the size should be 2 (setup of the test adds 2 keys)
-            assertEquals(2, state.size());
-
-            state.remove(A_KEY);
-            // After remove, size includes modifications as well. So the size should be 1.
-            assertEquals(1, state.size());
-
-            // Commit should not cause any change in size, as the modifications were considered
-            state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyString(), anyString());
-            verify(state, Mockito.times(1)).removeFromDataSource(A_KEY);
-            assertEquals(1, state.size());
-        }
-
-        @Test
-        @DisplayName("Getting a key from the backing store doesn't affect size")
-        void getDoesntAffect() {
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).isEmpty();
-
-            state.get(A_KEY);
-            // Before commit, the size should be 2 (setup of the test adds 2 keys)
-            assertEquals(2, state.size());
-
-            // Commit should not have any effect on size
-            state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyString(), anyString());
-            verify(state, Mockito.never()).removeFromDataSource(anyString());
-            assertEquals(2, state.size());
-        }
-
-        @Test
-        @DisplayName("Doing a getForModify on a key existing in the backing store doesn't affect size")
-        void getForModifyDoesntAffect() {
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).isEmpty();
-
-            state.getForModify(A_KEY);
-            // Before commit, the size should be 2 (setup of the test adds 2 keys)
-            assertEquals(2, state.size());
-
-            // Commit should not have any effect on size
-            state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyString(), anyString());
-            verify(state, Mockito.never()).removeFromDataSource(anyString());
-            assertEquals(2, state.size());
-        }
-    }
-
-    @Nested
     @DisplayName("put")
     final class PutTest {
         /**
@@ -433,7 +133,7 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
          */
         @Test
         @DisplayName("Put a key that does not already exist in the backing store")
-        void putNew() {
+        void putAndIncrementCount() {
             assertThat(state.readKeys()).isEmpty();
             assertThat(state.modifiedKeys()).isEmpty();
 
@@ -489,13 +189,13 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
         }
 
         /**
-         * If the key has been previously part of "getForModify", and then we "put", then the key
+         * If the key has been previously part of "get", and then we "put", then the key
          * will still be listed as a "read" key, and will also be a modified key.
          */
         @Test
-        @DisplayName("Put a key that was previously 'getForModify'")
-        void putAfterGetForModify() {
-            state.getForModify(B_KEY);
+        @DisplayName("Put a key that was previously 'get'")
+        void putAfterGet() {
+            state.get(B_KEY);
             assertThat(state.readKeys()).isNotEmpty();
             assertThat(state.modifiedKeys()).isEmpty();
             assertThat(state.readKeys()).contains(B_KEY);
@@ -725,66 +425,6 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
             // Remove a known key after getting it
             assertThat(state.get(C_KEY)).isNull();
-            state.remove(C_KEY);
-
-            // "readKeys" is now populated, and "modifiedKeys" has the key
-            assertThat(state.readKeys()).hasSize(1);
-            assertThat(state.modifiedKeys()).hasSize(1);
-            assertThat(state.readKeys()).contains(C_KEY);
-            assertThat(state.modifiedKeys()).contains(C_KEY);
-
-            // Commit should cause the value to be removed but not "put"
-            state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyString(), anyString());
-            verify(state, Mockito.times(1)).removeFromDataSource(anyString());
-            verify(state, Mockito.times(1)).removeFromDataSource(C_KEY);
-        }
-
-        /**
-         * If the key was previously "getForModify" and is then removed, it MUST be present in both
-         * the "readKeys" and "modified" keys.
-         *
-         * <p>On commit, the remove method MUST be called on the backing store.
-         */
-        @Test
-        @DisplayName("Remove a known key after getForModify")
-        void removeAfterGetForModify() {
-            // Initially everything is clean
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).isEmpty();
-
-            // Remove a known key after getting it
-            assertThat(state.get(A_KEY)).isEqualTo(APPLE);
-            state.remove(A_KEY);
-
-            // "readKeys" is now populated, and "modifiedKeys" has the key
-            assertThat(state.readKeys()).hasSize(1);
-            assertThat(state.modifiedKeys()).hasSize(1);
-            assertThat(state.readKeys()).contains(A_KEY);
-            assertThat(state.modifiedKeys()).contains(A_KEY);
-
-            // Commit should cause the value to be removed but not "put"
-            state.commit();
-            verify(state, Mockito.never()).putIntoDataSource(anyString(), anyString());
-            verify(state, Mockito.times(1)).removeFromDataSource(anyString());
-            verify(state, Mockito.times(1)).removeFromDataSource(A_KEY);
-        }
-
-        /**
-         * If the key was previously "getForModify" and is then removed, and the key was not in the
-         * backing store, it MUST be present in both the "readKeys" and "modified" keys.
-         *
-         * <p>On commit, the remove method MUST be called on the backing store.
-         */
-        @Test
-        @DisplayName("Remove a unknown key after getForModify")
-        void removeAfterGetForModifyUnknown() {
-            // Initially everything is clean
-            assertThat(state.readKeys()).isEmpty();
-            assertThat(state.modifiedKeys()).isEmpty();
-
-            // Remove a known key after getting it
-            assertThat(state.getForModify(C_KEY)).isNull();
             state.remove(C_KEY);
 
             // "readKeys" is now populated, and "modifiedKeys" has the key

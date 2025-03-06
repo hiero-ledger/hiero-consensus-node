@@ -1,0 +1,28 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "bytes1",
+        "name": "value",
+        "type": "bytes1"
+      }
+    ],
+    "name": "contractCall1Byte",
+    "outputs": [],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "contractLocalCallGet1Byte",
+    "outputs": [
+      {
+        "internalType": "bytes1",
+        "name": "",
+        "type": "bytes1"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  }
+]

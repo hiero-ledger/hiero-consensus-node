@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl.test;
 
 import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
@@ -29,6 +14,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.ReadableTopicStoreImpl;
 import com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestBase;
@@ -41,7 +27,7 @@ class ReadableTopicStoreImplTest extends ConsensusTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new ReadableTopicStoreImpl(readableStates);
+        subject = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
     }
 
     @Test
@@ -68,8 +54,8 @@ class ReadableTopicStoreImplTest extends ConsensusTestBase {
         givenValidTopic(accountId);
         readableTopicState = readableTopicState();
         given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
-        readableStore = new ReadableTopicStoreImpl(readableStates);
-        subject = new ReadableTopicStoreImpl(readableStates);
+        readableStore = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
+        subject = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
 
         final var topic = subject.getTopic(topicId);
 
@@ -91,25 +77,25 @@ class ReadableTopicStoreImplTest extends ConsensusTestBase {
         readableTopicState.reset();
         final var state = MapReadableKVState.<Long, Topic>builder(TOPICS_KEY).build();
         given(readableStates.<Long, Topic>get(TOPICS_KEY)).willReturn(state);
-        subject = new ReadableTopicStoreImpl(readableStates);
+        subject = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
 
         assertThat(subject.getTopic(topicId)).isNull();
     }
 
     @Test
     void constructorCreatesTopicState() {
-        final var store = new ReadableTopicStoreImpl(readableStates);
+        final var store = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
         assertNotNull(store);
     }
 
     @Test
     void nullArgsFail() {
-        assertThrows(NullPointerException.class, () -> new ReadableTopicStoreImpl(null));
+        assertThrows(NullPointerException.class, () -> new ReadableTopicStoreImpl(null, null));
     }
 
     @Test
     void getSizeOfState() {
-        final var store = new ReadableTopicStoreImpl(readableStates);
-        assertEquals(readableStates.get(TOPICS_KEY).size(), store.sizeOfState());
+        final var store = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
+        assertEquals(readableEntityCounters.getCounterFor(EntityType.TOPIC), store.sizeOfState());
     }
 }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -73,13 +58,13 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -129,9 +114,11 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     @Mock
     private CryptoUpdateStreamBuilder streamBuilder;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     private final long updateAccountNum = 32132L;
-    private final AccountID updateAccountId =
-            AccountID.newBuilder().accountNum(updateAccountNum).build();
+    private final AccountID updateAccountId = idFactory.newAccountId(updateAccountNum);
 
     private Account updateAccount;
     private Configuration configuration;
@@ -174,9 +161,9 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         given(waivers.isNewKeySignatureWaived(txn, id)).willReturn(false);
         given(waivers.isTargetAccountSignatureWaived(txn, id)).willReturn(false);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        final var context = new FakePreHandleContext(readableStore, txn);
-        assertThrowsPreCheck(() -> subject.preHandle(context), ACCOUNT_ID_DOES_NOT_EXIST);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), ACCOUNT_ID_DOES_NOT_EXIST);
     }
 
     @Test
@@ -213,7 +200,8 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         final var txn = new CryptoUpdateBuilder().build();
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
-        readableStore = new ReadableAccountStoreImpl(readableStates);
+        readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
+        ;
 
         given(waivers.isNewKeySignatureWaived(any(), any())).willReturn(true);
         given(waivers.isTargetAccountSignatureWaived(any(), any())).willReturn(false);
@@ -227,9 +215,9 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         final var txn =
                 new CryptoUpdateBuilder().withProxyAccountNum(id.accountNum()).build();
         givenTxnWith(txn);
-        final var context = new FakePreHandleContext(readableStore, txn);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        assertThatThrownBy(() -> subject.preHandle(context))
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED));
     }
@@ -854,9 +842,11 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
                 builder.declineReward(declineReward.booleanValue());
             }
             if (stakedAccountId != null) {
-                builder.stakedAccountId(AccountID.newBuilder()
-                        .accountNum(stakedAccountId.longValue())
-                        .build());
+                if (stakedAccountId.equals(0L)) {
+                    builder.stakedAccountId(AccountID.newBuilder().accountNum(0).build());
+                } else {
+                    builder.stakedAccountId(idFactory.newAccountId(stakedAccountId.longValue()));
+                }
             } else if (stakeNodeId != null) {
                 builder.stakedNodeId(stakeNodeId.longValue());
             }
@@ -957,21 +947,22 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     private void updateReadableAccountStore(Map<Long, Account> accountsToAdd) {
         final var emptyStateBuilder = emptyReadableAccountStateBuilder();
         for (final var entry : accountsToAdd.entrySet()) {
-            emptyStateBuilder.value(accountID(entry.getKey()), entry.getValue());
+            emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         readableAccounts = emptyStateBuilder.build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
-        readableStore = new ReadableAccountStoreImpl(readableStates);
+        readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
+        ;
     }
 
     private void updateWritableAccountStore(Map<Long, Account> accountsToAdd) {
         final var emptyStateBuilder = emptyWritableAccountStateBuilder();
         for (final var entry : accountsToAdd.entrySet()) {
-            emptyStateBuilder.value(accountID(entry.getKey()), entry.getValue());
+            emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         writableAccounts = emptyStateBuilder.build();
         given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
-        writableStore = new WritableAccountStore(writableStates, configuration, mock(StoreMetricsService.class));
+        writableStore = new WritableAccountStore(writableStates, writableEntityCounters);
     }
 
     private void givenTxnWith(TransactionBody txn) {

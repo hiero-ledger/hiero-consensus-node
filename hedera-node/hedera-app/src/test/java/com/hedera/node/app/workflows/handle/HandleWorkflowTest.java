@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.node.config.types.StreamMode.BOTH;
@@ -37,13 +22,13 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.records.BlockRecordManager;
-import com.hedera.node.app.service.addressbook.impl.helpers.AddressBookHelper;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.SystemSetup;
@@ -57,6 +42,7 @@ import com.hedera.node.config.types.StreamMode;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Round;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -64,6 +50,7 @@ import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -73,6 +60,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class HandleWorkflowTest {
     private static final Timestamp BLOCK_TIME = new Timestamp(1_234_567L, 890);
+
+    @Mock
+    private HintsService hintsService;
+
+    @Mock
+    private HistoryService historyService;
 
     @Mock
     private NetworkInfo networkInfo;
@@ -88,9 +81,6 @@ class HandleWorkflowTest {
 
     @Mock
     private ConfigProvider configProvider;
-
-    @Mock
-    private StoreMetricsService storeMetricsService;
 
     @Mock
     private BlockRecordManager blockRecordManager;
@@ -147,15 +137,16 @@ class HandleWorkflowTest {
     private UserTxnFactory userTxnFactory;
 
     @Mock
-    private HintsService hintsService;
-
-    @Mock
-    private HistoryService historyService;
+    private CongestionMetrics congestionMetrics;
 
     private HandleWorkflow subject;
 
+    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+
     @BeforeEach
-    void setUp() {}
+    void setUp() {
+        softwareVersionFactory = ServicesSoftwareVersion::new;
+    }
 
     @Test
     void onlySkipsEventWithMissingCreator() {
@@ -211,7 +202,6 @@ class HandleWorkflowTest {
                 stakePeriodChanges,
                 dispatchProcessor,
                 configProvider,
-                storeMetricsService,
                 blockRecordManager,
                 blockStreamManager,
                 cacheWarmer,
@@ -227,11 +217,12 @@ class HandleWorkflowTest {
                 stakePeriodManager,
                 migrationStateChanges,
                 userTxnFactory,
-                new AddressBookHelper(),
                 kvStateChangeListener,
                 boundaryStateChangeListener,
                 scheduleService,
                 hintsService,
-                historyService);
+                historyService,
+                congestionMetrics,
+                softwareVersionFactory);
     }
 }

@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.schedulenative;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasPlus;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.RC_AND_ADDRESS_ENCODER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_SCHEDULE_ID;
@@ -32,6 +18,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.never;
 import static org.mockito.BDDMockito.verify;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -96,7 +83,7 @@ class ScheduleNativeCallTest extends CallTestBase {
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(recordBuilder.scheduleID()).willReturn(CALLED_SCHEDULE_ID);
-        given(htsCallFactory.createCallAttemptFrom(any(), any(), any())).willReturn(nativeAttempt);
+        given(htsCallFactory.createCallAttemptFrom(any(), any(), any(), any())).willReturn(nativeAttempt);
         given(nativeAttempt.asExecutableCall()).willReturn(nativeCall);
         given(nativeCall.asSchedulableDispatchIn())
                 .willReturn(SchedulableTransactionBody.newBuilder().build());
@@ -105,8 +92,8 @@ class ScheduleNativeCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult();
 
         // then
-        final var encodedResponse = RC_AND_ADDRESS_ENCODER.encodeElements(
-                (long) SUCCESS.protoOrdinal(), headlongAddressOf(CALLED_SCHEDULE_ID));
+        final var encodedResponse = RC_AND_ADDRESS_ENCODER.encode(
+                Tuple.of((long) SUCCESS.protoOrdinal(), headlongAddressOf(CALLED_SCHEDULE_ID)));
         final var expectedOutput = gasPlus(successResult(encodedResponse, 100L, recordBuilder), SUCCESS, false, 1100L)
                 .fullResult();
         assertEquals(State.COMPLETED_SUCCESS, result.result().getState());
@@ -120,7 +107,7 @@ class ScheduleNativeCallTest extends CallTestBase {
         given(systemContractOperations.dispatch(any(), any(), any(), any(), any(), any()))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(failureStatus);
-        given(htsCallFactory.createCallAttemptFrom(any(), any(), any())).willReturn(nativeAttempt);
+        given(htsCallFactory.createCallAttemptFrom(any(), any(), any(), any())).willReturn(nativeAttempt);
         given(nativeAttempt.asExecutableCall()).willReturn(nativeCall);
         given(nativeCall.asSchedulableDispatchIn())
                 .willReturn(SchedulableTransactionBody.newBuilder().build());
@@ -136,7 +123,7 @@ class ScheduleNativeCallTest extends CallTestBase {
     @Test
     void throwsWhenNativeCallIsNull() {
         // given
-        given(htsCallFactory.createCallAttemptFrom(any(), any(), any())).willReturn(nativeAttempt);
+        given(htsCallFactory.createCallAttemptFrom(any(), any(), any(), any())).willReturn(nativeAttempt);
         given(nativeAttempt.asExecutableCall()).willReturn(null);
 
         // when/then
@@ -149,7 +136,7 @@ class ScheduleNativeCallTest extends CallTestBase {
         given(systemContractOperations.dispatch(any(), any(), any(), any(), any(), any()))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
-        given(htsCallFactory.createCallAttemptFrom(any(), any(), any())).willReturn(nativeAttempt);
+        given(htsCallFactory.createCallAttemptFrom(any(), any(), any(), any())).willReturn(nativeAttempt);
         given(nativeAttempt.asExecutableCall()).willReturn(nativeCall);
         given(nativeCall.asSchedulableDispatchIn())
                 .willReturn(SchedulableTransactionBody.newBuilder().build());
@@ -171,6 +158,7 @@ class ScheduleNativeCallTest extends CallTestBase {
 
     private void prepareCall() {
         subject = new ScheduleNativeCall(
+                HTS_167_CONTRACT_ID,
                 gasCalculator,
                 mockEnhancement(),
                 verificationStrategy,

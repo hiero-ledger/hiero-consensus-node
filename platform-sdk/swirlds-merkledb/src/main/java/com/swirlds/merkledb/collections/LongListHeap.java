@@ -1,25 +1,11 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
 import static java.lang.Math.toIntExact;
 import static java.nio.ByteBuffer.allocateDirect;
 
 import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.utilities.MemoryUtils;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -50,6 +36,9 @@ import java.util.concurrent.atomic.AtomicLongArray;
  */
 @SuppressWarnings("unused")
 public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
+
+    /** A buffer for reading chunk data from the file only during the initialization. */
+    private ByteBuffer initReadBuffer;
 
     /** Construct a new LongListHeap with the default number of longs per chunk. */
     public LongListHeap() {
@@ -87,23 +76,35 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
 
     /** {@inheritDoc} */
     @Override
-    protected void readBodyFromFileChannelOnInit(String sourceFileName, FileChannel fileChannel) throws IOException {
-        // read data
-        final int numOfArrays = calculateNumberOfChunks(size());
-        final ByteBuffer buffer = allocateDirect(memoryChunkSize);
-        buffer.order(ByteOrder.nativeOrder());
-        for (int i = 0; i < numOfArrays; i++) {
-            final AtomicLongArray atomicLongArray = new AtomicLongArray(numLongsPerChunk);
-            buffer.clear();
-            MerkleDbFileUtils.completelyRead(fileChannel, buffer);
-            buffer.flip();
-            int index = 0;
-            while (buffer.remaining() > 0) {
-                atomicLongArray.set(index, buffer.getLong());
-                index++;
-            }
-            chunkList.set(i, atomicLongArray);
+    protected void readBodyFromFileChannelOnInit(final String sourceFileName, final FileChannel fileChannel)
+            throws IOException {
+        initReadBuffer = ByteBuffer.allocateDirect(memoryChunkSize).order(ByteOrder.nativeOrder());
+        try {
+            super.readBodyFromFileChannelOnInit(sourceFileName, fileChannel);
+        } finally {
+            MemoryUtils.closeDirectByteBuffer(initReadBuffer);
         }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    protected AtomicLongArray readChunkData(FileChannel fileChannel, int chunkIndex, int startIndex, int endIndex)
+            throws IOException {
+        AtomicLongArray chunk = createChunk();
+
+        readDataIntoBuffer(fileChannel, chunkIndex, startIndex, endIndex, initReadBuffer);
+
+        final int startOffset = startIndex * Long.BYTES;
+        final int endOffset = endIndex * Long.BYTES;
+        initReadBuffer.position(startOffset);
+        initReadBuffer.limit(endOffset);
+
+        while (initReadBuffer.hasRemaining()) {
+            int index = initReadBuffer.position() / Long.BYTES;
+            chunk.set(index, initReadBuffer.getLong());
+        }
+
+        return chunk;
     }
 
     /** {@inheritDoc} */

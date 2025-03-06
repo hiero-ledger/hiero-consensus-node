@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
@@ -47,7 +32,8 @@ import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeData;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -62,6 +48,7 @@ import javax.inject.Singleton;
 @Singleton
 public class FileGetInfoHandler extends FileQueryBase {
     private final FileOpsUsage fileOpsUsage;
+    private final Cryptography cryptography;
 
     /**
      * Constructs a {@link FileGetInfoHandler} with the given {@link FileOpsUsage}.
@@ -70,6 +57,7 @@ public class FileGetInfoHandler extends FileQueryBase {
     @Inject
     public FileGetInfoHandler(final FileOpsUsage fileOpsUsage) {
         this.fileOpsUsage = fileOpsUsage;
+        cryptography = CryptographyFactory.create();
     }
 
     @Override
@@ -168,7 +156,7 @@ public class FileGetInfoHandler extends FileQueryBase {
                 // The "memo" of a special upgrade file is its hexed SHA-384 hash for DevOps convenience
                 final var contents = upgradeFileStore.getFull(fileID).toByteArray();
                 contentSize = contents.length;
-                final var upgradeHash = hex(CryptographyHolder.get().digestBytesSync(contents));
+                final var upgradeHash = hex(cryptography.digestBytesSync(contents));
                 meta = new FileMetadata(
                         file.fileId(),
                         Timestamp.newBuilder().seconds(file.expirationSecond()).build(),

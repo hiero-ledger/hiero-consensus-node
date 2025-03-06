@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.logging;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -219,26 +204,6 @@ public class StateLogger {
         if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
             logger.debug(
                     "      GET on map {} key {} value {}",
-                    label,
-                    formatKey(key),
-                    value == null ? "null" : value.toString());
-        }
-    }
-
-    /**
-     * Log the get of an entry from a map for modification.
-     *
-     * @param label The label of the map
-     * @param key The key fetched to the map
-     * @param value The value fetched to the map
-     * @param <K> The type of the key
-     * @param <V> The type of the value
-     */
-    public static <K, V> void logMapGetForModify(
-            @NonNull final String label, @NonNull final K key, @Nullable final V value) {
-        if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
-            logger.debug(
-                    "      GET_FOR_MODIFY on map {} key {} value {}",
                     label,
                     formatKey(key),
                     value == null ? "null" : value.toString());

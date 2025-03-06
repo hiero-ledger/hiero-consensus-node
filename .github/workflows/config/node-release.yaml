@@ -1,11 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
 release:
   branching:
     execution:
-      time: "20:00:00"
+      time: "21:00:00"
     schedule:
-      - on: "2024-12-20"
-        name: release/0.58
+      - on: "2025-02-24"
+        name: release/0.60
         initial-tag:
           create: true
-          name: v0.58.0-alpha.0
-
+          name: v0.60.0-alpha.0

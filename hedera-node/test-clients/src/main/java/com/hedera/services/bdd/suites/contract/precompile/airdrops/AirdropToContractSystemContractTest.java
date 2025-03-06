@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
@@ -25,8 +10,10 @@ import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.i
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.FEE_SCHEDULE_KEY;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.FREEZE_KEY;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -35,6 +22,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFeeScheduleUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
@@ -43,6 +31,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fra
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
@@ -64,15 +53,20 @@ import static com.hedera.services.bdd.suites.contract.precompile.airdrops.System
 import static com.hedera.services.bdd.suites.contract.precompile.airdrops.SystemContractAirdropHelper.prepareTokenAddresses;
 import static com.hedera.services.bdd.suites.contract.precompile.airdrops.SystemContractAirdropHelper.prepareTokensAndBalances;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.PARTY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.*;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.assertions.AccountInfoAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
@@ -885,6 +879,38 @@ public class AirdropToContractSystemContractTest {
             }));
         }
 
+        @HapiTest
+        @DisplayName("Airdrop token to a contract that is not associated to it with free auto association slots")
+        public Stream<DynamicTest> airdropTokenToNotAssociatedContract(
+                @NonNull
+                        @Contract(
+                                contract = "EmptyOne",
+                                name = "receiver",
+                                isImmutable = true,
+                                maxAutoAssociations = -1)
+                        SpecContract receiverContract,
+                @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token) {
+            return hapiTest(withOpContext((spec, opLog) -> {
+                allRunFor(spec, sender.associateTokens(token), token.treasury().transferUnitsTo(sender, 1_000L, token));
+                allRunFor(spec, checkForEmptyBalance(receiverContract, List.of(token), List.of()));
+                allRunFor(
+                        spec,
+                        airdropContract
+                                .call("tokenAirdrop", token, sender, receiverContract, 10L)
+                                .sending(85_000_000L)
+                                .gas(1_500_000L)
+                                .via("airdropTxn"));
+                allRunFor(
+                        spec,
+                        receiverContract.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10L)),
+                        getTxnRecord("airdropTxn").hasPriority(recordWith().pendingAirdropsCount(0)),
+                        receiverContract
+                                .getInfo()
+                                .andAssert(info -> info.has(contractWith().hasAlreadyUsedAutomaticAssociations(1))),
+                        validateChargedUsdWithChild("airdropTxn", (0.123 + 0.05), 1.0));
+            }));
+        }
+
         private void oneToMultiAirdrop(
                 @NonNull final SpecAccount sender,
                 @NonNull final List<SpecContract> receiverContracts,
@@ -983,6 +1009,177 @@ public class AirdropToContractSystemContractTest {
             return IntStream.range(0, receiverContracts.size())
                     .mapToObj(i -> methodChecker.apply(receiverContracts.get(i), List.of(tokens.get(i)), List.of()))
                     .toArray(SpecOperation[]::new);
+        }
+    }
+
+    @Nested
+    @DisplayName("Negative test cases")
+    class AirdropToContractNegativeCases {
+
+        @HapiTest
+        @DisplayName(
+                "Airdrop frozen token that is already associated to the receiving contract should result in failed airdrop")
+        public Stream<DynamicTest> airdropFrozenToken(
+                @Contract(contract = "AssociateContract", isImmutable = true) SpecContract receiverContract,
+                @FungibleToken(
+                                initialSupply = 1_000_000L,
+                                keys = {ADMIN_KEY, FREEZE_KEY})
+                        SpecFungibleToken token) {
+            return hapiTest(withOpContext((spec, opLog) -> {
+                allRunFor(
+                        spec,
+                        receiverContract.getBalance().andAssert(balance -> balance.hasTinyBars(0L)),
+                        sender.associateTokens(token),
+                        receiverContract
+                                .call("associateTokenToThisContract", token)
+                                .gas(1_000_000L),
+                        token.treasury().transferUnitsTo(sender, 1_000L, token),
+                        tokenFreeze(token.name(), receiverContract.name()));
+                allRunFor(
+                        spec,
+                        airdropContract
+                                .call("tokenAirdrop", token, sender, receiverContract, 10L)
+                                .sending(85_000_000L)
+                                .gas(1_500_000L)
+                                .andAssert(txn ->
+                                        txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, ACCOUNT_FROZEN_FOR_TOKEN)));
+            }));
+        }
+
+        @HapiTest
+        @DisplayName(
+                "Airdrop token to a contract that results in a pending state then transfer same token to the same contract should fail")
+        public Stream<DynamicTest> airdropToContractWithPendingAirdrop(
+                @Contract(contract = "EmptyOne", isImmutable = true, maxAutoAssociations = 0)
+                        SpecContract receiverContract,
+                @FungibleToken(initialSupply = 1_000_000L) SpecFungibleToken token) {
+            return hapiTest(withOpContext((spec, opLog) -> {
+                allRunFor(
+                        spec,
+                        receiverContract.getBalance().andAssert(balance -> balance.hasTinyBars(0L)),
+                        sender.associateTokens(token),
+                        token.treasury().transferUnitsTo(sender, 1_000L, token));
+                allRunFor(
+                        spec,
+                        airdropContract
+                                .call("tokenAirdrop", token, sender, receiverContract, 10L)
+                                .sending(85_000_000L)
+                                .gas(1_500_000L)
+                                .via("pendingAirdrop"));
+                allRunFor(
+                        spec,
+                        getTxnRecord("pendingAirdrop")
+                                .hasChildRecords(recordWith()
+                                        .pendingAirdrops(includingFungiblePendingAirdrop(
+                                                prepareFTAirdrops(sender, receiverContract, List.of(token))
+                                                        .toArray(TokenMovement[]::new)))));
+                allRunFor(
+                        spec,
+                        cryptoTransfer(moving(10, token.name()).between(sender.name(), receiverContract.name()))
+                                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
+            }));
+        }
+
+        @HapiTest
+        @DisplayName(
+                "Transfer token to a contract not associated to it with no available auto association slots should fail")
+        public Stream<DynamicTest> transferToContractWithNoFreeSlotsShouldFail(
+                @Contract(contract = "EmptyOne", isImmutable = true, maxAutoAssociations = 0)
+                        SpecContract receiverContract,
+                @FungibleToken(initialSupply = 1_000_000L) SpecFungibleToken token) {
+            return hapiTest(withOpContext((spec, opLog) -> {
+                allRunFor(
+                        spec,
+                        receiverContract.getBalance().andAssert(balance -> balance.hasTinyBars(0L)),
+                        sender.associateTokens(token),
+                        token.treasury().transferUnitsTo(sender, 1_000L, token));
+                allRunFor(
+                        spec,
+                        cryptoTransfer(moving(10, token.name()).between(sender.name(), receiverContract.name()))
+                                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
+            }));
+        }
+
+        @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+        @DisplayName(
+                "Airdrop token to a hollow account that would create pending airdrop then deploy a contract on the same address")
+        public Stream<DynamicTest> airdropToHollowAccThenCreate2OnSameAddress(
+                @FungibleToken(initialSupply = 1_000_000L) SpecFungibleToken token) {
+            final var create2Contract = "Create2Factory";
+            final AtomicReference<String> factoryEvmAddress = new AtomicReference<>();
+            final AtomicReference<byte[]> testContractInitcode = new AtomicReference<>();
+            final AtomicReference<String> expectedCreate2Address = new AtomicReference<>();
+            final AtomicReference<String> hollowCreationAddress = new AtomicReference<>();
+
+            final var salt = BigInteger.valueOf(42);
+            final var creation = CREATION;
+            final var tcValue = 1_234L;
+
+            return hapiTest(withOpContext((spec, opLog) -> {
+                allRunFor(
+                        spec,
+                        // We need to disable the unlimited auto associations in order to create hollow account with
+                        // maxAutoAssociations != -1
+                        overriding("entities.unlimitedAutoAssociationsEnabled", "false"),
+                        sender.associateTokens(token),
+                        uploadInitCode(create2Contract),
+                        token.treasury().transferUnitsTo(sender, 1_000L, token),
+                        sourcing(() -> contractCreate(create2Contract)
+                                .payingWith(GENESIS)
+                                .via(CREATE_2_TXN)
+                                .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num)))),
+                        // GET BYTECODE OF THE CREATE2 CONTRACT
+                        sourcing(() -> contractCallLocal(
+                                        create2Contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
+                                .exposingTypedResultsTo(results -> {
+                                    final var tcInitcode = (byte[]) results[0];
+                                    testContractInitcode.set(tcInitcode);
+                                })
+                                .payingWith(GENESIS)
+                                .nodePayment(ONE_HBAR)),
+                        // GET THE ADDRESS WHERE THE CONTRACT WILL BE DEPLOYED
+                        sourcing(() -> setExpectedCreate2Address(
+                                create2Contract, salt, expectedCreate2Address, testContractInitcode)),
+                        cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
+                        // Now create a hollow account at the desired address
+                        lazyCreateAccount(creation, expectedCreate2Address, Optional.empty(), Optional.empty(), null),
+                        sourcing(() -> getTxnRecord(creation)
+                                .andAllChildRecords()
+                                .logged()
+                                .exposingCreationsTo(l -> hollowCreationAddress.set(l.get(0)))),
+                        // Initial check for receiver balance
+                        sourcing(() ->
+                                getAccountBalance(hollowCreationAddress.get()).hasTokenBalance(token.name(), 0L)),
+                        sourcing(() -> getAccountInfo(hollowCreationAddress.get())
+                                .logged()
+                                .has(AccountInfoAsserts.accountWith().maxAutoAssociations(0))),
+                        // Airdrop token to the contract's alias
+                        sourcing(() -> contractCall(
+                                        airdropContract.name(),
+                                        "tokenAirdrop",
+                                        token.addressOn(spec.targetNetworkOrThrow()),
+                                        sender.addressOn(spec.targetNetworkOrThrow()),
+                                        asHeadlongAddress(expectedCreate2Address.get()),
+                                        10L)
+                                .sending(85_000_000L)
+                                .gas(1_500_000L)
+                                .via("pendingFTAirdrop")),
+                        // Check for the pending airdrop records
+                        sourcing(() -> getTxnRecord("pendingFTAirdrop")
+                                .logged()
+                                .hasChildRecords(recordWith()
+                                        .pendingAirdrops(includingFungiblePendingAirdrop(moving(10, token.name())
+                                                .between(sender.name(), hollowCreationAddress.get()))))),
+                        sourcing(() -> contractCall(create2Contract, DEPLOY, testContractInitcode.get(), salt)
+                                .payingWith(GENESIS)
+                                .gas(10_000_000L)
+                                .sending(tcValue)
+                                .via(CREATE_2_TXN)),
+                        // Check for receiver balance again
+                        sourcing(() ->
+                                getAccountBalance(hollowCreationAddress.get()).hasTokenBalance(token.name(), 0L)));
+                overriding("entities.unlimitedAutoAssociationsEnabled", "true");
+            }));
         }
     }
 }

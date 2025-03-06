@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
@@ -55,6 +40,7 @@ import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -68,12 +54,16 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
     @Mock(strictness = Mock.Strictness.LENIENT)
     private HandleContext handleContext;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     private final Bytes metadata1 = Bytes.wrap("memo".getBytes());
     private final Bytes metadata2 = Bytes.wrap("memo2".getBytes());
     private RecordStreamBuilder recordBuilder;
     private TokenMintHandler subject;
 
     @BeforeEach
+    @Override
     public void setUp() {
         super.setUp();
         refreshWritableStores();
@@ -85,10 +75,10 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
     @Test
     void rejectsNftMintsWhenNftsNotEnabled() {
         givenMintTxn(nonFungibleTokenId, List.of(metadata1, metadata2), null);
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.nfts.areEnabled", false)
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -196,8 +186,9 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
     @Test
     void rejectsBothAmountAndMetadataFields() throws PreCheckException {
         final var txn = givenMintTxn(fungibleTokenId, List.of(metadata1), 2L);
-        final var context = new FakePreHandleContext(readableAccountStore, txn);
-        assertThatThrownBy(() -> subject.preHandle(context))
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_TRANSACTION_BODY));
     }
@@ -217,10 +208,10 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
     void propagatesErrorOnBadMetadata() {
         givenMintTxn(nonFungibleTokenId, List.of(Bytes.wrap("test".getBytes())), null);
 
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.nfts.maxMetadataBytes", 1)
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -231,10 +222,10 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
     void propagatesErrorOnMaxBatchSizeReached() {
         givenMintTxn(nonFungibleTokenId, List.of(metadata1, metadata2), null);
 
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.nfts.maxBatchSizeMint", 1)
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -245,10 +236,10 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
     void validatesMintingResourcesLimit() {
         givenMintTxn(nonFungibleTokenId, List.of(Bytes.wrap("test".getBytes()), Bytes.wrap("test1".getBytes())), null);
 
-        configuration = HederaTestConfigBuilder.create()
+        final var configOverride = HederaTestConfigBuilder.create()
                 .withValue("tokens.nfts.maxAllowedMints", 1)
                 .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
+        given(handleContext.configuration()).willReturn(configOverride);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)

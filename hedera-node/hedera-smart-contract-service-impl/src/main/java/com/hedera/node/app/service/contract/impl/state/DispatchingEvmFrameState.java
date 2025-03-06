@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -52,6 +37,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerifi
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy.UseTopLevelSigs;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -150,6 +136,10 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             @Nullable final ContractID contractID, @NonNull final UInt256 key, @NonNull final UInt256 value) {
         final var slotKey = new SlotKey(contractID, tuweniToPbjBytes(requireNonNull(key)));
         final var oldSlotValue = contractStateStore.getSlotValue(slotKey);
+        if (oldSlotValue == null && value.isZero()) {
+            // Small optimization---don't put zero into an empty slot
+            return;
+        }
         // Ensure we don't change any prev/next keys until the base commit
         final var slotValue = new SlotValue(
                 tuweniToPbjBytes(requireNonNull(value)),
@@ -212,6 +202,14 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     public @NonNull RentFactors getRentFactorsFor(final ContractID contractID) {
         final var account = validatedAccount(contractID);
         return new RentFactors(account.contractKvPairsNumber(), account.expirationSecond());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull EntityIdFactory entityIdFactory() {
+        return nativeOperations.entityIdFactory();
     }
 
     /**
@@ -381,14 +379,16 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             }
 
             final var evmAddress = extractEvmAddress(account.alias());
-            return evmAddress == null ? asLongZeroAddress(number) : pbjToBesuAddress(evmAddress);
+            return evmAddress == null
+                    ? asLongZeroAddress(nativeOperations.entityIdFactory(), number)
+                    : pbjToBesuAddress(evmAddress);
         }
         final var token = nativeOperations.getToken(number);
         final var schedule = nativeOperations.getSchedule(number);
         if (token != null || schedule != null) {
             // If the token or schedule  is deleted or expired, the system contract executed by the redirect
             // bytecode will fail with a more meaningful error message, so don't check that here
-            return asLongZeroAddress(number);
+            return asLongZeroAddress(nativeOperations.entityIdFactory(), number);
         }
         throw new IllegalArgumentException("No account, token or schedule has number " + number);
     }
@@ -408,9 +408,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         }
 
         final var evmAddress = extractEvmAddress(account.alias());
-        return evmAddress == null
-                ? asLongZeroAddress(account.accountIdOrThrow().accountNum())
-                : pbjToBesuAddress(evmAddress);
+        return evmAddress == null ? asLongZeroAddress(accountID) : pbjToBesuAddress(evmAddress);
     }
 
     @Override
@@ -487,7 +485,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public Optional<ExceptionalHaltReason> tryLazyCreation(@NonNull final Address address) {
-        if (isLongZero(address)) {
+        if (isLongZero(nativeOperations.entityIdFactory(), address)) {
             return Optional.of(INVALID_ALIAS_KEY);
         }
         final var number = maybeMissingNumberOf(address, nativeOperations);

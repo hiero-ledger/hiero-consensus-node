@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2019-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.crypto;
 
 import com.swirlds.common.io.SelfSerializable;
@@ -138,8 +123,7 @@ public interface Cryptography {
 
     /**
      * Verifies the given digital signature for authenticity. The result of the verification will be returned by the
-     * {@link TransactionSignature#getSignatureStatus()} method once the future (available via
-     * {@link TransactionSignature#getFuture()}) has been completed.
+     * {@link TransactionSignature#getSignatureStatus()} method.
      * <p>
      * Starting in version 0.43 and onwards, the {@link SignatureType#ECDSA_SECP256K1} signature algorithm requires the
      * payload to be a KECCAK-256 hash of the original message. Verification will fail if the message is not 32 bytes in
@@ -153,8 +137,7 @@ public interface Cryptography {
 
     /**
      * Verifies the given digital signatures for authenticity. The result of the verification will be returned by the
-     * {@link TransactionSignature#getSignatureStatus()} method once the future (available via
-     * {@link TransactionSignature#getFuture()}) has been completed.
+     * {@link TransactionSignature#getSignatureStatus()} method.
      * <p>
      * Starting in version 0.43 and onwards, the {@link SignatureType#ECDSA_SECP256K1} signature algorithm requires the
      * payload to be a KECCAK-256 hash of the original message. Verification will fail if the message is not 32 bytes in

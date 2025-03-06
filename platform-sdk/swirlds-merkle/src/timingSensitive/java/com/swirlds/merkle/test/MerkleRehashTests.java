@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test;
 
 import static com.swirlds.common.merkle.utility.MerkleUtils.invalidateTree;
@@ -27,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
@@ -53,6 +38,7 @@ import org.mockito.stubbing.Answer;
 
 @DisplayName("Merkle Rehash Tests")
 class MerkleRehashTests {
+    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
     /**
      * If the root of the tree is an internal node, add some self hashing nodes that "explode" if rehashed.
@@ -86,8 +72,7 @@ class MerkleRehashTests {
 
             root.forEachNode((final MerkleNode node) -> {
                 if (node.isSelfHashing()) {
-                    assertEquals(
-                            CryptographyHolder.get().getNullHash(), node.getHash(), "dummy node should have null hash");
+                    assertEquals(NULL_HASH, node.getHash(), "dummy node should have null hash");
                 } else {
                     assertNull(node.getHash(), "node should have a null hash");
                 }
@@ -103,8 +88,7 @@ class MerkleRehashTests {
 
             root.forEachNode((final MerkleNode node) -> {
                 if (node.isSelfHashing()) {
-                    assertEquals(
-                            CryptographyHolder.get().getNullHash(), node.getHash(), "dummy node should have null hash");
+                    assertEquals(NULL_HASH, node.getHash(), "dummy node should have null hash");
                 } else {
                     assertNull(node.getHash(), "node should have a null hash");
                 }
@@ -126,8 +110,7 @@ class MerkleRehashTests {
 
             root.forEachNode((final MerkleNode node) -> {
                 if (node.isSelfHashing()) {
-                    assertEquals(
-                            CryptographyHolder.get().getNullHash(), node.getHash(), "dummy node should have null hash");
+                    assertEquals(NULL_HASH, node.getHash(), "dummy node should have null hash");
                 } else {
                     assertNull(node.getHash(), "node should have a null hash");
                 }
@@ -160,8 +143,10 @@ class MerkleRehashTests {
     @DisplayName("Failed Rehash Behavior")
     public void failedRehash() {
 
-        DummyMerkleNode root = spy(generateRandomTree(0, 2, 1, 1, 0, 3, 1, 0.25));
-        when(root.getHash()).then(new Answer<Hash>() {
+        DummyMerkleNode root = generateRandomTree(0, 2, 1, 1, 0, 3, 1, 0.25);
+        MerkleNode child = spy(root.asInternal().getChild(0).copy());
+        root.asInternal().setChild(0, child);
+        when(child.getHash()).then(new Answer<Hash>() {
             private int count = 0;
 
             @Override
@@ -207,7 +192,7 @@ class MerkleRehashTests {
 
         @Override
         public Hash getHash() {
-            return CryptographyHolder.get().getNullHash();
+            return NULL_HASH;
         }
 
         @Override
@@ -246,7 +231,7 @@ class MerkleRehashTests {
 
         @Override
         public Hash getHash() {
-            return CryptographyHolder.get().getNullHash();
+            return NULL_HASH;
         }
 
         @Override

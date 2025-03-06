@@ -1,23 +1,6 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform;
 
-import static com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType.APPLICATION_TRANSACTION;
-import static com.hedera.hapi.platform.event.EventTransaction.TransactionOneOfType.STATE_SIGNATURE_TRANSACTION;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema.ROSTER_STATES_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,10 +14,9 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.OneOf;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.RosterStateId;
 import com.swirlds.common.context.PlatformContext;
@@ -56,7 +38,6 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.crypto.KeysAndCerts;
@@ -64,7 +45,6 @@ import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.crypto.PublicStores;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.gossip.shadowgraph.Generations;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -88,19 +68,18 @@ import java.util.Random;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 class PlatformTestingToolStateTest {
 
     private static final String DEFAULT_CONFIG = "configs/FCM1KForTest.json";
     private static final String CONFIG_WITHOUT_APPEND_SIG = "configs/FCM1KForTestWithoutAppendSig.json";
     private static final byte[] EMPTY_ARRAY = new byte[] {};
-    private static PlatformTestingToolStateLifecycles stateLifecycles;
-    private static PlatformTestingToolState state;
-    private static MockedStatic<ParameterProvider> parameterProvider;
+    private PlatformTestingToolState state;
+    private MockedStatic<ParameterProvider> parameterProvider;
     private Consumer<ScopedSystemTransaction<StateSignatureTransaction>> consumer;
     private List<ScopedSystemTransaction<StateSignatureTransaction>> consumedSystemTransactions;
     private StateSignatureTransaction stateSignatureTransaction;
@@ -112,21 +91,13 @@ class PlatformTestingToolStateTest {
     private Roster roster;
     private EventWindow eventWindow;
 
-    @BeforeAll
-    static void createState() {
-        final PayloadCfgSimple payloadConfig = mock(PayloadCfgSimple.class);
-        when(payloadConfig.isAppendSig()).thenReturn(true);
-
-        state = mock(PlatformTestingToolState.class);
-
-        final ExpectedFCMFamily expectedFCMFamily = mock(ExpectedFCMFamily.class);
-        when(state.getStateExpectedMap()).thenReturn(expectedFCMFamily);
-
-        stateLifecycles = new PlatformTestingToolStateLifecycles();
-    }
-
     @BeforeEach
     void setUp() throws KeyStoreException, KeyGeneratingException, NoSuchAlgorithmException, NoSuchProviderException {
+        final PayloadCfgSimple payloadConfig = mock(PayloadCfgSimple.class);
+        when(payloadConfig.isAppendSig()).thenReturn(true);
+        state = mock(PlatformTestingToolState.class);
+        final ExpectedFCMFamily expectedFCMFamily = mock(ExpectedFCMFamily.class);
+        when(state.getStateExpectedMap()).thenReturn(expectedFCMFamily);
         main = new PlatformTestingToolMain();
         random = new Random();
         roster = new Roster(Collections.EMPTY_LIST);
@@ -144,7 +115,7 @@ class PlatformTestingToolStateTest {
         final Randotron randotron = Randotron.create();
 
         final KeysAndCerts keysAndCerts =
-                KeysAndCerts.generate("a-name", EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+                KeysAndCerts.generate(NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
 
         final PlatformSigner signer = new PlatformSigner(keysAndCerts);
         final Hash stateHash = randotron.nextHash();
@@ -172,7 +143,7 @@ class PlatformTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(Bytes.wrap(testTransactionWrapper.toByteArray()));
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).isEmpty();
@@ -188,7 +159,7 @@ class PlatformTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).hasSize(1);
@@ -204,7 +175,7 @@ class PlatformTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).hasSize(1);
@@ -236,37 +207,16 @@ class PlatformTestingToolStateTest {
         round = new ConsensusRound(
                 roster,
                 List.of(platformEvent),
-                platformEvent,
-                new Generations(),
                 eventWindow,
-                new ConsensusSnapshot(),
+                Mockito.mock(ConsensusSnapshot.class),
                 false,
                 Instant.now());
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).hasSize(3);
-    }
-
-    @Test
-    void handleConsensusRoundWithDeprecatedSystemTransaction() {
-        // Given
-        givenInitState(DEFAULT_CONFIG);
-        givenRoundAndEvent();
-
-        final byte[] transactionBytes = new byte[300];
-        random.nextBytes(transactionBytes);
-
-        when(transaction.getApplicationTransaction()).thenReturn(Bytes.wrap(transactionBytes));
-        when(transaction.isSystem()).thenReturn(true);
-
-        // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
-
-        // Then
-        assertThat(consumedSystemTransactions).isEmpty();
     }
 
     @Test
@@ -277,16 +227,14 @@ class PlatformTestingToolStateTest {
 
         final TestTransactionWrapper testTransactionWrapper = getTransactionWithRandomType(300);
 
-        final EventTransaction eventTransaction = new EventTransaction(
-                new OneOf<>(APPLICATION_TRANSACTION, Bytes.wrap(testTransactionWrapper.toByteArray())));
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent =
-                new GossipEvent(eventCore, null, List.of(eventTransaction), Collections.emptyList());
+                new GossipEvent(eventCore, null, List.of(Bytes.wrap(testTransactionWrapper.toByteArray())));
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         platformEvent = new PlatformEvent(gossipEvent);
 
         // When
-        stateLifecycles.onPreHandle(platformEvent, state, consumer);
+        main.consensusStateEventHandler.onPreHandle(platformEvent, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).isEmpty();
@@ -299,16 +247,13 @@ class PlatformTestingToolStateTest {
         givenRoundAndEvent();
 
         final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
-        final EventTransaction eventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, stateSignatureTransactionBytes));
         final EventCore eventCore = mock(EventCore.class);
-        final GossipEvent gossipEvent =
-                new GossipEvent(eventCore, null, List.of(eventTransaction), Collections.emptyList());
+        final GossipEvent gossipEvent = new GossipEvent(eventCore, null, List.of(stateSignatureTransactionBytes));
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         platformEvent = new PlatformEvent(gossipEvent);
 
         // When
-        stateLifecycles.onPreHandle(platformEvent, state, consumer);
+        main.consensusStateEventHandler.onPreHandle(platformEvent, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).hasSize(1);
@@ -321,51 +266,35 @@ class PlatformTestingToolStateTest {
 
         final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
 
-        final EventTransaction eventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, stateSignatureTransactionBytes));
-        final EventTransaction secondEventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, stateSignatureTransactionBytes));
-        final EventTransaction thirdEventTransaction =
-                new EventTransaction(new OneOf<>(APPLICATION_TRANSACTION, stateSignatureTransactionBytes));
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = new GossipEvent(
                 eventCore,
                 null,
-                List.of(eventTransaction, secondEventTransaction, thirdEventTransaction),
-                Collections.emptyList());
+                List.of(
+                        stateSignatureTransactionBytes,
+                        stateSignatureTransactionBytes,
+                        stateSignatureTransactionBytes));
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         platformEvent = new PlatformEvent(gossipEvent);
 
         // When
-        stateLifecycles.onPreHandle(platformEvent, state, consumer);
+        main.consensusStateEventHandler.onPreHandle(platformEvent, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).hasSize(3);
     }
 
     @Test
-    void preHandleConsensusRoundWithDeprecatedSystemTransaction() {
+    void onSealDefaultsToTrue() {
         // Given
         givenInitState(DEFAULT_CONFIG);
         givenRoundAndEvent();
-        when(transaction.isSystem()).thenReturn(true);
-
-        final byte[] transactionBytes = new byte[300];
-        random.nextBytes(transactionBytes);
-
-        final EventTransaction eventTransaction =
-                new EventTransaction(new OneOf<>(STATE_SIGNATURE_TRANSACTION, transactionBytes));
-        final EventCore eventCore = mock(EventCore.class);
-        final GossipEvent gossipEvent =
-                new GossipEvent(eventCore, null, List.of(eventTransaction), Collections.emptyList());
-        when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
-        platformEvent = new PlatformEvent(gossipEvent);
 
         // When
-        stateLifecycles.onPreHandle(platformEvent, state, consumer);
+        final boolean result = main.consensusStateEventHandler.onSealConsensusRound(round, state);
 
         // Then
-        assertThat(consumedSystemTransactions).isEmpty();
+        assertThat(result).isTrue();
     }
 
     private void givenRoundAndEvent() {
@@ -378,10 +307,8 @@ class PlatformTestingToolStateTest {
         round = new ConsensusRound(
                 roster,
                 List.of(platformEvent),
-                platformEvent,
-                new Generations(),
                 eventWindow,
-                new ConsensusSnapshot(),
+                Mockito.mock(ConsensusSnapshot.class),
                 false,
                 Instant.now());
     }
@@ -419,7 +346,7 @@ class PlatformTestingToolStateTest {
         when(parameterProviderInstance.getParameters()).thenReturn(new String[] {config});
 
         state.initChildren();
-        stateLifecycles.onStateInitialized(state, platform, initTrigger, new BasicSoftwareVersion(1));
+        main.consensusStateEventHandler.onStateInitialized(state, platform, initTrigger, new BasicSoftwareVersion(1));
         main.init(platform, nodeId);
     }
 

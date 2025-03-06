@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule;
 
 import com.hedera.hapi.node.base.ScheduleID;
@@ -43,21 +28,18 @@ public interface WritableScheduleStore extends ReadableScheduleStore {
     Schedule delete(@Nullable ScheduleID scheduleToDelete, @NonNull Instant consensusTime);
 
     /**
-     * Given the ID of a schedule, return a mutable reference to the schedule in this state.
-     *
-     * @param scheduleId The ID to find
-     * @return the Schedule to modify
-     */
-    @Nullable
-    Schedule getForModify(@NonNull ScheduleID scheduleId);
-
-    /**
-     * Add a schedule to this state.
+     * Add an updated schedule to this state. If the schedule already exists, it will be replaced.
      * If the schedule already exists it will be replaced.
      *
      * @param scheduleToAdd The schedule to add
      */
     void put(@NonNull Schedule scheduleToAdd);
+
+    /**
+     * Adds a new schedule to the store. This will also increment the entity counts for schedules.
+     * @param scheduleToAdd The schedule to add to the store
+     */
+    void putAndIncrementCount(@NonNull Schedule scheduleToAdd);
 
     /**
      * Purges all schedule state associated with the given order.

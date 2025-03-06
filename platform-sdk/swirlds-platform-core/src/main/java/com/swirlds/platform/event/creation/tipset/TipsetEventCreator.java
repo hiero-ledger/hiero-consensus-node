@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.creation.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -23,7 +8,6 @@ import static com.swirlds.platform.system.events.EventConstants.CREATOR_ID_UNDEF
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.stream.Signer;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
@@ -61,7 +45,6 @@ public class TipsetEventCreator implements EventCreator {
 
     private static final Logger logger = LogManager.getLogger(TipsetEventCreator.class);
 
-    private final Cryptography cryptography;
     private final Time time;
     private final Random random;
     private final Signer signer;
@@ -154,7 +137,6 @@ public class TipsetEventCreator implements EventCreator {
         final EventCreationConfig eventCreationConfig =
                 platformContext.getConfiguration().getConfigData(EventCreationConfig.class);
 
-        cryptography = platformContext.getCryptography();
         antiSelfishnessFactor = Math.max(1.0, eventCreationConfig.antiSelfishnessFactor());
         tipsetMetrics = new TipsetMetrics(platformContext, roster);
         ancientMode = platformContext

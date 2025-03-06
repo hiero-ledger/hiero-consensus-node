@@ -31,11 +31,14 @@ public class FakeNmt {
      * Returns an operation that restarts the network with the given config version.
      *
      * @param configVersion the config version to use
+     * @param envOverrides the environment overrides to use
      * @return the operation that restarts the network
      */
-    public static TryToStartNodesOp restartNetwork(final int configVersion) {
+    public static TryToStartNodesOp restartNetwork(
+            final int configVersion, @NonNull final Map<String, String> envOverrides) {
+        requireNonNull(envOverrides);
         return new TryToStartNodesOp(
-                NodeSelector.allNodes(), configVersion, SubProcessNode.ReassignPorts.YES, Map.of());
+                NodeSelector.allNodes(), configVersion, SubProcessNode.ReassignPorts.YES, envOverrides);
     }
 
     /**

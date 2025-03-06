@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.transformers;
 
 import com.swirlds.component.framework.model.WiringModel;
@@ -55,10 +40,9 @@ public class WireTransformer<A, B> {
             @NonNull final Function<A, B> transformer) {
         Objects.requireNonNull(transformer);
 
-        final TaskScheduler<B> taskScheduler = model.schedulerBuilder(transformerName)
+        final TaskScheduler<B> taskScheduler = model.<B>schedulerBuilder(transformerName)
                 .withType(TaskSchedulerType.DIRECT_THREADSAFE)
-                .build()
-                .cast();
+                .build();
 
         inputWire = taskScheduler.buildInputWire(transformerInputName);
         inputWire.bind(transformer);
@@ -77,10 +61,9 @@ public class WireTransformer<A, B> {
             @NonNull final String transformerName,
             @NonNull final String transformerInputName) {
 
-        final TaskScheduler<B> taskScheduler = model.schedulerBuilder(transformerName)
+        final TaskScheduler<B> taskScheduler = model.<B>schedulerBuilder(transformerName)
                 .withType(TaskSchedulerType.DIRECT_THREADSAFE)
-                .build()
-                .cast();
+                .build();
 
         inputWire = taskScheduler.buildInputWire(transformerInputName);
         outputWire = taskScheduler.getOutputWire();

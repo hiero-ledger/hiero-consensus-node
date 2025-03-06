@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.schemas;
 
 import static com.swirlds.common.utility.CommonUtils.unhex;
@@ -85,20 +70,18 @@ public class V053AddressBookSchema extends Schema {
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
         requireNonNull(ctx);
+        final var bootstrapConfig = ctx.appConfig().getConfigData(BootstrapConfig.class);
         // Since this schema's version is several releases behind the current version,
         // its migrate() will only be called at genesis in any case, but this makes it
         // explicit that the override admin keys apply only at genesis
-        final Map<Long, Key> nodeAdminKeys = ctx.isGenesis()
-                ? parseEd25519NodeAdminKeysFrom(
-                        ctx.appConfig().getConfigData(BootstrapConfig.class).nodeAdminKeysPath())
-                : emptyMap();
+        final Map<Long, Key> nodeAdminKeys =
+                ctx.isGenesis() ? parseEd25519NodeAdminKeysFrom(bootstrapConfig.nodeAdminKeysPath()) : emptyMap();
         final var networkInfo = ctx.genesisNetworkInfo();
         if (networkInfo == null) {
             throw new IllegalStateException("Genesis network info is not found");
         }
         final WritableKVState<EntityNumber, Node> writableNodes =
                 ctx.newStates().get(NODES_KEY);
-        final var bootstrapConfig = ctx.appConfig().getConfigData(BootstrapConfig.class);
 
         log.info("Started migrating nodes from address book");
         final var adminKey = getAccountAdminKey(ctx);
@@ -141,7 +124,6 @@ public class V053AddressBookSchema extends Schema {
     private Key getAccountAdminKey(@NonNull final MigrationContext ctx) {
         var adminKey = Key.DEFAULT;
 
-        final var accountConfig = ctx.appConfig().getConfigData(AccountsConfig.class);
         ReadableKVState<AccountID, Account> readableAccounts = null;
 
         try {
@@ -150,9 +132,9 @@ public class V053AddressBookSchema extends Schema {
             log.info("AccountStore is not found, can be ignored.");
         }
         if (readableAccounts != null) {
-            final var adminAccount = readableAccounts.get(AccountID.newBuilder()
-                    .accountNum(accountConfig.addressBookAdmin())
-                    .build());
+            final var accountConfig = ctx.appConfig().getConfigData(AccountsConfig.class);
+            final var adminAccount =
+                    readableAccounts.get(ctx.entityIdFactory().newAccountId(accountConfig.addressBookAdmin()));
             if (adminAccount != null) {
                 adminKey = adminAccount.keyOrElse(Key.DEFAULT);
             }
@@ -163,7 +145,6 @@ public class V053AddressBookSchema extends Schema {
     private Map<Long, NodeAddress> getNodeAddressMap(@NonNull final MigrationContext ctx) {
         Map<Long, NodeAddress> nodeDetailMap = null;
 
-        final var fileConfig = ctx.appConfig().getConfigData(FilesConfig.class);
         ReadableKVState<FileID, File> readableFiles = null;
         try {
             readableFiles = ctx.newStates().get(FILES_KEY);
@@ -172,8 +153,9 @@ public class V053AddressBookSchema extends Schema {
         }
 
         if (readableFiles != null) {
-            final var nodeDetailFile = readableFiles.get(
-                    FileID.newBuilder().fileNum(fileConfig.nodeDetails()).build());
+            final var fileConfig = ctx.appConfig().getConfigData(FilesConfig.class);
+            final var nodeDetailFile = readableFiles.get(ctx.entityIdFactory().newFileId(fileConfig.nodeDetails()));
+
             if (nodeDetailFile != null) {
                 try {
                     final var nodeDetails = NodeAddressBook.PROTOBUF

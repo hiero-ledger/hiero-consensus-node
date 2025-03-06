@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.query;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.GET_ACCOUNT_DETAILS;
@@ -33,7 +18,7 @@ import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.base.ResponseType;
-import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -52,6 +37,7 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.spi.workflows.QueryHandler;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.util.ProtobufUtils;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.app.workflows.ingest.SubmissionManager;
@@ -63,6 +49,7 @@ import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
@@ -101,6 +88,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
     private final OpWorkflowMetrics workflowMetrics;
+    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     /**
      * Indicates if the QueryWorkflow should charge for handling queries.
@@ -144,7 +132,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
-            final boolean shouldCharge) {
+            final boolean shouldCharge,
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         this.stateAccessor = requireNonNull(stateAccessor, "stateAccessor must not be null");
         this.submissionManager = requireNonNull(submissionManager, "submissionManager must not be null");
         this.ingestChecker = requireNonNull(ingestChecker, "ingestChecker must not be null");
@@ -161,6 +150,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         this.instantSource = requireNonNull(instantSource);
         this.workflowMetrics = requireNonNull(workflowMetrics);
         this.shouldCharge = shouldCharge;
+        this.softwareVersionFactory = softwareVersionFactory;
     }
 
     @Override
@@ -196,19 +186,18 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 }
 
                 final var state = wrappedState.get();
-                final var storeFactory = new ReadableStoreFactory(state);
+                final var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
                 final var paymentRequired = handler.requiresNodePayment(responseType);
                 final var feeCalculator = feeManager.createFeeCalculator(function, consensusTime, storeFactory);
                 final QueryContext context;
-                Transaction allegedPayment;
                 TransactionBody txBody;
                 AccountID payerID = null;
                 if (shouldCharge && paymentRequired) {
-                    allegedPayment = queryHeader.paymentOrElse(Transaction.DEFAULT);
                     final var configuration = configProvider.getConfiguration();
+                    final var paymentBytes = ProtobufUtils.extractPaymentBytes(requestBuffer);
 
                     // 3.i Ingest checks
-                    final var transactionInfo = ingestChecker.runAllChecks(state, allegedPayment, configuration);
+                    final var transactionInfo = ingestChecker.runAllChecks(state, paymentBytes, configuration);
                     txBody = transactionInfo.txBody();
 
                     // get payer
@@ -251,8 +240,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                         queryChecker.validateAccountBalances(accountStore, transactionInfo, payer, queryFees, txFees);
 
                         // 3.vi Submit payment to platform
-                        final var txBytes = Transaction.PROTOBUF.toBytes(allegedPayment);
-                        submissionManager.submit(txBody, txBytes);
+                        submissionManager.submit(txBody, transactionInfo.serializedTransaction());
                     }
                 } else {
                     if (RESTRICTED_FUNCTIONALITIES.contains(function)) {

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl;
 
 import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
@@ -21,7 +6,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.consensus.Topic;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -37,14 +24,18 @@ public class ReadableTopicStoreImpl implements ReadableTopicStore {
     /** The underlying data storage class that holds the topic data. */
     private final ReadableKVState<TopicID, Topic> topicState;
 
+    private final ReadableEntityCounters entityCounters;
+
     /**
      * Create a new {@link ReadableTopicStoreImpl} instance.
      *
      * @param states The state to use.
      */
-    public ReadableTopicStoreImpl(@NonNull final ReadableStates states) {
-        requireNonNull(states);
+    public ReadableTopicStoreImpl(
+            @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
 
+        requireNonNull(states);
+        this.entityCounters = requireNonNull(entityCounters);
         this.topicState = states.get(TOPICS_KEY);
     }
 
@@ -67,7 +58,7 @@ public class ReadableTopicStoreImpl implements ReadableTopicStore {
      * @return the number of topics in the state
      */
     public long sizeOfState() {
-        return topicState.size();
+        return entityCounters.getCounterFor(EntityType.TOPIC);
     }
 
     protected <T extends ReadableKVState<TopicID, Topic>> T topicState() {

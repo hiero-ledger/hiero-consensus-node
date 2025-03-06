@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.airdrops;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
@@ -92,11 +77,14 @@ public class TokenAirdropDecoderTest {
     private final TokenAirdropTransactionBody nftAirdrop = TokenAirdropTransactionBody.newBuilder()
             .tokenTransfers(TokenTransferList.newBuilder()
                     .token(NON_FUNGIBLE_TOKEN_ID)
-                    .nftTransfers(NftTransfer.newBuilder()
-                            .senderAccountID(SENDER_ID)
-                            .receiverAccountID(OWNER_ID)
-                            .serialNumber(1)
-                            .build())
+                    .nftTransfers(nftTransfer(1))
+                    .build())
+            .build();
+
+    private final TokenAirdropTransactionBody nftAirdrops = TokenAirdropTransactionBody.newBuilder()
+            .tokenTransfers(TokenTransferList.newBuilder()
+                    .token(NON_FUNGIBLE_TOKEN_ID)
+                    .nftTransfers(nftTransfer(1), nftTransfer(2), nftTransfer(3))
                     .build())
             .build();
 
@@ -274,6 +262,29 @@ public class TokenAirdropDecoderTest {
     }
 
     @Test
+    void tokenAirdropDecoderWorksForMultipleNFTs() {
+        final var tuple = new Tuple[] {
+            Tuple.of(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, new Tuple[] {}, new Tuple[] {
+                Tuple.of(asHeadlongAddress(SENDER_ID.accountNum()), OWNER_ACCOUNT_AS_ADDRESS, 1L, false),
+                Tuple.of(asHeadlongAddress(SENDER_ID.accountNum()), OWNER_ACCOUNT_AS_ADDRESS, 2L, false),
+                Tuple.of(asHeadlongAddress(SENDER_ID.accountNum()), OWNER_ACCOUNT_AS_ADDRESS, 3L, false)
+            })
+        };
+        final var encoded = Bytes.wrapByteBuffer(TOKEN_AIRDROP.encodeCall(Tuple.singleton(tuple)));
+        given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
+        given(attempt.configuration()).willReturn(configuration);
+        given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(configuration.getConfigData(LedgerConfig.class)).willReturn(ledgerConfig);
+        given(ledgerConfig.tokenTransfersMaxLen()).willReturn(10);
+        given(ledgerConfig.nftTransfersMaxLen()).willReturn(10);
+        final var body = subject.decodeAirdrop(attempt);
+        assertNotNull(body);
+        assertNotNull(body.tokenAirdrop());
+        assertNotNull(body.tokenAirdrop().tokenTransfers());
+        assertEquals(nftAirdrops, body.tokenAirdrop());
+    }
+
+    @Test
     void tokenAirdropDecoderForNFTFailsIfNftExceedLimits() {
         final var tuple = new Tuple[] {
             Tuple.of(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, new Tuple[] {}, new Tuple[] {
@@ -300,5 +311,13 @@ public class TokenAirdropDecoderTest {
         assertThatExceptionOfType(HandleException.class)
                 .isThrownBy(() -> subject.decodeAirdrop(attempt))
                 .withMessage(TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED.protoName());
+    }
+
+    private NftTransfer nftTransfer(final long serial) {
+        return NftTransfer.newBuilder()
+                .senderAccountID(SENDER_ID)
+                .receiverAccountID(OWNER_ID)
+                .serialNumber(serial)
+                .build();
     }
 }

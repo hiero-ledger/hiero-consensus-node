@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.benchmark;
 
 import static java.util.concurrent.ForkJoinPool.defaultForkJoinWorkerThreadFactory;
@@ -62,28 +47,27 @@ class WiringBenchmark {
         // Ensures that we have no more than 10,000 events in the pipeline at any given time
         final ObjectCounter backpressure = new BackpressureObjectCounter("backpressure", 10_000, Duration.ZERO);
 
-        final TaskScheduler<WiringBenchmarkEvent> verificationTaskScheduler = model.schedulerBuilder("verification")
+        final TaskScheduler<WiringBenchmarkEvent> verificationTaskScheduler = model.<WiringBenchmarkEvent>
+                        schedulerBuilder("verification")
                 .withPool(executor)
                 .withType(TaskSchedulerType.CONCURRENT)
                 .withOnRamp(backpressure)
                 .withExternalBackPressure(true)
-                .build()
-                .cast();
+                .build();
 
-        final TaskScheduler<WiringBenchmarkEvent> orphanBufferTaskScheduler = model.schedulerBuilder("orphanBuffer")
+        final TaskScheduler<WiringBenchmarkEvent> orphanBufferTaskScheduler = model.<WiringBenchmarkEvent>
+                        schedulerBuilder("orphanBuffer")
                 .withPool(executor)
                 .withType(TaskSchedulerType.SEQUENTIAL)
                 .withExternalBackPressure(true)
-                .build()
-                .cast();
+                .build();
 
-        final TaskScheduler<Void> eventPoolTaskScheduler = model.schedulerBuilder("eventPool")
+        final TaskScheduler<Void> eventPoolTaskScheduler = model.<Void>schedulerBuilder("eventPool")
                 .withPool(executor)
                 .withType(TaskSchedulerType.SEQUENTIAL)
                 .withOffRamp(backpressure)
                 .withExternalBackPressure(true)
-                .build()
-                .cast();
+                .build();
 
         final BindableInputWire<WiringBenchmarkEvent, WiringBenchmarkEvent> eventsToOrphanBuffer =
                 orphanBufferTaskScheduler.buildInputWire("unordered events");

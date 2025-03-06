@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.update;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
@@ -29,8 +14,8 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateDecoder;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateNFTsMetadataTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateDecoder;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateNFTsMetadataTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -76,21 +61,14 @@ class UpdateNFTsMetadataTranslatorTest {
 
     @Test
     void matchesUpdateNFTsMetadataTest() {
-        given(attempt.configuration()).willReturn(getTestConfiguration(true));
         given(attempt.isMethod(UpdateNFTsMetadataTranslator.UPDATE_NFTs_METADATA))
                 .willReturn(Optional.of(UpdateNFTsMetadataTranslator.UPDATE_NFTs_METADATA));
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
-    void doesNotMatchUpdateNFTsMetadataWhenDisabled() {
-        given(attempt.configuration()).willReturn(getTestConfiguration(false));
-        assertThat(subject.identifyMethod(attempt)).isEmpty();
-    }
-
-    @Test
     void callFromUpdateTest() {
-        final var tuple = new Tuple(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, new long[] {1}, "P. Griffin".getBytes());
+        final var tuple = Tuple.of(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, new long[] {1}, "P. Griffin".getBytes());
         final var inputBytes =
                 Bytes.wrapByteBuffer(UpdateNFTsMetadataTranslator.UPDATE_NFTs_METADATA.encodeCall(tuple));
 

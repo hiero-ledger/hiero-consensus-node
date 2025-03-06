@@ -1,51 +1,31 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.dispatch;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE;
-import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.OfferedFeeCheck.CHECK_OFFERED_FEE;
-import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.OfferedFeeCheck.SKIP_OFFERED_FEE_CHECK;
-import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.ServiceFeeStatus.CAN_PAY_SERVICE_FEE;
-import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.ServiceFeeStatus.UNABLE_TO_PAY_SERVICE_FEE;
-import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.NOT_INGEST;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newCreatorError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerDuplicateError;
-import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerUniqueError;
-import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newSuccess;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.InsufficientNonFeeDebitsException;
-import com.hedera.node.app.spi.workflows.InsufficientServiceFeeException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
-import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -60,25 +40,24 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class DispatchValidator {
-    private final SolvencyPreCheck solvencyPreCheck;
     private final HederaRecordCache recordCache;
     private final TransactionChecker transactionChecker;
+    private final AppFeeCharging feeCharging;
 
     /**
      * Creates an error reporter with the given dependencies.
      *
-     * @param solvencyPreCheck the solvency pre-check
      * @param recordCache the record cache
      * @param transactionChecker the transaction checker
      */
     @Inject
     public DispatchValidator(
-            final SolvencyPreCheck solvencyPreCheck,
-            final HederaRecordCache recordCache,
-            final TransactionChecker transactionChecker) {
-        this.solvencyPreCheck = solvencyPreCheck;
-        this.recordCache = recordCache;
-        this.transactionChecker = transactionChecker;
+            @NonNull final HederaRecordCache recordCache,
+            @NonNull final TransactionChecker transactionChecker,
+            @NonNull final AppFeeCharging feeCharging) {
+        this.recordCache = requireNonNull(recordCache);
+        this.transactionChecker = requireNonNull(transactionChecker);
+        this.feeCharging = requireNonNull(feeCharging);
     }
 
     /**
@@ -89,7 +68,7 @@ public class DispatchValidator {
      * @param dispatch the dispatch
      * @return the error report
      */
-    public ValidationResult validationReportFor(@NonNull final Dispatch dispatch) {
+    public FeeCharging.Validation validateFeeChargingScenario(@NonNull final Dispatch dispatch) {
         final var creatorError = creatorErrorIfKnown(dispatch);
         if (creatorError != null) {
             return newCreatorError(dispatch.creatorInfo().accountId(), creatorError);
@@ -97,7 +76,8 @@ public class DispatchValidator {
             final var payer =
                     getPayerAccount(dispatch.readableStoreFactory(), dispatch.payerId(), dispatch.txnCategory());
             final var category = dispatch.txnCategory();
-            final var requiresPayerSig = category == SCHEDULED || category == USER;
+            // Check payer signature for all batch inner transactions, scheduled, and user transactions
+            final var requiresPayerSig = category == SCHEDULED || category == USER || category == BATCH;
             if (requiresPayerSig && !isHollow(payer)) {
                 // Skip payer verification for hollow accounts because ingest only submits valid signatures
                 // for hollow payers; and if an account is still hollow here, its alias cannot have changed
@@ -106,17 +86,21 @@ public class DispatchValidator {
                     return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_SIGNATURE);
                 }
             }
-            final var duplicateCheckResult = category != USER && category != NODE
+            final var duplicateCheckResult = category != USER && category != NODE && category != BATCH
                     ? NO_DUPLICATE
                     : recordCache.hasDuplicate(
                             dispatch.txnInfo().txBody().transactionIDOrThrow(),
                             dispatch.creatorInfo().nodeId());
             return switch (duplicateCheckResult) {
-                case NO_DUPLICATE -> finalPayerValidationReport(payer, DuplicateStatus.NO_DUPLICATE, dispatch);
+                case NO_DUPLICATE -> getFinalPayerValidation(payer, DuplicateStatus.NO_DUPLICATE, dispatch);
                 case SAME_NODE -> newCreatorError(dispatch.creatorInfo().accountId(), DUPLICATE_TRANSACTION);
-                case OTHER_NODE -> finalPayerValidationReport(payer, DuplicateStatus.DUPLICATE, dispatch);
+                case OTHER_NODE -> getFinalPayerValidation(payer, DuplicateStatus.DUPLICATE, dispatch);
             };
         }
+    }
+
+    public static boolean isBatchInnerTxn(final @NonNull TransactionBody txnBody) {
+        return txnBody.hasBatchKey();
     }
 
     /**
@@ -128,38 +112,28 @@ public class DispatchValidator {
      * @return the error report
      */
     @NonNull
-    private ValidationResult finalPayerValidationReport(
+    private FeeCharging.Validation getFinalPayerValidation(
             @NonNull final Account payer,
             @NonNull final DuplicateStatus duplicateStatus,
             @NonNull final Dispatch dispatch) {
         final var creatorId = dispatch.creatorInfo().accountId();
-        try {
-            solvencyPreCheck.checkSolvency(
-                    dispatch.txnInfo().txBody(),
-                    payer.accountIdOrThrow(),
-                    dispatch.txnInfo().functionality(),
-                    payer,
-                    duplicateStatus == DuplicateStatus.NO_DUPLICATE
-                            ? dispatch.fees()
-                            : dispatch.fees().withoutServiceComponent(),
-                    NOT_INGEST,
-                    (dispatch.txnCategory() == USER
-                                    || dispatch.txnCategory() == SCHEDULED
-                                    || dispatch.txnCategory() == NODE)
-                            ? CHECK_OFFERED_FEE
-                            : SKIP_OFFERED_FEE_CHECK);
-        } catch (final InsufficientServiceFeeException e) {
-            return newPayerError(creatorId, payer, e.responseCode(), UNABLE_TO_PAY_SERVICE_FEE, duplicateStatus);
-        } catch (final InsufficientNonFeeDebitsException e) {
-            return newPayerError(creatorId, payer, e.responseCode(), CAN_PAY_SERVICE_FEE, duplicateStatus);
-        } catch (final PreCheckException e) {
-            // Includes InsufficientNetworkFeeException
-            return newCreatorError(creatorId, e.responseCode());
+        final boolean isDuplicate = duplicateStatus == DuplicateStatus.DUPLICATE;
+        final var validation = dispatch.feeChargingOrElse(feeCharging)
+                .validate(
+                        payer,
+                        creatorId,
+                        dispatch.fees(),
+                        dispatch.txnInfo().txBody(),
+                        isDuplicate,
+                        dispatch.txnInfo().functionality(),
+                        dispatch.txnCategory());
+        if (validation.maybeErrorStatus() != null) {
+            return validation;
         }
         return switch (duplicateStatus) {
             case DUPLICATE -> newPayerDuplicateError(creatorId, payer);
             case NO_DUPLICATE -> dispatch.preHandleResult().status() == SO_FAR_SO_GOOD
-                    ? newSuccess(creatorId, payer)
+                    ? validation
                     : newPayerUniqueError(
                             creatorId, payer, dispatch.preHandleResult().responseCode());
         };
@@ -190,7 +164,7 @@ public class DispatchValidator {
      */
     @Nullable
     private ResponseCodeEnum getExpiryError(final @NonNull Dispatch dispatch) {
-        if (dispatch.txnCategory() != USER && dispatch.txnCategory() != NODE) {
+        if (dispatch.txnCategory() != USER && dispatch.txnCategory() != NODE && dispatch.txnCategory() != BATCH) {
             return null;
         }
         try {
@@ -223,10 +197,10 @@ public class DispatchValidator {
         final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
         final var account = accountStore.getAccountById(accountID);
         return switch (category) {
-            case USER, NODE -> {
+            case USER, NODE, BATCH -> {
                 if (account == null || account.deleted() || account.smartContract()) {
-                    throw new IllegalStateException(
-                            "Category " + category + " payer account should have been rejected " + account);
+                    throw new IllegalStateException("Category " + category
+                            + " payer account should have resulted in failure upstream " + account);
                 }
                 yield account;
             }

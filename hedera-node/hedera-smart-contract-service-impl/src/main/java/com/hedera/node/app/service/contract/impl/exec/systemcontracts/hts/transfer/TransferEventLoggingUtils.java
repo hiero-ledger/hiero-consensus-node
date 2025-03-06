@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer;
 
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.priorityAddressOf;
 import static java.util.Objects.requireNonNull;
@@ -27,6 +13,7 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AbiConstants;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.LogBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
@@ -65,7 +52,12 @@ public class TransferEventLoggingUtils {
         if (credit.amount() < 0) {
             throw new IllegalArgumentException("Credit adjustment must appear first");
         }
-        frame.addLog(builderFor(tokenId, adjusts.getLast().accountIDOrThrow(), credit.accountIDOrThrow(), accountStore)
+        frame.addLog(builderFor(
+                        tokenId,
+                        adjusts.getLast().accountIDOrThrow(),
+                        credit.accountIDOrThrow(),
+                        accountStore,
+                        entityIdFactory(frame))
                 .forDataItem(credit.amount())
                 .build());
     }
@@ -91,7 +83,8 @@ public class TransferEventLoggingUtils {
                         tokenId,
                         nftTransfer.senderAccountIDOrThrow(),
                         nftTransfer.receiverAccountIDOrThrow(),
-                        accountStore)
+                        accountStore,
+                        entityIdFactory(frame))
                 .forIndexedArgument(BigInteger.valueOf(nftTransfer.serialNumber()))
                 .build());
     }
@@ -100,8 +93,9 @@ public class TransferEventLoggingUtils {
             @NonNull final TokenID tokenId,
             @NonNull final AccountID senderId,
             @NonNull final AccountID receiverId,
-            @NonNull final ReadableAccountStore accountStore) {
-        final var tokenAddress = asLongZeroAddress(tokenId.tokenNum());
+            @NonNull final ReadableAccountStore accountStore,
+            @NonNull final EntityIdFactory entityIdFactory) {
+        final var tokenAddress = asLongZeroAddress(entityIdFactory, tokenId.tokenNum());
         final var senderAddress = priorityAddressOf(requireNonNull(accountStore.getAliasedAccountById(senderId)));
         final var receiverAddress = priorityAddressOf(requireNonNull(accountStore.getAliasedAccountById(receiverId)));
         return LogBuilder.logBuilder()

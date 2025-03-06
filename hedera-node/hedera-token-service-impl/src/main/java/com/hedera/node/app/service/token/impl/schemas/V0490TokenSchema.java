@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.schemas;
 
 import static com.hedera.node.app.service.token.impl.schemas.SyntheticAccountCreator.asAccountId;
@@ -124,10 +109,6 @@ public class V0490TokenSchema extends Schema {
 
         // Get the map for storing all the created accounts
         final var accounts = ctx.newStates().<AccountID, Account>get(ACCOUNTS_KEY);
-        if (accounts.size() != 0) {
-            throw new IllegalStateException("Accounts map should be empty at genesis");
-        }
-
         // We will use these various configs for creating accounts. It would be nice to consolidate them somehow
         final var ledgerConfig = ctx.appConfig().getConfigData(LedgerConfig.class);
         final var hederaConfig = ctx.appConfig().getConfigData(HederaConfig.class);
@@ -211,7 +192,7 @@ public class V0490TokenSchema extends Schema {
             @NonNull final WritableKVState<AccountID, Account> accounts, @NonNull final HederaConfig hederaConfig) {
         long totalBalance = 0;
         long curAccountId = 1; // Start with the first account ID
-        long totalAccounts = accounts.size();
+        long totalAccounts = 704; // Since this runs only on genesis, these will only be system accounts
         do {
             final Account account = accounts.get(asAccountId(curAccountId, hederaConfig));
             if (account != null) {

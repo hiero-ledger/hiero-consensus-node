@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
@@ -82,6 +67,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_BYTECODE_EMPTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ERROR_DECODING_BYTESTRING;
@@ -499,6 +485,20 @@ public class ContractCreateSuite {
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .gas(0L)
                         .hasPrecheck(INSUFFICIENT_GAS)
+                        .refusingEthConversion());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> rejectsNegativeGas() {
+        return hapiTest(
+                uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
+                cryptoCreate(PAYER), // need to use a payer that is not throttle_exempt
+                // refuse eth conversion because ethereum transaction fails in IngestChecker with precheck status
+                // INSUFFICIENT_GAS
+                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
+                        .gas(-50L)
+                        .payingWith(PAYER)
+                        .hasPrecheck(BUSY)
                         .refusingEthConversion());
     }
 

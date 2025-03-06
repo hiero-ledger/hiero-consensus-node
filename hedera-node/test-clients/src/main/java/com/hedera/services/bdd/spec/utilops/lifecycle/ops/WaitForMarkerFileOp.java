@@ -4,7 +4,6 @@ package com.hedera.services.bdd.spec.utilops.lifecycle.ops;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.UPGRADE_ARTIFACTS_DIR;
 import static com.hedera.services.bdd.junit.hedera.MarkerFile.EXEC_IMMEDIATE_MF;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.CANDIDATE_ROSTER_JSON;
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.CONFIG_TXT;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.FAKE_UPGRADE_FILE_NAME;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -55,25 +54,14 @@ public class WaitForMarkerFileOp extends AbstractLifecycleOp {
                     fakeUpgradeFile.exists(),
                     "Node '" + node.getName() + "' did not extract ZIP during PREPARE_UPGRADE, missing "
                             + fakeUpgradeFile.getAbsolutePath());
-            final var rosterLifecycleEnabled = spec.startupProperties().getBoolean("addressBook.useRosterLifecycle");
-            if (rosterLifecycleEnabled) {
-                final var candidateRosterJson = node.metadata()
-                        .workingDirOrThrow()
-                        .resolve(CANDIDATE_ROSTER_JSON)
-                        .toFile();
-                assertTrue(
-                        candidateRosterJson.exists(),
-                        "Node '" + node.getName() + "' did not write new '" + CANDIDATE_ROSTER_JSON + "', missing "
-                                + candidateRosterJson.getAbsolutePath());
-            } else {
-                final var configTxt = node.getExternalPath(UPGRADE_ARTIFACTS_DIR)
-                        .resolve(CONFIG_TXT)
-                        .toFile();
-                assertTrue(
-                        configTxt.exists(),
-                        "Node '" + node.getName() + "' did not write new config.txt, missing "
-                                + configTxt.getAbsolutePath());
-            }
+            final var candidateRosterJson = node.metadata()
+                    .workingDirOrThrow()
+                    .resolve(CANDIDATE_ROSTER_JSON)
+                    .toFile();
+            assertTrue(
+                    candidateRosterJson.exists(),
+                    "Node '" + node.getName() + "' did not write new '" + CANDIDATE_ROSTER_JSON + "', missing "
+                            + candidateRosterJson.getAbsolutePath());
         }
     }
 }
