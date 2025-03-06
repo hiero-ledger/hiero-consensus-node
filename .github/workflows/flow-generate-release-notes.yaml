@@ -85,7 +85,7 @@ jobs:
           echo ""
           echo "Release Notes (Markdown Formatted):"
           echo ""
-          git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}" >> ${GITHUB_STEP_SUMMARY}
+          git-semver log --markdown "${{ steps.validate.outputs.release-identifier }}" | tee -a ${GITHUB_STEP_SUMMARY}
           echo ""
           echo "Successfully created release notes!" >> ${GITHUB_STEP_SUMMARY}
 
