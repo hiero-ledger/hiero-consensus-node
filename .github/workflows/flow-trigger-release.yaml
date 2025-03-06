@@ -122,8 +122,8 @@ jobs:
       - name: Calculate and Create Release Branch
         run: |
           current_version="$(git-semver latest)"
-          next_minor_version="$(git-semver next minor)"
-          next_patch_version="$(git-semver next patch)"
+          next_minor_version="$(git-semver next minor --stable=false)"
+          next_patch_version="$(git-semver next patch --stable=false)"
           actual_next_version="${{ steps.next-release.outputs.version }}"
 
           echo "Current Version: ${current_version}"
@@ -153,8 +153,8 @@ jobs:
             fi
             # Create and push the new release branch
             echo "Creating new release branch: ${release_branch}"
-            git checkout -b "${release_branch}"
-            git push origin "${release_branch}"
+            # git checkout -b "${release_branch}"
+            # git push origin "${release_branch}"
           else
             # Unexpected version calculation, exit with an error
             echo "Unexpected version calculation: ${actual_next_version} does not match expected patch (${next_patch_version}) or minor (${next_minor_version})."
