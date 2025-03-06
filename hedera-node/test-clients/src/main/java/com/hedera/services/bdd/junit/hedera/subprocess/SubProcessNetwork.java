@@ -181,13 +181,14 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * Creates a shared network of sub-process nodes with the given size.
      *
      * @param size the number of nodes in the network
+     * @param simulateIss true if we want to simulate an ISS event in the network
      * @return the shared network
      */
-    public static synchronized HederaNetwork newSharedNetwork(final int size) {
+    public static synchronized HederaNetwork newSharedNetwork(final int size, final boolean simulateIss) {
         if (NetworkTargetingExtension.SHARED_NETWORK.get() != null) {
             throw new UnsupportedOperationException("Only one shared network allowed per launcher session");
         }
-        final var sharedNetwork = liveNetwork(SHARED_NETWORK_NAME, size);
+        final var sharedNetwork = liveNetwork(SHARED_NETWORK_NAME, size, simulateIss);
         NetworkTargetingExtension.SHARED_NETWORK.set(sharedNetwork);
         return sharedNetwork;
     }
@@ -539,7 +540,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         nextExternalGossipPort + (int) nodeId * 2,
                         nextPrometheusPort + (int) nodeId),
                 GRPC_PINGER,
-                PROMETHEUS_CLIENT);
+                PROMETHEUS_CLIENT,
+                false);
         final var accountId = pendingNodeAccounts.remove(nodeId);
         if (accountId != null) {
             node.reassignNodeAccountIdFrom(accountId);
@@ -586,9 +588,11 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      *
      * @param name the name of the network
      * @param size the number of nodes in the network
+     * @param simulateIss true to simulate an ISS event
      * @return the network
      */
-    private static synchronized HederaNetwork liveNetwork(@NonNull final String name, final int size) {
+    private static synchronized HederaNetwork liveNetwork(
+            @NonNull final String name, final int size, final boolean simulateIss) {
         if (!nextPortsInitialized) {
             initializeNextPortsForNetwork(size);
         }
@@ -608,7 +612,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                                         nextExternalGossipPort,
                                         nextPrometheusPort),
                                 GRPC_PINGER,
-                                PROMETHEUS_CLIENT))
+                                PROMETHEUS_CLIENT,
+                                simulateIss))
                         .toList());
         Runtime.getRuntime().addShutdownHook(new Thread(network::terminate));
         return network;
