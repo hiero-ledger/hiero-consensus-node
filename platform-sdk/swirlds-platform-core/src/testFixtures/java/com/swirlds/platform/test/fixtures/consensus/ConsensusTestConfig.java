@@ -1,4 +1,4 @@
-package com.swirlds.platform.test.consensus;
+package com.swirlds.platform.test.fixtures.consensus;
 
 import static com.swirlds.config.api.ConfigProperty.NULL_DEFAULT_VALUE;
 
