@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -28,6 +29,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -51,7 +53,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -92,8 +93,7 @@ public class TokenMetadataTest {
                 fungibleToken.authorizeContracts(contractTarget));
     }
 
-    @Disabled
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     public Stream<DynamicTest> testUpdateMetadata() {
         return Stream.of(nft, fungibleToken)
                 .flatMap(token -> hapiTest(
@@ -104,8 +104,6 @@ public class TokenMetadataTest {
                         token.getInfo().andAssert(info -> info.hasMetadata("randomMetaNew777"))));
     }
 
-    // Disabled until update keys is implemented
-    @Disabled
     @HapiTest
     public Stream<DynamicTest> testUpdateTokenKeys() {
         return hapiTest(contractTarget

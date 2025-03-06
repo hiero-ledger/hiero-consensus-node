@@ -40,7 +40,7 @@ import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.test.fixtures.state.FakeStateLifecycles;
+import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.State;
 import java.io.BufferedReader;
@@ -70,7 +70,7 @@ class SignedStateFileReadWriteTest {
         registry.registerConstructables("com.swirlds.state");
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.merkledb");
-        FakeStateLifecycles.registerMerkleStateRootClassIds();
+        FakeConsensusStateEventHandler.registerMerkleStateRootClassIds();
         stateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(platformVersion.major()));
     }
 
@@ -78,7 +78,7 @@ class SignedStateFileReadWriteTest {
     void beforeEach() throws IOException {
         // Don't use JUnit @TempDir as it runs into a thread race with Merkle DB DataSource release...
         testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile(
-                "SignedStateFileReadWriteTest", FakeStateLifecycles.CONFIGURATION);
+                "SignedStateFileReadWriteTest", FakeConsensusStateEventHandler.CONFIGURATION);
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
         MerkleDb.resetDefaultInstancePath();
     }

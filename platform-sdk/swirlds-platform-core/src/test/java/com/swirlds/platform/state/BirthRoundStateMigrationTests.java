@@ -93,11 +93,7 @@ class BirthRoundStateMigrationTests {
         final SoftwareVersion newSoftwareVersion = createNextVersion(previousSoftwareVersion);
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
-                signedState,
-                AncientMode.GENERATION_THRESHOLD,
-                newSoftwareVersion,
-                platformStateFacade,
-                TestMerkleCryptoFactory.getInstance());
+                signedState, AncientMode.GENERATION_THRESHOLD, newSoftwareVersion, platformStateFacade);
 
         assertEquals(originalHash, signedState.getState().getHash());
 
@@ -127,11 +123,7 @@ class BirthRoundStateMigrationTests {
         final Hash originalHash = signedState.getState().getHash();
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
-                signedState,
-                AncientMode.BIRTH_ROUND_THRESHOLD,
-                newSoftwareVersion,
-                platformStateFacade,
-                TestMerkleCryptoFactory.getInstance());
+                signedState, AncientMode.BIRTH_ROUND_THRESHOLD, newSoftwareVersion, platformStateFacade);
 
         assertEquals(originalHash, signedState.getState().getHash());
 
@@ -164,11 +156,7 @@ class BirthRoundStateMigrationTests {
                 .minimumJudgeAncientThreshold();
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
-                signedState,
-                AncientMode.BIRTH_ROUND_THRESHOLD,
-                newSoftwareVersion,
-                platformStateFacade,
-                TestMerkleCryptoFactory.getInstance());
+                signedState, AncientMode.BIRTH_ROUND_THRESHOLD, newSoftwareVersion, platformStateFacade);
 
         assertNotEquals(originalHash, signedState.getState().getHash());
 

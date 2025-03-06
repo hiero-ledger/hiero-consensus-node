@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
@@ -11,13 +12,12 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_SERIAL_NUMBERS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -90,7 +90,7 @@ public class NumericValidationTest {
     @Nested
     @DisplayName("calls fail to approve functions with invalid amounts")
     class ApproveTests {
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using fungible token via redirect proxy contract")
         public Stream<DynamicTest> failToApproveViaProxyFungibleToken() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -100,7 +100,7 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using nft via redirect proxy contract")
         public Stream<DynamicTest> failToApproveViaProxyNft() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -110,7 +110,7 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using fungible token hts system contract")
         public Stream<DynamicTest> failToApproveFungibleToken() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -120,7 +120,7 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using nft hts system contract")
         public Stream<DynamicTest> failToApproveNft() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -264,7 +264,7 @@ public class NumericValidationTest {
     @DisplayName("calls fail to static functions with invalid amounts")
     class StaticFunctionsTests {
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using tokenURI")
         public Stream<DynamicTest> failTokenURI() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -273,7 +273,7 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using getTokenKey for NFT")
         public Stream<DynamicTest> failToGetTokenKeyNFT() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -282,7 +282,7 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using getTokenKey for Fungible Token")
         public Stream<DynamicTest> failToGetTokenKeyFT() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -299,7 +299,7 @@ public class NumericValidationTest {
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using getApproved")
         public Stream<DynamicTest> failToGetApproved() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -308,7 +308,7 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using getApprovedERC")
         public Stream<DynamicTest> failToGetApprovedERC() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -317,7 +317,7 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using ownerOf")
         public Stream<DynamicTest> failToOwnerOf() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -337,7 +337,7 @@ public class NumericValidationTest {
         @Account(name = "spender")
         static SpecAccount spender;
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using hbarAllowance")
         public Stream<DynamicTest> failToApproveHbar() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -346,7 +346,7 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using hbarApprove")
         public Stream<DynamicTest> failToHbarApprove() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -360,7 +360,7 @@ public class NumericValidationTest {
     @DisplayName("fail to call Exchange Rate System contract functions")
     class ExchangeRateSystemContractTests {
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when converting tinycents to tinybars")
         public Stream<DynamicTest> convertTinycentsToTinybars() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -369,7 +369,7 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when converting tinybars to tinycents")
         public Stream<DynamicTest> convertTinybarsToTinycents() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -433,7 +433,7 @@ public class NumericValidationTest {
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using createFungibleTokenWithCustomFeesV3 with fractionalFee where denominator is < 0")
         public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFeesV3FractionalFeeNegativeDenominator() {
             final long nominator = 1;
@@ -445,7 +445,7 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED))));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using createNonFungibleTokenWithCustomFeesV3 with fractionalFee where denominator is bad")
         public Stream<DynamicTest> failToUseCreateNonFungibleTokenWithCustomRoyaltyFeesV3WithBadDenominator() {
             return Stream.of(-1L, 0L)
@@ -499,7 +499,7 @@ public class NumericValidationTest {
                     .andAssert(txn -> txn.logged().hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using createFungibleTokenV2 with negative initial supply")
         public Stream<DynamicTest> failToUseCreateFungibleTokenV2() {
             return hapiTest(numericContractComplex
@@ -561,7 +561,7 @@ public class NumericValidationTest {
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using updateTokenInfoV2 for fungible token with new maxSupply")
         public Stream<DynamicTest> failToUpdateTokenInfoV2FungibleMaxSupply() {
             // maxSupply cannot be updated using updateTokenInfo.
@@ -574,7 +574,7 @@ public class NumericValidationTest {
                             fungibleToken.getInfo().andAssert(info -> info.hasMaxSupply(1200))));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using updateTokenInfoV3 for both fungible and nonFungible token")
         public Stream<DynamicTest> failToUpdateTokenInfoV3FungibleAndNft() {
             return Stream.of(fungibleToken, nft)
@@ -583,14 +583,14 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED))));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using updateNFTsMetadata for specific NFT from NFT collection with invalid serial number")
         public Stream<DynamicTest> failToUpdateNFTsMetadata() {
             return Stream.of(new long[] {Long.MAX_VALUE}, new long[] {0}, new long[] {-1, 1}, new long[] {-1})
                     .flatMap(invalidSerialNumbers -> hapiTest(numericContract
                             .call("updateNFTsMetadata", nft, invalidSerialNumbers, "tiger".getBytes())
                             .gas(1_000_000L)
-                            .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_NFT_ID))));
+                            .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED))));
         }
 
         @HapiTest
@@ -599,7 +599,7 @@ public class NumericValidationTest {
             return hapiTest(numericContract
                     .call("updateNFTsMetadata", nft, new long[] {}, "zebra".getBytes())
                     .gas(1_000_000L)
-                    .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, MISSING_SERIAL_NUMBERS)));
+                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
     }
 
@@ -660,7 +660,7 @@ public class NumericValidationTest {
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using transferTokenERC")
         public Stream<DynamicTest> failToUseTransferTokenERC() {
             return zeroNegativeAndGreaterThanLong.stream()
@@ -689,7 +689,7 @@ public class NumericValidationTest {
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using transferFromERC")
         public Stream<DynamicTest> failToUseTransferFromERC() {
             return Stream.of(NEGATIVE_ONE_BIG_INT, MAX_LONG_PLUS_1_BIG_INT)
@@ -699,7 +699,7 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED))));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using transferFromNFT")
         public Stream<DynamicTest> failToUseTransferNFTFrom() {
             return zeroNegativeAndGreaterThanLong.stream()

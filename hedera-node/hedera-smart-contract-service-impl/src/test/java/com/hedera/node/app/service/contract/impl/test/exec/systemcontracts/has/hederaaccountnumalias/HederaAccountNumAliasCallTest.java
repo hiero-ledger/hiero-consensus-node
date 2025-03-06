@@ -17,6 +17,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hederaaccountnumalias.HederaAccountNumAliasCall;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
 import org.junit.jupiter.api.Test;
@@ -39,10 +40,11 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         given(attempt.enhancement()).willReturn(mockEnhancement());
 
         // Arrange to use an account that has an alias
-        given(nativeOperations.resolveAlias(RECEIVER_ADDRESS))
+        given(nativeOperations.resolveAlias(0, 0, RECEIVER_ADDRESS))
                 .willReturn(ALIASED_RECEIVER.accountId().accountNumOrThrow());
         given(nativeOperations.getAccount(RECEIVER_ID.accountNumOrThrow())).willReturn(ALIASED_RECEIVER);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
 
         subject = new HederaAccountNumAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
@@ -63,11 +65,11 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
 
-        given(nativeOperations.resolveAlias(RECEIVER_ADDRESS))
+        given(nativeOperations.resolveAlias(0, 0, RECEIVER_ADDRESS))
                 .willReturn(ALIASED_RECEIVER.accountId().accountNumOrThrow());
         given(nativeOperations.getAccount(RECEIVER_ID.accountNumOrThrow())).willReturn(null);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-
+        given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         subject = new HederaAccountNumAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
 
@@ -85,9 +87,9 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
 
-        given(nativeOperations.resolveAlias(RECEIVER_ADDRESS)).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.resolveAlias(0, 0, RECEIVER_ADDRESS)).willReturn(MISSING_ENTITY_NUMBER);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-
+        given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         subject = new HederaAccountNumAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
 

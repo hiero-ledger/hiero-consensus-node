@@ -53,7 +53,7 @@ import com.swirlds.platform.gui.model.InfoApp;
 import com.swirlds.platform.gui.model.InfoMember;
 import com.swirlds.platform.gui.model.InfoSwirld;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -255,7 +255,7 @@ public class Browser {
             MerkleDb.resetDefaultInstancePath();
             PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
             // Create the initial state for the platform
-            StateLifecycles stateLifecycles = appMain.newStateLifecycles();
+            ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
             final HashedReservedSignedState reservedState = getInitialState(
                     recycleBin,
                     appMain.getSoftwareVersion(),
@@ -275,7 +275,7 @@ public class Browser {
                     initialState,
                     appDefinition.getConfigAddressBook(),
                     platformContext,
-                    stateLifecycles,
+                    consensusStateEventHandler,
                     platformStateFacade);
 
             // Build the platform with the given values
@@ -284,7 +284,7 @@ public class Browser {
                     appDefinition.getSwirldName(),
                     appMain.getSoftwareVersion(),
                     initialState,
-                    stateLifecycles,
+                    consensusStateEventHandler,
                     nodeId,
                     AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
                     RosterUtils.buildRosterHistory(initialState.get().getState(), platformStateFacade),

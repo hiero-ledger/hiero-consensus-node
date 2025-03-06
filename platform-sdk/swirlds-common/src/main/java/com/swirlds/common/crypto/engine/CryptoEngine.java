@@ -10,14 +10,12 @@ import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.crypto.VerificationStatus;
 import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.threading.futures.StandardFuture;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Future;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class CryptoEngine implements Cryptography {
@@ -70,24 +68,17 @@ public class CryptoEngine implements Cryptography {
      *
      * @param signature the signature to be verified
      * @param provider  the underlying provider to be used
-     * @param future    the {@link Future} to be associated with the {@link TransactionSignature}
      * @return true if the signature is valid; otherwise false
      */
     private static boolean verifySyncInternal(
-            @NonNull final TransactionSignature signature,
-            @NonNull final OperationProvider<TransactionSignature, Void, Boolean, ?, SignatureType> provider,
-            @NonNull final StandardFuture<Void> future) {
-        Objects.requireNonNull(signature, "signature must not be null");
-        Objects.requireNonNull(provider, "provider must not be null");
-        Objects.requireNonNull(future, "future must not be null");
+            final TransactionSignature signature,
+            final OperationProvider<TransactionSignature, Void, Boolean, ?, SignatureType> provider) {
         final boolean isValid;
 
         try {
             isValid = provider.compute(signature, signature.getSignatureType());
             signature.setSignatureStatus(isValid ? VerificationStatus.VALID : VerificationStatus.INVALID);
-            signature.setFuture(future);
         } catch (final NoSuchAlgorithmException ex) {
-            signature.setFuture(future);
             throw new CryptographyException(ex, LogMarker.EXCEPTION);
         }
 
@@ -139,12 +130,10 @@ public class CryptoEngine implements Cryptography {
      */
     @Override
     public boolean verifySync(@NonNull final TransactionSignature signature) {
-        final StandardFuture<Void> future = new StandardFuture<>();
-        future.complete(null);
         if (signature.getSignatureType() == SignatureType.ECDSA_SECP256K1) {
-            return verifySyncInternal(signature, ecdsaSecp256k1VerificationProvider, future);
+            return verifySyncInternal(signature, ecdsaSecp256k1VerificationProvider);
         } else {
-            return verifySyncInternal(signature, ed25519VerificationProvider, future);
+            return verifySyncInternal(signature, ed25519VerificationProvider);
         }
     }
 
@@ -153,9 +142,6 @@ public class CryptoEngine implements Cryptography {
      */
     @Override
     public boolean verifySync(@NonNull final List<TransactionSignature> signatures) {
-        final StandardFuture<Void> future = new StandardFuture<>();
-        future.complete(null);
-
         boolean finalOutcome = true;
 
         OperationProvider<TransactionSignature, Void, Boolean, ?, SignatureType> provider;
@@ -166,7 +152,7 @@ public class CryptoEngine implements Cryptography {
                 provider = ed25519VerificationProvider;
             }
 
-            if (!verifySyncInternal(signature, provider, future)) {
+            if (!verifySyncInternal(signature, provider)) {
                 finalOutcome = false;
             }
         }

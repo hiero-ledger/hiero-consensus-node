@@ -3,7 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.sched
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateCommons.createMethodsSet;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTranslator.updateMethodsMap;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommons.updateMethodsSet;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.datatypes.Address.fromHexString;
@@ -120,7 +120,7 @@ public class ScheduleNativeTranslator extends AbstractCallTranslator<HssCallAtte
         final var canBeCreateToken =
                 createMethodsSet.stream().anyMatch(s -> Arrays.equals(s.selector(), innerCallSelector));
         final var canBeUpdateToken =
-                updateMethodsMap.keySet().stream().anyMatch(s -> Arrays.equals(s.selector(), innerCallSelector));
+                updateMethodsSet.stream().anyMatch(s -> Arrays.equals(s.selector(), innerCallSelector));
 
         return canBeCreateToken || canBeUpdateToken;
     }
