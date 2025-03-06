@@ -21,7 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-public class BlockAcknowledgementTrackerTest {
+class BlockAcknowledgementTrackerTest {
     private static final String NODE1 = "node1:50211";
     private static final String NODE2 = "node2:50211";
     private static final String NODE3 = "node3:50211";

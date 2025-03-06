@@ -28,7 +28,7 @@ public class BlockAcknowledgementTracker {
     }
 
     /**
-     * @param connectionId the connection id
+     * @param connectionId the connection id to update the block acknowledgment for
      * @param blockNumber the block number
      */
     public void trackAcknowledgment(@NonNull String connectionId, long blockNumber) {
@@ -42,7 +42,7 @@ public class BlockAcknowledgementTracker {
     }
 
     /**
-     * @param blockNumber
+     * @param blockNumber the block number for which to check if the file is ready to be deleted
      */
     @VisibleForTesting
     public void checkBlockDeletion(long blockNumber) {
@@ -69,7 +69,7 @@ public class BlockAcknowledgementTracker {
     }
 
     /**
-     * @param connectionId the connection id
+     * @param connectionId the connection id to get the last verified block for
      * @return the last verified block for this connection id
      */
     public long getLastVerifiedBlock(@NonNull String connectionId) {
