@@ -34,6 +34,7 @@ import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -43,6 +44,8 @@ import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsHolder
 import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsListContainer;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
+import com.swirlds.platform.test.fixtures.turtle.signedstate.SignedStateHolder;
+import com.swirlds.platform.test.fixtures.turtle.signedstate.SignedStateListContainer;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -69,7 +72,9 @@ public class TurtleNode {
 
     private final DeterministicWiringModel model;
     private final Platform platform;
-    private final ConsensusRoundsHolder consensusRoundsHolder;
+    private final NodeId nodeId;
+    private ConsensusRoundsHolder consensusRoundsHolder;
+    private SignedStateHolder signedStateHolder;
 
     /**
      * Create a new TurtleNode. Simulates a single consensus node in a TURTLE network.
@@ -91,6 +96,7 @@ public class TurtleNode {
             @NonNull final SimulatedNetwork network,
             @NonNull final Path outputDirectory) {
 
+        this.nodeId = nodeId;
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
                 .withValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0")
@@ -149,7 +155,21 @@ public class TurtleNode {
         final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
 
         final PlatformBuildingBlocks buildingBlocks = platformComponentBuilder.getBuildingBlocks();
+        final PlatformWiring platformWiring = buildingBlocks.platformWiring();
 
+        wireConsensusRoundsHolder(platformWiring);
+        wireSignedStatesHolder(platformWiring);
+
+        final SimulatedGossip gossip = network.getGossipInstance(nodeId);
+        gossip.provideIntakeEventCounter(
+                platformComponentBuilder.getBuildingBlocks().intakeEventCounter());
+
+        platformComponentBuilder.withMetricsDocumentationEnabled(false).withGossip(network.getGossipInstance(nodeId));
+
+        platform = platformComponentBuilder.build();
+    }
+
+    private void wireConsensusRoundsHolder(final PlatformWiring platformWiring) {
         final ComponentWiring<ConsensusRoundsHolder, Void> consensusRoundsHolderWiring =
                 new ComponentWiring<>(model, ConsensusRoundsHolder.class, TaskSchedulerConfiguration.parse("DIRECT"));
 
@@ -159,18 +179,24 @@ public class TurtleNode {
         final InputWire<List<ConsensusRound>> consensusRoundsHolderInputWire =
                 consensusRoundsHolderWiring.getInputWire(ConsensusRoundsHolder::interceptRounds);
 
-        final PlatformWiring platformWiring = buildingBlocks.platformWiring();
         final OutputWire<List<ConsensusRound>> consensusEngineOutputWire =
                 platformWiring.getConsensusEngineOutputWire();
         consensusEngineOutputWire.solderTo(consensusRoundsHolderInputWire);
+    }
 
-        final SimulatedGossip gossip = network.getGossipInstance(nodeId);
-        gossip.provideIntakeEventCounter(
-                platformComponentBuilder.getBuildingBlocks().intakeEventCounter());
+    private void wireSignedStatesHolder(final PlatformWiring platformWiring) {
+        final OutputWire<ReservedSignedState> reservedSignedStatesOutputWiring =
+                platformWiring.getReservedSignedStateCollectorOutputWire();
 
-        platformComponentBuilder.withMetricsDocumentationEnabled(false).withGossip(network.getGossipInstance(nodeId));
+        final ComponentWiring<SignedStateHolder, Void> signedStatesHolderWiring =
+                new ComponentWiring<>(model, SignedStateHolder.class, TaskSchedulerConfiguration.parse("DIRECT"));
 
-        platform = platformComponentBuilder.build();
+        signedStateHolder = new SignedStateListContainer();
+        signedStatesHolderWiring.bind(signedStateHolder);
+
+        final InputWire<ReservedSignedState> signedStateHolderInputWire =
+                signedStatesHolderWiring.getInputWire(SignedStateHolder::interceptReservedSignedState);
+        reservedSignedStatesOutputWiring.solderTo(signedStateHolderInputWire);
     }
 
     /**
@@ -187,8 +213,18 @@ public class TurtleNode {
         model.tick();
     }
 
+    public void clear() {
+        consensusRoundsHolder.clear("clear data");
+        signedStateHolder.clear("clear data");
+    }
+
     @NonNull
     public ConsensusRoundsHolder getConsensusRoundsHolder() {
         return consensusRoundsHolder;
+    }
+
+    @NonNull
+    public SignedStateHolder getSignedStateHolder() {
+        return signedStateHolder;
     }
 }
