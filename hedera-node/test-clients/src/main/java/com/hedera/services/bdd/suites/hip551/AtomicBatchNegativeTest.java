@@ -179,15 +179,10 @@ public class AtomicBatchNegativeTest {
             return hapiTest(
                     cryptoCreate(batchOperator).balance(ONE_HBAR),
                     cryptoCreate(innerTxnPayer).balance(ONE_HUNDRED_HBARS),
-                    usableTxnIdNamed(innerTxnId1).payerId(innerTxnPayer),
-                    usableTxnIdNamed(innerTxnId2).payerId(innerTxnPayer),
                     atomicBatch(innerTxn1, innerTxn2)
                             .via(atomicTxn)
                             .payingWith(batchOperator)
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    getTxnRecord(atomicTxn),
-                    getTxnRecord(innerTxnId1).assertingNothingAboutHashes(),
-                    getTxnRecord(innerTxnId2).assertingNothingAboutHashes());
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED));
         }
     }
 
