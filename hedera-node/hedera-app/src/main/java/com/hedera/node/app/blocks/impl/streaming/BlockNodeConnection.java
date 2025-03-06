@@ -28,13 +28,13 @@ public class BlockNodeConnection {
     private StreamObserver<PublishStreamRequest> requestObserver;
     private volatile boolean isActive = true;
     private final String connectionId;
-    private final BlockAcknowledgmentTracker acknowledgmentTracker;
+    private final BlockAcknowledgementTracker acknowledgmentTracker;
 
     public BlockNodeConnection(
             @NonNull BlockNodeConfig nodeConfig,
             @NonNull GrpcServiceClient grpcServiceClient,
             @NonNull BlockNodeConnectionManager manager,
-            @NonNull BlockAcknowledgmentTracker acknowledgmentTracker) {
+            @NonNull BlockAcknowledgementTracker acknowledgmentTracker) {
         this.node = requireNonNull(nodeConfig);
         this.grpcServiceClient = requireNonNull(grpcServiceClient);
         this.manager = requireNonNull(manager);

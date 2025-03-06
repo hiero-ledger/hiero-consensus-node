@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.blocks.impl;
+package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
-import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.ArrayList;
 import org.junit.jupiter.api.Test;
