@@ -324,7 +324,8 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("If some random exception is thrown from TransactionChecker, the exception is bubbled up")
         void randomException() throws PreCheckException {
             // Given a WorkflowOnset that will throw a RuntimeException
-            when(transactionChecker.parseAndCheck(any(), eq(maxBytes))).thenThrow(new RuntimeException("check exception"));
+            when(transactionChecker.parseAndCheck(any(), eq(maxBytes)))
+                    .thenThrow(new RuntimeException("check exception"));
 
             // When the transaction is submitted, then the exception is bubbled up
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))

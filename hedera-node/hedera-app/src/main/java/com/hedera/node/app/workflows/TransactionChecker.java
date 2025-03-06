@@ -32,7 +32,6 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
-import com.hedera.node.app.annotations.MaxSignedTxnSize;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.util.ProtobufUtils;
@@ -100,7 +99,6 @@ public class TransactionChecker {
     /**
      * Create a new {@link TransactionChecker}
      *
-     * @param maxSignedTxnSize the maximum transaction size
      * @param configProvider access to configuration
      * @param metrics metrics related to workflows
      * @throws NullPointerException if one of the arguments is {@code null}
@@ -108,14 +106,9 @@ public class TransactionChecker {
      */
     @Inject
     public TransactionChecker(
-            @MaxSignedTxnSize final int maxSignedTxnSize,
             @NodeSelfId @NonNull final AccountID nodeAccount,
             @NonNull final ConfigProvider configProvider,
             @NonNull final Metrics metrics) {
-        if (maxSignedTxnSize <= 0) {
-            throw new IllegalArgumentException("maxSignedTxnSize must be > 0");
-        }
-
         this.nodeAccount = requireNonNull(nodeAccount);
         this.props = requireNonNull(configProvider);
         this.deprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_DEPRECATED_TXNS_NAME)
