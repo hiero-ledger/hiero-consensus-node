@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,6 +47,8 @@ public class ProofControllerImpl implements ProofController {
     private static final Logger log = LogManager.getLogger(ProofControllerImpl.class);
     private static final Comparator<ProofKey> PROOF_KEY_COMPARATOR = Comparator.comparingLong(ProofKey::nodeId);
     private static final Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
+    private static final int INSUFFICIENT_SIGNATURES_CHECK_RETRY_SECS = 10;
+    private static final String INSUFFICIENT_SIGNATURES_FAILURE_REASON = "insufficient signatures";
 
     public static final String PROOF_COMPLETE_MSG = "History proof constructed";
 
@@ -171,25 +174,42 @@ public class ProofControllerImpl implements ProofController {
             @Nullable final Bytes metadata,
             @NonNull final WritableHistoryStore historyStore,
             final boolean isActive) {
-        if (construction.hasTargetProof()) {
+        if (construction.hasTargetProof() || construction.hasFailureReason()) {
             return;
         }
         targetMetadata = metadata;
         if (targetMetadata == null && isActive) {
             ensureProofKeyPublished();
-        } else if (construction.hasAssemblyStartTime() && isActive) {
-            if (!votes.containsKey(selfId) && proofFuture == null) {
-                if (hasSufficientSignatures()) {
-                    log.info("Started proof future for construction {}", construction.constructionId());
-                    proofFuture = startProofFuture();
-                } else if (!signingNodeIds.contains(selfId) && signingFuture == null) {
-                    signingFuture = startSigningFuture();
-                    log.info("Started signing future for construction {}", construction.constructionId());
+        } else if (construction.hasAssemblyStartTime()) {
+            boolean stillCollectingSignatures = true;
+            final long elapsedSeconds = Math.max(
+                    1,
+                    now.getEpochSecond()
+                            - construction.assemblyStartTimeOrThrow().seconds());
+            if (elapsedSeconds % INSUFFICIENT_SIGNATURES_CHECK_RETRY_SECS == 0) {
+                stillCollectingSignatures = couldStillGetSufficientSignatures();
+            }
+            if (stillCollectingSignatures && isActive) {
+                if (!votes.containsKey(selfId) && proofFuture == null) {
+                    if (hasSufficientSignatures()) {
+                        log.info("Started proof future for construction {}", construction.constructionId());
+                        proofFuture = startProofFuture();
+                    } else if (!signingNodeIds.contains(selfId) && signingFuture == null) {
+                        signingFuture = startSigningFuture();
+                        log.info("Started signing future for construction {}", construction.constructionId());
+                    }
                 }
+            } else if (!stillCollectingSignatures) {
+                log.info(
+                        "Failed construction {} due to {}",
+                        construction.constructionId(),
+                        INSUFFICIENT_SIGNATURES_FAILURE_REASON);
+                construction = historyStore.failForReason(
+                        construction.constructionId(), INSUFFICIENT_SIGNATURES_FAILURE_REASON);
             }
         } else {
             if (shouldAssemble(now)) {
-                log.info("Starting assembly time for construction {} as {}", construction.constructionId(), now);
+                log.info("Assembly start time for construction #{} is {}", construction.constructionId(), now);
                 construction = historyStore.setAssemblyTime(construction.constructionId(), now);
                 if (isActive) {
                     signingFuture = startSigningFuture();
@@ -277,16 +297,31 @@ public class ProofControllerImpl implements ProofController {
 
     @Override
     public void cancelPendingWork() {
-        if (publicationFuture != null) {
+        final var sb =
+                new StringBuilder("Cancelled work on proof construction #").append(construction.constructionId());
+        if (publicationFuture != null && !publicationFuture.isDone()) {
+            sb.append("\n  * In-flight publication");
             publicationFuture.cancel(true);
         }
-        if (signingFuture != null) {
+        if (signingFuture != null && !signingFuture.isDone()) {
+            sb.append("\n  * In-flight signing");
             signingFuture.cancel(true);
         }
         if (proofFuture != null) {
+            sb.append("\n  * In-flight proof");
             proofFuture.cancel(true);
         }
-        verificationFutures.values().forEach(future -> future.cancel(true));
+        final var numCancelledVerifications = new AtomicInteger();
+        verificationFutures.values().forEach(future -> {
+            if (!future.isDone()) {
+                numCancelledVerifications.incrementAndGet();
+                future.cancel(true);
+            }
+        });
+        if (numCancelledVerifications.get() > 0) {
+            sb.append("\n  * ").append(numCancelledVerifications.get()).append(" in-flight verifications");
+        }
+        log.info(sb.toString());
     }
 
     /**
@@ -463,6 +498,30 @@ public class ProofControllerImpl implements ProofController {
      */
     private boolean hasSufficientSignatures() {
         return firstSufficientSignatures() != null;
+    }
+
+    /**
+     * Whether there is no hope of collecting enough valid signatures to initiate a proof.
+     */
+    private boolean couldStillGetSufficientSignatures() {
+        final Map<History, Long> historyWeights = new HashMap<>();
+        long invalidWeight = 0;
+        long maxValidWeight = 0;
+        for (final var entry : verificationFutures.entrySet()) {
+            final var verification = entry.getValue().join();
+            if (verification.isValid()) {
+                maxValidWeight = Math.max(
+                        maxValidWeight,
+                        historyWeights.merge(
+                                verification.history(), weights.sourceWeightOf(verification.nodeId()), Long::sum));
+            } else {
+                invalidWeight += weights.sourceWeightOf(verification.nodeId());
+            }
+        }
+        long unassignedWeight = weights.totalSourceWeight()
+                - invalidWeight
+                - historyWeights.values().stream().mapToLong(Long::longValue).sum();
+        return maxValidWeight + unassignedWeight >= weights.sourceWeightThreshold();
     }
 
     /**

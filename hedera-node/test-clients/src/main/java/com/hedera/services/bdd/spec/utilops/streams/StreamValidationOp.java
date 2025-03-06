@@ -35,6 +35,7 @@ import com.hedera.services.bdd.junit.support.validators.block.StateChangesValida
 import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordParityValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
+import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -53,7 +54,7 @@ import org.junit.jupiter.api.Assertions;
  * {@link HapiSpec}. Note it suffices to validate the streams produced by a single node in
  * the network since at minimum log validation will fail in case of an ISS.
  */
-public class StreamValidationOp extends UtilOp {
+public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final Logger log = LogManager.getLogger(StreamValidationOp.class);
 
     private static final long MAX_BLOCK_TIME_MS = 2000L;
@@ -127,6 +128,13 @@ public class StreamValidationOp extends UtilOp {
                     .forEach(node -> node.minLogsFuture(ProofControllerImpl.PROOF_COMPLETE_MSG, historyProofsToWaitFor)
                             .orTimeout(historyProofTimeout.getSeconds(), TimeUnit.SECONDS)
                             .join());
+            // If we waited for more than one history proof, do a freeze
+            // upgrade to test adoption of whatever candidate roster
+            // triggered production of the last history proof (the first
+            // one was the "proof" of the genesis address book)
+            if (historyProofsToWaitFor > 1) {
+                allRunFor(spec, upgradeToNextConfigVersion());
+            }
         }
         // Freeze the network
         allRunFor(
