@@ -271,7 +271,7 @@ public class HintsControllerImpl implements HintsController {
                         .contributionEndTime((Timestamp) null)
                         .build();
                 hintsStore.setCRSState(updatedState);
-                log.info("CRS construction completed");
+                log.info("CRS construction COMPLETED");
             }
         }
     }
@@ -307,17 +307,16 @@ public class HintsControllerImpl implements HintsController {
      * Checks if the total weight of the contributions is more than 2/3 total weight of all nodes in the source
      * roster.
      *
-     * @param hintsStore the writable hints store
      * @return true if the total weight of the contributions is more than 2/3 total weight of all nodes in the
      */
     private boolean validateWeightOfContributions() {
-        final var contributedWeight = finalUpdatedCrsFuture.join().weightContributedSoFar();
+        final var contributedWeight = finalUpdatedCrsFuture == null
+                ? 0L
+                : finalUpdatedCrsFuture.join().weightContributedSoFar();
         final var totalWeight = weights.sourceNodeWeights().values().stream()
                 .mapToLong(Long::longValue)
                 .sum();
-
         log.info("Total weight of contributions: {}, Total weight of all nodes: {}", contributedWeight, totalWeight);
-
         return contributedWeight >= moreThanTwoThirdsOfTotal(totalWeight);
     }
 
@@ -345,13 +344,13 @@ public class HintsControllerImpl implements HintsController {
      * @param hintsStore the writable hints store
      */
     private void submitUpdatedCRS(final @NonNull WritableHintsStore hintsStore) {
-        final var oldCRS = hintsStore.getCrsState().crs();
         crsPublicationFuture = CompletableFuture.runAsync(
                 () -> {
-                    log.info("Starting CRS update");
-                    final var updatedCRS = library.updateCrs(oldCRS, generateEntropy());
-                    log.info("Submitting CRS update {}", updatedCRS.length());
-                    final var newCRS = decodeCrsUpdate(oldCRS.length(), updatedCRS);
+                    final Bytes previousCRS = (finalUpdatedCrsFuture != null)
+                            ? finalUpdatedCrsFuture.join().crs()
+                            : hintsStore.getCrsState().crs();
+                    final var updatedCRS = library.updateCrs(previousCRS, generateEntropy());
+                    final var newCRS = decodeCrsUpdate(previousCRS.length(), updatedCRS);
                     submissions.submitUpdateCRS(newCRS.crs(), newCRS.proof());
                 },
                 executor);
@@ -475,14 +474,12 @@ public class HintsControllerImpl implements HintsController {
             @NonNull final CrsPublicationTransactionBody publication,
             @NonNull final WritableHintsStore hintsStore,
             final long creatorId) {
-        log.info("Verifying CRS update");
         final var creatorWeight = weights.sourceWeightOf(creatorId);
         if (finalUpdatedCrsFuture == null) {
             finalUpdatedCrsFuture = CompletableFuture.supplyAsync(
                     () -> {
                         final var isValid = library.verifyCrsUpdate(
                                 requireNonNull(initialCrs), publication.newCrs(), publication.proof());
-                        log.info("CRS update is {}", isValid ? "valid" : "invalid");
                         if (isValid) {
                             return new CRSValidation(publication.newCrs(), creatorWeight);
                         }
@@ -494,7 +491,6 @@ public class HintsControllerImpl implements HintsController {
                     previousValidation -> {
                         final var isValid = library.verifyCrsUpdate(
                                 previousValidation.crs(), publication.newCrs(), publication.proof());
-                        log.info("CRS update is {}", isValid ? "valid" : "invalid");
                         if (isValid) {
                             return new CRSValidation(
                                     publication.newCrs(), previousValidation.weightContributedSoFar() + creatorWeight);
