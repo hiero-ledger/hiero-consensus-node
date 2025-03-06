@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui;
 
-import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
 import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
+import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.NoOpConsensusMetrics;
@@ -37,7 +38,7 @@ public class GuiEventStorage {
     private ConsensusRound lastConsensusRound;
 
     /**
-     * Constructor
+     * Creates an empty instance
      *
      * @param configuration this node's configuration
      * @param addressBook   the network's address book
@@ -49,8 +50,27 @@ public class GuiEventStorage {
 
         this.consensus = new ConsensusImpl(
                 platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
-        // Future work: birth round compatibility for GUI
-        this.linker = new SimpleLinker(GENERATION_THRESHOLD);
+        this.linker =
+                new SimpleLinker(configuration.getConfigData(EventConfig.class).getAncientMode());
+    }
+
+    /**
+     * Creates an instance with the given consensus, linker, and configuration.
+     * @param consensus the consensus object
+     * @param linker the linker object
+     * @param configuration the configuration object
+     */
+    public GuiEventStorage(
+            @NonNull final Consensus consensus,
+            @NonNull final SimpleLinker linker,
+            @NonNull final Configuration configuration) {
+        this.consensus = consensus;
+        this.linker = linker;
+        this.configuration = configuration;
+        maxGeneration = linker.getNonAncientEvents().stream()
+                .mapToLong(EventImpl::getGeneration)
+                .max()
+                .orElse(FIRST_GENERATION);
     }
 
     /**
@@ -94,8 +114,8 @@ public class GuiEventStorage {
     public synchronized void handleSnapshotOverride(@NonNull final ConsensusSnapshot snapshot) {
         consensus.loadSnapshot(snapshot);
         linker.clear();
-        linker.setNonAncientThreshold(snapshot.getMinimumGenerationNonAncient(
-                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient()));
+        linker.setNonAncientThreshold(RoundCalculationUtils.getAncientThreshold(
+                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient(), snapshot));
         lastConsensusRound = null;
     }
 

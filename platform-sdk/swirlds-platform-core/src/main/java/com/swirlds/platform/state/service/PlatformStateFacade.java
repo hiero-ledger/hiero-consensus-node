@@ -10,6 +10,7 @@ import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchem
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
@@ -17,10 +18,7 @@ import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
-import com.swirlds.state.merkle.MerkleStateRoot;
-import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -143,13 +141,6 @@ public class PlatformStateFacade {
     public @Nullable PlatformState platformStateOf(@NonNull final State state) {
         final ReadableStates readableStates = state.getReadableStates(NAME);
         if (readableStates.isEmpty()) {
-            // fallback to lookup directly in the Merkle tree, useful for loading the state from disk
-            if (state instanceof MerkleStateRoot<?> merkleStateRoot) {
-                final int index = merkleStateRoot.findNodeIndex(PlatformStateService.NAME, PLATFORM_STATE_KEY);
-                return index == -1
-                        ? UNINITIALIZED_PLATFORM_STATE
-                        : ((SingletonNode<PlatformState>) merkleStateRoot.getChild(index)).getValue();
-            }
             return UNINITIALIZED_PLATFORM_STATE;
         } else {
             return (PlatformState)
@@ -183,7 +174,7 @@ public class PlatformStateFacade {
      * @return the consensus snapshot, or null if the state is a genesis state
      */
     @Nullable
-    public com.swirlds.platform.consensus.ConsensusSnapshot consensusSnapshotOf(@NonNull final State root) {
+    public ConsensusSnapshot consensusSnapshotOf(@NonNull final State root) {
         return readablePlatformStateStore(root).getSnapshot();
     }
 
@@ -254,26 +245,6 @@ public class PlatformStateFacade {
     }
 
     /**
-     * Given a {@link State}, returns the address book if it exists.
-     * @param state the state to extract the address book from
-     * @return the address book, or null if the state is a genesis state
-     */
-    @Nullable
-    public AddressBook addressBookOf(State state) {
-        return readablePlatformStateStore(state).getAddressBook();
-    }
-
-    /**
-     * Get the previous address book from the state.
-     * @param state the state to extract the address book from
-     * @return the previous address book, or null if the state is a genesis state
-     */
-    @Nullable
-    public AddressBook previousAddressBookOf(State state) {
-        return readablePlatformStateStore(state).getPreviousAddressBook();
-    }
-
-    /**
      * Get writable platform state. Works only on mutable {@link State}.
      * Call this method only if you need to modify the platform state.
      *
@@ -298,8 +269,7 @@ public class PlatformStateFacade {
     /**
      * @param snapshot the consensus snapshot for this round
      */
-    public void setSnapshotTo(
-            @NonNull final State state, @NonNull com.swirlds.platform.consensus.ConsensusSnapshot snapshot) {
+    public void setSnapshotTo(@NonNull final State state, @NonNull ConsensusSnapshot snapshot) {
         getWritablePlatformStateOf(state).setSnapshot(snapshot);
     }
 
@@ -334,7 +304,7 @@ public class PlatformStateFacade {
     private PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {
         final ReadableStates readableStates = state.getReadableStates(NAME);
         if (readableStates.isEmpty()) {
-            return new SnapshotPlatformStateAccessor(platformStateOf(state), versionFactory);
+            return new SnapshotPlatformStateAccessor(UNINITIALIZED_PLATFORM_STATE, versionFactory);
         }
         return new ReadablePlatformStateStore(readableStates, versionFactory);
     }

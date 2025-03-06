@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractIdWithEvmAddress;
@@ -144,7 +143,6 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
-@Tag(ADHOC)
 public class ContractCallSuite {
 
     public static final String TOKEN = "yahcliToken";
@@ -847,7 +845,7 @@ public class ContractCallSuite {
                             .getContractCallResult();
                     final var htsMetadata = decoder.decode(htsResult.toByteArray());
                     // The HTS method leaves non-UTF-8 bytes as-is
-                    assertEquals(hexedNonUtf8Meta, CommonUtils.hex(htsMetadata.get(0)));
+                    assertEquals(hexedNonUtf8Meta, CommonUtils.hex((byte[]) htsMetadata.get(0)));
 
                     final var ercResult = getErcResult
                             .getResponseRecord()
@@ -856,7 +854,7 @@ public class ContractCallSuite {
                     // But the ERC721 method returns the Unicode replacement
                     // character
                     final var ercMetadata = decoder.decode(ercResult.toByteArray());
-                    assertEquals("efbfbd", CommonUtils.hex(ercMetadata.get(0)));
+                    assertEquals("efbfbd", CommonUtils.hex((byte[]) ercMetadata.get(0)));
                 }));
     }
 

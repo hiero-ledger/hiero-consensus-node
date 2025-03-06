@@ -8,6 +8,8 @@ import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -115,8 +117,9 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      *
      * @param state    the mutable state of the network at the end of the round
      * @param roundNum the number of the round that has just ended
+     * @return returns true if the round is the last round in the block
      */
-    void endRound(@NonNull State state, final long roundNum);
+    boolean endRound(@NonNull State state, long roundNum);
 
     /**
      * Writes a block item to the stream.
@@ -124,4 +127,17 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @throws IllegalStateException if the stream is closed
      */
     void writeItem(@NonNull BlockItem item);
+
+    /**
+     * Notifies the block stream manager that a fatal event has occurred, e.g. an ISS. This event should
+     * trigger any essential fatal shutdown logic.
+     */
+    void notifyFatalEvent();
+
+    /**
+     * Synchronous method that, when invoked, blocks until the block stream manager signals a successful
+     * completion of its fatal shutdown logic.
+     * @param maybeTimeout the maximum time to wait for block stream shutdown
+     */
+    void awaitFatalShutdown(@Nullable Duration maybeTimeout);
 }

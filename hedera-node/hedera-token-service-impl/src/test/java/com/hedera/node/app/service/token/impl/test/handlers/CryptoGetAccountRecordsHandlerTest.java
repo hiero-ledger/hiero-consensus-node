@@ -28,7 +28,6 @@ import com.hedera.hapi.node.token.CryptoGetStakersQuery;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler;
 import com.hedera.node.app.service.token.impl.handlers.CryptoGetAccountRecordsHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase;
 import com.hedera.node.app.spi.fees.FeeCalculator;
@@ -141,7 +140,7 @@ class CryptoGetAccountRecordsHandlerTest extends CryptoHandlerTestBase {
     void validatesAccountDoesntExist() {
         refreshStoresWithCurrentTokenOnlyInReadable();
         mockQueryContext(
-                BaseCryptoHandler.asAccount(0L, 0L, 987),
+                idFactory.newAccountId(987),
                 QueryHeader.newBuilder().responseType(ANSWER_ONLY).build());
 
         Assertions.assertThatThrownBy(() -> subject.validate(context))

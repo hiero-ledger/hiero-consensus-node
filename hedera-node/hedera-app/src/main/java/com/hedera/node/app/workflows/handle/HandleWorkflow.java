@@ -323,7 +323,8 @@ public class HandleWorkflow {
         // that have been being computed in background threads. The running hash has to be included in
         // state, but we want to synchronize with background threads as infrequently as possible. So once per
         // round is the minimum we can do. Note the BlockStreamManager#endRound() method is called in Hedera's
-        // implementation of StateLifecycles#onSealConsensusRound(), since the BlockStreamManager cannot do its
+        // implementation of ConsensusStateEventHandler#onSealConsensusRound(), since the BlockStreamManager cannot do
+        // its
         // end-of-block work until the platform has finished all its state changes.
         if (userTransactionsHandled && streamMode != BLOCKS) {
             blockRecordManager.endRound(state);
@@ -491,7 +492,11 @@ public class HandleWorkflow {
                     }
                 }
                 executionEnd = executableTxn.nbf();
-                doStreamingKVChanges(writableStates, entityIdWritableStates, executionEnd, iter::remove);
+                doStreamingKVChanges(
+                        writableStates,
+                        entityIdWritableStates,
+                        boundaryStateChangeListener.lastConsensusTimeOrThrow(),
+                        iter::remove);
                 nextTime = boundaryStateChangeListener
                         .lastConsensusTimeOrThrow()
                         .plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
@@ -500,7 +505,11 @@ public class HandleWorkflow {
             // The purgeUntilNext() iterator extension purges any schedules with wait_until_expiry=false
             // that expire after the last schedule returned from next(), until either the next executable
             // schedule or the iterator boundary is reached
-            doStreamingKVChanges(writableStates, entityIdWritableStates, executionEnd, iter::purgeUntilNext);
+            doStreamingKVChanges(
+                    writableStates,
+                    entityIdWritableStates,
+                    boundaryStateChangeListener.lastConsensusTimeOrThrow(),
+                    iter::purgeUntilNext);
             // If the iterator is not exhausted, we can only mark the second _before_ the last-executed NBF time
             // as complete; if it is exhausted, we mark the rightmost second of the interval as complete
             if (iter.hasNext()) {
@@ -879,9 +888,15 @@ public class HandleWorkflow {
      */
     private void reconcileTssState(
             @NonNull final TssConfig tssConfig, @NonNull final State state, @NonNull final Instant now) {
-        if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
+        if (tssConfig.crsEnabled() || tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var activeRosters = ActiveRosters.from(rosterStore);
+            if (tssConfig.crsEnabled()) {
+                final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
+                final var hintsStore = new WritableHintsStoreImpl(hintsWritableStates);
+                doStreamingKVChanges(
+                        hintsWritableStates, null, now, () -> hintsService.executeCrsWork(hintsStore, now));
+            }
             if (tssConfig.hintsEnabled()) {
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 final var hintsStore = new WritableHintsStoreImpl(hintsWritableStates);

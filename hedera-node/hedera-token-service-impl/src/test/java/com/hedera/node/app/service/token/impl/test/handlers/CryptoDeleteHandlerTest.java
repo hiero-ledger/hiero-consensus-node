@@ -55,8 +55,6 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import java.util.List;
 import java.util.Map;
@@ -97,14 +95,11 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     @Mock
     private PureChecksContext pureChecksContext;
 
-    private Configuration configuration;
-
     private CryptoDeleteHandler subject = new CryptoDeleteHandler();
 
     @BeforeEach
     public void setUp() {
         super.setUp();
-        configuration = HederaTestConfigBuilder.createConfig();
         updateReadableStore(
                 Map.of(accountNum, account, deleteAccountNum, deleteAccount, transferAccountNum, transferAccount));
         updateWritableStore(
@@ -394,6 +389,34 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         Assertions.assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
     }
 
+    @Test
+    void happyPathWithEcdsaKeyWorks() {
+        writableAliases = writableAliasesStateWithEcdsaKey();
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
+
+        deleteAccount =
+                deleteAccount.copyBuilder().alias(ecdsaAlias.aliasOrThrow()).build();
+        writableAccounts = emptyWritableAccountStateBuilder()
+                .value(idFactory.newAccountId(accountNum), account)
+                .value(idFactory.newAccountId(deleteAccountNum), deleteAccount)
+                .value(idFactory.newAccountId(transferAccountNum), transferAccount)
+                .build();
+        given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
+        writableStore = new WritableAccountStore(writableStates, entityCounters);
+
+        givenTxnWith(deleteAccountId, transferAccountId);
+        given(expiryValidator.isDetached(eq(EntityType.ACCOUNT), anyBoolean(), anyLong()))
+                .willReturn(false);
+        given(stack.getBaseBuilder(CryptoDeleteStreamBuilder.class)).willReturn(recordBuilder);
+
+        subject.handle(handleContext);
+
+        assertThat(writableStore.get(deleteAccountId).deleted()).isTrue();
+        assertThat(writableAliases.get(ecdsaKeyAlias)).isNull();
+        assertThat(writableAliases.get(new ProtoBytes(aliasEvmAddress))).isNull();
+        verify(recordBuilder).addBeneficiaryForDeletedAccount(deleteAccountId, transferAccountId);
+    }
+
     private TransactionBody deleteAccountTransaction(
             final AccountID deleteAccountId, final AccountID transferAccountId) {
         final var transactionID = TransactionID.newBuilder().accountID(id).transactionValidStart(consensusTimestamp);
@@ -410,7 +433,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     private void updateReadableStore(Map<Long, Account> accountsToAdd) {
         final var emptyStateBuilder = emptyReadableAccountStateBuilder();
         for (final var entry : accountsToAdd.entrySet()) {
-            emptyStateBuilder.value(accountID(entry.getKey()), entry.getValue());
+            emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         readableAccounts = emptyStateBuilder.build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
@@ -420,7 +443,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     private void updateWritableStore(Map<Long, Account> accountsToAdd) {
         final var emptyStateBuilder = emptyWritableAccountStateBuilder();
         for (final var entry : accountsToAdd.entrySet()) {
-            emptyStateBuilder.value(accountID(entry.getKey()), entry.getValue());
+            emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         writableAccounts = emptyStateBuilder.build();
         given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);

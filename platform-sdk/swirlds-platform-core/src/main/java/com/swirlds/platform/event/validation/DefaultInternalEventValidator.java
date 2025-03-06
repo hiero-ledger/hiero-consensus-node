@@ -222,7 +222,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * @return true if the total byte count of transactions in the event is less than the maximum, otherwise false
      */
     private boolean isTransactionByteCountValid(@NonNull final PlatformEvent event) {
-        int totalTransactionBytes = 0;
+        long totalTransactionBytes = 0;
         final Iterator<Transaction> iterator = event.transactionIterator();
         while (iterator.hasNext()) {
             totalTransactionBytes += iterator.next().getSize();

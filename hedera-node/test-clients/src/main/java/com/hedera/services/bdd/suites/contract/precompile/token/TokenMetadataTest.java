@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
@@ -27,6 +29,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -63,7 +66,7 @@ public class TokenMetadataTest {
     @Account(maxAutoAssociations = 10, tinybarBalance = ONE_MILLION_HBARS)
     static SpecAccount alice;
 
-    @Contract(contract = "CreateTokenVTwo", creationGas = 1_000_000L)
+    @Contract(contract = "CreateTokenVersioned", creationGas = 1_000_000L, variant = VARIANT_16C)
     static SpecContract contractTarget;
 
     @Contract(contract = "TokenInfo", creationGas = 1_000_000L)
@@ -90,7 +93,7 @@ public class TokenMetadataTest {
                 fungibleToken.authorizeContracts(contractTarget));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     public Stream<DynamicTest> testUpdateMetadata() {
         return Stream.of(nft, fungibleToken)
                 .flatMap(token -> hapiTest(
@@ -111,7 +114,7 @@ public class TokenMetadataTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> createTokenV2HappyPath() {
+    final Stream<DynamicTest> createTokenVersionedHappyPath() {
         final AtomicReference<Address> newToken = new AtomicReference<>();
         final AtomicReference<ByteString> ledgerId = new AtomicReference<>();
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -135,46 +138,14 @@ public class TokenMetadataTest {
                                     .contractCallResult(htsPrecompileResult()
                                             .forFunction(FunctionType.HAPI_GET_TOKEN_INFO_V2)
                                             .withStatus(SUCCESS)
-                                            .withTokenInfo(tokenInfoV2(spec, ledgerId, newToken)
+                                            .withTokenInfo(tokenInfo(spec, ledgerId, newToken)
                                                     .build()))));
             allRunFor(spec, getInfo, childRecord);
         }));
     }
 
     @HapiTest
-    final Stream<DynamicTest> createTokenHappyPath() {
-        final AtomicReference<Address> newToken = new AtomicReference<>();
-        final AtomicReference<ByteString> ledgerId = new AtomicReference<>();
-        return hapiTest(withOpContext((spec, opLog) -> {
-            final var create = contractTarget
-                    .call("createToken")
-                    .sending(2000 * ONE_HBAR)
-                    .gas(1_000_000L)
-                    .exposingResultTo(res -> newToken.set((Address) res[0]));
-            final var ledger = exposeTargetLedgerIdTo(ledgerId::set);
-            allRunFor(spec, create, ledger);
-            final var getInfo = tokenInfoContract
-                    .call("getInformationForToken", newToken.get())
-                    .gas(100_000L)
-                    .andAssert(txn -> txn.hasKnownStatus(SUCCESS).via("getInfo").logged());
-            final var childRecord = childRecordsCheck(
-                    "getInfo",
-                    SUCCESS,
-                    recordWith()
-                            .status(SUCCESS)
-                            .contractCallResult(resultWith()
-                                    .contractCallResult(htsPrecompileResult()
-                                            .forFunction(FunctionType.HAPI_GET_TOKEN_INFO)
-                                            .withStatus(SUCCESS)
-                                            .withTokenInfo(tokenInfo(spec, ledgerId, newToken)
-                                                    .build()))));
-            // re-enable once system contracts versioning is done
-            // allRunFor(spec, getInfo, childRecord);
-        }));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> createTokenV2WithKeyHappyPath() {
+    final Stream<DynamicTest> createTokenVersionedWithKeyHappyPath() {
         final AtomicReference<Address> newToken = new AtomicReference<>();
         final AtomicReference<ByteString> ledgerId = new AtomicReference<>();
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -198,7 +169,7 @@ public class TokenMetadataTest {
                                     .contractCallResult(htsPrecompileResult()
                                             .forFunction(FunctionType.HAPI_GET_TOKEN_INFO_V2)
                                             .withStatus(SUCCESS)
-                                            .withTokenInfo(tokenInfoV2(spec, ledgerId, newToken)
+                                            .withTokenInfo(tokenInfo(spec, ledgerId, newToken)
                                                     .setMetadataKey(metaKey(spec))
                                                     .build()))));
             allRunFor(spec, getInfo, childRecord);
@@ -206,7 +177,7 @@ public class TokenMetadataTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> createTokenV2WithCustomFeesHappyPath() {
+    final Stream<DynamicTest> createTokenVersionedWithCustomFeesHappyPath() {
         final AtomicReference<Address> newToken = new AtomicReference<>();
         final AtomicReference<ByteString> ledgerId = new AtomicReference<>();
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -230,7 +201,7 @@ public class TokenMetadataTest {
                                     .contractCallResult(htsPrecompileResult()
                                             .forFunction(FunctionType.HAPI_GET_TOKEN_INFO_V2)
                                             .withStatus(SUCCESS)
-                                            .withTokenInfo(tokenInfoV2(spec, ledgerId, newToken)
+                                            .withTokenInfo(tokenInfo(spec, ledgerId, newToken)
                                                     .addCustomFees(customFee(spec))
                                                     .build()))));
             allRunFor(spec, getInfo, childRecord);
@@ -238,40 +209,7 @@ public class TokenMetadataTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> createTokenWithCustomFeesHappyPath() {
-        final AtomicReference<Address> newToken = new AtomicReference<>();
-        final AtomicReference<ByteString> ledgerId = new AtomicReference<>();
-        return hapiTest(withOpContext((spec, opLog) -> {
-            final var create = contractTarget
-                    .call("createTokenWithCustomFees")
-                    .sending(2000 * ONE_HBAR)
-                    .gas(1_000_000L)
-                    .exposingResultTo(res -> newToken.set((Address) res[0]));
-            final var ledger = exposeTargetLedgerIdTo(ledgerId::set);
-            allRunFor(spec, create, ledger);
-            final var getInfo = tokenInfoContract
-                    .call("getInformationForToken", newToken.get())
-                    .gas(100_000L)
-                    .andAssert(txn -> txn.hasKnownStatus(SUCCESS).via("getInfo").logged());
-            final var childRecord = childRecordsCheck(
-                    "getInfo",
-                    SUCCESS,
-                    recordWith()
-                            .status(SUCCESS)
-                            .contractCallResult(resultWith()
-                                    .contractCallResult(htsPrecompileResult()
-                                            .forFunction(FunctionType.HAPI_GET_TOKEN_INFO)
-                                            .withStatus(SUCCESS)
-                                            .withTokenInfo(tokenInfo(spec, ledgerId, newToken)
-                                                    .addCustomFees(customFee(spec))
-                                                    .build()))));
-            // re-enable once system contracts versioning is done
-            //            allRunFor(spec, getInfo, childRecord);
-        }));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> createTokenV2WithKeyAndCustomFeesHappyPath() {
+    final Stream<DynamicTest> createTokenVersionedWithKeyAndCustomFeesHappyPath() {
         final AtomicReference<Address> newToken = new AtomicReference<>();
         final AtomicReference<ByteString> ledgerId = new AtomicReference<>();
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -295,43 +233,11 @@ public class TokenMetadataTest {
                                     .contractCallResult(htsPrecompileResult()
                                             .forFunction(FunctionType.HAPI_GET_TOKEN_INFO_V2)
                                             .withStatus(SUCCESS)
-                                            .withTokenInfo(tokenInfoV2(spec, ledgerId, newToken)
+                                            .withTokenInfo(tokenInfo(spec, ledgerId, newToken)
                                                     .addCustomFees(customFee(spec))
                                                     .setMetadataKey(metaKey(spec))
                                                     .build()))));
             allRunFor(spec, getInfo, childRecord);
-        }));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> createNftHappyPath() {
-        final AtomicReference<Address> newToken = new AtomicReference<>();
-        final AtomicReference<ByteString> ledgerId = new AtomicReference<>();
-        return hapiTest(withOpContext((spec, opLog) -> {
-            final var create = contractTarget
-                    .call("createNft")
-                    .sending(2000 * ONE_HBAR)
-                    .gas(1_000_000L)
-                    .exposingResultTo(res -> newToken.set((Address) res[0]));
-            final var ledger = exposeTargetLedgerIdTo(ledgerId::set);
-            allRunFor(spec, create, ledger);
-            final var getInfo = tokenInfoContract
-                    .call("getInformationForToken", newToken.get())
-                    .gas(100_000L)
-                    .andAssert(txn -> txn.hasKnownStatus(SUCCESS).via("getInfo").logged());
-            final var childRecord = childRecordsCheck(
-                    "getInfo",
-                    SUCCESS,
-                    recordWith()
-                            .status(SUCCESS)
-                            .contractCallResult(resultWith()
-                                    .contractCallResult(htsPrecompileResult()
-                                            .forFunction(FunctionType.HAPI_GET_TOKEN_INFO)
-                                            .withStatus(SUCCESS)
-                                            .withTokenInfo(nftInfo(spec, ledgerId, newToken)
-                                                    .build()))));
-            // re-enable once system contracts versioning is done
-            //            allRunFor(spec, getInfo, childRecord);
         }));
     }
 
@@ -360,7 +266,7 @@ public class TokenMetadataTest {
                                     .contractCallResult(htsPrecompileResult()
                                             .forFunction(FunctionType.HAPI_GET_TOKEN_INFO_V2)
                                             .withStatus(SUCCESS)
-                                            .withTokenInfo(nftInfoV2(spec, ledgerId, newToken)
+                                            .withTokenInfo(nftInfo(spec, ledgerId, newToken)
                                                     .build()))));
             allRunFor(spec, getInfo, childRecord);
         }));
@@ -391,43 +297,10 @@ public class TokenMetadataTest {
                                     .contractCallResult(htsPrecompileResult()
                                             .forFunction(FunctionType.HAPI_GET_TOKEN_INFO_V2)
                                             .withStatus(SUCCESS)
-                                            .withTokenInfo(nftInfoV2(spec, ledgerId, newToken)
+                                            .withTokenInfo(nftInfo(spec, ledgerId, newToken)
                                                     .setMetadataKey(metaKey(spec))
                                                     .build()))));
             allRunFor(spec, getInfo, childRecord);
-        }));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> createNftWithCustomFeesHappyPath() {
-        final AtomicReference<Address> newToken = new AtomicReference<>();
-        final AtomicReference<ByteString> ledgerId = new AtomicReference<>();
-        return hapiTest(withOpContext((spec, opLog) -> {
-            final var create = contractTarget
-                    .call("createNftWithCustomFees")
-                    .sending(2000 * ONE_HBAR)
-                    .gas(1_000_000L)
-                    .exposingResultTo(res -> newToken.set((Address) res[0]));
-            final var ledger = exposeTargetLedgerIdTo(ledgerId::set);
-            allRunFor(spec, create, ledger);
-            final var getInfo = tokenInfoContract
-                    .call("getInformationForToken", newToken.get())
-                    .gas(100_000L)
-                    .andAssert(txn -> txn.hasKnownStatus(SUCCESS).via("getInfo").logged());
-            final var childRecord = childRecordsCheck(
-                    "getInfo",
-                    SUCCESS,
-                    recordWith()
-                            .status(SUCCESS)
-                            .contractCallResult(resultWith()
-                                    .contractCallResult(htsPrecompileResult()
-                                            .forFunction(FunctionType.HAPI_GET_TOKEN_INFO)
-                                            .withStatus(SUCCESS)
-                                            .withTokenInfo(nftInfo(spec, ledgerId, newToken)
-                                                    .addCustomFees(customFee(spec))
-                                                    .build()))));
-            // re-enable once system contracts versioning is done
-            //            allRunFor(spec, getInfo, childRecord);
         }));
     }
 
@@ -456,7 +329,7 @@ public class TokenMetadataTest {
                                     .contractCallResult(htsPrecompileResult()
                                             .forFunction(FunctionType.HAPI_GET_TOKEN_INFO_V2)
                                             .withStatus(SUCCESS)
-                                            .withTokenInfo(nftInfoV2(spec, ledgerId, newToken)
+                                            .withTokenInfo(nftInfo(spec, ledgerId, newToken)
                                                     .addCustomFees(customFee(spec))
                                                     .build()))));
             allRunFor(spec, getInfo, childRecord);
@@ -488,7 +361,7 @@ public class TokenMetadataTest {
                                     .contractCallResult(htsPrecompileResult()
                                             .forFunction(FunctionType.HAPI_GET_TOKEN_INFO_V2)
                                             .withStatus(SUCCESS)
-                                            .withTokenInfo(nftInfoV2(spec, ledgerId, newToken)
+                                            .withTokenInfo(nftInfo(spec, ledgerId, newToken)
                                                     .setMetadataKey(metaKey(spec))
                                                     .addCustomFees(customFee(spec))
                                                     .build()))));
@@ -511,12 +384,7 @@ public class TokenMetadataTest {
                 .setSupplyTypeValue(INFINITE_VALUE)
                 .setExpiry(Timestamp.newBuilder().setSeconds(-9223372036854775808L))
                 .setAutoRenewPeriod(Duration.newBuilder().setSeconds(THREE_MONTHS_IN_SECONDS))
-                .setTreasury(spec.registry().getAccountID(contractTarget.name()));
-    }
-
-    private TokenInfo.Builder tokenInfoV2(
-            final HapiSpec spec, final AtomicReference<ByteString> ledgerId, final AtomicReference<Address> newToken) {
-        return tokenInfo(spec, ledgerId, newToken)
+                .setTreasury(spec.registry().getAccountID(contractTarget.name()))
                 .setMetadata(ByteString.copyFrom("testmeta".getBytes(StandardCharsets.UTF_8)));
     }
 
@@ -533,12 +401,7 @@ public class TokenMetadataTest {
                 .setExpiry(Timestamp.newBuilder().setSeconds(-9223372036854775808L))
                 .setSupplyKey(metaKey(spec))
                 .setAutoRenewPeriod(Duration.newBuilder().setSeconds(THREE_MONTHS_IN_SECONDS))
-                .setTreasury(spec.registry().getAccountID(contractTarget.name()));
-    }
-
-    private TokenInfo.Builder nftInfoV2(
-            final HapiSpec spec, final AtomicReference<ByteString> ledgerId, final AtomicReference<Address> newToken) {
-        return nftInfo(spec, ledgerId, newToken)
+                .setTreasury(spec.registry().getAccountID(contractTarget.name()))
                 .setMetadata(ByteString.copyFrom("testmeta".getBytes(StandardCharsets.UTF_8)));
     }
 

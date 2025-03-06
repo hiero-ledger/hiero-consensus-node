@@ -2,14 +2,14 @@
 package com.hedera.node.app.workflows.standalone.impl;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.PlatformState;
 import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.platform.state.service.SnapshotPlatformStateAccessor;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import dagger.Binds;
@@ -35,7 +35,7 @@ public interface StandaloneModule {
     @Provides
     @Singleton
     static PlatformStateAccessor providePlatformState() {
-        return new PlatformState();
+        return new SnapshotPlatformStateAccessor(PlatformState.DEFAULT, ServicesSoftwareVersion::new);
     }
 
     @Provides
@@ -50,12 +50,6 @@ public interface StandaloneModule {
     static AccountID provideNodeSelfId(EntityIdFactory entityIdFactory) {
         // This is only used to check the shard and realm of account ids
         return entityIdFactory.newDefaultAccountId();
-    }
-
-    @Provides
-    @Singleton
-    static Cryptography provideCryptography() {
-        return CryptographyHolder.get();
     }
 
     @Provides

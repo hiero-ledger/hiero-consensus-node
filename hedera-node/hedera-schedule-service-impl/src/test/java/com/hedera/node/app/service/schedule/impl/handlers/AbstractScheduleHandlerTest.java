@@ -75,7 +75,7 @@ class AbstractScheduleHandlerTest {
 
     @Test
     void contractIdAndDelegatableContractIdKeysAreActivatedByIdKey() {
-        given(accountStore.getAccountIDByAlias(CONTRACT_ALIAS.evmAddressOrThrow()))
+        given(accountStore.getAccountIDByAlias(0, 0, CONTRACT_ALIAS.evmAddressOrThrow()))
                 .willReturn(ACCOUNT_CONTRACT_ID);
         final var keyVerifier = AbstractScheduleHandler.simpleKeyVerifierFrom(accountStore, List.of(CONTRACT_ID_KEY));
         assertThat(keyVerifier.test(CONTRACT_ID_KEY)).isTrue();
@@ -91,7 +91,7 @@ class AbstractScheduleHandlerTest {
 
     @Test
     void onlyDelegatableContractIdKeysAreActivatedByDelegatableIdKey() {
-        given(accountStore.getAccountIDByAlias(CONTRACT_ALIAS.evmAddressOrThrow()))
+        given(accountStore.getAccountIDByAlias(0, 0, CONTRACT_ALIAS.evmAddressOrThrow()))
                 .willReturn(ACCOUNT_CONTRACT_ID);
         final var keyVerifier =
                 AbstractScheduleHandler.simpleKeyVerifierFrom(accountStore, List.of(DELEGATABLE_CONTRACT_ID_KEY));

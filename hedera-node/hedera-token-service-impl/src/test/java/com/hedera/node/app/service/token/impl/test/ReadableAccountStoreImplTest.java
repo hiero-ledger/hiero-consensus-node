@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.token.impl.test;
 
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
-import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ACCOUNTS;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ALIASES;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -177,7 +176,7 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
         readableAliases = emptyReadableAliasStateBuilder()
-                .value(new ProtoBytes(Bytes.wrap(evmAddress)), asAccount(0L, 0L, accountNum))
+                .value(new ProtoBytes(Bytes.wrap(evmAddress)), idFactory.newAccountId(accountNum))
                 .build();
         given(readableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(readableAliases);
 
@@ -201,15 +200,13 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
         readableAliases = emptyReadableAliasStateBuilder()
-                .value(new ProtoBytes(Bytes.wrap(evmAddress)), asAccount(0L, 0L, accountNum))
+                .value(new ProtoBytes(Bytes.wrap(evmAddress)), idFactory.newAccountId(accountNum))
                 .build();
         given(readableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(readableAliases);
 
         subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
 
-        final var protoKeyId = AccountID.newBuilder()
-                .alias(Key.PROTOBUF.toBytes(aSecp256K1Key))
-                .build();
+        final var protoKeyId = idFactory.newAccountIdWithAlias(Key.PROTOBUF.toBytes(aSecp256K1Key));
         final var result = subject.getAliasedAccountById(protoKeyId);
         assertThat(result).isNotNull();
     }
@@ -250,9 +247,9 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
 
     @Test
     void getAccountIDByAlias() {
-        final var accountId = subject.getAccountIDByAlias(alias.alias());
+        final var accountId = subject.getAccountIDByAlias(0, 0, alias.alias());
         assertThat(accountId).isEqualTo(id);
-        final var accountId2 = subject.getAccountIDByAlias(Bytes.wrap("test"));
+        final var accountId2 = subject.getAccountIDByAlias(0, 0, Bytes.wrap("test"));
         assertThat(accountId2).isNull();
     }
 

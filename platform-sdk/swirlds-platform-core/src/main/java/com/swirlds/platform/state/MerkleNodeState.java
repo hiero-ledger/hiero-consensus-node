@@ -4,18 +4,32 @@ package com.swirlds.platform.state;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.state.State;
-import com.swirlds.state.merkle.StateMetadata;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * Represent a state backed up by the Merkle tree. It's a {@link MerkleNode} and provides methods to put service states
- * into the merkle tree.
+ * Represent a state backed up by the Merkle tree. It's a {@link State} implementation that is backed by a Merkle tree.
+ * It provides methods to manage the service states in the merkle tree.
  */
-public interface MerkleNodeState extends State, MerkleNode {
+public interface MerkleNodeState extends State {
 
+    /**
+     * @return an instance representing a root of the Merkle tree. For the most of the implementations
+     * this default implementation will be sufficient. But some implementations of the state may be "logical" - they
+     * are not `MerkleNode` themselves but are backed by the Merkle tree implementation (e.g. a Virtual Map).
+     */
+    default MerkleNode getRoot() {
+        return (MerkleNode) this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     MerkleNodeState copy();
@@ -29,7 +43,7 @@ public interface MerkleNodeState extends State, MerkleNode {
      * @param md The metadata associated with the state
      * @param nodeSupplier Returns the node to add. Cannot be null. Can be used to create the node on-the-fly.
      * @throws IllegalArgumentException if the node is neither a merkle map nor virtual map, or if
-     * it doesn't have a label, or if the label isn't right.
+     *                                  it doesn't have a label, or if the label isn't right.
      */
     default void putServiceStateIfAbsent(
             @NonNull final StateMetadata<?, ?> md, @NonNull final Supplier<? extends MerkleNode> nodeSupplier) {
@@ -46,7 +60,7 @@ public interface MerkleNodeState extends State, MerkleNode {
      * @param nodeSupplier Returns the node to add. Cannot be null. Can be used to create the node on-the-fly.
      * @param nodeInitializer The node's initialization logic.
      * @throws IllegalArgumentException if the node is neither a merkle map nor virtual map, or if
-     * it doesn't have a label, or if the label isn't right.
+     *                                  it doesn't have a label, or if the label isn't right.
      */
     <T extends MerkleNode> void putServiceStateIfAbsent(
             @NonNull final StateMetadata<?, ?> md,
@@ -71,7 +85,7 @@ public interface MerkleNodeState extends State, MerkleNode {
      * To prevent this and to allow the system to initialize all the services,
      * we unregister the PlatformStateService and RosterService after the validation is performed.
      * <p>
-     * Note that unlike the MerkleStateRoot.removeServiceState() method below in this class,
+     * Note that unlike the {@link #removeServiceState(String, String)} method in this class,
      * the unregisterService() method will NOT remove the merkle nodes that store the states of
      * the services being unregistered. This is by design because these nodes will be used
      * by the actual service states once the app initializes the States API in full.
@@ -87,4 +101,12 @@ public interface MerkleNodeState extends State, MerkleNode {
      * @param stateKey The state key
      */
     void removeServiceState(@NonNull final String serviceName, @NonNull final String stateKey);
+
+    /**
+     * Loads a snapshot of a state.
+     * @param targetPath The path to load the snapshot from.
+     */
+    default MerkleNodeState loadSnapshot(final @NonNull Path targetPath) throws IOException {
+        throw new UnsupportedOperationException();
+    }
 }

@@ -374,7 +374,7 @@ class WritableHistoryStoreImplTest {
     }
 
     @SuppressWarnings("unchecked")
-    private <T extends Record> @NonNull T getSingleton(@NonNull final String key) {
+    private <T> @NonNull T getSingleton(@NonNull final String key) {
         return requireNonNull((T)
                 state.getWritableStates(HistoryService.NAME).getSingleton(key).get());
     }

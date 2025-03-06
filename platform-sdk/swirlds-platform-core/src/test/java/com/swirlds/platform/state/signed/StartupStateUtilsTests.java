@@ -162,13 +162,13 @@ public class StartupStateUtilsTests {
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
         final SignedState loadedState = StartupStateUtils.loadStateFile(
-                        platformContext.getConfiguration(),
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
                         currentSoftwareVersion,
-                        platformStateFacade)
+                        platformStateFacade,
+                        platformContext)
                 .getNullable();
 
         assertNull(loadedState);
@@ -192,13 +192,13 @@ public class StartupStateUtilsTests {
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
         MerkleDb.resetDefaultInstancePath();
         final SignedState loadedState = StartupStateUtils.loadStateFile(
-                        platformContext.getConfiguration(),
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
                         currentSoftwareVersion,
-                        platformStateFacade)
+                        platformStateFacade,
+                        platformContext)
                 .get();
 
         loadedState.getState().throwIfImmutable();
@@ -206,7 +206,7 @@ public class StartupStateUtilsTests {
 
         assertEquals(latestState.getRound(), loadedState.getRound());
         assertEquals(latestState.getState().getHash(), loadedState.getState().getHash());
-        RandomSignedStateGenerator.releaseReservable(loadedState.getState());
+        RandomSignedStateGenerator.releaseReservable(loadedState.getState().getRoot());
     }
 
     @Test
@@ -226,13 +226,13 @@ public class StartupStateUtilsTests {
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
         assertThrows(SignedStateLoadingException.class, () -> StartupStateUtils.loadStateFile(
-                        platformContext.getConfiguration(),
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
                         currentSoftwareVersion,
-                        platformStateFacade)
+                        platformStateFacade,
+                        platformContext)
                 .get());
     }
 
@@ -272,13 +272,13 @@ public class StartupStateUtilsTests {
 
         MerkleDb.resetDefaultInstancePath();
         final SignedState loadedState = StartupStateUtils.loadStateFile(
-                        platformContext.getConfiguration(),
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
                         currentSoftwareVersion,
-                        platformStateFacade)
+                        platformStateFacade,
+                        platformContext)
                 .getNullable();
 
         if (latestUncorruptedState != null) {
@@ -294,7 +294,7 @@ public class StartupStateUtilsTests {
         }
 
         if (loadedState != null) {
-            RandomSignedStateGenerator.releaseReservable(loadedState.getState());
+            RandomSignedStateGenerator.releaseReservable(loadedState.getState().getRoot());
         }
 
         final Path savedStateDirectory = signedStateFilePath

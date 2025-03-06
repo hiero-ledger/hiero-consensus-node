@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.merkle.dummy;
 
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
@@ -94,7 +94,7 @@ public class SelfHashingDummyMerkleLeaf extends PartialMerkleLeaf implements Dum
             // A hash of null is not illegal, but "null" is not allowed for self hashing nodes like this one.
             return null;
         }
-        return CryptographyHolder.get().getNullHash();
+        return Cryptography.NULL_HASH;
     }
 
     public void setReturnNullForHash(final boolean returnNullForHash) {

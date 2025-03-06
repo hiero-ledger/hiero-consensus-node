@@ -53,8 +53,9 @@ public final class PcesBirthRoundMigration {
      * @param migrationRound                         the round at which the migration is occurring, this will be equal
      *                                               to the round number of the initial state
      * @param minimumJudgeGenerationInMigrationRound the minimum judge generation in the migration round
+     * @return true if any events were migrated to support birth rounds, else false
      */
-    public static void migratePcesToBirthRoundMode(
+    public static boolean migratePcesToBirthRoundMode(
             @NonNull final PlatformContext platformContext,
             @NonNull final NodeId selfId,
             final long migrationRound,
@@ -69,7 +70,7 @@ public final class PcesBirthRoundMigration {
             // No migration needed if there are no PCES files in generation mode.
 
             logger.info(STARTUP.getMarker(), "PCES birth round migration is not necessary.");
-            return;
+            return false;
         } else if (!findPcesFiles(databaseDirectory, BIRTH_ROUND_THRESHOLD).isEmpty()) {
             // We've found PCES files in both birth round and generation mode.
             // This is a signal that we attempted to do the migration but crashed.
@@ -84,7 +85,7 @@ public final class PcesBirthRoundMigration {
             makeBackupFiles(platformContext.getRecycleBin(), databaseDirectory, platformContext.getConfiguration());
             cleanUpOldFiles(databaseDirectory);
 
-            return;
+            return true;
         }
 
         logger.info(
@@ -101,7 +102,7 @@ public final class PcesBirthRoundMigration {
 
         if (eventsToMigrate.isEmpty()) {
             logger.error(EXCEPTION.getMarker(), "No events to migrate. PCES birth round migration aborted.");
-            return;
+            return false;
         }
 
         migrateEvents(platformContext, selfId, eventsToMigrate, migrationRound);
@@ -109,6 +110,7 @@ public final class PcesBirthRoundMigration {
         cleanUpOldFiles(databaseDirectory);
 
         logger.info(STARTUP.getMarker(), "PCES birth round migration complete.");
+        return true;
     }
 
     /**

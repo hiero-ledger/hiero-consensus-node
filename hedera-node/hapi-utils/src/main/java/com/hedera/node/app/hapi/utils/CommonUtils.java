@@ -12,6 +12,7 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -41,6 +42,9 @@ public final class CommonUtils {
 
     public static ByteString extractTransactionBodyByteString(final TransactionOrBuilder transaction)
             throws InvalidProtocolBufferException {
+        if (transaction.hasBody()) {
+            return transaction.getBody().toByteString();
+        }
         final var signedTransactionBytes = transaction.getSignedTransactionBytes();
         if (!signedTransactionBytes.isEmpty()) {
             return SignedTransaction.parseFrom(signedTransactionBytes).getBodyBytes();
@@ -155,5 +159,21 @@ public final class CommonUtils {
 
     public static Instant pbjTimestampToInstant(final com.hedera.hapi.node.base.Timestamp timestamp) {
         return Instant.ofEpochSecond(timestamp.seconds(), timestamp.nanos());
+    }
+
+    /**
+     * Converts a long-zero address to a PBJ {@link ScheduleID} using the address as the entity number
+     * @param shard the shard of the Hedera network
+     * @param realm the realm of the Hedera network
+     * @param address
+     * @return the PBJ {@link ScheduleID}
+     */
+    public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
+            final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+        return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setScheduleNum(address.value().longValueExact())
+                .build();
     }
 }

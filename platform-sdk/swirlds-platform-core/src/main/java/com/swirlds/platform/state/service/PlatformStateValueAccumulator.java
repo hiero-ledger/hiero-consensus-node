@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -22,20 +21,6 @@ import java.util.function.Consumer;
  * platform state fields to null if they are not updated.
  */
 public class PlatformStateValueAccumulator implements PlatformStateModifier {
-
-    /**
-     * The address book for this round.
-     */
-    private AddressBook addressBook;
-
-    private boolean addressBookUpdated;
-
-    /**
-     * The previous address book. A temporary workaround until dynamic address books are supported.
-     */
-    private AddressBook previousAddressBook;
-
-    private boolean previousAddressBookUpdated;
 
     /**
      * The round of this state. This state represents the handling of all transactions that have reached consensus in
@@ -130,38 +115,6 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
         creationSoftwareVersionUpdated = true;
     }
 
-    @Override
-    @Nullable
-    public AddressBook getAddressBook() {
-        return addressBook;
-    }
-
-    @Override
-    public void setAddressBook(@Nullable final AddressBook addressBook) {
-        this.addressBook = addressBook;
-        addressBookUpdated = true;
-    }
-
-    /**
-     * Get the previous address book.
-     */
-    @Override
-    @Nullable
-    public AddressBook getPreviousAddressBook() {
-        return previousAddressBook;
-    }
-
-    /**
-     * Set the previous address book.
-     *
-     * @param addressBook an address book
-     */
-    @Override
-    public void setPreviousAddressBook(@Nullable final AddressBook addressBook) {
-        this.previousAddressBook = addressBook;
-        previousAddressBookUpdated = true;
-    }
-
     /**
      * Get the round when this state was generated.
      *
@@ -249,7 +202,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
                     "No minimum judge info found in state for round " + round + ", snapshot is null");
         }
 
-        final List<MinimumJudgeInfo> minimumJudgeInfo = snapshot.getMinimumJudgeInfoList();
+        final List<MinimumJudgeInfo> minimumJudgeInfo = snapshot.minimumJudgeInfoList();
         if (minimumJudgeInfo.isEmpty()) {
             throw new IllegalStateException(
                     "No minimum judge info found in state for round " + round + ", list is empty");
@@ -408,14 +361,6 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
     public void setLowestJudgeGenerationBeforeBirthRoundMode(final long lowestJudgeGenerationBeforeBirthRoundMode) {
         this.lowestJudgeGenerationBeforeBirthRoundMode = lowestJudgeGenerationBeforeBirthRoundMode;
         lowestJudgeGenerationBeforeBirthRoundModeUpdated = true;
-    }
-
-    public boolean isAddressBookUpdated() {
-        return addressBookUpdated;
-    }
-
-    public boolean isPreviousAddressBookUpdated() {
-        return previousAddressBookUpdated;
     }
 
     public boolean isRoundUpdated() {

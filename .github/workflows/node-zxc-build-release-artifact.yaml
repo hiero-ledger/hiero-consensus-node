@@ -1,19 +1,4 @@
-##
-# Copyright (C) 2024-2025 Hedera Hashgraph, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-##
-
+# SPDX-License-Identifier: Apache-2.0
 name: "ZXC: [Node] Deploy Release Artifacts"
 on:
   workflow_call:
@@ -59,7 +44,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21.0.4"
+        default: "21.0.6"
       gradle-version:
         description: "Gradle Version:"
         type: string
@@ -213,7 +198,7 @@ jobs:
           echo "prerelease=${PRERELEASE}" >>"${GITHUB_OUTPUT}"
 
       - name: Upload Build Version
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: version.txt
           path: version.txt
@@ -421,7 +406,7 @@ jobs:
         uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3.0
 
       - name: Setup Docker Buildx Support
-        uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5 # v3.8.0
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
         with:
           version: v0.16.2
           driver-opts: network=host
@@ -659,7 +644,7 @@ jobs:
           fi
 
       - name: Upload Manifests
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         if: ${{ (steps.gcp.outcome == 'success' || steps.jfrog.outcome == 'success') && !cancelled() && always() }}
         with:
           name: Production Image Manifests

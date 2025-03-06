@@ -196,6 +196,15 @@ public class TransactionDispatcher {
             case TOKEN_CANCEL_AIRDROP -> handlers.tokenCancelAirdropHandler();
 
             case UTIL_PRNG -> handlers.utilPrngHandler();
+            case ATOMIC_BATCH -> handlers.atomicBatchHandler();
+
+            case HISTORY_PROOF_KEY_PUBLICATION -> handlers.historyProofKeyPublicationHandler();
+            case HISTORY_PROOF_SIGNATURE -> handlers.historyProofSignatureHandler();
+            case HISTORY_PROOF_VOTE -> handlers.historyProofVoteHandler();
+
+            case HINTS_KEY_PUBLICATION -> handlers.hintsKeyPublicationHandler();
+            case HINTS_PARTIAL_SIGNATURE -> handlers.hintsPartialSignatureHandler();
+            case HINTS_PREPROCESSING_VOTE -> handlers.hintsPreprocessingVoteHandler();
 
             case SYSTEM_DELETE -> switch (txBody.systemDeleteOrThrow().id().kind()) {
                 case CONTRACT_ID -> handlers.contractSystemDeleteHandler();

@@ -11,6 +11,7 @@ import com.hedera.node.app.blocks.BlockStreamModule;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.components.IngestInjectionComponent;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
@@ -49,7 +50,6 @@ import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.app.workflows.query.annotations.OperatorQueries;
 import com.hedera.node.app.workflows.query.annotations.UserQueries;
-import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
@@ -124,6 +124,8 @@ public interface HederaInjectionComponent {
 
     BlockRecordManager blockRecordManager();
 
+    BlockNodeConnectionManager blockNodeConnectionManager();
+
     BlockStreamManager blockStreamManager();
 
     FeeManager feeManager();
@@ -168,9 +170,6 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder initTrigger(InitTrigger initTrigger);
-
-        @BindsInstance
-        Builder crypto(Cryptography engine);
 
         @BindsInstance
         Builder platform(Platform platform);
