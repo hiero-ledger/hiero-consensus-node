@@ -116,6 +116,7 @@ jobs:
         env: 
            ALPHA_FLAG: ${{ github.events.inputs.alpha_release }}
         run: |
+          echo "Alpha Flag: ${ALPHA_FLAG}"
           echo "Compute next version number using git-semver"
           if [[ "${ALPHA_FLAG}" == "true" ]]; then
             OUTPUT="$(git-semver next --pre-release-tag=alpha --pre-release-counter 2>&1)" || STATUS="${?}"
