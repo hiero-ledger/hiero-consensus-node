@@ -24,12 +24,13 @@ import org.apache.logging.log4j.Logger;
  *
  * @param <T> the type of content
  */
-public class OrderedContentManager<T> {
-    private static final Logger log = LogManager.getLogger(OrderedContentManager.class);
+public class SequentialContentManager<T> {
+    private static final Logger log = LogManager.getLogger(SequentialContentManager.class);
 
     private static final Pattern SEQ_NO_DIR_PATTERN = Pattern.compile("\\d+");
 
     private final Path path;
+    private final String contentDesc;
     private final String contentFileName;
     private final Supplier<T> contentSupplier;
     private final ContentReader<T> contentReader;
@@ -46,13 +47,15 @@ public class OrderedContentManager<T> {
         void writeContent(@NonNull R content, @NonNull Path p) throws IOException;
     }
 
-    public OrderedContentManager(
+    public SequentialContentManager(
             @NonNull final Path path,
+            @NonNull final String contentDesc,
             @NonNull final String contentFileName,
             @NonNull final Supplier<T> contentSupplier,
             @NonNull final ContentReader<T> contentReader,
             @NonNull final ContentWriter<T> contentWriter) {
         this.path = requireNonNull(path);
+        this.contentDesc = contentDesc;
         this.contentFileName = requireNonNull(contentFileName);
         this.contentReader = requireNonNull(contentReader);
         this.contentWriter = requireNonNull(contentWriter);
@@ -70,7 +73,7 @@ public class OrderedContentManager<T> {
      */
     public T getOrCreateContent(final long seqNo) {
         return findLatestContentFor(seqNo).orElseGet(() -> {
-            log.info("No usable content found for #{}, creating some", seqNo);
+            log.info("No usable {} found for #{}, creating one", contentDesc, seqNo);
             return createContentFor(seqNo);
         });
     }
@@ -140,13 +143,15 @@ public class OrderedContentManager<T> {
             return Optional.empty();
         }
         try (final var contents = Files.list(path)) {
-            return contents.filter(Files::isDirectory)
+            final var content = contents.filter(Files::isDirectory)
                     .filter(this::isContentDir)
                     .map(this::sequenceNumberOf)
                     .filter(id -> id <= seqNo)
                     .max(Long::compareTo)
                     .map(this::pathFor)
                     .flatMap(this::tryToReadContent);
+            content.ifPresent(ignore -> log.info("Loaded existing {} for #{}", contentDesc, seqNo));
+            return content;
         } catch (IOException e) {
             log.warn("Failed to list directories in {}", path, e);
             return Optional.empty();

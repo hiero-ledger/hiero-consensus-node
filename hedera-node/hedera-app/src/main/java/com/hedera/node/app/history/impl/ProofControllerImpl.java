@@ -17,8 +17,8 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
 import com.hedera.node.app.history.WritableHistoryStore;
+import com.hedera.node.app.history.impl.ProofKeysAccessorImpl.SchnorrKeyPair;
 import com.hedera.node.app.roster.RosterTransitionWeights;
-import com.hedera.node.app.tss.TssKeyPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -61,7 +61,7 @@ public class ProofControllerImpl implements ProofController {
     private final Bytes ledgerId;
 
     private final Executor executor;
-    private final TssKeyPair schnorrKeyPair;
+    private final SchnorrKeyPair schnorrKeyPair;
     private final HistoryLibrary library;
     private final HistorySubmissions submissions;
     private final RosterTransitionWeights weights;
@@ -124,7 +124,7 @@ public class ProofControllerImpl implements ProofController {
 
     public ProofControllerImpl(
             final long selfId,
-            @NonNull final TssKeyPair schnorrKeyPair,
+            @NonNull final SchnorrKeyPair schnorrKeyPair,
             @Nullable final Bytes ledgerId,
             @NonNull final HistoryProofConstruction construction,
             @NonNull final RosterTransitionWeights weights,
@@ -443,33 +443,18 @@ public class ProofControllerImpl implements ProofController {
         final var targetProofKeysArray = weights.targetNodeWeights().keySet().stream()
                 .map(id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
                 .toArray(byte[][]::new);
+        final long inProgressId = construction.constructionId();
+        final var proofKeyList = proofKeyListFrom(targetProofKeys);
         return CompletableFuture.runAsync(
                 () -> {
                     final var sourceHash = library.hashAddressBook(sourceWeights, sourceProofKeysArray);
                     final var targetHash = library.hashAddressBook(targetWeights, targetProofKeysArray);
-                    // Note that sourceWeights, sourceProofKeysArray and verifyingSignatures should have same length
-                    // arrays.
-                    // Any node that has not submitted signature will have null in verifyingSignatures.
                     final var verifyingSignatures = weights.sourceNodeWeights().keySet().stream()
                             .map(id -> Optional.ofNullable(signatures.get(id))
                                     .map(Bytes::toByteArray)
                                     .orElse(null))
                             .toArray(byte[][]::new);
-                    // log all the fields
-                    log.info(
-                            "targetMetadata {}, " + "sourceProof {}, "
-                                    + "sourceWeights {}, "
-                                    + "sourceProofKeysArray {}, "
-                                    + "targetWeights {}, "
-                                    + "targetProofKeysArray {}, "
-                                    + "verifyingSignatures {}",
-                            targetMetadata,
-                            sourceProof,
-                            sourceWeights.length,
-                            sourceProofKeysArray.length,
-                            targetWeights.length,
-                            targetProofKeysArray.length,
-                            verifyingSignatures);
+                    log.info("Starting chain-of-trust proof for construction #{}", inProgressId);
                     final var proof = library.proveChainOfTrust(
                             Optional.ofNullable(ledgerId).orElse(sourceHash),
                             sourceProof,
@@ -479,16 +464,14 @@ public class ProofControllerImpl implements ProofController {
                             targetProofKeysArray,
                             verifyingSignatures,
                             targetMetadata);
-                    log.info("proveChainOfTrust FINISHED");
+                    log.info("Finished chain-of-trust proof for construction #{}", inProgressId);
                     final var metadataProof = HistoryProof.newBuilder()
                             .sourceAddressBookHash(sourceHash)
-                            .targetProofKeys(proofKeyListFrom(targetProofKeys))
+                            .targetProofKeys(proofKeyList)
                             .targetHistory(new History(targetHash, targetMetadata))
                             .proof(proof)
                             .build();
-                    submissions
-                            .submitProofVote(construction.constructionId(), metadataProof)
-                            .join();
+                    submissions.submitProofVote(inProgressId, metadataProof).join();
                 },
                 executor);
     }
@@ -535,15 +518,10 @@ public class ProofControllerImpl implements ProofController {
         final Map<History, Long> historyWeights = new HashMap<>();
         for (final var entry : verificationFutures.entrySet()) {
             final var verification = entry.getValue().join();
-            log.info("firstSufficientSignatures verification {}", verification);
             if (verification.isValid()) {
                 final long weight = historyWeights.merge(
                         verification.history(), weights.sourceWeightOf(verification.nodeId()), Long::sum);
                 if (weight >= weights.sourceWeightThreshold()) {
-                    log.info(
-                            "firstSufficientSignatures weight {}, sourceWeightThreshold {}",
-                            weight,
-                            weights.sourceWeightThreshold());
                     return new Signatures(verification.history(), entry.getKey());
                 }
             }

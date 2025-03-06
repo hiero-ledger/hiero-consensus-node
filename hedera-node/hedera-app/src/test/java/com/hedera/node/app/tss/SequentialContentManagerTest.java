@@ -11,7 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-class OrderedContentManagerTest {
+class SequentialContentManagerTest {
     private static final String PRIVATE_KEY_FILE_NAME = "hinTS.bls";
 
     private static final SplittableRandom RANDOM = new SplittableRandom();
@@ -20,12 +20,13 @@ class OrderedContentManagerTest {
     @TempDir
     private Path tempDir;
 
-    private OrderedContentManager<byte[]> subject;
+    private SequentialContentManager<byte[]> subject;
 
     @BeforeEach
     void setUp() {
-        subject = new OrderedContentManager<>(
+        subject = new SequentialContentManager<>(
                 tempDir,
+                "private key",
                 PRIVATE_KEY_FILE_NAME,
                 () -> {
                     final var bytes = new byte[32];
@@ -109,7 +110,7 @@ class OrderedContentManagerTest {
         assertTrue(Files.isDirectory(originalDir));
 
         // remove it
-        OrderedContentManager.rm(originalDir);
+        SequentialContentManager.rm(originalDir);
 
         // now try to get the key pair again
         assertDoesNotThrow(

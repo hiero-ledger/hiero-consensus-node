@@ -95,10 +95,14 @@ val prCheckStartPorts =
         "hapiTestTimeConsuming" to "31000",
         "hapiTestMisc" to "32000",
     )
-val prCheckPropOverrides = mapOf("hapiTestAdhoc" to "tss.historyEnabled=true")
-val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "1")
+val prCheckPropOverrides =
+    mapOf(
+        "hapiTestAdhoc" to "tss.historyEnabled=true",
+        "hapiTestSmartContract" to "tss.historyEnabled=true",
+    )
 val prCheckPrepareUpgradeOffsets =
     mapOf("hapiTestAdhoc" to "PT1S", "hapiTestSmartContract" to "PT30M")
+val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "1", "hapiTestSmartContract" to "2")
 
 tasks {
     prCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testSubprocess") } }
