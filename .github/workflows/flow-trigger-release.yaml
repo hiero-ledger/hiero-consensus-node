@@ -114,7 +114,7 @@ jobs:
       - name: Compute Next Version Number
         id: next-release
         env: 
-           ALPHA_FLAG: ${{ github.events.inputs.alpha_release }}
+           ALPHA_FLAG: ${{ inputs.alpha_release }}
         run: |
           echo "Alpha Flag: ${ALPHA_FLAG}"
           echo "Compute next version number using git-semver"
