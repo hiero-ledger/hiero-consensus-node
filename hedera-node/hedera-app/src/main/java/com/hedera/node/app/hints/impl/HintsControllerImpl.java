@@ -188,6 +188,7 @@ public class HintsControllerImpl implements HintsController {
         }
         if (construction.hasPreprocessingStartTime() && isActive) {
             final var crs = hintsStore.getCrsState().crs();
+            log.info("Inside construction.hasPreprocessingStartTime() && isActive");
             if (!votes.containsKey(selfId) && preprocessingVoteFuture == null) {
                 preprocessingVoteFuture =
                         startPreprocessingVoteFuture(asInstant(construction.preprocessingStartTimeOrThrow()), crs);
@@ -195,6 +196,7 @@ public class HintsControllerImpl implements HintsController {
         } else {
             final var crs = hintsStore.getCrsState().crs();
             if (shouldStartPreprocessing(now)) {
+                log.info("Starting preprocessing for construction {}", construction.constructionId());
                 construction = hintsStore.setPreprocessingStartTime(construction.constructionId(), now);
                 if (isActive) {
                     preprocessingVoteFuture = startPreprocessingVoteFuture(now, crs);
@@ -511,8 +513,11 @@ public class HintsControllerImpl implements HintsController {
         // If every active node in the target roster has published a hinTS key,
         // start preprocessing now; there is nothing else to wait for
         if (validationFutures.size() == weights.numTargetNodesInSource()) {
+            log.info("All nodes have published hinTS keys. Starting preprocessing.");
             return true;
         }
+        log.info("Checking if we should start preprocessing {} - {}", now.isBefore(asInstant(construction.gracePeriodEndTimeOrThrow())),
+                weightOfValidHintsKeysAt(now) >= weights.targetWeightThreshold());
         if (now.isBefore(asInstant(construction.gracePeriodEndTimeOrThrow()))) {
             return false;
         } else {
@@ -530,7 +535,9 @@ public class HintsControllerImpl implements HintsController {
     private void maybeUpdateForHintsKey(final Bytes initialCrs, @NonNull final HintsKeyPublication publication) {
         final int partyId = publication.partyId();
         final long nodeId = publication.nodeId();
+        log.info("Maybe update for hints key for partyId: {} and nodeId: {}", partyId, nodeId);
         if (partyId == expectedPartyId(nodeId)) {
+            log.info("Updating for hints key for partyId: {} and nodeId: {}", partyId, nodeId);
             nodePartyIds.put(nodeId, partyId);
             partyNodeIds.put(partyId, nodeId);
             validationFutures.put(
@@ -620,7 +627,9 @@ public class HintsControllerImpl implements HintsController {
             final int selfPartyId = expectedPartyId(selfId);
             publicationFuture = CompletableFuture.runAsync(
                     () -> {
+                        log.info("Starting computing hinTS key for construction ");
                         final var hints = library.computeHints(crs, blsKeyPair.privateKey(), selfPartyId, numParties);
+                        log.info("Submitting hinTS key for construction ");
                         submissions
                                 .submitHintsKey(selfPartyId, numParties, hints)
                                 .join();
@@ -647,11 +656,14 @@ public class HintsControllerImpl implements HintsController {
                     final var aggregatedWeights = nodePartyIds.entrySet().stream()
                             .filter(entry -> hintKeys.containsKey(entry.getValue()))
                             .collect(toMap(Map.Entry::getValue, entry -> weights.targetWeightOf(entry.getKey())));
+                    log.info("Starting preprocessing for construction {}", construction.constructionId());
                     final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
+                    log.info("Preprocessing output: {}", output);
                     final var preprocessedKeys = PreprocessedKeys.newBuilder()
                             .verificationKey(Bytes.wrap(output.verificationKey()))
                             .aggregationKey(Bytes.wrap(output.aggregationKey()))
                             .build();
+                    log.info("Preprocessed keys: {}", preprocessedKeys);
                     // Prefer to vote for a congruent node's preprocessed keys if one exists
                     long congruentNodeId = -1;
                     for (final var entry : votes.entrySet()) {
@@ -661,10 +673,12 @@ public class HintsControllerImpl implements HintsController {
                         }
                     }
                     if (congruentNodeId != -1) {
+                        log.info("Voting for congruent node's preprocessed keys: {}", congruentNodeId);
                         submissions
                                 .submitHintsVote(construction.constructionId(), congruentNodeId)
                                 .join();
                     } else {
+                        log.info("Voting for own preprocessed keys");
                         submissions
                                 .submitHintsVote(construction.constructionId(), preprocessedKeys)
                                 .join();
