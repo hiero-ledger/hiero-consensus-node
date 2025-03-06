@@ -121,7 +121,7 @@ jobs:
 
       - name: Calculate and Create Release Branch
         run: |
-          current_version="$(git-semver current)"
+          current_version="$(git-semver latest)"
           next_minor_version="$(git-semver next minor)"
           next_patch_version="$(git-semver next patch)"
           actual_next_version="${{ steps.next-release.outputs.version }}"
