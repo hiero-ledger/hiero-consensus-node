@@ -34,7 +34,7 @@ public class InertProofController implements ProofController {
             @NonNull final Instant now,
             @Nullable final Bytes metadata,
             @NonNull final WritableHistoryStore historyStore,
-            final boolean currentPlatformStatus) {
+            final boolean isActive) {
         requireNonNull(now);
         requireNonNull(historyStore);
         // No-op

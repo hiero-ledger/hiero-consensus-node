@@ -25,9 +25,9 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.utility.CompareTo;
@@ -51,7 +51,7 @@ import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSavingResult;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.test.fixtures.state.BlockingState;
-import com.swirlds.platform.test.fixtures.state.FakeStateLifecycles;
+import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.wiring.components.StateAndRound;
 import java.io.IOException;
@@ -90,14 +90,14 @@ class StateFileManagerTests {
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
-        FakeStateLifecycles.registerMerkleStateRootClassIds();
+        FakeConsensusStateEventHandler.registerMerkleStateRootClassIds();
     }
 
     @BeforeEach
     void beforeEach() throws IOException {
         // Don't use JUnit @TempDir as it runs into a thread race with Merkle DB DataSource release...
         testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile(
-                "SignedStateFileReadWriteTest", FakeStateLifecycles.CONFIGURATION);
+                "SignedStateFileReadWriteTest", FakeConsensusStateEventHandler.CONFIGURATION);
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory);
         MerkleDb.resetDefaultInstancePath();
         final TestConfigBuilder configBuilder = new TestConfigBuilder()
@@ -150,7 +150,7 @@ class StateFileManagerTests {
                 TestPlatformContextBuilder.create().build().getConfiguration();
         final DeserializedSignedState deserializedSignedState =
                 readStateFile(stateFile, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
-        MerkleCryptoFactory.getInstance()
+        TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(deserializedSignedState
                         .reservedSignedState()
                         .get()

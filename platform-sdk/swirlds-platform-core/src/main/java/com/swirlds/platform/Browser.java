@@ -31,7 +31,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
@@ -54,7 +53,7 @@ import com.swirlds.platform.gui.model.InfoApp;
 import com.swirlds.platform.gui.model.InfoMember;
 import com.swirlds.platform.gui.model.InfoSwirld;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -239,8 +238,7 @@ public class Browser {
             cryptography.digestSync(appDefinition.getConfigAddressBook());
 
             // Set the MerkleCryptography instance for this node
-            final var merkleCryptography = MerkleCryptographyFactory.create(configuration, cryptography);
-            MerkleCryptoFactory.set(merkleCryptography);
+            final var merkleCryptography = MerkleCryptographyFactory.create(configuration);
 
             // Register with the ConstructableRegistry classes which need configuration.
             BootstrapUtils.setupConstructableRegistryWithConfiguration(configuration);
@@ -252,12 +250,12 @@ public class Browser {
                     guiMetrics,
                     FileSystemManager.create(configuration),
                     recycleBin,
-                    MerkleCryptographyFactory.create(configuration, cryptography));
+                    merkleCryptography);
             // Each platform needs a different temporary state on disk.
             MerkleDb.resetDefaultInstancePath();
             PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
             // Create the initial state for the platform
-            StateLifecycles stateLifecycles = appMain.newStateLifecycles();
+            ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
             final HashedReservedSignedState reservedState = getInitialState(
                     recycleBin,
                     appMain.getSoftwareVersion(),
@@ -277,7 +275,7 @@ public class Browser {
                     initialState,
                     appDefinition.getConfigAddressBook(),
                     platformContext,
-                    stateLifecycles,
+                    consensusStateEventHandler,
                     platformStateFacade);
 
             // Build the platform with the given values
@@ -286,7 +284,7 @@ public class Browser {
                     appDefinition.getSwirldName(),
                     appMain.getSoftwareVersion(),
                     initialState,
-                    stateLifecycles,
+                    consensusStateEventHandler,
                     nodeId,
                     AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
                     RosterUtils.buildRosterHistory(initialState.get().getState(), platformStateFacade),

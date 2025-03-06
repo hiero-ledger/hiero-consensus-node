@@ -74,7 +74,6 @@ import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
-import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
@@ -329,7 +328,8 @@ public class HandleWorkflow {
         // that have been being computed in background threads. The running hash has to be included in
         // state, but we want to synchronize with background threads as infrequently as possible. So once per
         // round is the minimum we can do. Note the BlockStreamManager#endRound() method is called in Hedera's
-        // implementation of StateLifecycles#onSealConsensusRound(), since the BlockStreamManager cannot do its
+        // implementation of ConsensusStateEventHandler#onSealConsensusRound(), since the BlockStreamManager cannot do
+        // its
         // end-of-block work until the platform has finished all its state changes.
         if (userTransactionsHandled && streamMode != BLOCKS) {
             blockRecordManager.endRound(state);
@@ -916,7 +916,7 @@ public class HandleWorkflow {
                 final Bytes currentMetadata = tssConfig.hintsEnabled()
                         ? new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME))
                                 .getActiveVerificationKey()
-                        : TssBlockHashSigner.DISABLED_HINTS_METADTATA;
+                        : Bytes.wrap(new byte[32]);
                 final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
                 final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
                 doStreamingKVChanges(

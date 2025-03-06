@@ -93,7 +93,7 @@ public interface HintsService extends Service, BlockHashSigner {
      * @param hintsStore            the hints store, for recording progress if needed
      * @param now                   the current consensus time
      * @param tssConfig             the TSS configuration
-     * @param isActive
+     * @param isActive              if the platform is active
      */
     void reconcile(
             @NonNull ActiveRosters activeRosters,
@@ -107,7 +107,7 @@ public interface HintsService extends Service, BlockHashSigner {
      *
      * @param hintsStore            the hints store
      * @param now                   the current consensus time
-     * @param isActive
+     * @param isActive               if the platform is active
      */
     void executeCrsWork(@NonNull WritableHintsStore hintsStore, @NonNull Instant now, final boolean isActive);
 

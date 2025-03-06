@@ -190,8 +190,7 @@ public class HintsContext {
             requireNonNull(signature);
             if (this.constructionId == constructionId && partyIds.containsKey(nodeId)) {
                 final int partyId = partyIds.get(nodeId);
-                final var publicKey = extractPublicKey(aggregationKey, partyId);
-                if (publicKey != null && library.verifyBls(crs, signature, message, aggregationKey, partyId)) {
+                if (library.verifyBls(crs, signature, message, aggregationKey, partyId)) {
                     signatures.put(partyId, signature);
                     final var weight = currentRoster.rosterEntries().stream()
                             .filter(e -> e.nodeId() == nodeId)
@@ -203,18 +202,6 @@ public class HintsContext {
                     }
                 }
             }
-        }
-        /**
-         * Extracts the public key for the given party id from the given aggregation key.
-         *
-         * @param aggregationKey the aggregation key
-         * @param partyId the party id
-         * @return the public key, or null if the party id is not present
-         */
-        // TODO: Use a different API instead of this
-        private Bytes extractPublicKey(@NonNull final Bytes aggregationKey, final int partyId) {
-            requireNonNull(aggregationKey);
-            return Bytes.EMPTY;
         }
     }
 }

@@ -18,7 +18,8 @@ import javax.inject.Singleton;
 
 @Singleton
 public class HintsKeyPublicationHandler implements TransactionHandler {
-    private static final org.apache.logging.log4j.Logger log = org.apache.logging.log4j.LogManager.getLogger(HintsKeyPublicationHandler.class);
+    private static final org.apache.logging.log4j.Logger log =
+            org.apache.logging.log4j.LogManager.getLogger(HintsKeyPublicationHandler.class);
     private static final int INVALID_PARTY_ID = -1;
 
     private final HintsControllers controllers;
@@ -52,7 +53,12 @@ public class HintsKeyPublicationHandler implements TransactionHandler {
                 final var hintsStore = context.storeFactory().writableStore(WritableHintsStore.class);
                 final var adoptionTime = context.consensusNow();
                 if (hintsStore.setHintsKey(nodeId, partyId, numParties, hintsKey, adoptionTime)) {
-                    log.info("Node {} published hints key {} for party {} at {}", nodeId, hintsKey, partyId, adoptionTime);
+                    log.info(
+                            "Node {} published hints key {} for party {} at {}",
+                            nodeId,
+                            hintsKey,
+                            partyId,
+                            adoptionTime);
                     controller.addHintsKeyPublication(new HintsKeyPublication(nodeId, hintsKey, partyId, adoptionTime));
                 }
             }

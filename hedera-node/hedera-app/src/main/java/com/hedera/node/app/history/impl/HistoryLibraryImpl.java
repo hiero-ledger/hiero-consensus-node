@@ -12,15 +12,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.util.SplittableRandom;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of the {@link HistoryLibrary}.
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
-    private static final Logger log = LogManager.getLogger(HistoryLibraryImpl.class);
-
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final HistoryLibraryBridge BRIDGE = HistoryLibraryBridge.getInstance();
     private static final ProvingAndVerifyingSnarkKeys SNARK_KEYS;
@@ -36,7 +32,6 @@ public class HistoryLibraryImpl implements HistoryLibrary {
 
     @Override
     public Bytes snarkVerificationKey() {
-        log.info("INSIDE snarkVerificationKey");
         return Bytes.wrap(SNARK_KEYS.verifyingKey());
     }
 
@@ -44,7 +39,6 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     public SigningAndVerifyingSchnorrKeys newSchnorrKeyPair() {
         final var bytes = new byte[32];
         RANDOM.nextBytes(bytes);
-        log.info("INSIDE newSchnorrKeyPair");
         return BRIDGE.newSchnorrKeyPair(bytes);
     }
 
@@ -52,7 +46,6 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     public Bytes signSchnorr(@NonNull final Bytes message, @NonNull final Bytes privateKey) {
         requireNonNull(message);
         requireNonNull(privateKey);
-        log.info("INSIDE signSchnorr");
         return Bytes.wrap(BRIDGE.signSchnorr(message.toByteArray(), privateKey.toByteArray()));
     }
 
@@ -62,7 +55,6 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(publicKey);
-        log.info("INSIDE verifySchnorr");
         return BRIDGE.verifySchnorr(signature.toByteArray(), message.toByteArray(), publicKey.toByteArray());
     }
 
@@ -70,14 +62,14 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     public Bytes hashAddressBook(@NonNull long[] weights, @NonNull byte[][] publicKeys) {
         requireNonNull(weights);
         requireNonNull(publicKeys);
-        log.info("INSIDE hashAddressBook");
+        if (weights.length != publicKeys.length) {
+            throw new IllegalArgumentException("The number of weights and public keys must be the same");
+        }
         return Bytes.wrap(BRIDGE.hashAddressBook(publicKeys, weights));
     }
 
     @Override
     public Bytes hashHintsVerificationKey(@NonNull final Bytes hintsVerificationKey) {
-        requireNonNull(hintsVerificationKey);
-        log.info("INSIDE hashHintsVerificationKey");
         return Bytes.wrap(BRIDGE.hashHintsVerificationKey(hintsVerificationKey.toByteArray()));
     }
 
@@ -99,8 +91,12 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(nextAddressBookVerifyingKeys);
         requireNonNull(sourceSignatures);
         requireNonNull(targetMetadata);
-
-        log.info("INSIDE proveChainOfTrust");
+        if (currentAddressBookWeights.length != currentAddressBookVerifyingKeys.length) {
+            throw new IllegalArgumentException("The number of weights and verifying keys must be the same");
+        }
+        if (nextAddressBookWeights.length != nextAddressBookVerifyingKeys.length) {
+            throw new IllegalArgumentException("The number of weights and verifying keys must be the same");
+        }
         return Bytes.wrap(BRIDGE.proveChainOfTrust(
                 SNARK_KEYS.provingKey(),
                 SNARK_KEYS.verifyingKey(),
@@ -124,7 +120,6 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(addressBookHash);
         requireNonNull(metadata);
         requireNonNull(proof);
-        log.info("INSIDE verifyChainOfTrust");
         return BRIDGE.verifyChainOfTrust(SNARK_KEYS.verifyingKey(), proof.toByteArray());
     }
 }

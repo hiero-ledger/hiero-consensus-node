@@ -34,7 +34,7 @@ public interface ProofController {
      * @param now                   the current consensus time
      * @param metadata              the latest known metadata to be proven
      * @param historyStore          the history store, in case the controller is able to complete the construction
-     * @param isActive              whether this node is active in the network
+     * @param isActive              if platform is active
      */
     void advanceConstruction(
             @NonNull Instant now,

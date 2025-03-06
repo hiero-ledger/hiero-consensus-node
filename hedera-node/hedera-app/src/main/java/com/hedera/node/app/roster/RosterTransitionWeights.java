@@ -19,8 +19,8 @@ import java.util.stream.Stream;
  * @param targetWeightThreshold the weight required for strictly more than 2/3 weight in the target roster
  */
 public record RosterTransitionWeights(
-        @NonNull Map<Long, Long> sourceNodeWeights,
-        @NonNull Map<Long, Long> targetNodeWeights,
+        @NonNull SortedMap<Long, Long> sourceNodeWeights,
+        @NonNull SortedMap<Long, Long> targetNodeWeights,
         long sourceWeightThreshold,
         long targetWeightThreshold) {
 

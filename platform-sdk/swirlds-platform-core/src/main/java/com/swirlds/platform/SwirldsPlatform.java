@@ -13,7 +13,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.io.IOIterator;
@@ -37,14 +37,16 @@ import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
+import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
+import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.pool.TransactionPoolNexus;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
@@ -72,6 +74,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
@@ -85,11 +88,6 @@ import org.apache.logging.log4j.Logger;
 public class SwirldsPlatform implements Platform {
 
     private static final Logger logger = LogManager.getLogger(SwirldsPlatform.class);
-
-    /**
-     * The null hash.
-     */
-    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
     /**
      * The unique ID of this node.
@@ -157,6 +155,17 @@ public class SwirldsPlatform implements Platform {
     private final PlatformWiring platformWiring;
 
     /**
+     * Flag to indicate whether PCES events were migrated to use birth rounds instead of generation-based ancient
+     * age. True indicates events were migrated.
+     */
+    private final boolean wereEventsMigratedToBirthRound;
+
+    /**
+     * Indicates how ancient events are determined, e.g. based on the event's birth round or generation.
+     */
+    private final AncientMode ancientMode;
+
+    /**
      * Constructor.
      *
      * @param builder this object is responsible for building platform components and other things needed by the
@@ -165,9 +174,9 @@ public class SwirldsPlatform implements Platform {
     public SwirldsPlatform(@NonNull final PlatformComponentBuilder builder) {
         final PlatformBuildingBlocks blocks = builder.getBuildingBlocks();
         platformContext = blocks.platformContext();
-        final StateLifecycles stateLifecycles = blocks.stateLifecycles();
+        final ConsensusStateEventHandler consensusStateEventHandler = blocks.consensusStateEventHandler();
 
-        final AncientMode ancientMode = platformContext
+        ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
@@ -180,21 +189,30 @@ public class SwirldsPlatform implements Platform {
         PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
         modifyStateForBirthRoundMigration(initialState, ancientMode, appVersion, platformStateFacade);
 
+        selfId = blocks.selfId();
+
         if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
             try {
                 // This method is a no-op if we have already completed birth round migration or if we are at genesis.
-                migratePcesToBirthRoundMode(
+                wereEventsMigratedToBirthRound = migratePcesToBirthRoundMode(
                         platformContext,
-                        blocks.selfId(),
+                        selfId,
                         initialState.getRound(),
                         platformStateFacade.lowestJudgeGenerationBeforeBirthRoundModeOf(initialState.getState()));
+
+                // re-load the PCES files now that they have been migrated
+                final PcesConfig pcesConfig = platformContext.getConfiguration().getConfigData(PcesConfig.class);
+                final Path databaseDir = PcesUtilities.getDatabaseDirectory(platformContext, selfId);
+                initialPcesFiles = PcesFileReader.readFilesFromDisk(
+                        platformContext, databaseDir, initialState.getRound(), pcesConfig.permitGaps(), ancientMode);
             } catch (final IOException e) {
                 throw new UncheckedIOException("Birth round migration failed during PCES migration.", e);
             }
+        } else {
+            wereEventsMigratedToBirthRound = false;
+            initialPcesFiles = blocks.initialPcesFiles();
         }
 
-        selfId = blocks.selfId();
-        initialPcesFiles = blocks.initialPcesFiles();
         notificationEngine = blocks.notificationEngine();
 
         logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", blocks.rosterHistory());
@@ -233,11 +251,11 @@ public class SwirldsPlatform implements Platform {
                 () -> latestImmutableStateNexus.getState("PCES replay"),
                 () -> isLessThan(blocks.model().getUnhealthyDuration(), replayHealthThreshold));
 
-        initializeState(this, platformContext, initialState, stateLifecycles, platformStateFacade);
+        initializeState(this, platformContext, initialState, consensusStateEventHandler, platformStateFacade);
 
         // This object makes a copy of the state. After this point, initialState becomes immutable.
         /**
-         * Handles all interaction with {@link StateLifecycles}
+         * Handles all interaction with {@link ConsensusStateEventHandler}
          */
         SwirldStateManager swirldStateManager = blocks.swirldStateManager();
         swirldStateManager.setInitialState(initialState.getState());
@@ -267,7 +285,7 @@ public class SwirldsPlatform implements Platform {
 
         final Hash legacyRunningEventHash =
                 platformStateFacade.legacyRunningEventHashOf(initialState.getState()) == null
-                        ? NULL_HASH
+                        ? Cryptography.NULL_HASH
                         : platformStateFacade.legacyRunningEventHashOf((initialState.getState()));
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
@@ -335,7 +353,7 @@ public class SwirldsPlatform implements Platform {
                 latestImmutableStateNexus,
                 savedStateController,
                 currentRoster,
-                stateLifecycles,
+                consensusStateEventHandler,
                 platformStateFacade);
 
         blocks.loadReconnectStateReference().set(reconnectStateLoader::loadReconnectState);
@@ -432,13 +450,17 @@ public class SwirldsPlatform implements Platform {
     private void replayPreconsensusEvents() {
         platformWiring.getStatusActionSubmitter().submitStatusAction(new StartedReplayingEventsAction());
 
-        final IOIterator<PlatformEvent> iterator =
-                initialPcesFiles.getEventIterator(initialAncientThreshold, startingRound);
+        final long lowerBound = wereEventsMigratedToBirthRound
+                ? 0L // events were migrated so set the lower bound to 0 such that all PCES events will be read
+                : initialAncientThreshold;
+
+        final IOIterator<PlatformEvent> iterator = initialPcesFiles.getEventIterator(lowerBound, startingRound);
 
         logger.info(
                 STARTUP.getMarker(),
-                "replaying preconsensus event stream starting at generation {}",
-                initialAncientThreshold);
+                "replaying preconsensus event stream starting at {} ({})",
+                lowerBound,
+                ancientMode);
 
         platformWiring.getPcesReplayerIteratorInput().inject(iterator);
 

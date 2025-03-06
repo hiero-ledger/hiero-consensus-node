@@ -516,7 +516,9 @@ public class HintsControllerImpl implements HintsController {
             log.info("All nodes have published hinTS keys. Starting preprocessing.");
             return true;
         }
-        log.info("Checking if we should start preprocessing {} - {}", now.isBefore(asInstant(construction.gracePeriodEndTimeOrThrow())),
+        log.info(
+                "Checking if we should start preprocessing {} - {}",
+                now.isBefore(asInstant(construction.gracePeriodEndTimeOrThrow())),
                 weightOfValidHintsKeysAt(now) >= weights.targetWeightThreshold());
         if (now.isBefore(asInstant(construction.gracePeriodEndTimeOrThrow()))) {
             return false;
@@ -652,18 +654,19 @@ public class HintsControllerImpl implements HintsController {
                     final var hintKeys = validationFutures.headMap(cutoff, true).values().stream()
                             .map(CompletableFuture::join)
                             .filter(Validation::isValid)
-                            .collect(toMap(Validation::partyId, Validation::hintsKey));
+                            .collect(toMap(Validation::partyId, Validation::hintsKey, (a, b) -> a, TreeMap::new));
                     final var aggregatedWeights = nodePartyIds.entrySet().stream()
                             .filter(entry -> hintKeys.containsKey(entry.getValue()))
-                            .collect(toMap(Map.Entry::getValue, entry -> weights.targetWeightOf(entry.getKey())));
-                    log.info("Starting preprocessing for construction {}", construction.constructionId());
+                            .collect(toMap(
+                                    Map.Entry::getValue,
+                                    entry -> weights.targetWeightOf(entry.getKey()),
+                                    (a, b) -> a,
+                                    TreeMap::new));
                     final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
-                    log.info("Preprocessing output: {}", output);
                     final var preprocessedKeys = PreprocessedKeys.newBuilder()
                             .verificationKey(Bytes.wrap(output.verificationKey()))
                             .aggregationKey(Bytes.wrap(output.aggregationKey()))
                             .build();
-                    log.info("Preprocessed keys: {}", preprocessedKeys);
                     // Prefer to vote for a congruent node's preprocessed keys if one exists
                     long congruentNodeId = -1;
                     for (final var entry : votes.entrySet()) {

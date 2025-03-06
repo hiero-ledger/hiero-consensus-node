@@ -56,7 +56,7 @@ public interface HistoryService extends Service {
      * @param historyStore    the history store
      * @param now             the current time
      * @param tssConfig       the TSS configuration
-     * @param isActive
+     * @param isActive        if the platform is active
      */
     void reconcile(
             @NonNull ActiveRosters activeRosters,

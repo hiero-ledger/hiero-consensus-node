@@ -143,7 +143,7 @@ class PlatformTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(Bytes.wrap(testTransactionWrapper.toByteArray()));
 
         // When
-        main.stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).isEmpty();
@@ -159,7 +159,7 @@ class PlatformTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        main.stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).hasSize(1);
@@ -175,7 +175,7 @@ class PlatformTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        main.stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).hasSize(1);
@@ -213,7 +213,7 @@ class PlatformTestingToolStateTest {
                 Instant.now());
 
         // When
-        main.stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        main.consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).hasSize(3);
@@ -234,7 +234,7 @@ class PlatformTestingToolStateTest {
         platformEvent = new PlatformEvent(gossipEvent);
 
         // When
-        main.stateLifecycles.onPreHandle(platformEvent, state, consumer);
+        main.consensusStateEventHandler.onPreHandle(platformEvent, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).isEmpty();
@@ -253,7 +253,7 @@ class PlatformTestingToolStateTest {
         platformEvent = new PlatformEvent(gossipEvent);
 
         // When
-        main.stateLifecycles.onPreHandle(platformEvent, state, consumer);
+        main.consensusStateEventHandler.onPreHandle(platformEvent, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).hasSize(1);
@@ -278,7 +278,7 @@ class PlatformTestingToolStateTest {
         platformEvent = new PlatformEvent(gossipEvent);
 
         // When
-        main.stateLifecycles.onPreHandle(platformEvent, state, consumer);
+        main.consensusStateEventHandler.onPreHandle(platformEvent, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions).hasSize(3);
@@ -291,7 +291,7 @@ class PlatformTestingToolStateTest {
         givenRoundAndEvent();
 
         // When
-        final boolean result = main.stateLifecycles.onSealConsensusRound(round, state);
+        final boolean result = main.consensusStateEventHandler.onSealConsensusRound(round, state);
 
         // Then
         assertThat(result).isTrue();
@@ -346,7 +346,7 @@ class PlatformTestingToolStateTest {
         when(parameterProviderInstance.getParameters()).thenReturn(new String[] {config});
 
         state.initChildren();
-        main.stateLifecycles.onStateInitialized(state, platform, initTrigger, new BasicSoftwareVersion(1));
+        main.consensusStateEventHandler.onStateInitialized(state, platform, initTrigger, new BasicSoftwareVersion(1));
         main.init(platform, nodeId);
     }
 

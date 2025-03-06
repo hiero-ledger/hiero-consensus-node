@@ -34,7 +34,7 @@ public interface HintsController {
      *
      * @param now        the current consensus time
      * @param hintsStore the hints store, in case the controller is able to complete the construction
-     * @param isActive
+     * @param isActive   if the platform is active
      */
     void advanceConstruction(@NonNull Instant now, @NonNull WritableHintsStore hintsStore, final boolean isActive);
 
@@ -44,7 +44,7 @@ public interface HintsController {
      *
      * @param now                   the current consensus time
      * @param hintsStore            the hints store
-     * @param isActive
+     * @param isActive              if the platform is active
      */
     void advanceCRSWork(@NonNull Instant now, @NonNull WritableHintsStore hintsStore, final boolean isActive);
 
