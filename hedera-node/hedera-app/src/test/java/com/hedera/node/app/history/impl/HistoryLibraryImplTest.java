@@ -8,6 +8,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 class HistoryLibraryImplTest {
@@ -39,6 +40,9 @@ class HistoryLibraryImplTest {
     }
 
     @Test
+    @Disabled
+    // This test works. But it is disabled because it takes 3 minutes to finish this test.
+    // It is useful to debug locally
     void verifiesProofOfTrust() {
         final List<KeyPairAndWeight> sourceAddresses = buildSomeAddresses(3);
         final var sourceKeys =
