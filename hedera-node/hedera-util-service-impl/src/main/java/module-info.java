@@ -12,7 +12,7 @@ module com.hedera.node.app.service.util.impl {
     requires com.hedera.node.config;
     requires com.swirlds.config.api;
     requires org.apache.logging.log4j;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 
     provides com.hedera.node.app.service.util.UtilService with
             UtilServiceImpl;

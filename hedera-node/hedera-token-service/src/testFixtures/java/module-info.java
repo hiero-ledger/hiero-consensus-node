@@ -7,5 +7,5 @@ module com.hedera.node.app.service.token.test.fixtures {
 
     requires transitive com.hedera.node.app.service.token;
     requires com.hedera.node.hapi;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 }

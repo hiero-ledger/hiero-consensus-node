@@ -14,5 +14,4 @@ testModuleInfo {
     requires("org.mockito.junit.jupiter")
     runtimeOnly("com.swirlds.config.api")
     runtimeOnly("com.swirlds.config.impl")
-    requiresStatic("com.github.spotbugs.annotations")
 }
