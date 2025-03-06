@@ -131,15 +131,15 @@ jobs:
           echo "Next Patch Version: ${next_patch_version}"
           echo "Actual Next Version: ${actual_next_version}"
 
-          if [ "${actual_next_version}" = "${current_version}" ]; then
+          if [[ "${actual_next_version}" = "${current_version}" ]]; then
             # No new version detected, exit without doing anything
             echo "No new version detected. No release branch required."
 
-          elif [ "${actual_next_version}" = "${next_patch_version}" ]; then
+          elif [[ "${actual_next_version}" = "${next_patch_version}" ]]; then
             # Patch version bump detected, no new release branch needed
             echo "Patch version bump detected (${current_version} -> ${actual_next_version}). No new release branch needed."
 
-          elif [ "${actual_next_version}" = "${next_minor_version}" ]; then
+          elif [[ "${actual_next_version}" = "${next_minor_version}" ]]; then
             echo "Minor version bump detected (${current_version} -> ${actual_next_version}). Checking if release branch exists..."
 
             # Check if the release branch already exists in the remote
