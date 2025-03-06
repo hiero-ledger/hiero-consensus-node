@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord.nonStakingRecordsFrom;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -441,8 +442,12 @@ public class AtomicBatchTest {
                         .payingWith(basicPayer)
                         .via("basicTxn")
                         .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
-                getAccountRecords(batchPayer).exposingTo(records -> assertEquals(1, records.size())),
-                getAccountRecords(basicPayer).exposingTo(records -> assertEquals(1, records.size())),
+                getAccountRecords(batchPayer)
+                        .exposingTo(records ->
+                                assertEquals(1, nonStakingRecordsFrom(records).size())),
+                getAccountRecords(basicPayer)
+                        .exposingTo(records ->
+                                assertEquals(1, nonStakingRecordsFrom(records).size())),
                 validateChargedUsd("batchTxn", 0.001),
                 validateChargedUsd("basicTxn", 0.05, 10));
     }
