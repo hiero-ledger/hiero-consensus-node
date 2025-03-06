@@ -233,32 +233,35 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
         saveMetadata(dbPaths);
 
-        // Max number of entities that can be stored. Last leaf path is 2x - 2, index
-        // capacity is 2x - 1
+        // Max number of entities that can be stored
         final long virtualSize = tableConfig.getMaxNumberOfKeys();
+        // Path to hash and path to KV index capacity. Last leaf path is 2*virtualSize - 2,
+        // so capacity should be 2*virtualSize - 1, but only if virtualSize is greater than 1.
+        // To support virtual sizes 0 and 1, let's set capacity to 2*virtualSize
+        final long pathIndexCapacity = virtualSize * 2;
 
         final boolean forceIndexRebuilding = merkleDbConfig.indexRebuildingEnforced();
         // path to disk location index, hashes
         final Path pathToHashLocationFile = dbPaths.pathToDiskLocationInternalNodesFile;
         if (Files.exists(pathToHashLocationFile) && !forceIndexRebuilding) {
             pathToDiskLocationInternalNodes = preferDiskBasedIndices
-                    ? new LongListDisk(pathToHashLocationFile, virtualSize * 2 - 1, config)
-                    : new LongListOffHeap(pathToHashLocationFile, virtualSize * 2 - 1, config);
+                    ? new LongListDisk(pathToHashLocationFile, pathIndexCapacity, config)
+                    : new LongListOffHeap(pathToHashLocationFile, pathIndexCapacity, config);
         } else {
             pathToDiskLocationInternalNodes = preferDiskBasedIndices
-                    ? new LongListDisk(virtualSize * 2 - 1, config)
-                    : new LongListOffHeap(virtualSize * 2 - 1, config);
+                    ? new LongListDisk(pathIndexCapacity, config)
+                    : new LongListOffHeap(pathIndexCapacity, config);
         }
         // path to disk location index, leaf nodes
         final Path pathToLeafLocationFile = dbPaths.pathToDiskLocationLeafNodesFile;
         if (Files.exists(pathToLeafLocationFile) && !forceIndexRebuilding) {
             pathToDiskLocationLeafNodes = preferDiskBasedIndices
-                    ? new LongListDisk(pathToLeafLocationFile, virtualSize * 2 - 1, config)
-                    : new LongListOffHeap(pathToLeafLocationFile, virtualSize * 2 - 1, config);
+                    ? new LongListDisk(pathToLeafLocationFile, pathIndexCapacity, config)
+                    : new LongListOffHeap(pathToLeafLocationFile, pathIndexCapacity, config);
         } else {
             pathToDiskLocationLeafNodes = preferDiskBasedIndices
-                    ? new LongListDisk(virtualSize * 2 - 1, config)
-                    : new LongListOffHeap(virtualSize * 2 - 1, config);
+                    ? new LongListDisk(pathIndexCapacity, config)
+                    : new LongListOffHeap(pathIndexCapacity, config);
         }
 
         // internal node hashes store, RAM
