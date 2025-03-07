@@ -209,6 +209,8 @@ public class CustomSelfDestructOperation extends AbstractOperation {
         }
 
         // Can't sweep native tokens (fungible or non-fungible) from contract being self-destructed
+        // Any other situation must sweep, but cannot do that if contract being destructed owns tokens
+        // N.B.: Response code name is misleading: Contract can't own fungible tokens either!
         if ((contractIsToBeDeleted || !deleted.equals(beneficiary)) && deletedAccount.numPositiveTokenBalances() > 0) {
             return Optional.of(CONTRACT_STILL_OWNS_NFTS);
         }
