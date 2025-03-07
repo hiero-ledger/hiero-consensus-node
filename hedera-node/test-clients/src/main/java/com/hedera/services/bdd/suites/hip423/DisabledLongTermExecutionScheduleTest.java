@@ -14,6 +14,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SCHEDULE_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_EXPIRY_NOT_CONFIGURABLE;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -64,8 +65,6 @@ public class DisabledLongTermExecutionScheduleTest {
                                 THREE_SIG_XFER,
                                 cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 1))
                                         .fee(ONE_HBAR))
-                        .withRelativeExpiry(SENDER_TXN, 50)
-                        .waitForExpiry(true)
                         .designatingPayer(PAYER)
                         .alsoSigningWith(SENDER, RECEIVER),
                 getAccountBalance(RECEIVER).hasTinyBars(0L),
@@ -87,8 +86,6 @@ public class DisabledLongTermExecutionScheduleTest {
                                 THREE_SIG_XFER,
                                 cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 1))
                                         .fee(ONE_HBAR))
-                        .withRelativeExpiry(SENDER_TXN, 20)
-                        .waitForExpiry(true)
                         .designatingPayer(SENDER),
                 scheduleSign(THREE_SIG_XFER).alsoSigningWith(SENDER, RECEIVER),
                 getScheduleInfo(THREE_SIG_XFER)
@@ -101,7 +98,6 @@ public class DisabledLongTermExecutionScheduleTest {
     @HapiTest
     @Order(3)
     public Stream<DynamicTest> waitForExpiryIgnoredWhenLongTermDisabledThenEnabled() {
-
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HBAR),
                 cryptoCreate(SENDER).balance(1L).via(SENDER_TXN),
@@ -110,8 +106,6 @@ public class DisabledLongTermExecutionScheduleTest {
                                 THREE_SIG_XFER,
                                 cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 1))
                                         .fee(ONE_HBAR))
-                        .withRelativeExpiry(SENDER_TXN, 4)
-                        .waitForExpiry(true)
                         .designatingPayer(PAYER)
                         .alsoSigningWith(SENDER, RECEIVER),
                 getAccountBalance(RECEIVER).hasTinyBars(0L),
@@ -137,8 +131,6 @@ public class DisabledLongTermExecutionScheduleTest {
                                 THREE_SIG_XFER,
                                 cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 1))
                                         .fee(ONE_HBAR))
-                        .withRelativeExpiry(SENDER_TXN, 4)
-                        .waitForExpiry(true)
                         .designatingPayer(PAYER)
                         .via(CREATE_TXN),
                 getScheduleInfo(THREE_SIG_XFER)
@@ -175,5 +167,15 @@ public class DisabledLongTermExecutionScheduleTest {
                 sleepFor(TimeUnit.MINUTES.toMillis(31)),
                 cryptoCreate("foo").via("triggerCleanUpTxn"),
                 getScheduleInfo(BASIC_XFER).hasCostAnswerPrecheck(INVALID_SCHEDULE_ID));
+    }
+
+    @HapiTest
+    public Stream<DynamicTest> scheduleWithExpirationTimeAndLongTermSchedulesDisabled() {
+        return hapiTest(
+                cryptoCreate(SENDER),
+                cryptoCreate(RECEIVER),
+                scheduleCreate(BASIC_XFER, cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 1)))
+                        .expiringAt(10)
+                        .hasKnownStatus(SCHEDULE_EXPIRY_NOT_CONFIGURABLE));
     }
 }
