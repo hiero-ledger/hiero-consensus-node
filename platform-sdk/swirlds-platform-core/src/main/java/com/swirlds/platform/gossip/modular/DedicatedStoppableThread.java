@@ -4,6 +4,7 @@ package com.swirlds.platform.gossip.modular;
 import com.swirlds.common.threading.framework.StoppableThread;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Objects;
 
 /**
  * Represents a thread created for a specific context
@@ -15,6 +16,7 @@ public record DedicatedStoppableThread<E>(@NonNull E key, @Nullable StoppableThr
      * Utility method to start contained thread; simple shortcut to {@code thread().start()}
      */
     public void start() {
+        Objects.requireNonNull(thread);
         thread.start();
     }
 }

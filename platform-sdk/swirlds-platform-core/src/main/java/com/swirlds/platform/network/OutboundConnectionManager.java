@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.locks.AutoClosableResourceLock;
 import com.swirlds.common.threading.locks.Locks;
@@ -43,6 +44,7 @@ public class OutboundConnectionManager implements ConnectionManager {
     /**
      * {@inheritDoc}
      */
+    @VisibleForTesting
     @Override
     public Connection getConnection() {
         return currentConn;

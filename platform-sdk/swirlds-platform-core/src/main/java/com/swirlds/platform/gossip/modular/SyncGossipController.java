@@ -43,15 +43,18 @@ public class SyncGossipController implements GossipController {
      * Registers thread which should be started when {@link #start()} method is called but NOT stopped on {@link #stop()}
      * @param thing thread to start
      */
-    public void registerThingToStart(Stoppable thing) {
+    public void registerThingToStart(final @NonNull Stoppable thing) {
+        Objects.requireNonNull(thing);
         startables.add(thing);
     }
 
     /**
      * Registers threads which should be started when {@link #start()} method is called and stopped on {@link #stop()}
+     * Order in which this method is called is important, so don't call it concurrently without external control.
      * @param things thread to start
      */
-    public void registerDedicatedThreads(Collection<DedicatedStoppableThread<NodeId>> things) {
+    public void registerDedicatedThreads(final @NonNull Collection<DedicatedStoppableThread<NodeId>> things) {
+        Objects.requireNonNull(things);
         dedicatedThreadsToModify.addAll(things);
     }
 
