@@ -107,6 +107,20 @@ public interface EvmFrameState {
             @NonNull Address deleted, @NonNull Address beneficiary, @NonNull MessageFrame frame);
 
     /**
+     * Tracks the given deletion of an account with the designated beneficiary.
+     *
+     * @param deleted the address of the account being deleted, a contract
+     * @param beneficiary the address of the beneficiary of the deletion
+     * @param frame
+     *
+     * `Beneficiary` must not be a token or a schedule.  Contract `deleted` must not be any token's
+     * treasury.  Contract `deleted` must not own any tokens.  These conditions are _not_ checked
+     * by this method.
+     */
+    void trackSelfDestructBeneficiary(
+            @NonNull Address deleted, @NonNull Address beneficiary, @NonNull MessageFrame frame);
+
+    /**
      * Returns the read-only account with the given address, or {@code null} if the account is missing,
      * deleted, or expired; or if this get() used the account's "long zero" address and not is priority
      * EVM address.
