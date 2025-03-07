@@ -322,22 +322,13 @@ public class ProofControllerImpl implements ProofController {
     private boolean shouldAssemble(@NonNull final Instant now) {
         // If every active node in the target roster has published a proof key,
         // assemble the new history now; there is nothing else to wait for
-        log.info(
-                "shouldAssemble targetProofKeys {}, weights {} ",
-                targetProofKeys.size(),
-                weights.numTargetNodesInSource());
         if (targetProofKeys.size() == weights.numTargetNodesInSource()) {
-            log.info("All target nodes have published proof keys for construction {}", construction.constructionId());
+            log.info("All target nodes have published proof keys for construction #{}", construction.constructionId());
             return true;
         }
-        log.info("shouldAssemble gracePeriodEndTime {}, now {} ", construction.gracePeriodEndTimeOrThrow(), now);
         if (now.isBefore(asInstant(construction.gracePeriodEndTimeOrThrow()))) {
             return false;
         } else {
-            log.info(
-                    "shouldAssemble publishedWeight {}, weights.targetWeightThreshold {} ",
-                    publishedWeight(),
-                    weights.targetWeightThreshold());
             return publishedWeight() >= weights.targetWeightThreshold();
         }
     }
@@ -347,7 +338,7 @@ public class ProofControllerImpl implements ProofController {
      */
     private void ensureProofKeyPublished() {
         if (publicationFuture == null && weights.targetIncludes(selfId) && !targetProofKeys.containsKey(selfId)) {
-            log.info("Publishing schnorr key for construction {}", construction.constructionId());
+            log.info("Publishing schnorr key for construction #{}", construction.constructionId());
             publicationFuture = CompletableFuture.runAsync(
                     () -> submissions
                             .submitProofKeyPublication(schnorrKeyPair.publicKey())

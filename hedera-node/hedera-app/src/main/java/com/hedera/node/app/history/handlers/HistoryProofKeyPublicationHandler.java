@@ -44,12 +44,12 @@ public class HistoryProofKeyPublicationHandler implements TransactionHandler {
         final var op = context.body().historyProofKeyPublicationOrThrow();
         final var historyStore = context.storeFactory().writableStore(WritableHistoryStore.class);
         final long nodeId = context.creatorInfo().nodeId();
-        log.info("Received proof key publication from {} with {}", nodeId, op.proofKey());
+        log.info("node{} published new proof key '{}'", nodeId, op.proofKey());
         if (historyStore.setProofKey(nodeId, op.proofKey(), context.consensusNow())) {
             controllers.getAnyInProgress().ifPresent(controller -> {
                 final var publication = new ProofKeyPublication(nodeId, op.proofKey(), context.consensusNow());
                 controller.addProofKeyPublication(publication);
-                log.info("Added proof key publication to ongoing construction {}", controller.constructionId());
+                log.info("  - Added proof key to ongoing construction #{}", controller.constructionId());
             });
         }
     }
