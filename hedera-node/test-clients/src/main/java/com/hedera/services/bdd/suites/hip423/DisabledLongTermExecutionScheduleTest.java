@@ -172,11 +172,10 @@ public class DisabledLongTermExecutionScheduleTest {
     @HapiTest
     public Stream<DynamicTest> scheduleWithExpirationTimeAndLongTermSchedulesDisabled() {
         return hapiTest(
-            cryptoCreate(SENDER),
-            cryptoCreate(RECEIVER),
-            scheduleCreate(BASIC_XFER, cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 1)))
-                .expiringAt(10)
-                .hasKnownStatus(SCHEDULE_EXPIRY_NOT_CONFIGURABLE)
-        );
+                cryptoCreate(SENDER),
+                cryptoCreate(RECEIVER),
+                scheduleCreate(BASIC_XFER, cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 1)))
+                        .expiringAt(10)
+                        .hasKnownStatus(SCHEDULE_EXPIRY_NOT_CONFIGURABLE));
     }
 }

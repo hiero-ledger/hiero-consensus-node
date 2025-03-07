@@ -172,9 +172,10 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final var validationResult = validate(provisionalSchedule, consensusNow, isLongTermEnabled);
         validateTrue(isMaybeExecutable(validationResult), validationResult);
 
-        validateFalse(!isLongTermEnabled && provisionalSchedule.providedExpirationSecond() != 0,
-            SCHEDULE_EXPIRY_NOT_CONFIGURABLE);
-        
+        validateFalse(
+                !isLongTermEnabled && provisionalSchedule.providedExpirationSecond() != 0,
+                SCHEDULE_EXPIRY_NOT_CONFIGURABLE);
+
         // Note that we must store the original ScheduleCreate transaction body in the Schedule so
         // we can compare those bytes to any new ScheduleCreate transaction for detecting duplicate
         // ScheduleCreate transactions. SchedulesByEquality is the virtual map for that task.
