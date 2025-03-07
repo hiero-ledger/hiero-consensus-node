@@ -6,15 +6,21 @@ import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverterTest.randomPlatformState;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.platform.state.PlatformState;
+import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.MerkleDbTableConfig;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.state.merkle.singleton.SingletonNode;
-import com.swirlds.state.merkle.singleton.WritableSingletonStateImpl;
+import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.virtualmap.VirtualMap;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,12 +41,22 @@ class WritablePlatformStateStoreTest {
     @BeforeEach
     void setUp() {
         randotron = Randotron.create();
-        SingletonNode<PlatformState> platformSingleton =
-                new SingletonNode<>(PlatformStateService.NAME, PLATFORM_STATE_KEY, 0, PlatformState.PROTOBUF, null);
-        platformSingleton.setValue(toPbjPlatformState(randomPlatformState(randotron)));
+
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final var tableConfig =
+                new MerkleDbTableConfig((short) 1, DigestType.SHA_384, 1, merkleDbConfig.hashesRamToDiskThreshold());
+        final var virtualMapLabel = "VirtualMap";
+        final var dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
+        final var virtualMap = new VirtualMap(virtualMapLabel, dsBuilder, CONFIGURATION);
+
+        virtualMap.put(
+                StateUtils.getVirtualMapKey(PlatformStateService.NAME, PLATFORM_STATE_KEY),
+                toPbjPlatformState(randomPlatformState(randotron)),
+                PlatformState.PROTOBUF);
 
         when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
-                .thenReturn(new WritableSingletonStateImpl<>(PLATFORM_STATE_KEY, platformSingleton));
+                .thenReturn(new OnDiskWritableSingletonState<>(
+                        PlatformStateService.NAME, PLATFORM_STATE_KEY, PlatformState.PROTOBUF, virtualMap));
         store = new WritablePlatformStateStore(writableStates, (version) -> new BasicSoftwareVersion(version.major()));
     }
 

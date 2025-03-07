@@ -7,6 +7,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Hashable;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
@@ -39,8 +40,13 @@ public class WrappedState implements State, Hashable {
      * {@inheritDoc}
      */
     @Override
-    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
-        delegate.init(time, metrics, merkleCryptography, roundSupplier);
+    public void init(
+            @NonNull final Configuration configuration,
+            Time time,
+            Metrics metrics,
+            MerkleCryptography merkleCryptography,
+            LongSupplier roundSupplier) {
+        delegate.init(configuration, time, metrics, merkleCryptography, roundSupplier);
     }
 
     /**

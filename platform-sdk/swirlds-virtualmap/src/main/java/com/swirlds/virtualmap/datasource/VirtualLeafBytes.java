@@ -184,7 +184,7 @@ public class VirtualLeafBytes<V> {
                     throw new IllegalArgumentException("Wrong field type: " + field);
                 }
                 final int len = in.readVarInt(false);
-                valueBytes = in.readBytes(len);
+                valueBytes = len == 0 ? Bytes.EMPTY : in.readBytes(len);
             } else {
                 throw new IllegalArgumentException("Unknown field: " + field);
             }
@@ -202,7 +202,7 @@ public class VirtualLeafBytes<V> {
         size += ProtoWriterTools.sizeOfTag(FIELD_LEAFRECORD_PATH);
         size += Long.BYTES;
         size += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, Math.toIntExact(keyBytes.length()));
-        final int valueBytesLen;
+        int valueBytesLen = -1;
         // Don't call valueBytes() as it may trigger value serialization to Bytes
         if (valueBytes != null) {
             valueBytesLen = Math.toIntExact(valueBytes.length());
@@ -212,7 +212,7 @@ public class VirtualLeafBytes<V> {
             // Null value
             valueBytesLen = 0;
         }
-        if (valueBytesLen != 0) {
+        if (valueBytesLen >= 0) {
             size += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueBytesLen);
         }
         return size;

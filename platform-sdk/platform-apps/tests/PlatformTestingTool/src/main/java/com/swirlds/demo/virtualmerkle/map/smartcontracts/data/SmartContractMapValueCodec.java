@@ -39,4 +39,9 @@ public class SmartContractMapValueCodec implements Codec<SmartContractMapValue> 
         final SmartContractMapValue other = parse(in);
         return value.equals(other);
     }
+
+    @Override
+    public SmartContractMapValue getDefaultInstance() {
+        return new SmartContractMapValue();
+    }
 }

@@ -42,4 +42,9 @@ public class BenchmarkValueCodec implements Codec<BenchmarkValue> {
         final BenchmarkValue other = parse(in);
         return other.equals(value);
     }
+
+    @Override
+    public BenchmarkValue getDefaultInstance() {
+        return new BenchmarkValue();
+    }
 }

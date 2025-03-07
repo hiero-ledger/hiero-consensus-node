@@ -11,7 +11,6 @@ import com.hedera.node.app.services.ServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -40,7 +39,6 @@ public class FakeServiceMigrator implements ServiceMigrator {
             @NonNull final Configuration appConfig,
             @NonNull final Configuration platformConfig,
             @Nullable final NetworkInfo genesisNetworkInfo,
-            @NonNull final Metrics metrics,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StoreMetricsServiceImpl storeMetricsService,
             @NonNull final ConfigProviderImpl configProvider,
@@ -51,7 +49,6 @@ public class FakeServiceMigrator implements ServiceMigrator {
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
         requireNonNull(genesisNetworkInfo);
-        requireNonNull(metrics);
 
         if (!(state instanceof FakeState fakeState)) {
             throw new IllegalArgumentException("Can only be used with FakeState instances");

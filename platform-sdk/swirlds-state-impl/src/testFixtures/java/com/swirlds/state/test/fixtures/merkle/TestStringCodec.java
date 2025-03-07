@@ -55,6 +55,11 @@ public class TestStringCodec implements Codec<String> {
     }
 
     @Override
+    public String getDefaultInstance() {
+        return "";
+    }
+
+    @Override
     public int measureRecord(@NonNull final String value) {
         Objects.requireNonNull(value);
         final byte[] bytes = value.getBytes(StandardCharsets.UTF_8);

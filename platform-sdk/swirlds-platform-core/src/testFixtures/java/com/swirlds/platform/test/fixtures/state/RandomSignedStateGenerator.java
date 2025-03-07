@@ -5,6 +5,7 @@ import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHashBytes;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomSignature;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 import static org.mockito.Mockito.spy;
@@ -151,6 +152,7 @@ public class RandomSignedStateGenerator {
                 stateInstance = new TestMerkleStateRoot();
             }
             stateInstance.init(
+                    CONFIGURATION,
                     Time.getCurrent(),
                     new NoOpMetrics(),
                     MerkleCryptoFactory.getInstance(),

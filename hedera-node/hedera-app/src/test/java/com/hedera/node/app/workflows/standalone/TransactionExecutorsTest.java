@@ -169,7 +169,7 @@ public class TransactionExecutorsTest {
     private GasCalculator gasCalculator;
 
     @Mock
-    private State state;
+    private MerkleNodeState state;
 
     @Mock
     private ConfigProviderImpl configProvider;
@@ -410,7 +410,6 @@ public class TransactionExecutorsTest {
                 new ConfigProviderImpl().getConfiguration(),
                 config,
                 networkInfo,
-                NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,
                 configProvider,

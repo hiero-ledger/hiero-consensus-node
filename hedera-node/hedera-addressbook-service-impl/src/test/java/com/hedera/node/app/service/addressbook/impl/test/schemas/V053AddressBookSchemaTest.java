@@ -21,6 +21,7 @@ import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.info.NodeInfoImpl;
+import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.addressbook.impl.test.handlers.AddressBookTestBase;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
@@ -74,13 +75,15 @@ class V053AddressBookSchemaTest extends AddressBookTestBase {
 
     private final Map<AccountID, Account> accounts = new HashMap<>();
     private final MapWritableKVState<AccountID, Account> writableAccounts =
-            new MapWritableKVState<>(ACCOUNTS_KEY, accounts);
+            new MapWritableKVState<>(AddressBookService.NAME, ACCOUNTS_KEY, accounts);
 
     private final Map<EntityNumber, Node> nodes = new HashMap<>();
-    private final MapWritableKVState<EntityNumber, Node> writableNodes = new MapWritableKVState<>(NODES_KEY, nodes);
+    private final MapWritableKVState<EntityNumber, Node> writableNodes =
+            new MapWritableKVState<>(AddressBookService.NAME, NODES_KEY, nodes);
 
     private final Map<FileID, File> files = new HashMap<>();
-    private final MapWritableKVState<FileID, File> writableFiles = new MapWritableKVState<>(FILES_KEY, files);
+    private final MapWritableKVState<FileID, File> writableFiles =
+            new MapWritableKVState<>(AddressBookService.NAME, FILES_KEY, files);
 
     private MapWritableStates writableStates = null;
 

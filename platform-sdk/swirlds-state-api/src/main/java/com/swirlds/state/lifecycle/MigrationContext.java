@@ -85,6 +85,8 @@ public interface MigrationContext {
      */
     long newEntityNumForAccount();
 
+    void adjustCountsForNode(int delta);
+
     /**
      * Copies and releases the underlying on-disk state for the given key. If this is not called
      * periodically during a large migration, the underlying {@code VirtualMap} will grow too large

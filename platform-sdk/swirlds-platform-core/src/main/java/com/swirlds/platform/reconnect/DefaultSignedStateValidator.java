@@ -6,12 +6,12 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.config.StateConfig;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.state.signed.SignedStateValidator;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -57,7 +57,7 @@ public class DefaultSignedStateValidator implements SignedStateValidator {
     private void throwIfOld(final SignedState signedState, final SignedStateValidationData previousStateData)
             throws SignedStateInvalidException {
 
-        State state = signedState.getState();
+        MerkleNodeState state = signedState.getState();
         if (platformStateFacade.roundOf(state) < previousStateData.round()
                 || platformStateFacade.consensusTimestampOf(state).isBefore(previousStateData.consensusTimestamp())) {
             logger.error(

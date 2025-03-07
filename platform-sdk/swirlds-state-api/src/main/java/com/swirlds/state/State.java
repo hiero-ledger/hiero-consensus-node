@@ -6,6 +6,7 @@ import com.swirlds.common.FastCopyable;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Hashable;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
@@ -24,14 +25,22 @@ import java.util.function.LongSupplier;
  * detail, and are happy with just the API provided by this interface.
  */
 public interface State extends FastCopyable, Hashable {
+
     /**
      * Initializes the state with the given parameters.
-     * @param time The time provider.
-     * @param metrics The metrics provider.
+     *
+     * @param configuration      The platform configuration.
+     * @param time               The time provider.
+     * @param metrics            The metrics provider.
      * @param merkleCryptography The merkle cryptography provider.
-     * @param roundSupplier The round supplier.
+     * @param roundSupplier      The round supplier.
      */
-    void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier);
+    void init(
+            @NonNull final Configuration configuration,
+            Time time,
+            Metrics metrics,
+            MerkleCryptography merkleCryptography,
+            LongSupplier roundSupplier);
 
     /**
      * Returns a {@link ReadableStates} for the given named service. If such a service doesn't
