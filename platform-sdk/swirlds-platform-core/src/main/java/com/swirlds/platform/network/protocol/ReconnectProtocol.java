@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.protocol;
 
+import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_UNDEFINED;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -9,7 +11,6 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.StateConfig;
-import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_UNDEFINED;
 import com.swirlds.platform.gossip.modular.GossipController;
 import com.swirlds.platform.gossip.modular.SyncGossipSharedProtocolState;
 import com.swirlds.platform.metrics.ReconnectMetrics;
