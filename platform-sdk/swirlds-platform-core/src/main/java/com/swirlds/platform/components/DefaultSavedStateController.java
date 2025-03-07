@@ -2,6 +2,7 @@
 package com.swirlds.platform.components;
 
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
+import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.FIRST_ROUND_AFTER_GENESIS;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.FREEZE_STATE;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
@@ -12,7 +13,6 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
-import com.swirlds.platform.wiring.components.StateAndRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -46,14 +46,14 @@ public class DefaultSavedStateController implements SavedStateController {
      */
     @Override
     @NonNull
-    public StateAndRound markSavedState(@NonNull final StateAndRound stateAndRound) {
-        final ReservedSignedState reservedSignedState = stateAndRound.reservedSignedState();
+    public StateWithHashComplexity markSavedState(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
+        final ReservedSignedState reservedSignedState = stateWithHashComplexity.state();
         final SignedState signedState = reservedSignedState.get();
         final StateToDiskReason reason = shouldSaveToDisk(signedState, previousSavedStateTimestamp);
         if (reason != null) {
             markSavingToDisk(reservedSignedState, reason);
         }
-        return stateAndRound;
+        return stateWithHashComplexity;
     }
 
     /**

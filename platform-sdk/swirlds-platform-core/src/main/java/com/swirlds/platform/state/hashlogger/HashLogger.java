@@ -15,6 +15,6 @@ public interface HashLogger {
      *
      * @param reservedState the state to retrieve hash information from and log.
      */
-    @InputWireLabel("hashed states")
+    @InputWireLabel("hashed states to log")
     void logHashes(@NonNull ReservedSignedState reservedState);
 }

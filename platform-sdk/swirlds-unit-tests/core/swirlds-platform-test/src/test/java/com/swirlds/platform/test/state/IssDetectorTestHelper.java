@@ -4,7 +4,7 @@ package com.swirlds.platform.test.state;
 import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.state.notifications.IssNotification;
-import com.swirlds.platform.wiring.components.StateAndRound;
+import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -26,8 +26,8 @@ public class IssDetectorTestHelper {
         this.issDetector = Objects.requireNonNull(issDetector);
     }
 
-    public void handleStateAndRound(@NonNull final StateAndRound stateAndRound) {
-        trackIssNotifications(issDetector.handleStateAndRound(stateAndRound));
+    public void handleStateAndRound(@NonNull final TransactionHandlerResult transactionHandlerResult) {
+        trackIssNotifications(issDetector.handleState(transactionHandlerResult.stateWithHashComplexity().state()));
     }
 
     public void overridingState(@NonNull final ReservedSignedState state) {

@@ -2,12 +2,11 @@
 package com.swirlds.platform.wiring;
 
 import com.swirlds.component.framework.transformers.AdvancedTransformation;
-import com.swirlds.platform.wiring.components.StateAndRound;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * Manages reservations of a signed state contained in a {@link StateAndRound} object, when it needs to be passed to one
- * or more input wires.
+ * Manages reservations of a signed state between components.
  * <p>
  * The contract for managing reservations across vertexes in the wiring is as follows:
  * <ul>
@@ -17,38 +16,38 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * The reserver enforces this contract by reserving the state for each input wire, and then releasing the reservation
  * made for the reserver.
  * <p>
- * For each input wire, {@link #transform(StateAndRound)} will be called once, reserving the state for that input
- * wire. After a reservation is made for each input wire, {@link #inputCleanup(StateAndRound)} will be called once to
+ * For each input wire, {@link #transform(ReservedSignedState)} will be called once, reserving the state for that input
+ * wire. After a reservation is made for each input wire, {@link #inputCleanup(ReservedSignedState)} will be called once to
  * release the original reservation.
  *
  * @param name the name of the reserver
  */
-public record StateAndRoundReserver(@NonNull String name)
-        implements AdvancedTransformation<StateAndRound, StateAndRound> {
+public record StateReserver(@NonNull String name)
+        implements AdvancedTransformation<ReservedSignedState, ReservedSignedState> {
 
     /**
      * {@inheritDoc}
      */
     @NonNull
     @Override
-    public StateAndRound transform(@NonNull final StateAndRound stateAndRound) {
-        return stateAndRound.makeAdditionalReservation(name);
+    public ReservedSignedState transform(@NonNull final ReservedSignedState reservedSignedState) {
+        return reservedSignedState.getAndReserve(name);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void inputCleanup(@NonNull final StateAndRound stateAndRound) {
-        stateAndRound.reservedSignedState().close();
+    public void inputCleanup(@NonNull final ReservedSignedState reservedSignedState) {
+        reservedSignedState.close();
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void outputCleanup(@NonNull final StateAndRound stateAndRound) {
-        stateAndRound.reservedSignedState().close();
+    public void outputCleanup(@NonNull final ReservedSignedState reservedSignedState) {
+        reservedSignedState.close();
     }
 
     /**
@@ -63,6 +62,6 @@ public record StateAndRoundReserver(@NonNull String name)
     @NonNull
     @Override
     public String getTransformerInputName() {
-        return "round and state to reserve";
+        return "StateAndSysTxns to reserve";
     }
 }

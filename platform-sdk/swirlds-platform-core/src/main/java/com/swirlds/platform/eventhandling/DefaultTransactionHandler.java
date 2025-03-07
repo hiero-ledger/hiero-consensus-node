@@ -34,7 +34,6 @@ import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
-import com.swirlds.platform.wiring.components.StateAndRound;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -108,7 +107,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param swirldStateManager    the swirld state manager to send events to
      * @param statusActionSubmitter enables submitting of platform status actions
      * @param softwareVersion       the current version of the software
-     * @param platformStateFacade    enables access to the platform state
+     * @param platformStateFacade   enables access to the platform state
      */
     public DefaultTransactionHandler(
             @NonNull final PlatformContext platformContext,
@@ -154,7 +153,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      */
     @Override
     @Nullable
-    public StateAndRound handleConsensusRound(@NonNull final ConsensusRound consensusRound) {
+    public TransactionHandlerResult handleConsensusRound(@NonNull final ConsensusRound consensusRound) {
         // consensus rounds with no events are ignored
         if (consensusRound.isEmpty()) {
             // Future work: the long term goal is for empty rounds to not be ignored here. For now, the way that the
@@ -265,7 +264,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @throws InterruptedException if this thread is interrupted
      */
     @NonNull
-    private StateAndRound createSignedState(
+    private TransactionHandlerResult createSignedState(
             @NonNull final ConsensusRound consensusRound,
             @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions)
             throws InterruptedException {
@@ -293,10 +292,10 @@ public class DefaultTransactionHandler implements TransactionHandler {
             signedState.init(platformContext);
 
             reservedSignedState = signedState.reserve("transaction handler output");
+            return new TransactionHandlerResult(new StateWithHashComplexity(reservedSignedState,
+                    consensusRound.getNumAppTransactions()), systemTransactions);
         } else {
-            reservedSignedState = null;
+            return new TransactionHandlerResult(null, systemTransactions);
         }
-
-        return new StateAndRound(reservedSignedState, consensusRound, systemTransactions);
     }
 }

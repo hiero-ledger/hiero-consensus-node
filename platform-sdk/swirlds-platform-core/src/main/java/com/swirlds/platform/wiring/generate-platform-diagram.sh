@@ -40,11 +40,11 @@ pcli diagram \
     -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus,💢' \
     -g 'Transaction Resubmitter:TransactionResubmitter' \
     -g 'Stale Event Detector:StaleEventDetector,StaleEventDetectorSplitter,StaleEventDetectorRouter' \
-    -g 'Event Creation:EventCreationManager,TransactionPool,SelfEventSigner,Stale Event Detector,Transaction Resubmitter,⚰️' \
+    -g 'Event Creation:EventCreationManager,TransactionPool,SelfEventSigner,Stale Event Detector,postSigner_encode_systemTransactions,Transaction Resubmitter,⚰️' \
     -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler,getStatusAction' \
     -g 'PCES Replay:pcesReplayer,✅' \
-    -g 'Transaction Handler:TransactionHandler,postHandler_stateAndRoundReserver,getState,SavedStateController' \
-    -g 'State Hasher:StateHasher,postHasher_stateAndRoundReserver,postHasher_stateReserver' \
+    -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \
+    -g 'State Hasher:StateHasher,postHasher_stateReserver' \
     -g 'Consensus:Consensus Engine,🌀' \
     -g 'State Verification:StateSigner,HashLogger,ISS Detector,🖋️,💥,💀' \
     -g 'Transaction Handling:Transaction Handler,LatestImmutableStateNexus' \

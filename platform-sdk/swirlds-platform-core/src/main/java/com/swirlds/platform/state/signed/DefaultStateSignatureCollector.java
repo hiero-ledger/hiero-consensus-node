@@ -90,7 +90,7 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         // find any signatures that have been saved
         final List<SavedSignature> signatures = savedSignatures.getEntriesWithSequenceNumber(signedState.getRound());
         savedSignatures.removeSequenceNumber(signedState.getRound());
-        signatures.forEach(ss -> addSignature(reservedSignedState, ss.memberId, ss.signature));
+        signatures.forEach(ss -> addSignature(reservedSignedState, ss.memberId(), ss.signature()));
 
         lastStateRound = Math.max(lastStateRound, signedState.getRound());
         adjustSavedSignaturesWindow(signedState.getRound());
@@ -274,8 +274,4 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         lastStateRound = ConsensusConstants.ROUND_UNDEFINED;
     }
 
-    /**
-     * A signature that was received when there was no state with a matching round.
-     */
-    private record SavedSignature(long round, @NonNull NodeId memberId, @NonNull Signature signature) {}
 }

@@ -2,12 +2,12 @@
 package com.swirlds.platform.state.iss;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.state.notifications.IssNotification;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
-import com.swirlds.platform.wiring.components.StateAndRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -35,21 +35,14 @@ public interface IssDetector {
      * @param systemTransactions the state signature transactions to be handled
      * @return a list of ISS notifications, or null if no ISS occurred
      */
+    @InputWireLabel("post consensus state signatures")
     @Nullable
     List<IssNotification> handleStateSignatureTransactions(
             @NonNull Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions);
 
-    /**
-     * Called when a round has been completed and a state for it is created.
-     * <p>
-     * Expects the contained state to have been reserved by the caller for this method. This method will release the
-     * state reservation when it is done with it.
-     *
-     * @param stateAndRound the round and state to be handled
-     * @return a list of ISS notifications, or null if no ISS occurred
-     */
+    @InputWireLabel("hashed states")
     @Nullable
-    List<IssNotification> handleStateAndRound(@NonNull StateAndRound stateAndRound);
+    List<IssNotification> handleState(@NonNull ReservedSignedState reservedSignedState);
 
     /**
      * Called when an overriding state is obtained, i.e. via reconnect or state loading.

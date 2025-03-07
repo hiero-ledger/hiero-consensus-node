@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.iss;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
-
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -13,6 +9,9 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.throttle.RateLimiter;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 import com.swirlds.logging.legacy.payload.IssPayload;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.config.StateConfig;
@@ -21,14 +20,16 @@ import com.swirlds.platform.metrics.IssMetrics;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.sequence.map.ConcurrentSequenceMap;
 import com.swirlds.platform.sequence.map.SequenceMap;
+import com.swirlds.platform.sequence.set.SequenceSet;
 import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
+import com.swirlds.platform.state.signed.SavedSignature;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.state.notifications.IssNotification;
 import com.swirlds.platform.system.state.notifications.IssNotification.IssType;
 import com.swirlds.platform.util.MarkerFileWriter;
-import com.swirlds.platform.wiring.components.StateAndRound;
 import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -48,6 +49,8 @@ public class DefaultIssDetector implements IssDetector {
     private static final Logger logger = LogManager.getLogger(DefaultIssDetector.class);
 
     private final SequenceMap<Long /* round */, RoundHashValidator> roundData;
+    /** Signatures for rounds in the future */
+    private final SequenceSet<SavedSignature> savedSignatures;
 
     private long previousRound = -1;
 
@@ -225,22 +228,23 @@ public class DefaultIssDetector implements IssDetector {
     /**
      * Called when a round has been completed.
      * <p>
-     * Expects the contained state to have been reserved by the caller for this method. This method will release the
+     * Expects the state to have been reserved by the caller for this method. This method will release the
      * state reservation when it is done with it.
      *
-     * @param stateAndRound the round and state to be handled
+     * @param reservedSignedState the reserved state to be handled
      * @return a list of ISS notifications, or null if no ISS occurred
      */
     @Override
     @Nullable
-    public List<IssNotification> handleStateAndRound(@NonNull final StateAndRound stateAndRound) {
-        try (final ReservedSignedState state = stateAndRound.reservedSignedState()) {
-            final long roundNumber = stateAndRound.round().getRoundNum();
+    public List<IssNotification> handleState(@NonNull final ReservedSignedState reservedSignedState) {
+        try (reservedSignedState) {
+            final SignedState state = reservedSignedState.get();
+            final long roundNumber = state.getRound();
 
             final List<IssNotification> issNotifications = new ArrayList<>(shiftRoundDataWindow(roundNumber));
 
             final IssNotification selfHashCheckResult =
-                    checkSelfStateHash(roundNumber, state.get().getState().getHash());
+                    checkSelfStateHash(roundNumber, state.getState().getHash());
             if (selfHashCheckResult != null) {
                 issNotifications.add(selfHashCheckResult);
             }

@@ -28,7 +28,7 @@ import com.swirlds.platform.system.events.UnsignedEvent;
 import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.wiring.components.GossipWiring;
-import com.swirlds.platform.wiring.components.StateAndRound;
+import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -55,8 +55,8 @@ public class PlatformCoordinator {
     private final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             applicationTransactionPrehandlerWiring;
     private final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring;
-    private final ComponentWiring<TransactionHandler, StateAndRound> transactionHandlerWiring;
-    private final ComponentWiring<StateHasher, StateAndRound> stateHasherWiring;
+    private final ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring;
+    private final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring;
     private final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
             staleEventDetectorWiring;
     private final ComponentWiring<TransactionPool, Void> transactionPoolWiring;
@@ -103,8 +103,8 @@ public class PlatformCoordinator {
             @NonNull
                     final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>>
                             stateSignatureCollectorWiring,
-            @NonNull final ComponentWiring<TransactionHandler, StateAndRound> transactionHandlerWiring,
-            @NonNull final ComponentWiring<StateHasher, StateAndRound> stateHasherWiring,
+            @NonNull final ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring,
+            @NonNull final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
             @NonNull
                     final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
                             staleEventDetectorWiring,
