@@ -15,9 +15,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
-import org.assertj.core.api.Assertions;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -27,11 +28,15 @@ class BlockAcknowledgementTrackerTest {
     private static final String NODE3 = "node3:50211";
     private static final int REQUIRED_ACKNOWLEDGEMENTS = 1;
 
+    @Mock
+    private BlockStreamStateManager blockStreamStateManager;
+
     private BlockAcknowledgementTracker blockAcknowledgementTracker;
 
     @Test
     void testAcknowledgmentTrackerCreation() {
-        blockAcknowledgementTracker = new BlockAcknowledgementTracker(REQUIRED_ACKNOWLEDGEMENTS, false);
+        blockAcknowledgementTracker =
+                new BlockAcknowledgementTracker(blockStreamStateManager, REQUIRED_ACKNOWLEDGEMENTS, false);
         // then
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE1)).isEqualTo(0L);
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE2)).isEqualTo(0L);
@@ -40,7 +45,8 @@ class BlockAcknowledgementTrackerTest {
 
     @Test
     void testAckForSingleNode() {
-        blockAcknowledgementTracker = new BlockAcknowledgementTracker(REQUIRED_ACKNOWLEDGEMENTS, false);
+        blockAcknowledgementTracker =
+                new BlockAcknowledgementTracker(blockStreamStateManager, REQUIRED_ACKNOWLEDGEMENTS, false);
 
         // when
         blockAcknowledgementTracker.trackAcknowledgment(NODE1, 1L);
@@ -53,14 +59,16 @@ class BlockAcknowledgementTrackerTest {
 
     @Test
     void testUpdateLastVerifiedBlockWhenNewAckReceived() {
-        blockAcknowledgementTracker = spy(new BlockAcknowledgementTracker(REQUIRED_ACKNOWLEDGEMENTS, false));
+        blockAcknowledgementTracker =
+                spy(new BlockAcknowledgementTracker(blockStreamStateManager, REQUIRED_ACKNOWLEDGEMENTS, false));
 
         // when
         blockAcknowledgementTracker.trackAcknowledgment(NODE1, 1L);
         blockAcknowledgementTracker.trackAcknowledgment(NODE1, 2L);
 
-        verify(blockAcknowledgementTracker, times(0)).checkBlockDeletion(anyLong());
+        verify(blockAcknowledgementTracker, times(2)).checkBlockDeletion(anyLong());
         verify(blockAcknowledgementTracker, times(0)).onBlockReadyForCleanup(anyLong());
+        verify(blockStreamStateManager, times(1)).cleanUpBlockState(1L);
 
         // then
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE1)).isEqualTo(2L);
@@ -70,12 +78,14 @@ class BlockAcknowledgementTrackerTest {
 
     @Test
     void testTrackerDoesNotDeleteFilesOnDiskWhenFalse() {
-        blockAcknowledgementTracker = spy(new BlockAcknowledgementTracker(REQUIRED_ACKNOWLEDGEMENTS, false));
+        blockAcknowledgementTracker =
+                spy(new BlockAcknowledgementTracker(blockStreamStateManager, REQUIRED_ACKNOWLEDGEMENTS, false));
         blockAcknowledgementTracker.trackAcknowledgment(NODE1, 1L);
         blockAcknowledgementTracker.trackAcknowledgment(NODE2, 1L);
 
-        verify(blockAcknowledgementTracker, times(0)).checkBlockDeletion(anyLong());
+        verify(blockAcknowledgementTracker, times(2)).checkBlockDeletion(anyLong());
         verify(blockAcknowledgementTracker, times(0)).onBlockReadyForCleanup(anyLong());
+        verify(blockStreamStateManager, times(1)).cleanUpBlockState(1L);
 
         // then
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE1)).isEqualTo(1L);
@@ -85,12 +95,14 @@ class BlockAcknowledgementTrackerTest {
 
     @Test
     void testTrackerDeleteFilesOnDiskWhenTrue() {
-        blockAcknowledgementTracker = spy(new BlockAcknowledgementTracker(REQUIRED_ACKNOWLEDGEMENTS, true));
+        blockAcknowledgementTracker =
+                spy(new BlockAcknowledgementTracker(blockStreamStateManager, REQUIRED_ACKNOWLEDGEMENTS, true));
         blockAcknowledgementTracker.trackAcknowledgment(NODE1, 1L);
         blockAcknowledgementTracker.trackAcknowledgment(NODE2, 1L);
 
         verify(blockAcknowledgementTracker, times(2)).checkBlockDeletion(1L);
         verify(blockAcknowledgementTracker, times(1)).onBlockReadyForCleanup(1L);
+        verify(blockStreamStateManager, times(1)).cleanUpBlockState(1L);
 
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE1)).isEqualTo(1L);
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE2)).isEqualTo(1L);
@@ -99,7 +111,8 @@ class BlockAcknowledgementTrackerTest {
 
     @Test
     void shouldTestDifferentBlocksForDifferentNodes() {
-        blockAcknowledgementTracker = spy(new BlockAcknowledgementTracker(REQUIRED_ACKNOWLEDGEMENTS, true));
+        blockAcknowledgementTracker =
+                spy(new BlockAcknowledgementTracker(blockStreamStateManager, REQUIRED_ACKNOWLEDGEMENTS, true));
 
         // when
         blockAcknowledgementTracker.trackAcknowledgment(NODE1, 1L);
@@ -109,6 +122,9 @@ class BlockAcknowledgementTrackerTest {
         // then
         verify(blockAcknowledgementTracker, times(3)).checkBlockDeletion(anyLong());
         verify(blockAcknowledgementTracker, times(3)).onBlockReadyForCleanup(anyLong());
+        verify(blockStreamStateManager, times(1)).cleanUpBlockState(1L);
+        verify(blockStreamStateManager, times(1)).cleanUpBlockState(2L);
+        verify(blockStreamStateManager, times(1)).cleanUpBlockState(3L);
 
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE1)).isEqualTo(1L);
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE2)).isEqualTo(2L);
@@ -117,7 +133,8 @@ class BlockAcknowledgementTrackerTest {
 
     @Test
     void shouldTriggerCleanupOnlyOnceForSameBlock() {
-        blockAcknowledgementTracker = spy(new BlockAcknowledgementTracker(REQUIRED_ACKNOWLEDGEMENTS, true));
+        blockAcknowledgementTracker =
+                spy(new BlockAcknowledgementTracker(blockStreamStateManager, REQUIRED_ACKNOWLEDGEMENTS, true));
 
         // when
         blockAcknowledgementTracker.trackAcknowledgment(NODE1, 1L);
@@ -126,6 +143,7 @@ class BlockAcknowledgementTrackerTest {
 
         // then
         verify(blockAcknowledgementTracker, times(1)).onBlockReadyForCleanup(1L);
+        verify(blockStreamStateManager, times(1)).cleanUpBlockState(1L);
 
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE1)).isEqualTo(1L);
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE2)).isEqualTo(1L);
@@ -134,7 +152,8 @@ class BlockAcknowledgementTrackerTest {
 
     @Test
     void shouldHandleMultipleBlocksSimultaneously() {
-        blockAcknowledgementTracker = spy(new BlockAcknowledgementTracker(REQUIRED_ACKNOWLEDGEMENTS, true));
+        blockAcknowledgementTracker =
+                spy(new BlockAcknowledgementTracker(blockStreamStateManager, REQUIRED_ACKNOWLEDGEMENTS, true));
 
         // when
         blockAcknowledgementTracker.trackAcknowledgment(NODE1, 1L);
@@ -145,13 +164,17 @@ class BlockAcknowledgementTrackerTest {
         // then
         verify(blockAcknowledgementTracker, times(1)).onBlockReadyForCleanup(1L);
         verify(blockAcknowledgementTracker, times(1)).onBlockReadyForCleanup(2L);
+        verify(blockStreamStateManager, times(1)).cleanUpBlockState(1L);
+        verify(blockStreamStateManager, times(1)).cleanUpBlockState(2L);
+
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE1)).isEqualTo(2L);
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE2)).isEqualTo(2L);
     }
 
     @Test
     void testHandleConcurrentAcknowledgments() throws InterruptedException, ExecutionException, TimeoutException {
-        blockAcknowledgementTracker = new BlockAcknowledgementTracker(REQUIRED_ACKNOWLEDGEMENTS, true);
+        blockAcknowledgementTracker =
+                new BlockAcknowledgementTracker(blockStreamStateManager, REQUIRED_ACKNOWLEDGEMENTS, true);
 
         // given
         final int numThreads = 10;
@@ -162,7 +185,7 @@ class BlockAcknowledgementTrackerTest {
 
         try {
             // when
-            for (int i = 0; i < numThreads; i++) {
+            IntStream.range(0, numThreads).forEach(i -> {
                 final String nodeId = "node" + i;
                 futures.add(executorService.submit(() -> {
                     try {
@@ -173,19 +196,19 @@ class BlockAcknowledgementTrackerTest {
                         latch.countDown();
                     }
                 }));
-            }
+            });
 
             // then
-            Assertions.assertThat(latch.await(10, SECONDS)).isTrue();
+            assertThat(latch.await(10, SECONDS)).isTrue();
             for (Future<?> future : futures) {
                 future.get(1, SECONDS);
             }
 
             // verify results
-            for (int i = 0; i < numThreads; i++) {
+            IntStream.range(0, numThreads).forEach(i -> {
                 assertThat(blockAcknowledgementTracker.getLastVerifiedBlock("node" + i))
                         .isEqualTo(numBlocks);
-            }
+            });
         } finally {
             executorService.shutdown();
             boolean terminated = executorService.awaitTermination(5, SECONDS);

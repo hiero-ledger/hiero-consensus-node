@@ -50,23 +50,25 @@ public class BlockNodeConnectionManager {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService streamingExecutor = Executors.newSingleThreadExecutor();
     private BlockNodeConfigExtractor blockNodeConfigurations;
-    private BlockAcknowledgementTracker acknowledgmentTracker;
+    private BlockAcknowledgementTracker acknowledgementTracker;
 
     /**
      * Creates a new BlockNodeConnectionManager with the given configuration from disk.
      * @param configProvider the configuration provider
      */
-    public BlockNodeConnectionManager(@NonNull final ConfigProvider configProvider) {
+    public BlockNodeConnectionManager(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final BlockStreamStateManager blockStreamStateManager) {
         requireNonNull(configProvider);
+        requireNonNull(blockStreamStateManager);
         final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
         if (!blockStreamConfig.streamToBlockNodes()) {
             return;
         }
         this.blockNodeConfigurations = new BlockNodeConfigExtractor(blockStreamConfig.blockNodeConnectionFileDir());
-
         // Initialize the block acknowledgment tracker
-        this.acknowledgmentTracker =
-                new BlockAcknowledgementTracker(ACK_THRESHOLD, blockStreamConfig.deleteFilesOnDisk());
+        this.acknowledgementTracker = new BlockAcknowledgementTracker(
+                blockStreamStateManager, ACK_THRESHOLD, blockStreamConfig.deleteFilesOnDisk());
     }
 
     /**
@@ -106,7 +108,7 @@ public class BlockNodeConnectionManager {
                     .build());
 
             BlockNodeConnection connection =
-                    new BlockNodeConnection(node, grpcServiceClient, this, acknowledgmentTracker);
+                    new BlockNodeConnection(node, grpcServiceClient, this, acknowledgementTracker);
             synchronized (connectionLock) {
                 activeConnections.put(node, connection);
             }
