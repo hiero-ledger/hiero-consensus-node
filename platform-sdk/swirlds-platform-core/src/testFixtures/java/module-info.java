@@ -20,6 +20,7 @@ module com.swirlds.platform.core.test.fixtures {
     requires com.swirlds.merkledb;
     requires com.swirlds.state.api.test.fixtures;
     requires com.github.spotbugs.annotations;
+    requires com.google.common;
     requires java.desktop;
     requires org.mockito;
 
