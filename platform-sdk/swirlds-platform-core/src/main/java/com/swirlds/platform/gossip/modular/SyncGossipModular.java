@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -61,6 +62,7 @@ public class SyncGossipModular implements Gossip {
     private final SyncGossipController controller;
     private final PeerCommunication network;
     private final SyncPermitProvider syncPermitProvider;
+    private final FallenBehindManagerImpl fallenBehindManager;
     private SyncGossipSharedProtocolState sharedState;
 
     // this is not a nice dependency, should be removed as well as the sharedState
@@ -118,9 +120,9 @@ public class SyncGossipModular implements Gossip {
 
         final Shadowgraph shadowgraph = new Shadowgraph(platformContext, peers.size() + 1, intakeEventCounter);
 
-        final FallenBehindManagerImpl fallenBehindManager = new FallenBehindManagerImpl(
+        this.fallenBehindManager = new FallenBehindManagerImpl(
                 selfId,
-                this.network.getTopology(),
+                peers.size(),
                 statusActionSubmitter,
                 () -> sharedState.fallenBehindCallback().get().run(),
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class));
@@ -189,6 +191,9 @@ public class SyncGossipModular implements Gossip {
      * @param removed peers to be removed
      */
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
+        fallenBehindManager.addRemovePeers(
+                added.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()),
+                removed.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()));
         controller.registerDedicatedThreads(network.addRemovePeers(added, removed));
         syncPermitProvider.adjustTotalPermits(added.size() - removed.size());
         controller.applyDedicatedThreadsToModify();

@@ -220,7 +220,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
 
         fallenBehindManager = new FallenBehindManagerImpl(
                 selfId,
-                topology,
+                peers.size(),
                 statusActionSubmitter,
                 () -> getReconnectController().start(),
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class));
