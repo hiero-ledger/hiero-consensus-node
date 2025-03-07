@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -46,6 +47,9 @@ public class BlockNodeConnectionManager {
     private static final String GRPC_END_POINT =
             BlockStreamServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
     private static final long RETRY_BACKOFF_MULTIPLIER = 2;
+
+    // Add a random number generator for jitter
+    private final Random random = new Random();
 
     private final Map<BlockNodeConfig, BlockNodeConnection> activeConnections;
     private BlockNodeConfigExtractor blockNodeConfigurations;
@@ -238,10 +242,13 @@ public class BlockNodeConnectionManager {
         requireNonNull(initialDelay);
 
         Duration delay = initialDelay;
+
         while (true) {
             try {
-                logger.info("Retrying in {} ms", delay.toMillis());
-                Thread.sleep(delay.toMillis());
+                // Apply jitter: use a random value between 50-100% of the calculated delay
+                final long jitteredDelayMs = delay.toMillis() / 2 + random.nextLong(delay.toMillis() / 2 + 1);
+                logger.info("Retrying in {} ms", jitteredDelayMs);
+                Thread.sleep(jitteredDelayMs);
                 action.get();
                 return;
             } catch (Exception e) {
