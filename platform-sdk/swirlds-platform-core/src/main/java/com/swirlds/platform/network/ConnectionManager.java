@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
+import com.google.common.annotations.VisibleForTesting;
+
 /**
  * Manages a single topological connection, not a single {@link Connection}. This means that if the network topology
  * states that there should be a connection A->B, there will always be a single {@link ConnectionManager}. {@link
@@ -23,6 +25,7 @@ public interface ConnectionManager {
      *
      * @return the connection managed by this instance. can be broken but should never be null
      */
+    @VisibleForTesting
     Connection getConnection();
 
     /**

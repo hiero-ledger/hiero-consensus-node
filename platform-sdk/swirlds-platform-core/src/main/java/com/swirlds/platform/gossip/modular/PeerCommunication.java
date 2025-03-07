@@ -11,7 +11,12 @@ import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.ThreadConfig;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
-import com.swirlds.platform.network.*;
+import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.network.ConnectionTracker;
+import com.swirlds.platform.network.NetworkMetrics;
+import com.swirlds.platform.network.NetworkPeerIdentifier;
+import com.swirlds.platform.network.NetworkUtils;
+import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.NegotiationProtocols;
 import com.swirlds.platform.network.communication.ProtocolNegotiatorThread;
 import com.swirlds.platform.network.connectivity.ConnectionServer;
@@ -24,7 +29,12 @@ import com.swirlds.platform.network.topology.StaticConnectionManagers;
 import com.swirlds.platform.network.topology.StaticTopology;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import org.apache.logging.log4j.LogManager;
@@ -114,6 +124,10 @@ public class PeerCommunication implements ConnectionTracker {
             @NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
         Objects.requireNonNull(added);
         Objects.requireNonNull(removed);
+
+        if (added.isEmpty() && removed.isEmpty()) {
+            return ImmutableList.of();
+        }
 
         List<DedicatedStoppableThread<NodeId>> threads = new ArrayList<>();
 
