@@ -96,13 +96,6 @@ public class PeerCommunication implements ConnectionTracker {
     }
 
     /**
-     * @return preconstructed topology to save doing same operations in multiple places
-     */
-    public StaticTopology getTopology() {
-        return topology;
-    }
-
-    /**
      * @return network metrics to register data about communication traffic and latencies
      */
     public NetworkMetrics getNetworkMetrics() {
