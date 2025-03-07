@@ -145,7 +145,7 @@ class DefaultTransactionHandlerTests {
                 pcesRound,
                 handlerOutput.stateWithHashComplexity().state().get().isPcesRound(),
                 "the state should match the PCES boolean");
-        verify(tester.getStateLifecycles())
+        verify(tester.getStateEventHandler())
                 .onSealConsensusRound(
                         consensusRound, tester.getSwirldStateManager().getConsensusState());
     }
