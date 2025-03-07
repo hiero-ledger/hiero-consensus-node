@@ -3,7 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts;
 
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumberForEvmReference;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumForEVMReference;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
@@ -69,7 +69,7 @@ public class SyntheticIds {
             @NonNull final Address address,
             @NonNull final HederaNativeOperations nativeOperations) {
         requireNonNull(address);
-        final var accountNum = accountNumberForEvmReference(address, nativeOperations);
+        final var accountNum = accountNumForEVMReference(address, nativeOperations, isCredit);
         if (accountNum == MISSING_ENTITY_NUMBER) {
             final var explicit = explicitFromHeadlong(address);
             if (isLongZero(nativeOperations.entityIdFactory(), address)) {

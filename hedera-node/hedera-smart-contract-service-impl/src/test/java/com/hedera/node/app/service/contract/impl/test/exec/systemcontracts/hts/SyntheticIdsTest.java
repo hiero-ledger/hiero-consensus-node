@@ -78,15 +78,12 @@ class SyntheticIdsTest {
     }
 
     @Test
-    void returnsLazyCreateToZeroAddressIfLongZeroCreditWithNonCanonicalReference() {
-        final var expectedId = AccountID.newBuilder()
-                .alias(Bytes.wrap(asEvmAddress(shard, realm, 0L)))
-                .build();
+    void returnsNumericIDWhenLongZeroCreditWithAliasProvided() {
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var nonCanonicalLongZeroAddress = asHeadlongAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         final var subject = implicitSubject.converterFor(nativeOperations);
         final var synthId = subject.convertCredit(nonCanonicalLongZeroAddress);
-        assertEquals(expectedId, synthId);
+        assertEquals(A_NEW_ACCOUNT_ID, synthId);
     }
 }
