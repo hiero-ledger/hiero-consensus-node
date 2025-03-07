@@ -35,7 +35,7 @@ In this case, we are only interested in _self events_. These are created by the 
 the `Event Intake System`. Here, they are ordered and validated and sent to the `Pre-Consensus Recording System`. Here,
 they will be immediately persisted and then sent to the `Consensus System` and to the `Gossip System`.
 
-In the short term, we will not send any events to the gossip system before they pass through the PCES system. When we
+Currently, we do not send any events to the gossip system before they pass through the PCES system. When we
 eventually deploy gossip algorithms that call for out of order transmission (e.g. chatter), we may decide to expose
 other events (i.e. events not created by ourselves) to gossip before they pass through the orphan buffer.
 
@@ -43,8 +43,10 @@ other events (i.e. events not created by ourselves) to gossip before they pass t
 
 #### PCES Writer
 
-All writes are synchronous. The PCES writer accepts an event as input, and returns that same event once it
-has been written to disk. During this period, the event is being locked.
+All writes are synchronous. The PCES writer accepts an event as input, and returns that same event. A configuration
+setting, `event.preconsensus.inlinePcesSyncOption` determines the flush to disk behavior. When set to
+`EVERY_SELF_EVENT`, each self event causes all events in the write buffer (including the self event) to be flushed to
+disk prior to returning. This is the default behavior.
 
-No part of the system after event intake is utilizing an event until it has been made
-durable by the PcesWriter, except for Gossip. Gossip is only waiting for self-events to be persisted.
+No part of the system after event intake uses events until they passed through the PCES writer, except for Gossip.
+Only gossip waits for self-events to be persisted.
