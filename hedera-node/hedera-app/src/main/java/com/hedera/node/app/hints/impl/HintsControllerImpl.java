@@ -219,7 +219,7 @@ public class HintsControllerImpl implements HintsController {
      *
      * @param now        the current consensus time
      * @param hintsStore the writable hints store
-     * @param isActive    whether this node is active in the network
+     * @param isActive   whether this node is active in the network
      */
     @Override
     public void advanceCRSWork(
@@ -347,15 +347,19 @@ public class HintsControllerImpl implements HintsController {
      */
     private void submitUpdatedCRS(final @NonNull WritableHintsStore hintsStore) {
         crsPublicationFuture = CompletableFuture.runAsync(
-                () -> {
-                    final Bytes previousCRS = (finalUpdatedCrsFuture != null)
-                            ? finalUpdatedCrsFuture.join().crs()
-                            : hintsStore.getCrsState().crs();
-                    final var updatedCRS = library.updateCrs(previousCRS, generateEntropy());
-                    final var newCRS = decodeCrsUpdate(previousCRS.length(), updatedCRS);
-                    submissions.submitUpdateCRS(newCRS.crs(), newCRS.proof());
-                },
-                executor);
+                        () -> {
+                            final Bytes previousCRS = (finalUpdatedCrsFuture != null)
+                                    ? finalUpdatedCrsFuture.join().crs()
+                                    : hintsStore.getCrsState().crs();
+                            final var updatedCRS = library.updateCrs(previousCRS, generateEntropy());
+                            final var newCRS = decodeCrsUpdate(previousCRS.length(), updatedCRS);
+                            submissions.submitUpdateCRS(newCRS.crs(), newCRS.proof());
+                        },
+                        executor)
+                .exceptionally(e -> {
+                    log.error("Error submitting updated CRS", e);
+                    return null;
+                });
     }
 
     /**
@@ -377,6 +381,8 @@ public class HintsControllerImpl implements HintsController {
 
     /**
      * Generates secure 256-bit entropy.
+     *
+     * @return the generated entropy
      */
     public Bytes generateEntropy() {
         byte[] entropyBytes = new byte[32];
@@ -401,6 +407,7 @@ public class HintsControllerImpl implements HintsController {
         // preprocessing time to something earlier than consensus now; so we will not use
         // this key and can return immediately
         if (!construction.hasGracePeriodEndTime()) {
+            log.info("Construction has no grace period end time. Returning.");
             return;
         }
         maybeUpdateForHintsKey(initialCrs, publication);
@@ -430,6 +437,7 @@ public class HintsControllerImpl implements HintsController {
                     .findFirst();
             maybeWinningOutputs.ifPresent(keys -> {
                 construction = hintsStore.setHintsScheme(construction.constructionId(), keys, nodePartyIds);
+                log.info("Set Hints Scheme for construction {}", construction.constructionId());
                 // If this just completed the active construction, update the signing context
                 if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
                     context.setConstruction(construction);
@@ -479,27 +487,38 @@ public class HintsControllerImpl implements HintsController {
         final var creatorWeight = weights.sourceWeightOf(creatorId);
         if (finalUpdatedCrsFuture == null) {
             finalUpdatedCrsFuture = CompletableFuture.supplyAsync(
-                    () -> {
-                        final var isValid = library.verifyCrsUpdate(
-                                requireNonNull(initialCrs), publication.newCrs(), publication.proof());
-                        if (isValid) {
-                            return new CRSValidation(publication.newCrs(), creatorWeight);
-                        }
+                            () -> {
+                                final var isValid = library.verifyCrsUpdate(
+                                        requireNonNull(initialCrs), publication.newCrs(), publication.proof());
+                                if (isValid) {
+                                    return new CRSValidation(publication.newCrs(), creatorWeight);
+                                }
+                                return new CRSValidation(initialCrs, 0L);
+                            },
+                            executor)
+                    .exceptionally(e -> {
+                        log.error("Error verifying CRS update", e);
                         return new CRSValidation(initialCrs, 0L);
-                    },
-                    executor);
+                    });
         } else {
-            finalUpdatedCrsFuture = finalUpdatedCrsFuture.thenApplyAsync(
-                    previousValidation -> {
-                        final var isValid = library.verifyCrsUpdate(
-                                previousValidation.crs(), publication.newCrs(), publication.proof());
-                        if (isValid) {
-                            return new CRSValidation(
-                                    publication.newCrs(), previousValidation.weightContributedSoFar() + creatorWeight);
-                        }
-                        return new CRSValidation(previousValidation.crs(), previousValidation.weightContributedSoFar());
-                    },
-                    executor);
+            finalUpdatedCrsFuture = finalUpdatedCrsFuture
+                    .thenApplyAsync(
+                            previousValidation -> {
+                                final var isValid = library.verifyCrsUpdate(
+                                        previousValidation.crs(), publication.newCrs(), publication.proof());
+                                if (isValid) {
+                                    return new CRSValidation(
+                                            publication.newCrs(),
+                                            previousValidation.weightContributedSoFar() + creatorWeight);
+                                }
+                                return new CRSValidation(
+                                        previousValidation.crs(), previousValidation.weightContributedSoFar());
+                            },
+                            executor)
+                    .exceptionally(e -> {
+                        log.error("Error verifying CRS update", e);
+                        return new CRSValidation(initialCrs, 0L);
+                    });
         }
     }
 
@@ -516,13 +535,12 @@ public class HintsControllerImpl implements HintsController {
             log.info("All nodes have published hinTS keys. Starting preprocessing.");
             return true;
         }
-        log.info(
-                "Checking if we should start preprocessing {} - {}",
-                now.isBefore(asInstant(construction.gracePeriodEndTimeOrThrow())),
-                weightOfValidHintsKeysAt(now) >= weights.targetWeightThreshold());
         if (now.isBefore(asInstant(construction.gracePeriodEndTimeOrThrow()))) {
             return false;
         } else {
+            //            log.info(
+            //                    "Checking if we should start preprocessing {} - {}",
+            //                    weightOfValidHintsKeysAt(now), weights.targetWeightThreshold());
             return weightOfValidHintsKeysAt(now) >= weights.targetWeightThreshold();
         }
     }
@@ -531,7 +549,7 @@ public class HintsControllerImpl implements HintsController {
      * If the publication is for the expected party id, update the node and party id mappings and
      * start a validation future for the hinTS key.
      *
-     * @param initialCrs
+     * @param initialCrs  the initial CRS
      * @param publication the publication
      */
     private void maybeUpdateForHintsKey(final Bytes initialCrs, @NonNull final HintsKeyPublication publication) {
@@ -596,11 +614,15 @@ public class HintsControllerImpl implements HintsController {
     private CompletableFuture<Validation> validationFuture(
             final Bytes crs, final int partyId, @NonNull final Bytes hintsKey) {
         return CompletableFuture.supplyAsync(
-                () -> {
-                    final var isValid = library.validateHintsKey(crs, hintsKey, partyId, numParties);
-                    return new Validation(partyId, hintsKey, isValid);
-                },
-                executor);
+                        () -> {
+                            final var isValid = library.validateHintsKey(crs, hintsKey, partyId, numParties);
+                            return new Validation(partyId, hintsKey, isValid);
+                        },
+                        executor)
+                .exceptionally(t -> {
+                    log.error("Failed to validate hints key", t);
+                    return new Validation(partyId, hintsKey, false);
+                });
     }
 
     /**
@@ -628,15 +650,20 @@ public class HintsControllerImpl implements HintsController {
         if (publicationFuture == null && weights.targetIncludes(selfId) && !nodePartyIds.containsKey(selfId)) {
             final int selfPartyId = expectedPartyId(selfId);
             publicationFuture = CompletableFuture.runAsync(
-                    () -> {
-                        log.info("Starting computing hinTS key for construction ");
-                        final var hints = library.computeHints(crs, blsKeyPair.privateKey(), selfPartyId, numParties);
-                        log.info("Submitting hinTS key for construction ");
-                        submissions
-                                .submitHintsKey(selfPartyId, numParties, hints)
-                                .join();
-                    },
-                    executor);
+                            () -> {
+                                log.info("Starting computing hinTS key for construction ");
+                                final var hints =
+                                        library.computeHints(crs, blsKeyPair.privateKey(), selfPartyId, numParties);
+                                log.info("Submitting hinTS key for construction ");
+                                submissions
+                                        .submitHintsKey(selfPartyId, numParties, hints)
+                                        .join();
+                            },
+                            executor)
+                    .exceptionally(t -> {
+                        log.error("Failed to publish hinTS key", t);
+                        return null;
+                    });
         }
     }
 
@@ -648,46 +675,51 @@ public class HintsControllerImpl implements HintsController {
      */
     private CompletableFuture<Void> startPreprocessingVoteFuture(@NonNull final Instant cutoff, final Bytes crs) {
         return CompletableFuture.runAsync(
-                () -> {
-                    // IMPORTANT: since we only start this future when we have a preprocessing start
-                    // time, there is no risk of CME with handle thread running addKeyPublication()
-                    final var hintKeys = validationFutures.headMap(cutoff, true).values().stream()
-                            .map(CompletableFuture::join)
-                            .filter(Validation::isValid)
-                            .collect(toMap(Validation::partyId, Validation::hintsKey, (a, b) -> a, TreeMap::new));
-                    final var aggregatedWeights = nodePartyIds.entrySet().stream()
-                            .filter(entry -> hintKeys.containsKey(entry.getValue()))
-                            .collect(toMap(
-                                    Map.Entry::getValue,
-                                    entry -> weights.targetWeightOf(entry.getKey()),
-                                    (a, b) -> a,
-                                    TreeMap::new));
-                    final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
-                    final var preprocessedKeys = PreprocessedKeys.newBuilder()
-                            .verificationKey(Bytes.wrap(output.verificationKey()))
-                            .aggregationKey(Bytes.wrap(output.aggregationKey()))
-                            .build();
-                    // Prefer to vote for a congruent node's preprocessed keys if one exists
-                    long congruentNodeId = -1;
-                    for (final var entry : votes.entrySet()) {
-                        if (entry.getValue().preprocessedKeysOrThrow().equals(preprocessedKeys)) {
-                            congruentNodeId = entry.getKey();
-                            break;
-                        }
-                    }
-                    if (congruentNodeId != -1) {
-                        log.info("Voting for congruent node's preprocessed keys: {}", congruentNodeId);
-                        submissions
-                                .submitHintsVote(construction.constructionId(), congruentNodeId)
-                                .join();
-                    } else {
-                        log.info("Voting for own preprocessed keys");
-                        submissions
-                                .submitHintsVote(construction.constructionId(), preprocessedKeys)
-                                .join();
-                    }
-                },
-                executor);
+                        () -> {
+                            // IMPORTANT: since we only start this future when we have a preprocessing start
+                            // time, there is no risk of CME with handle thread running addKeyPublication()
+                            final var hintKeys = validationFutures.headMap(cutoff, true).values().stream()
+                                    .map(CompletableFuture::join)
+                                    .filter(Validation::isValid)
+                                    .collect(toMap(
+                                            Validation::partyId, Validation::hintsKey, (a, b) -> a, TreeMap::new));
+                            final var aggregatedWeights = nodePartyIds.entrySet().stream()
+                                    .filter(entry -> hintKeys.containsKey(entry.getValue()))
+                                    .collect(toMap(
+                                            Map.Entry::getValue,
+                                            entry -> weights.targetWeightOf(entry.getKey()),
+                                            (a, b) -> a,
+                                            TreeMap::new));
+                            final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
+                            final var preprocessedKeys = PreprocessedKeys.newBuilder()
+                                    .verificationKey(Bytes.wrap(output.verificationKey()))
+                                    .aggregationKey(Bytes.wrap(output.aggregationKey()))
+                                    .build();
+                            // Prefer to vote for a congruent node's preprocessed keys if one exists
+                            long congruentNodeId = -1;
+                            for (final var entry : votes.entrySet()) {
+                                if (entry.getValue().preprocessedKeysOrThrow().equals(preprocessedKeys)) {
+                                    congruentNodeId = entry.getKey();
+                                    break;
+                                }
+                            }
+                            if (congruentNodeId != -1) {
+                                log.info("Voting for congruent node's preprocessed keys: {}", congruentNodeId);
+                                submissions
+                                        .submitHintsVote(construction.constructionId(), congruentNodeId)
+                                        .join();
+                            } else {
+                                log.info("Voting for own preprocessed keys");
+                                submissions
+                                        .submitHintsVote(construction.constructionId(), preprocessedKeys)
+                                        .join();
+                            }
+                        },
+                        executor)
+                .exceptionally(t -> {
+                    log.error("Failed to start preprocessing vote", t);
+                    return null;
+                });
     }
 
     @VisibleForTesting
