@@ -18,6 +18,11 @@ public interface BlockItemWriter {
     void openBlock(long blockNumber);
 
     /**
+     * Writes a serialized block header to the destination stream.
+     */
+    void writeBlockHeaderItem(@NonNull Bytes bytes);
+
+    /**
      * Writes a serialized item to the destination stream.
      *
      * @param bytes the serialized item to write

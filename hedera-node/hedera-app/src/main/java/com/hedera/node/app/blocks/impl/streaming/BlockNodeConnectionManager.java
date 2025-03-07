@@ -185,6 +185,59 @@ public class BlockNodeConnectionManager {
         }
     }
 
+    public void streamBlockHeaderToConnections(long blockNumber, @NonNull Bytes blockHeader) {
+        // Get currently active connections
+        List<BlockNodeConnection> connectionsToStream;
+        synchronized (connectionLock) {
+            connectionsToStream = activeConnections.values().stream()
+                    .filter(BlockNodeConnection::isActive)
+                    .toList();
+        }
+
+        if (connectionsToStream.isEmpty()) {
+            logger.info("No active connections to stream block header for block {}", blockNumber);
+            return;
+        }
+
+        logger.info(
+                "Streaming block header for block {} to {} active connections",
+                blockNumber,
+                connectionsToStream.size());
+
+        // Create publish stream request
+        final PublishStreamRequest request;
+        try {
+            request = PublishStreamRequest.newBuilder()
+                    .setBlockItems(BlockItemSet.newBuilder()
+                            .addBlockItems(
+                                    com.hedera.hapi.block.stream.protoc.BlockItem.parseFrom(blockHeader.toByteArray()))
+                            .build())
+                    .build();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        // Stream header to each connection
+        for (BlockNodeConnection connection : connectionsToStream) {
+            final var connectionNodeConfig = connection.getNodeConfig();
+            try {
+                connection.sendRequest(request);
+                logger.info(
+                        "Successfully streamed block header for block {} to {}:{}",
+                        blockNumber,
+                        connectionNodeConfig.address(),
+                        connectionNodeConfig.port());
+            } catch (Exception e) {
+                logger.error(
+                        "Failed to stream block header for block {} to {}:{}",
+                        blockNumber,
+                        connectionNodeConfig.address(),
+                        connectionNodeConfig.port(),
+                        e);
+            }
+        }
+    }
+
     /**
      * Initiates the streaming of a block to all active connections.
      *
@@ -192,6 +245,16 @@ public class BlockNodeConnectionManager {
      */
     public void startStreamingBlock(@NonNull BlockState block) {
         streamingExecutor.execute(() -> streamBlockToConnections(block));
+    }
+
+    /**
+     * Initiates the streaming of a block header to all active connections.
+     *
+     * @param blockNumber the block number
+     * @param blockHeader the block header to be streamed
+     */
+    public void startStreamingBlockHeader(long blockNumber, @NonNull Bytes blockHeader) {
+        streamingExecutor.execute(() -> streamBlockHeaderToConnections(blockNumber, blockHeader));
     }
 
     /**

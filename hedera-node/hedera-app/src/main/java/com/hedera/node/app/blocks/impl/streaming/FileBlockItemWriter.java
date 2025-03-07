@@ -10,6 +10,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -130,6 +131,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
         if (logger.isDebugEnabled()) {
             logger.debug("Started new block in FileBlockItemWriter {}", blockNumber);
         }
+    }
+
+    @Override
+    public void writeBlockHeaderItem(@NonNull Bytes bytes) {
+        throw new UnsupportedOperationException("writeBlockHeaderItem is not supported in this implementation");
     }
 
     @Override
