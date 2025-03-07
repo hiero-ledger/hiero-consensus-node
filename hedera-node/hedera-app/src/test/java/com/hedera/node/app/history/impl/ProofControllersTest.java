@@ -41,9 +41,6 @@ class ProofControllersTest {
     private HistoryLibrary library;
 
     @Mock
-    private HistoryLibraryCodec codec;
-
-    @Mock
     private HistorySubmissions submissions;
 
     @Mock
@@ -65,8 +62,8 @@ class ProofControllersTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ProofControllers(
-                executor, keyAccessor, library, codec, submissions, selfNodeInfoSupplier, proofConsumer);
+        subject =
+                new ProofControllers(executor, keyAccessor, library, submissions, selfNodeInfoSupplier, proofConsumer);
     }
 
     @Test

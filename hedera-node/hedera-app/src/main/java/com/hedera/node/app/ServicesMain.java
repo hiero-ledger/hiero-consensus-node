@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
-import static com.hedera.node.app.history.impl.HistoryLibraryCodecImpl.HISTORY_LIBRARY_CODEC;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
@@ -398,12 +397,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 (appContext, bootstrapConfig) -> new HintsServiceImpl(
                         metrics, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl(), bootstrapConfig),
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
-                        metrics,
-                        ForkJoinPool.commonPool(),
-                        appContext,
-                        new HistoryLibraryImpl(),
-                        HISTORY_LIBRARY_CODEC,
-                        bootstrapConfig),
+                        metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
                 TssBlockHashSigner::new,
                 metrics,
                 platformStateFacade);

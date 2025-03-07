@@ -4,7 +4,6 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
-import com.hedera.node.app.history.impl.HistoryLibraryCodecImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.roster.ActiveRosters;
@@ -30,7 +29,6 @@ public class FakeHistoryService implements HistoryService {
                 pendingHintsSubmissions::offer,
                 appContext,
                 new HistoryLibraryImpl(),
-                HistoryLibraryCodecImpl.HISTORY_LIBRARY_CODEC,
                 bootstrapConfig);
     }
 
@@ -45,8 +43,9 @@ public class FakeHistoryService implements HistoryService {
             @Nullable final Bytes currentMetadata,
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
-        delegate.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig);
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive) {
+        delegate.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig, isActive);
     }
 
     @NonNull

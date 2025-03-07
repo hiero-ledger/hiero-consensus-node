@@ -3,6 +3,7 @@ package com.hedera.node.app.history.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.tss.TssKeyPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -12,12 +13,8 @@ import javax.inject.Singleton;
 
 @Singleton
 public class ProofKeysAccessorImpl implements ProofKeysAccessor {
-    private static final Bytes FAKE_SCHNORR_PRIVATE_KEY = Bytes.wrap("FAKE_SCHNORR_PRIVATE_KEY");
-    private static final Bytes FAKE_SCHNORR_PUBLIC_KEY = Bytes.wrap("FAKE_SCHNORR_PUBLIC_KEY");
-    private static final TssKeyPair FAKE_SCHNORR_KEY_PAIR =
-            new TssKeyPair(FAKE_SCHNORR_PRIVATE_KEY, FAKE_SCHNORR_PUBLIC_KEY);
-
     private final HistoryLibrary library;
+    private SigningAndVerifyingSchnorrKeys schnorrKeyPair;
 
     @Inject
     public ProofKeysAccessorImpl(@NonNull final HistoryLibrary library) {
@@ -26,11 +23,12 @@ public class ProofKeysAccessorImpl implements ProofKeysAccessor {
 
     @Override
     public Bytes sign(final long constructionId, @NonNull final Bytes message) {
-        return library.signSchnorr(message, FAKE_SCHNORR_PRIVATE_KEY);
+        return library.signSchnorr(message, Bytes.wrap(schnorrKeyPair.signingKey()));
     }
 
     @Override
     public TssKeyPair getOrCreateSchnorrKeyPair(final long constructionId) {
-        return FAKE_SCHNORR_KEY_PAIR;
+        schnorrKeyPair = library.newSchnorrKeyPair();
+        return new TssKeyPair(Bytes.wrap(schnorrKeyPair.signingKey()), Bytes.wrap(schnorrKeyPair.verifyingKey()));
     }
 }
