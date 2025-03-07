@@ -42,6 +42,7 @@ public class BlockNodeConnectionManager {
     private static final Logger logger = LogManager.getLogger(BlockNodeConnectionManager.class);
     private static final String GRPC_END_POINT =
             BlockStreamServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
+    private static final int ACK_THRESHOLD = 1;
 
     private final Map<BlockNodeConfig, BlockNodeConnection> activeConnections = new ConcurrentHashMap<>();
 
@@ -64,8 +65,8 @@ public class BlockNodeConnectionManager {
         this.blockNodeConfigurations = new BlockNodeConfigExtractor(blockStreamConfig.blockNodeConnectionFileDir());
 
         // Initialize the block acknowledgment tracker
-        this.acknowledgmentTracker = new BlockAcknowledgementTracker(
-                blockNodeConfigurations.getAllNodes().size(), blockStreamConfig.deleteFilesOnDisk());
+        this.acknowledgmentTracker =
+                new BlockAcknowledgementTracker(ACK_THRESHOLD, blockStreamConfig.deleteFilesOnDisk());
     }
 
     /**

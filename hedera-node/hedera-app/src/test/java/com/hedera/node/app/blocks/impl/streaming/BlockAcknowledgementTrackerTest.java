@@ -25,7 +25,7 @@ class BlockAcknowledgementTrackerTest {
     private static final String NODE1 = "node1:50211";
     private static final String NODE2 = "node2:50211";
     private static final String NODE3 = "node3:50211";
-    private static final int REQUIRED_ACKNOWLEDGEMENTS = 2;
+    private static final int REQUIRED_ACKNOWLEDGEMENTS = 1;
 
     private BlockAcknowledgementTracker blockAcknowledgementTracker;
 
@@ -98,19 +98,6 @@ class BlockAcknowledgementTrackerTest {
     }
 
     @Test
-    void testTrackerDoesNotDeleteFilesOnDiskWhenInsufficientAcks() {
-        blockAcknowledgementTracker = spy(new BlockAcknowledgementTracker(REQUIRED_ACKNOWLEDGEMENTS, true));
-        blockAcknowledgementTracker.trackAcknowledgment(NODE1, 1L);
-
-        verify(blockAcknowledgementTracker, times(1)).checkBlockDeletion(1L);
-        verify(blockAcknowledgementTracker, times(0)).onBlockReadyForCleanup(1L);
-
-        assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE1)).isEqualTo(1L);
-        assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE2)).isEqualTo(0L);
-        assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE3)).isEqualTo(0L);
-    }
-
-    @Test
     void shouldTestDifferentBlocksForDifferentNodes() {
         blockAcknowledgementTracker = spy(new BlockAcknowledgementTracker(REQUIRED_ACKNOWLEDGEMENTS, true));
 
@@ -121,7 +108,7 @@ class BlockAcknowledgementTrackerTest {
 
         // then
         verify(blockAcknowledgementTracker, times(3)).checkBlockDeletion(anyLong());
-        verify(blockAcknowledgementTracker, times(0)).onBlockReadyForCleanup(anyLong());
+        verify(blockAcknowledgementTracker, times(3)).onBlockReadyForCleanup(anyLong());
 
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE1)).isEqualTo(1L);
         assertThat(blockAcknowledgementTracker.getLastVerifiedBlock(NODE2)).isEqualTo(2L);
