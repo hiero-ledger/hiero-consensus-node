@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.spi.key;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+package com.hedera.node.app.hapi.utils.keys;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
@@ -13,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -36,14 +34,14 @@ class KeyComparatorTest {
             final String caseName, final Integer expectedValue, final Key lValue, final Key rValue) {
         final KeyComparator subject = new KeyComparator();
         final Integer actualResult = Integer.valueOf(subject.compare(lValue, rValue));
-        assertThat(actualResult)
+        Assertions.assertThat(actualResult)
                 .withFailMessage(CASE_FAIL_MESSAGE, caseName, expectedValue, lValue, rValue, actualResult)
                 .isEqualTo(expectedValue);
         // Verify forward and reverse comparison are consistent, otherwise the comparator order is unstable.
         // requirement: compare(a,b) === -compare(b,a)
         final int inverseResult = subject.compare(rValue, lValue);
         final int inverseExpected = -(expectedValue.intValue());
-        assertThat(inverseResult)
+        Assertions.assertThat(inverseResult)
                 .withFailMessage(
                         CASE_FAIL_MESSAGE, "Inverse-" + caseName, inverseExpected, rValue, lValue, inverseResult)
                 .isEqualTo(inverseExpected);
@@ -56,14 +54,14 @@ class KeyComparatorTest {
         final KeyComparator subject = new KeyComparator();
         final int actualResult = subject.compare(lValue, rValue);
         final int expected = expectedValue.intValue();
-        assertThat(actualResult)
+        Assertions.assertThat(actualResult)
                 .withFailMessage(CASE_FAIL_MESSAGE, caseName, expected, lValue, rValue, actualResult)
                 .isEqualTo(expectedValue);
         // Verify forward and reverse comparison are consistent, otherwise the comparator order is unstable.
         // requirement: compare(a,b) == -compare(b,a)
         final int inverseResult = subject.compare(rValue, lValue);
         final int inverseExpected = -(expectedValue.intValue());
-        assertThat(inverseResult)
+        Assertions.assertThat(inverseResult)
                 .withFailMessage(
                         CASE_FAIL_MESSAGE, "Inverse-" + caseName, inverseExpected, rValue, lValue, inverseResult)
                 .isEqualTo(inverseExpected);
@@ -73,7 +71,8 @@ class KeyComparatorTest {
     @MethodSource("generateAllUnsupportedTypes")
     void verifyUnsupportedTypes(final String caseName, final Key lValue, final Key rValue) {
         final KeyComparator subject = new KeyComparator();
-        assertThatThrownBy(() -> subject.compare(lValue, rValue)).isInstanceOf(UnsupportedOperationException.class);
+        Assertions.assertThatThrownBy(() -> subject.compare(lValue, rValue))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
