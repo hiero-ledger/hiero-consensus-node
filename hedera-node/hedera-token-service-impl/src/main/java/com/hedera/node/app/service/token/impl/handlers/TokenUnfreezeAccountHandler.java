@@ -6,7 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -23,11 +23,10 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -47,22 +46,22 @@ public class TokenUnfreezeAccountHandler implements TransactionHandler {
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var op = context.body().tokenUnfreezeOrThrow();
 
         final var tokenStore = context.createStore(ReadableTokenStore.class);
         final var tokenMeta = tokenStore.getTokenMeta(op.tokenOrElse(TokenID.DEFAULT));
-        if (tokenMeta == null) throw new PreCheckException(INVALID_TOKEN_ID);
+        if (tokenMeta == null) throw new WorkflowException(INVALID_TOKEN_ID);
         if (tokenMeta.hasFreezeKey()) {
             context.requireKey(tokenMeta.freezeKey());
         } else {
-            throw new PreCheckException(TOKEN_HAS_NO_FREEZE_KEY);
+            throw new WorkflowException(TOKEN_HAS_NO_FREEZE_KEY);
         }
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         requireNonNull(context);
 
         final var op = context.body().tokenUnfreezeOrThrow();
@@ -82,16 +81,16 @@ public class TokenUnfreezeAccountHandler implements TransactionHandler {
      * Performs checks independent of state or context.
      */
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.tokenUnfreezeOrThrow();
         if (!op.hasToken()) {
-            throw new PreCheckException(INVALID_TOKEN_ID);
+            throw new WorkflowException(INVALID_TOKEN_ID);
         }
 
         if (!op.hasAccount()) {
-            throw new PreCheckException(INVALID_ACCOUNT_ID);
+            throw new WorkflowException(INVALID_ACCOUNT_ID);
         }
     }
 
@@ -107,7 +106,7 @@ public class TokenUnfreezeAccountHandler implements TransactionHandler {
             @NonNull final ReadableTokenStore tokenStore,
             @NonNull final WritableTokenRelationStore tokenRelStore,
             @NonNull final ExpiryValidator expiryValidator)
-            throws HandleException {
+            throws WorkflowException {
         // Check that the token meta exists
         final var tokenId = op.tokenOrElse(TokenID.DEFAULT);
 

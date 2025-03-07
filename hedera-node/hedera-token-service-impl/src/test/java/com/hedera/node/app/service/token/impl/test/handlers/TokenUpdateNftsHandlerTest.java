@@ -47,10 +47,9 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -192,7 +191,7 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
                 .newNftUpdateTransactionBody(nonFungibleTokenId, null, serialNumbers.toArray(new Long[0]));
         given(handleContext.body()).willReturn(txn);
         assertThatThrownBy(() -> subject.handle(handleContext), "Invalid NFT serial number")
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_TOKEN_NFT_SERIAL_NUMBER));
     }
 
@@ -204,7 +203,7 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
                 .newNftUpdateTransactionBody(nonFungibleTokenId, null, serialNumbers.toArray(new Long[0]));
         given(handleContext.body()).willReturn(txn);
         assertThatThrownBy(() -> subject.handle(handleContext), "Non-existing NFT serial number")
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_NFT_ID));
     }
 
@@ -241,12 +240,12 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
         when(readableTokenStore.get(TokenID.DEFAULT)).thenReturn(null);
 
         Assertions.assertThatThrownBy(() -> subject.preHandle(preHandleContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_TOKEN_ID));
     }
 
     @Test
-    void preHandle_WhenTokenHasMetadataKeySerialsOutsideTreasury() throws PreCheckException {
+    void preHandle_WhenTokenHasMetadataKeySerialsOutsideTreasury() {
         when(preHandleContext.body()).thenReturn(transactionBody);
         when(transactionBody.tokenUpdateNftsOrThrow()).thenReturn(tokenUpdateNftsTransactionBody);
         when(tokenUpdateNftsTransactionBody.tokenOrElse(TokenID.DEFAULT)).thenReturn(nonFungibleTokenId);
@@ -279,12 +278,12 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
         when(token.hasMetadataKey()).thenReturn(false);
 
         Assertions.assertThatThrownBy(() -> subject.preHandle(preHandleContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TOKEN_HAS_NO_METADATA_KEY));
     }
 
     @Test
-    void preHandle_WhenTokenHasMetadataKeyAndSupplyKey() throws PreCheckException {
+    void preHandle_WhenTokenHasMetadataKeyAndSupplyKey() {
         when(preHandleContext.body()).thenReturn(transactionBody);
         when(transactionBody.tokenUpdateNftsOrThrow()).thenReturn(tokenUpdateNftsTransactionBody);
         when(tokenUpdateNftsTransactionBody.tokenOrElse(TokenID.DEFAULT)).thenReturn(nonFungibleTokenId);
@@ -299,7 +298,7 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
-    void preHandle_WhenTokenHasMetadataKeyOnly() throws PreCheckException {
+    void preHandle_WhenTokenHasMetadataKeyOnly() {
         when(preHandleContext.body()).thenReturn(transactionBody);
         when(transactionBody.tokenUpdateNftsOrThrow()).thenReturn(tokenUpdateNftsTransactionBody);
         when(tokenUpdateNftsTransactionBody.tokenOrElse(TokenID.DEFAULT)).thenReturn(nonFungibleTokenId);
@@ -314,7 +313,7 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
-    void preHandle_WhenTokenHasSupplyKeyOnly() throws PreCheckException {
+    void preHandle_WhenTokenHasSupplyKeyOnly() {
         when(preHandleContext.body()).thenReturn(transactionBody);
         when(transactionBody.tokenUpdateNftsOrThrow()).thenReturn(tokenUpdateNftsTransactionBody);
         when(tokenUpdateNftsTransactionBody.tokenOrElse(TokenID.DEFAULT)).thenReturn(nonFungibleTokenId);
@@ -339,7 +338,7 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
         when(token.hasSupplyKey()).thenReturn(false);
 
         Assertions.assertThatThrownBy(() -> subject.preHandle(preHandleContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TOKEN_HAS_NO_METADATA_OR_SUPPLY_KEY));
     }
 
@@ -372,7 +371,7 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
         mockContext(txn);
 
         Assertions.assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_NFT_ID));
     }
 

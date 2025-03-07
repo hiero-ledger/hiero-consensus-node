@@ -37,7 +37,7 @@ import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
@@ -124,7 +124,7 @@ class SolvencyPreCheckTest extends AppTestBase {
         @Test
         void testGetUnknownPayerAccountFails() {
             assertThatThrownBy(() -> subject.getPayerAccount(storeFactory, BOB.accountID()))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND));
         }
 
@@ -137,7 +137,7 @@ class SolvencyPreCheckTest extends AppTestBase {
 
             // then
             assertThatThrownBy(() -> subject.getPayerAccount(storeFactory, ALICE.accountID()))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(ResponseCodeEnum.PAYER_ACCOUNT_DELETED));
         }
 
@@ -150,7 +150,7 @@ class SolvencyPreCheckTest extends AppTestBase {
 
             // then
             assertThatThrownBy(() -> subject.getPayerAccount(storeFactory, ALICE.accountID()))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND));
         }
     }
@@ -233,7 +233,7 @@ class SolvencyPreCheckTest extends AppTestBase {
         }
 
         @Test
-        void testInsufficientBalanceOfExpiredAccountFails() throws PreCheckException {
+        void testInsufficientBalanceOfExpiredAccountFails() {
             // given
             final var txInfo = createTransactionInfo(
                     0,
@@ -243,12 +243,12 @@ class SolvencyPreCheckTest extends AppTestBase {
                             .cryptoCreateAccount(
                                     CryptoCreateTransactionBody.newBuilder().initialBalance(123L)));
             final var payer = ALICE.account().copyBuilder().tinybarBalance(0).build();
-            doThrow(new PreCheckException(ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL))
+            doThrow(new WorkflowException(ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL))
                     .when(expiryValidation)
                     .checkAccountExpiry(payer);
             // then
             assertThatThrownBy(() -> subject.checkSolvency(txInfo, payer, new Fees(0, 0, 0), INGEST))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL));
         }
     }

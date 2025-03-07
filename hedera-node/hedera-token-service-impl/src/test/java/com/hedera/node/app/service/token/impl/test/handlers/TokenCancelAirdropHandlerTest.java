@@ -30,7 +30,7 @@ import com.hedera.node.app.service.token.impl.test.handlers.util.TokenHandlerTes
 import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.util.Collections;
@@ -135,7 +135,7 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
         when(storeFactory.writableStore(WritableAirdropStore.class)).thenReturn(airdropStore);
 
         // Act
-        final var response = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var response = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
 
         // Assert
         assertEquals(INVALID_PENDING_AIRDROP_ID, response.getStatus());
@@ -156,7 +156,7 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
         when(storeFactory.writableStore(WritableAirdropStore.class)).thenReturn(airdropStore);
 
         // Act
-        final var response = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var response = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
 
         // Assert
         assertEquals(INVALID_PENDING_AIRDROP_ID, response.getStatus());
@@ -178,7 +178,7 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
         when(storeFactory.writableStore(WritableAirdropStore.class)).thenReturn(airdropStore);
 
         // Act
-        final var response = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var response = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
 
         // Assert
         assertEquals(INVALID_PENDING_AIRDROP_ID, response.getStatus());
@@ -199,7 +199,7 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
             when(handleContext.body()).thenReturn(transactionBody);
 
             // Act
-            final var response = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+            final var response = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
 
             // Assert
             assertEquals(PENDING_AIRDROP_ID_LIST_TOO_LONG, response.getStatus());
@@ -226,7 +226,7 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
             when(handleContext.configuration()).thenReturn(testConfig);
 
             // Act
-            final var response = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+            final var response = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
 
             // Assert
             assertEquals(NOT_SUPPORTED, response.getStatus());

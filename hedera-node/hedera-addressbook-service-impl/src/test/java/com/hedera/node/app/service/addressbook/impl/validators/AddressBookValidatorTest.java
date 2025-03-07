@@ -7,7 +7,7 @@ import static com.hedera.node.app.service.addressbook.impl.test.handlers.Address
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -34,7 +34,7 @@ class AddressBookValidatorTest {
         final var baos = new ByteArrayOutputStream();
         writeCertificatePemFile(x509Cert.getEncoded(), baos);
         final var e =
-                assertThrows(PreCheckException.class, () -> validateX509Certificate(Bytes.wrap(baos.toByteArray())));
-        assertEquals(INVALID_GOSSIP_CA_CERTIFICATE, e.responseCode());
+                assertThrows(WorkflowException.class, () -> validateX509Certificate(Bytes.wrap(baos.toByteArray())));
+        assertEquals(INVALID_GOSSIP_CA_CERTIFICATE, e.getStatus());
     }
 }

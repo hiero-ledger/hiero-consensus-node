@@ -4,8 +4,7 @@ package com.hedera.node.app.service.token.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.txnEstimateFactory;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -25,11 +24,10 @@ import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -50,13 +48,13 @@ public class TokenDeleteHandler implements TransactionHandler {
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var op = context.body().tokenDeletionOrThrow();
         final var tokenId = op.tokenOrElse(TokenID.DEFAULT);
         final var tokenStore = context.createStore(ReadableTokenStore.class);
         final var tokenMetadata = tokenStore.getTokenMeta(tokenId);
-        if (tokenMetadata == null) throw new PreCheckException(INVALID_TOKEN_ID);
+        if (tokenMetadata == null) throw new WorkflowException(INVALID_TOKEN_ID);
         // we will fail in handle() if token has no admin key (no need to fail here)
         if (tokenMetadata.hasAdminKey()) {
             context.requireKey(tokenMetadata.adminKey());
@@ -64,16 +62,16 @@ public class TokenDeleteHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.tokenDeletionOrThrow();
 
-        validateTruePreCheck(op.hasToken(), INVALID_TOKEN_ID);
+        validateTrue(op.hasToken(), INVALID_TOKEN_ID);
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         final var storeFactory = context.storeFactory();
         final var tokenStore = storeFactory.writableStore(WritableTokenStore.class);
         final var accountStore = storeFactory.writableStore(WritableAccountStore.class);

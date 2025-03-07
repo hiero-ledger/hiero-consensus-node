@@ -7,7 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessful;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -17,10 +17,9 @@ import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -49,7 +48,7 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         // Create the transaction-scoped component
         final var component = getTransactionComponent(context, CONTRACT_CALL);
 
@@ -68,20 +67,20 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         try {
             final var txn = context.body();
             final var op = txn.contractCallOrThrow();
             mustExist(op.contractID(), INVALID_CONTRACT_ID);
             if (op.contractID().hasEvmAddress()) {
-                validateTruePreCheck(
+                validateTrue(
                         op.contractID().evmAddressOrThrow().length() == EVM_ADDRESS_LENGTH_AS_INT, INVALID_CONTRACT_ID);
             }
 
             final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
                     Bytes.wrap(op.functionParameters().toByteArray()), false);
-            validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
+            validateTrue(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CALL, e);
             throw e;

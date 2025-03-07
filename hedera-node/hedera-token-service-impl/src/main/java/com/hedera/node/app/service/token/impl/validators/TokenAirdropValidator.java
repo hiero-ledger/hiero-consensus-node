@@ -14,8 +14,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZ
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsableForAliasedId;
 import static com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator.validateTokenTransfers;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -33,7 +32,7 @@ import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFeeExemptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -55,11 +54,11 @@ public class TokenAirdropValidator {
      * Performs pure checks that validates basic fields in the token airdrop transaction.
      *
      * @param op the token airdrop transaction body
-     * @throws PreCheckException if any of the checks fail
+     * @throws WorkflowException if any of the checks fail
      */
-    public void pureChecks(@NonNull final TokenAirdropTransactionBody op) throws PreCheckException {
+    public void pureChecks(@NonNull final TokenAirdropTransactionBody op) {
         final var tokenTransfers = op.tokenTransfers();
-        validateTruePreCheck(!tokenTransfers.isEmpty(), EMPTY_TOKEN_TRANSFER_BODY);
+        validateTrue(!tokenTransfers.isEmpty(), EMPTY_TOKEN_TRANSFER_BODY);
         // If there is not exactly one debit we throw an exception
         for (var tokenTransfer : tokenTransfers) {
             if (tokenTransfer.transfers().isEmpty()) {
@@ -70,7 +69,7 @@ public class TokenAirdropValidator {
                     .filter(fungibleTransfer -> fungibleTransfer.amount() < 0)
                     .toList();
             if (negativeTransfers.size() != 1) {
-                throw new PreCheckException(INVALID_TRANSACTION_BODY);
+                throw new WorkflowException(INVALID_TRANSACTION_BODY);
             }
         }
         validateTokenTransfers(op.tokenTransfers(), CryptoTransferValidator.AllowanceStrategy.ALLOWANCES_REJECTED);

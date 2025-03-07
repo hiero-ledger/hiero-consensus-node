@@ -8,8 +8,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -30,8 +30,8 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.workflows.FreeQueryHandler;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.TokensConfig;
@@ -84,7 +84,7 @@ public class CryptoGetAccountBalanceHandler extends FreeQueryHandler {
     @Override
     // contract.deleted() won't throw NPE since we are checking it for null the line before
     @SuppressWarnings("java:S2259")
-    public void validate(@NonNull final QueryContext context) throws PreCheckException {
+    public void validate(@NonNull final QueryContext context) {
         requireNonNull(context);
         final var query = context.query();
         final var accountStore = context.createStore(ReadableAccountStore.class);
@@ -94,34 +94,32 @@ public class CryptoGetAccountBalanceHandler extends FreeQueryHandler {
         } else if (op.hasContractID()) {
             validateContractId(op, accountStore);
         } else {
-            throw new PreCheckException(INVALID_ACCOUNT_ID);
+            throw new WorkflowException(INVALID_ACCOUNT_ID);
         }
     }
 
-    private void validateContractId(CryptoGetAccountBalanceQuery op, ReadableAccountStore accountStore)
-            throws PreCheckException {
+    private void validateContractId(CryptoGetAccountBalanceQuery op, ReadableAccountStore accountStore) {
         mustExist(op.contractID(), INVALID_CONTRACT_ID);
         final ContractID contractId = (ContractID) op.balanceSource().value();
-        validateTruePreCheck(contractId.shardNum() == hederaConfig.shard(), INVALID_CONTRACT_ID);
-        validateTruePreCheck(contractId.realmNum() == hederaConfig.realm(), INVALID_CONTRACT_ID);
-        validateTruePreCheck(
+        validateTrue(contractId.shardNum() == hederaConfig.shard(), INVALID_CONTRACT_ID);
+        validateTrue(contractId.realmNum() == hederaConfig.realm(), INVALID_CONTRACT_ID);
+        validateTrue(
                 (contractId.hasContractNum() && contractId.contractNumOrThrow() >= 0) || contractId.hasEvmAddress(),
                 INVALID_CONTRACT_ID);
         final var contract = accountStore.getContractById(requireNonNull(op.contractID()));
-        validateFalsePreCheck(contract == null, INVALID_CONTRACT_ID);
-        validateTruePreCheck(contract.smartContract(), INVALID_CONTRACT_ID);
-        validateFalsePreCheck(contract.deleted(), CONTRACT_DELETED);
+        validateFalse(contract == null, INVALID_CONTRACT_ID);
+        validateTrue(contract.smartContract(), INVALID_CONTRACT_ID);
+        validateFalse(contract.deleted(), CONTRACT_DELETED);
     }
 
-    private void validateAccountId(CryptoGetAccountBalanceQuery op, ReadableAccountStore accountStore)
-            throws PreCheckException {
+    private void validateAccountId(CryptoGetAccountBalanceQuery op, ReadableAccountStore accountStore) {
         AccountID accountId = (AccountID) op.balanceSource().value();
-        validateTruePreCheck(accountId.shardNum() == hederaConfig.shard(), INVALID_ACCOUNT_ID);
-        validateTruePreCheck(accountId.realmNum() == hederaConfig.realm(), INVALID_ACCOUNT_ID);
+        validateTrue(accountId.shardNum() == hederaConfig.shard(), INVALID_ACCOUNT_ID);
+        validateTrue(accountId.realmNum() == hederaConfig.realm(), INVALID_ACCOUNT_ID);
         validateAccountID(accountId, INVALID_ACCOUNT_ID);
         final var account = accountStore.getAliasedAccountById(requireNonNull(op.accountID()));
-        validateFalsePreCheck(account == null, INVALID_ACCOUNT_ID);
-        validateFalsePreCheck(account.deleted(), ACCOUNT_DELETED);
+        validateFalse(account == null, INVALID_ACCOUNT_ID);
+        validateFalse(account.deleted(), ACCOUNT_DELETED);
     }
 
     @Override

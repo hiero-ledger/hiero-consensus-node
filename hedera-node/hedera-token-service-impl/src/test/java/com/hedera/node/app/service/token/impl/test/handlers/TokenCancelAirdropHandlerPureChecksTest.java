@@ -23,8 +23,8 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.impl.handlers.TokenCancelAirdropHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import java.util.Arrays;
 import java.util.Collections;
 import org.assertj.core.api.Assertions;
@@ -78,7 +78,7 @@ class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerTestBase
         given(pureChecksContext.body()).willReturn(txn);
 
         Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(PENDING_AIRDROP_ID_REPEATED));
     }
 
@@ -88,7 +88,7 @@ class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerTestBase
         given(pureChecksContext.body()).willReturn(txn);
 
         Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(PENDING_AIRDROP_ID_REPEATED));
     }
 
@@ -103,7 +103,7 @@ class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerTestBase
         given(pureChecksContext.body()).willReturn(txn);
 
         Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_PENDING_AIRDROP_ID));
     }
 
@@ -118,7 +118,7 @@ class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerTestBase
         given(pureChecksContext.body()).willReturn(txn);
 
         Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_PENDING_AIRDROP_ID));
     }
 
@@ -136,7 +136,7 @@ class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerTestBase
         given(pureChecksContext.body()).willReturn(txn);
 
         Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_TOKEN_NFT_SERIAL_NUMBER));
     }
 
@@ -182,7 +182,7 @@ class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerTestBase
         given(pureChecksContext.body()).willReturn(txn);
 
         Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(EMPTY_PENDING_AIRDROP_ID_LIST));
     }
 

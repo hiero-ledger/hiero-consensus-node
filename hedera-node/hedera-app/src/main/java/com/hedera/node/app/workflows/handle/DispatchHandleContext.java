@@ -40,9 +40,8 @@ import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -262,17 +261,16 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     @NonNull
     @Override
     public TransactionKeys allKeysForTransaction(
-            @NonNull final TransactionBody nestedTxn, @NonNull final AccountID payerForNested)
-            throws PreCheckException {
+            @NonNull final TransactionBody nestedTxn, @NonNull final AccountID payerForNested) {
         final var nestedPureChecksContext = new PureChecksContextImpl(nestedTxn, dispatcher);
         dispatcher.dispatchPureChecks(nestedPureChecksContext);
         final var nestedContext = new PreHandleContextImpl(
                 storeFactory.asReadOnly(), nestedTxn, payerForNested, configuration(), dispatcher, transactionChecker);
         try {
             dispatcher.dispatchPreHandle(nestedContext);
-        } catch (final PreCheckException ignored) {
+        } catch (final WorkflowException ignored) {
             // We must ignore/translate the exception here, as this is key gathering, not transaction validation.
-            throw new PreCheckException(UNRESOLVABLE_REQUIRED_SIGNERS);
+            throw new WorkflowException(UNRESOLVABLE_REQUIRED_SIGNERS);
         }
         return nestedContext;
     }
@@ -319,7 +317,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                 return Fees.FREE;
             }
         } catch (UnknownHederaFunctionality ex) {
-            throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
+            throw new WorkflowException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
 
         return dispatcher.dispatchComputeFees(new ChildFeeContextImpl(

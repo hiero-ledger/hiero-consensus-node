@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
@@ -72,8 +72,8 @@ class CertificatePemTest {
         writeCertificatePemFile(genPemPath, Bytes.wrap("anyString").toByteArray());
         final var exception = assertThrows(IOException.class, () -> readCertificatePemFile(genPemPath));
         assertThat(exception.getMessage()).contains("problem parsing cert: java.io.EOFException:");
-        final var msg = assertThrows(PreCheckException.class, () -> validateX509Certificate(Bytes.wrap("anyString")));
-        assertEquals(ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE, msg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> validateX509Certificate(Bytes.wrap("anyString")));
+        assertEquals(ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE, msg.getStatus());
     }
 
     @Test
@@ -84,10 +84,10 @@ class CertificatePemTest {
         assertEquals("problem parsing cert: java.io.IOException: unknown tag 13 encountered", exception.getMessage());
 
         final byte[] certBytes = Files.readAllBytes(pemFilePath);
-        final var msg = assertThrows(PreCheckException.class, () -> validateX509Certificate(Bytes.wrap(certBytes)));
-        assertEquals(ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE, msg.responseCode());
-        final var getmsg = assertThrows(PreCheckException.class, () -> getX509Certificate(Bytes.wrap(certBytes)));
-        assertEquals(ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE, getmsg.responseCode());
+        final var msg = assertThrows(WorkflowException.class, () -> validateX509Certificate(Bytes.wrap(certBytes)));
+        assertEquals(ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE, msg.getStatus());
+        final var getmsg = assertThrows(WorkflowException.class, () -> getX509Certificate(Bytes.wrap(certBytes)));
+        assertEquals(ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE, getmsg.getStatus());
     }
 
     @Test
@@ -106,7 +106,7 @@ class CertificatePemTest {
     }
 
     @Test
-    void getSameCertificateFromPemEncodingAndPemBytes() throws IOException, CertificateException, PreCheckException {
+    void getSameCertificateFromPemEncodingAndPemBytes() throws IOException, CertificateException {
         final var pemFileName = "goodX509.pem";
         final var pemFilePath = loadResourceFile(pemFileName);
         final var cert = readCertificatePemFile(pemFilePath);
@@ -140,15 +140,15 @@ class CertificatePemTest {
     /**
      * Parse X509Certificate bytes and get the X509Certificate object.
      * @param certBytes the Bytes to validate
-     * @throws PreCheckException if the certificate is invalid
+     * @throws WorkflowException if the certificate is invalid
      */
-    private static X509Certificate getX509Certificate(@NonNull Bytes certBytes) throws PreCheckException {
+    private static X509Certificate getX509Certificate(@NonNull Bytes certBytes) {
         X509Certificate cert;
         try {
             cert = (X509Certificate) CertificateFactory.getInstance("X.509")
                     .generateCertificate(new ByteArrayInputStream(certBytes.toByteArray()));
         } catch (final CertificateException e) {
-            throw new PreCheckException(INVALID_GOSSIP_CA_CERTIFICATE);
+            throw new WorkflowException(INVALID_GOSSIP_CA_CERTIFICATE);
         }
         return cert;
     }

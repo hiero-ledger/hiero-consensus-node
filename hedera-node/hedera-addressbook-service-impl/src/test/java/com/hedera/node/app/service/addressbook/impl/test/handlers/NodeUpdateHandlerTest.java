@@ -41,10 +41,9 @@ import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.cert.CertificateEncodingException;
@@ -96,8 +95,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     void nodeIdCannotNegative() {
         txn = new NodeUpdateBuilder().build();
         given(pureChecksContext.body()).willReturn(txn);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertThat(msg.responseCode()).isEqualTo(INVALID_NODE_ID);
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_NODE_ID);
     }
 
     @Test
@@ -109,8 +108,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withGossipCaCertificate(Bytes.EMPTY)
                 .build();
         given(pureChecksContext.body()).willReturn(txn);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertThat(msg.responseCode()).isEqualTo(INVALID_GOSSIP_CA_CERTIFICATE);
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_GOSSIP_CA_CERTIFICATE);
     }
 
     @Test
@@ -122,8 +121,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withGrpcCertificateHash(Bytes.EMPTY)
                 .build();
         given(pureChecksContext.body()).willReturn(txn);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertThat(msg.responseCode()).isEqualTo(INVALID_GRPC_CERTIFICATE_HASH);
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_GRPC_CERTIFICATE_HASH);
     }
 
     @Test
@@ -135,8 +134,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withAdminKey(invalidKey)
                 .build();
         given(pureChecksContext.body()).willReturn(txn);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertThat(msg.responseCode()).isEqualTo(INVALID_ADMIN_KEY);
+        final var msg = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_ADMIN_KEY);
     }
 
     @Test
@@ -165,7 +164,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
     }
 
@@ -183,7 +182,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID, msg.getStatus());
     }
 
@@ -202,7 +201,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_NODE_DESCRIPTION, msg.getStatus());
     }
 
@@ -219,7 +218,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_NODE_DESCRIPTION, msg.getStatus());
     }
 
@@ -232,7 +231,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .build();
         setupHandle();
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.GOSSIP_ENDPOINTS_EXCEEDED_LIMIT, msg.getStatus());
     }
 
@@ -245,7 +244,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .build();
         setupHandle();
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT, msg.getStatus());
     }
 
@@ -258,7 +257,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .build();
         setupHandle();
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.GOSSIP_ENDPOINT_CANNOT_HAVE_FQDN, msg.getStatus());
     }
 
@@ -271,7 +270,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .build();
         setupHandle();
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_ENDPOINT, msg.getStatus());
     }
 
@@ -284,7 +283,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .build();
         setupHandle();
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_ENDPOINT, msg.getStatus());
     }
 
@@ -303,7 +302,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.SERVICE_ENDPOINTS_EXCEEDED_LIMIT, msg.getStatus());
     }
 
@@ -323,7 +322,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.IP_FQDN_CANNOT_BE_SET_FOR_SAME_ENDPOINT, msg.getStatus());
     }
 
@@ -344,7 +343,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.FQDN_SIZE_TOO_LARGE, msg.getStatus());
     }
 
@@ -410,7 +409,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void preHandleRequiresAdminKeySigForNonAddressBookAdmin() throws PreCheckException {
+    void preHandleRequiresAdminKeySigForNonAddressBookAdmin() {
         txn = new NodeUpdateBuilder()
                 .withNodeId(nodeId.number())
                 .withAccountId(asAccount(0L, 0L, 53))
@@ -424,7 +423,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void preHandleFailedWhenAdminKeyInValid() throws PreCheckException {
+    void preHandleFailedWhenAdminKeyInValid() {
         txn = new NodeUpdateBuilder()
                 .withNodeId(nodeId.number())
                 .withAdminKey(invalidKey)
@@ -434,14 +433,14 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void preHandleFailedWhenNodeNotExist() throws PreCheckException {
+    void preHandleFailedWhenNodeNotExist() {
         txn = new NodeUpdateBuilder().withNodeId(2).build();
         final var context = setupPreHandle(true, txn);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_NODE_ID);
     }
 
     @Test
-    void preHandleFailedWhenNodeDeleted() throws PreCheckException {
+    void preHandleFailedWhenNodeDeleted() {
         givenValidNode(true);
         refreshStoresWithCurrentNodeInReadable();
         txn = new NodeUpdateBuilder().withNodeId(nodeId.number()).build();
@@ -450,7 +449,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void preHandleFailedWhenOldAdminKeyInValid() throws PreCheckException {
+    void preHandleFailedWhenOldAdminKeyInValid() {
         givenValidNodeWithAdminKey(invalidKey);
         refreshStoresWithCurrentNodeInReadable();
         txn = new NodeUpdateBuilder().withNodeId(nodeId.number()).build();
@@ -459,7 +458,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void preHandleFailedWhenAccountIdNotGood() throws PreCheckException {
+    void preHandleFailedWhenAccountIdNotGood() {
         txn = new NodeUpdateBuilder()
                 .withNodeId(nodeId.number())
                 .withAdminKey(key)
@@ -470,7 +469,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void preHandleFailedWhenAccountIdIsAlias() throws PreCheckException {
+    void preHandleFailedWhenAccountIdIsAlias() {
         txn = new NodeUpdateBuilder()
                 .withNodeId(nodeId.number())
                 .withAdminKey(key)
@@ -481,7 +480,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void preHandleFailedWhenUpdateAccountIdNotAllowed() throws PreCheckException {
+    void preHandleFailedWhenUpdateAccountIdNotAllowed() {
         txn = new NodeUpdateBuilder()
                 .withNodeId(nodeId.number())
                 .withAdminKey(key)
@@ -523,13 +522,12 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
     }
 
-    private PreHandleContext setupPreHandle(boolean updateAccountIdAllowed, TransactionBody txn)
-            throws PreCheckException {
+    private PreHandleContext setupPreHandle(boolean updateAccountIdAllowed, TransactionBody txn) {
         return setupPreHandle(updateAccountIdAllowed, txn, payerId);
     }
 
     private PreHandleContext setupPreHandle(
-            boolean updateAccountIdAllowed, TransactionBody txn, AccountID contextPayerId) throws PreCheckException {
+            boolean updateAccountIdAllowed, TransactionBody txn, AccountID contextPayerId) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.updateAccountIdAllowed", updateAccountIdAllowed)
                 .getOrCreateConfig();

@@ -74,7 +74,7 @@ class CryptoCreateValidatorTest {
     //        subject = new CryptoCreateValidator();
     //
     //        assertThrows(
-    //                HandleException.class,
+    //                WorkflowException.class,
     //                () -> subject.validateKey(
     //                        typicalHollowAccountCreation, attributeValidator, aliasConfig, accountStore, true));
     //    }
@@ -91,7 +91,7 @@ class CryptoCreateValidatorTest {
     //        subject = new CryptoCreateValidator();
     //
     //        assertThrows(
-    //                HandleException.class,
+    //                WorkflowException.class,
     //                () -> subject.validateKey(
     //                        typicalHollowAccountCreation, attributeValidator, aliasConfig, accountStore, false));
     //    }

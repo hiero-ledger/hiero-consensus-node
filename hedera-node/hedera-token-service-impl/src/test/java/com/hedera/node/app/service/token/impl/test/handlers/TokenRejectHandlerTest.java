@@ -32,9 +32,8 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -183,7 +182,7 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
         final var context = mockContext(txn);
 
         Assertions.assertThatThrownBy(() -> subject.handle(context))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED));
     }
 
@@ -193,7 +192,7 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
         given(pureChecksContext.body()).willReturn(txn);
 
         Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TOKEN_REFERENCE_REPEATED));
     }
 
@@ -209,7 +208,7 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
         given(pureChecksContext.body()).willReturn(txn);
 
         Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_TOKEN_NFT_SERIAL_NUMBER));
     }
 
@@ -224,7 +223,7 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
         given(pureChecksContext.body()).willReturn(txn);
 
         Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(EMPTY_TOKEN_REFERENCE_LIST));
     }
 

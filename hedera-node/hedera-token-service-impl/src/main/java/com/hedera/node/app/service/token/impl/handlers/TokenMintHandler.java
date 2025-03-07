@@ -15,10 +15,8 @@ import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.MAX_SERIAL_NO_ALLOWED;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -43,11 +41,10 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -75,31 +72,31 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.tokenMintOrThrow();
         final var tokenStore = context.createStore(ReadableTokenStore.class);
         final var tokenMeta = tokenStore.getTokenMeta(op.tokenOrElse(TokenID.DEFAULT));
-        if (tokenMeta == null) throw new PreCheckException(INVALID_TOKEN_ID);
+        if (tokenMeta == null) throw new WorkflowException(INVALID_TOKEN_ID);
         if (tokenMeta.hasSupplyKey()) {
             context.requireKey(tokenMeta.supplyKey());
         }
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         requireNonNull(txn);
         final var op = txn.tokenMintOrThrow();
-        validateTruePreCheck(op.hasToken(), INVALID_TOKEN_ID);
-        validateFalsePreCheck(!op.metadata().isEmpty() && op.amount() > 0, INVALID_TRANSACTION_BODY);
-        validateFalsePreCheck(op.amount() < 0, INVALID_TOKEN_MINT_AMOUNT);
+        validateTrue(op.hasToken(), INVALID_TOKEN_ID);
+        validateFalse(!op.metadata().isEmpty() && op.amount() > 0, INVALID_TRANSACTION_BODY);
+        validateFalse(op.amount() < 0, INVALID_TOKEN_MINT_AMOUNT);
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         final var op = context.body().tokenMintOrThrow();
         final var tokenId = context.body().tokenMintOrThrow().tokenOrThrow();
 

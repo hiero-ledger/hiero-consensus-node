@@ -22,9 +22,8 @@ import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.scheduledTxnIdFrom;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.transactionIdForScheduled;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -43,11 +42,10 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -89,26 +87,26 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var body = context.body();
         requireNonNull(body);
-        validateTruePreCheck(body.hasScheduleCreate(), INVALID_TRANSACTION_BODY);
+        validateTrue(body.hasScheduleCreate(), INVALID_TRANSACTION_BODY);
         final var op = body.scheduleCreateOrThrow();
-        validateTruePreCheck(op.hasScheduledTransactionBody(), INVALID_TRANSACTION);
+        validateTrue(op.hasScheduledTransactionBody(), INVALID_TRANSACTION);
         // (FUTURE) Add a dedicated response code for an op waiting for an unspecified expiration time
-        validateFalsePreCheck(op.waitForExpiry() && !op.hasExpirationTime(), MISSING_EXPIRY_TIME);
+        validateFalse(op.waitForExpiry() && !op.hasExpirationTime(), MISSING_EXPIRY_TIME);
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var body = context.body();
         // We ensure this exists in pureChecks()
         final var op = body.scheduleCreateOrThrow();
         final var config = context.configuration();
         final var hederaConfig = config.getConfigData(HederaConfig.class);
-        validateTruePreCheck(op.memo().length() <= hederaConfig.transactionMaxMemoUtf8Bytes(), MEMO_TOO_LONG);
+        validateTrue(op.memo().length() <= hederaConfig.transactionMaxMemoUtf8Bytes(), MEMO_TOO_LONG);
         // For backward compatibility, use ACCOUNT_ID_DOES_NOT_EXIST for a nonexistent designated payer
         if (op.hasPayerAccountID()) {
             final var accountStore = context.createStore(ReadableAccountStore.class);
@@ -116,7 +114,7 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
             mustExist(payer, ACCOUNT_ID_DOES_NOT_EXIST);
         }
         final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
-        validateTruePreCheck(
+        validateTrue(
                 isAllowedFunction(op.scheduledTransactionBodyOrThrow(), schedulingConfig),
                 SCHEDULED_TRANSACTION_NOT_IN_WHITELIST);
         // If an admin key is present, it must sign
@@ -137,7 +135,7 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         requireNonNull(context);
 
         final var schedulingConfig = context.configuration().getConfigData(SchedulingConfig.class);
@@ -163,8 +161,8 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         if (provisionalSchedule.hasAdminKey()) {
             try {
                 context.attributeValidator().validateKey(provisionalSchedule.adminKeyOrThrow());
-            } catch (HandleException e) {
-                throw new HandleException(INVALID_ADMIN_KEY);
+            } catch (WorkflowException e) {
+                throw new WorkflowException(INVALID_ADMIN_KEY);
             }
         }
         final var validationResult = validate(provisionalSchedule, consensusNow, isLongTermEnabled);
@@ -184,7 +182,7 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
                     .getBaseBuilder(ScheduleStreamBuilder.class)
                     .scheduleID(duplicate.scheduleId())
                     .scheduledTransactionID(scheduledTxnId);
-            throw new HandleException(IDENTICAL_SCHEDULE_ALREADY_CREATED);
+            throw new WorkflowException(IDENTICAL_SCHEDULE_ALREADY_CREATED);
         }
         validateTrue(
                 scheduleStore.numSchedulesInState() + 1 <= schedulingConfig.maxNumber(),

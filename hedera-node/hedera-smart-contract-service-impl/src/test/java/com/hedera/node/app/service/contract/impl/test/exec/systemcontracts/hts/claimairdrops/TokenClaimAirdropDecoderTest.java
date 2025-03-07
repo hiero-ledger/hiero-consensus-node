@@ -30,7 +30,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.claimairdrops.TokenClaimAirdropDecoder;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import java.util.ArrayList;
@@ -173,7 +173,7 @@ public class TokenClaimAirdropDecoderTest {
         })));
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
 
-        assertThrows(HandleException.class, () -> subject.decodeTokenClaimAirdrop(attempt));
+        assertThrows(WorkflowException.class, () -> subject.decodeTokenClaimAirdrop(attempt));
     }
 
     @Test
@@ -198,7 +198,7 @@ public class TokenClaimAirdropDecoderTest {
         })));
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
 
-        assertThatExceptionOfType(HandleException.class)
+        assertThatExceptionOfType(WorkflowException.class)
                 .isThrownBy(() -> subject.decodeTokenClaimAirdrop(attempt))
                 .withMessage(INVALID_TOKEN_ID.protoName());
     }
@@ -208,7 +208,7 @@ public class TokenClaimAirdropDecoderTest {
         final var encoded = Bytes.wrapByteBuffer(HRC_CLAIM_AIRDROP_FT.encodeCallWithArgs(OWNER_ACCOUNT_AS_ADDRESS));
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
 
-        assertThatExceptionOfType(HandleException.class)
+        assertThatExceptionOfType(WorkflowException.class)
                 .isThrownBy(() -> subject.decodeHrcClaimAirdropFt(attempt))
                 .withMessage(INVALID_TOKEN_ID.protoName());
     }
@@ -219,7 +219,7 @@ public class TokenClaimAirdropDecoderTest {
                 Bytes.wrapByteBuffer(HRC_CLAIM_AIRDROP_NFT.encodeCallWithArgs(OWNER_ACCOUNT_AS_ADDRESS, 1L));
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
 
-        assertThatExceptionOfType(HandleException.class)
+        assertThatExceptionOfType(WorkflowException.class)
                 .isThrownBy(() -> subject.decodeHrcClaimAirdropNft(attempt))
                 .withMessage(INVALID_TOKEN_ID.protoName());
     }

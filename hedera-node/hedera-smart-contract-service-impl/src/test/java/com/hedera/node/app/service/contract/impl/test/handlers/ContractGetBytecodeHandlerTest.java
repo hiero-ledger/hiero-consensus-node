@@ -25,8 +25,8 @@ import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.swirlds.state.lifecycle.EntityIdFactory;
@@ -127,7 +127,7 @@ class ContractGetBytecodeHandlerTest {
         given(contractGetBytecodeQuery.contractIDOrElse(ContractID.DEFAULT)).willReturn(null);
 
         // when:
-        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(WorkflowException.class);
     }
 
     @Test

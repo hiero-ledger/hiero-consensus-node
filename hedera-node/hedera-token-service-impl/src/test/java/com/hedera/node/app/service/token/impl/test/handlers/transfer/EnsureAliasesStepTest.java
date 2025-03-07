@@ -27,7 +27,7 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.EnsureAliasesSte
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
@@ -268,7 +268,7 @@ class EnsureAliasesStepTest extends StepsBase {
         given(storeFactory.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
 
         assertThatThrownBy(() -> ensureAliasesStep.doIn(transferContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.INVALID_ALIAS_KEY));
     }
 
@@ -292,7 +292,7 @@ class EnsureAliasesStepTest extends StepsBase {
 
         givenAutoCreationDispatchEffects(payerId);
         assertThatThrownBy(() -> ensureAliasesStep.doIn(transferContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS));
     }
 
@@ -372,7 +372,7 @@ class EnsureAliasesStepTest extends StepsBase {
         given(handleContext.configuration()).willReturn(configOverride);
         transferContext = new TransferContextImpl(handleContext);
         assertThatThrownBy(() -> ensureAliasesStep.doIn(transferContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(NOT_SUPPORTED));
     }
 
@@ -395,7 +395,7 @@ class EnsureAliasesStepTest extends StepsBase {
         transferContext = new TransferContextImpl(handleContext);
 
         assertThatThrownBy(() -> ensureAliasesStep.doIn(transferContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(NOT_SUPPORTED));
     }
 }

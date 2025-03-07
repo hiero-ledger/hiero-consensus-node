@@ -18,7 +18,7 @@ import java.util.function.Consumer;
  * detects an internal error. Instead, use {@link IllegalStateException} or
  * {@link IllegalArgumentException} as appropriate.
  */
-public class HandleException extends RuntimeException {
+public class WorkflowException extends RuntimeException {
     private final ShouldRollbackStack shouldRollbackStack;
     private final ResponseCodeEnum status;
 
@@ -34,21 +34,21 @@ public class HandleException extends RuntimeException {
         NO
     }
 
-    public HandleException(final ResponseCodeEnum status) {
+    public WorkflowException(final ResponseCodeEnum status) {
         this(status, ShouldRollbackStack.YES, null);
     }
 
-    public HandleException(
+    public WorkflowException(
             @NonNull final ResponseCodeEnum status, @NonNull final ShouldRollbackStack shouldRollbackStack) {
         this(status, shouldRollbackStack, null);
     }
 
-    public HandleException(
+    public WorkflowException(
             @NonNull final ResponseCodeEnum status, @Nullable final Consumer<FeeCharging.Context> rollbackFeesCb) {
         this(status, ShouldRollbackStack.YES, rollbackFeesCb);
     }
 
-    private HandleException(
+    private WorkflowException(
             @NonNull final ResponseCodeEnum status,
             @NonNull final ShouldRollbackStack shouldRollbackStack,
             @Nullable final Consumer<FeeCharging.Context> rollbackFeesCb) {
@@ -78,9 +78,9 @@ public class HandleException extends RuntimeException {
 
     /**
      * {@inheritDoc}
-     * This implementation prevents initializing a cause.  HandleException is a result code carrier and
+     * This implementation prevents initializing a cause.  WorkflowException is a result code carrier and
      * must not have a cause.  If another {@link Throwable} caused this exception to be thrown, then that other
-     * throwable <strong>must</strong> be logged to appropriate diagnostics before the {@code HandleException}
+     * throwable <strong>must</strong> be logged to appropriate diagnostics before the {@code WorkflowException}
      * is thrown.
      * @throws UnsupportedOperationException always.  This method must not be called.
      */
@@ -89,7 +89,7 @@ public class HandleException extends RuntimeException {
     // Since the method will only throw an error there is no need for synchronization
     @SuppressWarnings("java:S3551")
     public Throwable initCause(Throwable cause) {
-        throw new UnsupportedOperationException("HandleException must not chain a cause");
+        throw new UnsupportedOperationException("WorkflowException must not chain a cause");
     }
 
     public ResponseCodeEnum getStatus() {
@@ -98,7 +98,7 @@ public class HandleException extends RuntimeException {
 
     public static void validateTrue(final boolean flag, final ResponseCodeEnum errorStatus) {
         if (!flag) {
-            throw new HandleException(errorStatus);
+            throw new WorkflowException(errorStatus);
         }
     }
 
@@ -108,14 +108,14 @@ public class HandleException extends RuntimeException {
 
     @Override
     public String toString() {
-        return "HandleException{" + "status=" + status + '}';
+        return "WorkflowException{" + "status=" + status + '}';
     }
 
     /**
-     * <strong>Disallowed</strong> constructor of {@code HandleException}.
+     * <strong>Disallowed</strong> constructor of {@code WorkflowException}.
      * This {@link Exception} subclass is used as a form of unconditional jump, rather than a true
      * exception.  If another {@link Throwable} caused this exception to be thrown, then that other
-     * throwable <strong>must</strong> be logged to appropriate diagnostics before the {@code HandleException}
+     * throwable <strong>must</strong> be logged to appropriate diagnostics before the {@code WorkflowException}
      * is thrown.
      *
      * @param responseCode the {@link ResponseCodeEnum responseCode}.  This is ignored.
@@ -124,7 +124,7 @@ public class HandleException extends RuntimeException {
      */
     // Suppressing the warning that the constructor and arguments are not used
     @SuppressWarnings({"java:S1144", "java:S1172"})
-    private HandleException(@NonNull final ResponseCodeEnum responseCode, @Nullable final Throwable cause) {
-        throw new UnsupportedOperationException("HandleException must not chain a cause");
+    private WorkflowException(@NonNull final ResponseCodeEnum responseCode, @Nullable final Throwable cause) {
+        throw new UnsupportedOperationException("WorkflowException must not chain a cause");
     }
 }

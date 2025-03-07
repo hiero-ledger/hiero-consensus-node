@@ -15,8 +15,8 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionComponent.Facto
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Provider;
@@ -49,7 +49,7 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
     protected void bumpExceptionMetrics(@NonNull final HederaFunctionality functionality, @NonNull final Exception e) {
         final var contractMetrics = component.contractMetrics();
         contractMetrics.incrementRejectedTx(functionality);
-        if (e instanceof PreCheckException pce && pce.responseCode() == INSUFFICIENT_GAS) {
+        if (e instanceof WorkflowException we && we.getStatus() == INSUFFICIENT_GAS) {
             contractMetrics.incrementRejectedForGasTx(functionality);
         }
     }

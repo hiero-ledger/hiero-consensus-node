@@ -27,7 +27,6 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
@@ -70,7 +69,7 @@ class V0570ScheduleSchemaTest extends ScheduleTestBase {
     private MapReadableStates readableStates = null;
 
     @BeforeEach
-    void setUp() throws PreCheckException, InvalidKeyException {
+    void setUp() throws InvalidKeyException {
         setUpBase();
         subject = new V0570ScheduleSchema();
     }

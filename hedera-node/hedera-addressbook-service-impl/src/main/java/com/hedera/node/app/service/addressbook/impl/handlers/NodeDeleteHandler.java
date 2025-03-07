@@ -5,8 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_DELETED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
@@ -18,7 +17,6 @@ import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
@@ -39,7 +37,7 @@ public class NodeDeleteHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
 
@@ -47,19 +45,19 @@ public class NodeDeleteHandler implements TransactionHandler {
         final var op = txn.nodeDeleteOrThrow();
         final long nodeId = op.nodeId();
 
-        validateFalsePreCheck(nodeId < 0, INVALID_NODE_ID);
+        validateFalse(nodeId < 0, INVALID_NODE_ID);
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         final var op = context.body().nodeDeleteOrThrow();
         final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var nodeStore = context.createStore(ReadableNodeStore.class);
         final var payerNum = context.payer().accountNum();
 
         final var existingNode = nodeStore.get(op.nodeId());
-        validateFalsePreCheck(existingNode == null, INVALID_NODE_ID);
-        validateFalsePreCheck(existingNode.deleted(), NODE_DELETED);
+        validateFalse(existingNode == null, INVALID_NODE_ID);
+        validateFalse(existingNode.deleted(), NODE_DELETED);
 
         // if payer is not one of the system admin, treasury or address book admin, check the admin key signature
         if (payerNum != accountConfig.treasury()

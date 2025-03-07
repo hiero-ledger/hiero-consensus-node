@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.stack;
 
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -20,21 +20,21 @@ import java.util.function.Consumer;
  */
 public interface BuilderSink {
     /**
-     * Adds a builder to the preceding builders of this sink. Throws a {@link HandleException} if the
+     * Adds a builder to the preceding builders of this sink. Throws a {@link WorkflowException} if the
      * maximum number of preceding builders has been exceeded.
      * @param builder the builder to add
      */
     void addPrecedingOrThrow(@NonNull StreamBuilder builder);
 
     /**
-     * Adds a builder to the following builders of this sink. Throws a {@link HandleException} if the
+     * Adds a builder to the following builders of this sink. Throws a {@link WorkflowException} if the
      * maximum number of following builders has been exceeded.
      * @param builder the builder to add
      */
     void addFollowingOrThrow(@NonNull StreamBuilder builder);
 
     /**
-     * Adds all the given builders to the preceding builders of this sink. Throws a {@link HandleException} if the
+     * Adds all the given builders to the preceding builders of this sink. Throws a {@link WorkflowException} if the
      * maximum number of preceding builders has been exceeded.
      * @param builders the builders to add
      */
@@ -43,7 +43,7 @@ public interface BuilderSink {
     }
 
     /**
-     * Adds all the given builders to the following builders of this sink. Throws a {@link HandleException} if the
+     * Adds all the given builders to the following builders of this sink. Throws a {@link WorkflowException} if the
      * maximum number of following builders has been exceeded.
      * @param builders the builders to add
      */

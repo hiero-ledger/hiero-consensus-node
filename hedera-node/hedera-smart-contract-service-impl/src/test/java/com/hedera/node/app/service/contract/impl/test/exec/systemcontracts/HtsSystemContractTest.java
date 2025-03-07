@@ -29,7 +29,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.EntityType;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import java.nio.ByteBuffer;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -138,13 +138,13 @@ class HtsSystemContractTest {
     }
 
     @Test
-    void testComputeFullyWithHandleExceptionFromSystemContract() {
+    void testComputeFullyWithWorkflowExceptionFromSystemContract() {
         givenValidCallAttempt();
         frameUtils
                 .when(() -> callTypeOf(frame, EntityType.TOKEN))
                 .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
-        given(attempt.asExecutableCall()).willThrow(new HandleException(CONTRACT_REVERT_EXECUTED));
+        given(attempt.asExecutableCall()).willThrow(new WorkflowException(CONTRACT_REVERT_EXECUTED));
         final var expected = revertResult(CONTRACT_REVERT_EXECUTED, frame.getRemainingGas());
         final var result = subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame);
         assertSamePrecompileResult(expected, result);

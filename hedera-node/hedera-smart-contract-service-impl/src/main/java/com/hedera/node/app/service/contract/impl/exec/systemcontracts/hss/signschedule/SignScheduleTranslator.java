@@ -7,7 +7,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.ex
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.SignatureMapUtils.preprocessEcdsaSignatures;
 import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.messageFromScheduleId;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static com.hedera.pbj.runtime.io.buffer.Bytes.wrap;
 import static java.util.Objects.requireNonNull;
 
@@ -35,7 +35,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.signatures.SignatureVerifier.MessageType;
 import com.hedera.node.app.spi.signatures.SignatureVerifier.SimpleKeyStatus;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -233,7 +233,7 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
                 }
             }
         } catch (@NonNull final ParseException | NullPointerException | IllegalArgumentException ex) {
-            throw new HandleException(INVALID_TRANSACTION_BODY);
+            throw new WorkflowException(INVALID_TRANSACTION_BODY);
         }
         return keys;
     }

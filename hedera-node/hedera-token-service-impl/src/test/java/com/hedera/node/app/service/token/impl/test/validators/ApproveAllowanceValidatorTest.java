@@ -22,7 +22,7 @@ import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHand
 import com.hedera.node.app.service.token.impl.validators.ApproveAllowanceValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,7 +56,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(configuration);
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(NOT_SUPPORTED));
     }
 
@@ -70,7 +70,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(configuration);
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(MAX_ALLOWANCES_EXCEEDED));
     }
 
@@ -99,7 +99,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 List.of(nftAllowance));
 
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(SPENDER_ACCOUNT_SAME_AS_OWNER));
 
         givenApproveAllowanceTxn(
@@ -110,7 +110,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 List.of(nftAllowance.copyBuilder().spender(ownerId).build()));
 
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(SPENDER_ACCOUNT_SAME_AS_OWNER));
     }
 
@@ -141,7 +141,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 List.of(nftAllowance));
 
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(AMOUNT_EXCEEDS_TOKEN_MAX_SUPPLY));
     }
 
@@ -160,7 +160,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 List.of(nftAllowance));
 
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(NFT_IN_FUNGIBLE_TOKEN_ALLOWANCES));
     }
 
@@ -180,7 +180,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                         .build()));
 
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(DELEGATING_SPENDER_CANNOT_GRANT_APPROVE_FOR_ALL));
     }
 
@@ -203,7 +203,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                         .build()));
 
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL));
     }
 
@@ -227,7 +227,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                         .build());
 
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL));
     }
 
@@ -240,7 +240,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 List.of(tokenAllowance.copyBuilder().owner(delegatingSpenderId).build()),
                 List.of());
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
 
         givenApproveAllowanceTxn(
@@ -250,7 +250,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 List.of(tokenAllowance),
                 List.of(nftAllowance.copyBuilder().owner(delegatingSpenderId).build()));
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
     }
 
@@ -276,7 +276,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                         .build()));
 
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES));
     }
 
@@ -296,7 +296,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
 
         given(handleContext.configuration()).willReturn(configuration);
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_TOKEN_NFT_SERIAL_NUMBER));
     }
 
@@ -316,7 +316,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
 
         given(handleContext.configuration()).willReturn(configuration);
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_TOKEN_NFT_SERIAL_NUMBER));
     }
 
@@ -348,7 +348,7 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(configuration);
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(MAX_ALLOWANCES_EXCEEDED));
     }
 
@@ -374,17 +374,17 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 .build();
         givenApproveAllowanceTxn(payerId, false, List.of(missingCryptoAllowance), List.of(), List.of());
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_ALLOWANCE_OWNER_ID));
 
         givenApproveAllowanceTxn(payerId, false, List.of(), List.of(missingTokenAllowance), List.of());
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_ALLOWANCE_OWNER_ID));
 
         givenApproveAllowanceTxn(payerId, false, List.of(), List.of(), List.of(missingNftAllowance));
         assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_ALLOWANCE_OWNER_ID));
     }
 

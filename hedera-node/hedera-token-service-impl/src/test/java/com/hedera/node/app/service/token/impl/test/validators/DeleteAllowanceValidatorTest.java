@@ -22,7 +22,7 @@ import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHand
 import com.hedera.node.app.service.token.impl.validators.DeleteAllowanceValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,7 +59,7 @@ class DeleteAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
         given(handleContext.configuration()).willReturn(configuration);
         final var nftAllowances = txn.cryptoDeleteAllowance().nftAllowances();
         assertThatThrownBy(() -> subject.validate(handleContext, nftAllowances, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(NOT_SUPPORTED));
     }
 
@@ -70,7 +70,7 @@ class DeleteAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
         given(handleContext.configuration()).willReturn(configuration);
         final var nftAllowances = txn.cryptoDeleteAllowance().nftAllowances();
         assertThatThrownBy(() -> subject.validate(handleContext, nftAllowances, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_TOKEN_ID));
     }
 
@@ -80,7 +80,7 @@ class DeleteAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
         given(handleContext.configuration()).willReturn(configuration);
         final var nftAllowances = txn.cryptoDeleteAllowance().nftAllowances();
         assertThatThrownBy(() -> subject.validate(handleContext, nftAllowances, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES));
     }
 
@@ -91,7 +91,7 @@ class DeleteAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
         given(handleContext.configuration()).willReturn(configuration);
         final var nftAllowances = txn.cryptoDeleteAllowance().nftAllowances();
         assertThatThrownBy(() -> subject.validate(handleContext, nftAllowances, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_ALLOWANCE_OWNER_ID));
     }
 
@@ -112,7 +112,7 @@ class DeleteAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
         given(handleContext.configuration()).willReturn(configuration);
         final var nftAllowances = txn.cryptoDeleteAllowance().nftAllowances();
         assertThatThrownBy(() -> subject.validate(handleContext, nftAllowances, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
     }
 
@@ -126,7 +126,7 @@ class DeleteAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
         given(handleContext.configuration()).willReturn(configuration);
         final var nftAllowances = txn.cryptoDeleteAllowance().nftAllowances();
         assertThatThrownBy(() -> subject.validate(handleContext, nftAllowances, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(MAX_ALLOWANCES_EXCEEDED));
     }
 
@@ -147,7 +147,7 @@ class DeleteAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
         final var nftAllowances = txn.cryptoDeleteAllowance().nftAllowances();
 
         assertThatThrownBy(() -> subject.validate(handleContext, nftAllowances, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_TOKEN_NFT_SERIAL_NUMBER));
     }
 
@@ -175,7 +175,7 @@ class DeleteAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
         final var nftAllowances = txn.cryptoDeleteAllowance().nftAllowances();
 
         assertThatThrownBy(() -> subject.validate(handleContext, nftAllowances, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_TOKEN_NFT_SERIAL_NUMBER));
     }
 

@@ -17,7 +17,7 @@ import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.c
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateFungibleTransfers;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateNftTransfers;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferHelper.createAccountAmount;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
 
@@ -49,11 +49,10 @@ import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -88,7 +87,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var op = context.body().tokenAirdropOrThrow();
         var convertedOp = CryptoTransferTransactionBody.newBuilder()
@@ -101,7 +100,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         requireNonNull(txn);
@@ -110,7 +109,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.tokenAirdropOrThrow();
@@ -306,7 +305,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
         // charge $0.05. So the total of $0.1
         // 3. If there are pending airdrops created, then we charge the airdrop fee of $0.1 per pending airdrop
         if (!context.tryToChargePayer(totalFee)) {
-            throw new HandleException(INSUFFICIENT_PAYER_BALANCE);
+            throw new WorkflowException(INSUFFICIENT_PAYER_BALANCE);
         }
     }
 
@@ -586,7 +585,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
                         requireNonNull(accountAirdrop.pendingAirdropValue()).amount(),
                         requireNonNull(existingValue).amount());
             } catch (ArithmeticException e) {
-                throw new HandleException(INSUFFICIENT_TOKEN_BALANCE);
+                throw new WorkflowException(INSUFFICIENT_TOKEN_BALANCE);
             }
             final var newAccountAirdrop = existingAirdrop
                     .copyBuilder()

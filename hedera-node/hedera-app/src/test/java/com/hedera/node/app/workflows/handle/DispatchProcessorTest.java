@@ -57,7 +57,7 @@ import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -392,7 +392,7 @@ class DispatchProcessorTest {
     }
 
     @Test
-    void thrownHandleExceptionRollsBackIfRequested() {
+    void thrownWorkflowExceptionRollsBackIfRequested() {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatchValidator.validateFeeChargingScenario(dispatch))
@@ -401,7 +401,7 @@ class DispatchProcessorTest {
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.handleContext()).willReturn(context);
         givenAuthorization();
-        doThrow(new HandleException(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
+        doThrow(new WorkflowException(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
                 .when(dispatcher)
                 .dispatchHandle(context);
         given(dispatch.txnCategory()).willReturn(USER);
@@ -421,7 +421,7 @@ class DispatchProcessorTest {
     }
 
     @Test
-    void thrownHandleExceptionDoesNotRollBackIfNotRequested() {
+    void thrownWorkflowExceptionDoesNotRollBackIfNotRequested() {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatchValidator.validateFeeChargingScenario(dispatch))
@@ -430,7 +430,7 @@ class DispatchProcessorTest {
         given(dispatch.txnInfo()).willReturn(CONTRACT_TXN_INFO);
         given(dispatch.handleContext()).willReturn(context);
         givenAuthorization(CONTRACT_TXN_INFO);
-        doThrow(new HandleException(CONTRACT_REVERT_EXECUTED, HandleException.ShouldRollbackStack.NO))
+        doThrow(new WorkflowException(CONTRACT_REVERT_EXECUTED, WorkflowException.ShouldRollbackStack.NO))
                 .when(dispatcher)
                 .dispatchHandle(context);
         given(dispatch.txnCategory()).willReturn(USER);

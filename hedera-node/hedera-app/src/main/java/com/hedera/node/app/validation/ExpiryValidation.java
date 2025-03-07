@@ -6,7 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXPIRED_AND_PE
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AutoRenewConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -30,9 +30,9 @@ public class ExpiryValidation {
      * Checks if an account is expired. Returns {@code false} if auto-renew is disabled
      *
      * @param account the {@link Account} to check
-     * @throws PreCheckException if the account is expired
+     * @throws WorkflowException if the account is expired
      */
-    public void checkAccountExpiry(@NonNull final Account account) throws PreCheckException {
+    public void checkAccountExpiry(@NonNull final Account account) {
         if (account.tinybarBalance() > 0 || !account.expiredAndPendingRemoval()) {
             return;
         }
@@ -40,11 +40,11 @@ public class ExpiryValidation {
         final var config = configProvider.getConfiguration().getConfigData(AutoRenewConfig.class);
         if (account.smartContract()) {
             if (config.expireContracts()) {
-                throw new PreCheckException(CONTRACT_EXPIRED_AND_PENDING_REMOVAL);
+                throw new WorkflowException(CONTRACT_EXPIRED_AND_PENDING_REMOVAL);
             }
         } else {
             if (config.expireAccounts()) {
-                throw new PreCheckException(ACCOUNT_EXPIRED_AND_PENDING_REMOVAL);
+                throw new WorkflowException(ACCOUNT_EXPIRED_AND_PENDING_REMOVAL);
             }
         }
     }

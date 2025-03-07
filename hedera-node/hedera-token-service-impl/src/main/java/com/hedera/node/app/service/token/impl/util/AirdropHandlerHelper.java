@@ -7,8 +7,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_AIRDROP_ID_REPEATED;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.UNLIMITED_AUTOMATIC_ASSOCIATIONS;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsableForAliasedId;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -26,7 +26,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableAirdropStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ public class AirdropHandlerHelper {
      * @param airdropIds the list of pending airdrop ids to standardize
      * @param knownExtantIdTypes the set of id types that are known to exist in the system
      * @return a set of standardized pending airdrop ids
-     * @throws HandleException with INVALID_PENDING_AIRDROP_ID if any of the pending airdrop ids are invalid
+     * @throws WorkflowException with INVALID_PENDING_AIRDROP_ID if any of the pending airdrop ids are invalid
      */
     public static Set<PendingAirdropId> standardizeAirdropIds(
             @NonNull final ReadableAccountStore accountStore,

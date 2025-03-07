@@ -16,7 +16,7 @@ class InsufficientBalanceExceptionTest {
                 new InsufficientBalanceException(ResponseCodeEnum.UNAUTHORIZED, 42L);
 
         // then
-        assertThat(exception.responseCode()).isEqualTo(ResponseCodeEnum.UNAUTHORIZED);
+        assertThat(exception.getStatus()).isEqualTo(ResponseCodeEnum.UNAUTHORIZED);
         assertThat(exception.getEstimatedFee()).isEqualTo(42L);
         assertThat(exception.getMessage()).isEqualTo(ResponseCodeEnum.UNAUTHORIZED.protoName());
     }

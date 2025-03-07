@@ -25,7 +25,7 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.EnsureAliasesSte
 import com.hedera.node.app.service.token.impl.handlers.transfer.ReplaceAliasesWithIDsInOp;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -142,7 +142,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         assertThat(receiverAccount.tinybarBalance()).isEqualTo(10000L);
 
         assertThatThrownBy(() -> adjustHbarChangesStep.doIn(transferContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE));
     }
 
@@ -174,7 +174,7 @@ class AdjustHbarChangesStepTest extends StepsBase {
         assertThat(receiverAccount.tinybarBalance()).isEqualTo(10000L);
 
         assertThatThrownBy(() -> adjustHbarChangesStep.doIn(transferContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE));
     }
 

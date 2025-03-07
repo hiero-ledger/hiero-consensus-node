@@ -5,7 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction.NOT_APPLICABLE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPriorityId;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 import static org.apache.tuweni.bytes.Bytes.EMPTY;
 
@@ -15,8 +15,8 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -86,7 +86,7 @@ public class HevmStaticTransactionFactory {
      */
     @NonNull
     public HederaEvmTransaction fromHapiQueryException(
-            @NonNull final Query query, @NonNull final HandleException exception) {
+            @NonNull final Query query, @NonNull final WorkflowException exception) {
         final var op = query.contractCallLocalOrThrow();
         final var senderId = op.hasSenderId() ? op.senderIdOrThrow() : payerId;
         // For mono-service fidelity, allow calls using 0.0.X id even to contracts with a priority EVM address

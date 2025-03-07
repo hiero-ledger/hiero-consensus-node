@@ -4,7 +4,7 @@ package com.hedera.node.app.service.consensus.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -21,11 +21,10 @@ import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -45,15 +44,15 @@ public class ConsensusDeleteTopicHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final TransactionBody txn = context.body();
         final ConsensusDeleteTopicTransactionBody op = txn.consensusDeleteTopicOrThrow();
-        validateTruePreCheck(op.hasTopicID(), INVALID_TOPIC_ID);
+        validateTrue(op.hasTopicID(), INVALID_TOPIC_ID);
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
 
         final var op = context.body().consensusDeleteTopicOrThrow();
@@ -85,7 +84,7 @@ public class ConsensusDeleteTopicHandler implements TransactionHandler {
 
         /* Topics without adminKeys can't be deleted.*/
         if (topic.adminKey() == null) {
-            throw new HandleException(UNAUTHORIZED);
+            throw new WorkflowException(UNAUTHORIZED);
         }
 
         /* Copy all the fields from existing topic and change deleted flag */

@@ -4,8 +4,8 @@ package com.hedera.node.app.spi.validation;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -23,7 +23,7 @@ public interface ExpiryValidator {
      *                           mono-service response codes.
      *
      * @return the expiry metadata that will result from the creation
-     * @throws HandleException if the metadata is invalid
+     * @throws WorkflowException if the metadata is invalid
      */
     @NonNull
     ExpiryMeta resolveCreationAttempt(
@@ -34,13 +34,13 @@ public interface ExpiryValidator {
     /**
      * Validates the expiry metadata for an attempt to update an entity, and returns the
      * expiry metadata that will result from the update if it is valid. Otherwise throws
-     * a {@link HandleException}.
+     * a {@link WorkflowException}.
      *
      * @param currentMetadata the current expiry metadata for the entity
      * @param updateMetadata the expiry metadata for the attempted update
      * @param isForTokenUpdate if the expiry metadata is for token update
      * @return the expiry metadata that will result from the update
-     * @throws HandleException if the metadata is invalid
+     * @throws WorkflowException if the metadata is invalid
      */
     @NonNull
     ExpiryMeta resolveUpdateAttempt(

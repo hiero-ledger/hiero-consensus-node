@@ -18,10 +18,10 @@ import com.hedera.node.app.service.token.records.CryptoDeleteStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.AccountsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -44,22 +44,22 @@ public class CryptoDeleteHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.cryptoDeleteOrThrow();
 
         if (!op.hasDeleteAccountID() || !op.hasTransferAccountID()) {
-            throw new PreCheckException(ACCOUNT_ID_DOES_NOT_EXIST);
+            throw new WorkflowException(ACCOUNT_ID_DOES_NOT_EXIST);
         }
 
         if (op.deleteAccountIDOrThrow().equals(op.transferAccountIDOrThrow())) {
-            throw new PreCheckException(TRANSFER_ACCOUNT_SAME_AS_DELETE_ACCOUNT);
+            throw new WorkflowException(TRANSFER_ACCOUNT_SAME_AS_DELETE_ACCOUNT);
         }
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var op = context.body().cryptoDeleteOrThrow();
         final var deleteAccountId = op.deleteAccountIDOrElse(AccountID.DEFAULT);
