@@ -18,8 +18,8 @@ module com.hedera.node.app.service.addressbook.impl {
     requires com.swirlds.platform.core;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
+    requires static transitive com.github.spotbugs.annotations;
     requires static transitive java.compiler;
-    requires static com.github.spotbugs.annotations;
 
     provides com.hedera.node.app.service.addressbook.AddressBookService with
             AddressBookServiceImpl;

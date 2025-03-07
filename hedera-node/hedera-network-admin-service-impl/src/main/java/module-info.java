@@ -23,7 +23,7 @@ module com.hedera.node.app.service.network.admin.impl {
     requires com.google.common;
     requires org.apache.commons.io;
     requires org.apache.logging.log4j;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 
     provides com.hedera.node.app.service.networkadmin.FreezeService with
             FreezeServiceImpl;
