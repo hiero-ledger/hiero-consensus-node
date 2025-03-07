@@ -341,7 +341,7 @@ class PartialNodeTests {
         final MerkleNode node = nodeImpl.constructor.get();
 
         assertNull(node.getHash(), "node should start with null hash");
-        final Hash hash1 = cryptography.getNullHash();
+        final Hash hash1 = Cryptography.NULL_HASH;
         node.setHash(hash1);
         assertSame(hash1, node.getHash(), "unexpected hash");
 

@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import com.goterl.lazysodium.LazySodiumJava;
 import com.goterl.lazysodium.SodiumJava;
 import com.goterl.lazysodium.interfaces.Sign;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import java.security.SignatureException;
@@ -146,14 +147,11 @@ public class SignaturePool {
             readPosition.set(1);
         }
 
+        final byte[] content = transactions.get(nextIdx);
         return new TransactionSignature(
-                transactions.get(nextIdx),
-                transactionSize + PUBLIC_KEY_LENGTH,
-                SIGNATURE_LENGTH,
-                transactionSize,
-                PUBLIC_KEY_LENGTH,
-                0,
-                transactionSize,
+                Bytes.wrap(content, 0, transactionSize),
+                Bytes.wrap(content, transactionSize, PUBLIC_KEY_LENGTH),
+                Bytes.wrap(content, transactionSize + PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH),
                 SignatureType.ED25519);
     }
 

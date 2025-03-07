@@ -55,7 +55,7 @@ public class UnsignedEvent implements Hashable {
             @NonNull final Instant timeCreated,
             @NonNull final List<Bytes> transactions) {
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null");
-        this.metadata = new EventMetadata(creatorId, selfParent, otherParents, timeCreated, transactions);
+        this.metadata = new EventMetadata(creatorId, selfParent, otherParents, timeCreated, transactions, birthRound);
         this.eventCore = new EventCore(
                 creatorId.id(),
                 birthRound,
@@ -95,7 +95,7 @@ public class UnsignedEvent implements Hashable {
      */
     @NonNull
     public EventDescriptorWrapper getDescriptor() {
-        return metadata.getDescriptor(eventCore.birthRound());
+        return metadata.getDescriptor();
     }
 
     /**

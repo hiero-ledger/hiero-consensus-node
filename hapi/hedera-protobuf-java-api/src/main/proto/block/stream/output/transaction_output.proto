@@ -59,6 +59,7 @@ import "block/stream/output/consensus_service.proto";
  *    SystemUndeleteOutput system_undelete;
  *
  * import "stream/crypto_service.proto";
+ *    CryptoTransferOutput crypto_transfer;
  *    UpdateNodeStakeOutput update_node_stake;
  *    ApproveAllowanceOutput approve_allowance;
  *    DeleteAllowanceOutput delete_allowance;
@@ -82,9 +83,11 @@ import "block/stream/output/consensus_service.proto";
  *    UpdateTokenFeeScheduleOutput update_token_fee_schedule;
  *    PauseTokenOutput pause_token;
  *    UnpauseTokenOutput unpause_token;
+ *    TokenAirdropOutput token_airdrop;
  *
  * import "stream/consensus_service.proto";
  *    DeleteTopicOutput delete_topic;
+ *    SubmitMessageOutput submit_message;
  *
  * import "stream/schedule_service.proto";
  *    DeleteScheduleOutput delete_schedule;
@@ -96,57 +99,42 @@ import "block/stream/output/consensus_service.proto";
 message TransactionOutput {
     oneof transaction {
         /**
-         * Output from a crypto transfer transaction.
-         */
-        CryptoTransferOutput crypto_transfer = 1;
-
-        /**
          * Output from a utilPrng transaction to request a
          * deterministic pseudo-random number.
          */
-        UtilPrngOutput util_prng = 2;
+        UtilPrngOutput util_prng = 1;
 
         /**
          * Output from a contract call transaction.
          */
-        CallContractOutput contract_call = 3;
+        CallContractOutput contract_call = 2;
 
         /**
          * Output from an ethereum call transaction.
          */
-        EthereumOutput ethereum_call = 4;
+        EthereumOutput ethereum_call = 3;
 
         /**
          * Output from a contract create transaction.
          */
-        CreateContractOutput contract_create = 5;
+        CreateContractOutput contract_create = 4;
 
         /**
          * Output from a schedule create transaction that executed
          * immediately on creation.
          */
-        CreateScheduleOutput create_schedule = 6;
+        CreateScheduleOutput create_schedule = 5;
 
         /**
          * Output from a schedule sign transaction that resulted in
          * executing the scheduled transaction.
          */
-        SignScheduleOutput sign_schedule = 7;
-
-        /**
-         * Output from a token airdrop transaction.
-         */
-        TokenAirdropOutput token_airdrop = 8;
-
-        /**
-         * Output from a consensus submit message transaction.
-         */
-        SubmitMessageOutput submit_message = 9;
+        SignScheduleOutput sign_schedule = 6;
 
         /**
          * Output from a transaction that includes the creation of a new
          * CryptoService Account.
          */
-        CreateAccountOutput account_create = 10;
+        CreateAccountOutput account_create = 7;
     }
 }

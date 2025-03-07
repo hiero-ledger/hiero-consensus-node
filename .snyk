@@ -2,11 +2,6 @@
 version: v1.25.0
 # ignores vulnerabilities until expiry date; change duration by modifying expiry date
 ignore:
-  SNYK-JAVA-IONETTY-5953332:
-    - '*':
-        reason: No gRPC version with a fix is available
-        expires: 2024-06-30T00:00:00.000Z
-        created: 2023-12-06T23:35:31.268Z
 patch: {}
 exclude:
   global:

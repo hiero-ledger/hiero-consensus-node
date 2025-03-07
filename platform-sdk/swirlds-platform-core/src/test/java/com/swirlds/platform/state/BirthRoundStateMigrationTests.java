@@ -12,6 +12,7 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PbjConverter;
@@ -97,7 +98,7 @@ class BirthRoundStateMigrationTests {
         assertEquals(originalHash, signedState.getState().getHash());
 
         // Rehash the state, just in case
-        rehashTree(signedState.getState().getRoot());
+        rehashTree(TestMerkleCryptoFactory.getInstance(), signedState.getState().getRoot());
 
         assertEquals(originalHash, signedState.getState().getHash());
     }
@@ -118,7 +119,7 @@ class BirthRoundStateMigrationTests {
             v.setFirstVersionInBirthRoundMode(previousSoftwareVersion);
             v.setLowestJudgeGenerationBeforeBirthRoundMode(100);
         });
-        rehashTree(signedState.getState().getRoot());
+        rehashTree(TestMerkleCryptoFactory.getInstance(), signedState.getState().getRoot());
         final Hash originalHash = signedState.getState().getHash();
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
@@ -127,7 +128,7 @@ class BirthRoundStateMigrationTests {
         assertEquals(originalHash, signedState.getState().getHash());
 
         // Rehash the state, just in case
-        rehashTree(signedState.getState().getRoot());
+        rehashTree(TestMerkleCryptoFactory.getInstance(), signedState.getState().getRoot());
 
         assertEquals(originalHash, signedState.getState().getHash());
     }
