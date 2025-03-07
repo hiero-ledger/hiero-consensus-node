@@ -51,8 +51,8 @@ public class BlockNodeConnection {
                     public void onNext(PublishStreamResponse response) {
                         if (response.hasAcknowledgement()) {
                             handleAcknowledgement(response.getAcknowledgement());
-                        } else if (response.hasStatus()) {
-                            handleEndOfStream(response.getStatus());
+                        } else if (response.hasEndStream()) {
+                            handleEndOfStream(response.getEndStream());
                         }
                     }
 
@@ -76,8 +76,6 @@ public class BlockNodeConnection {
             final var ackBlockNumber = acknowledgement.getBlockAck().getBlockNumber();
 
             acknowledgmentTracker.trackAcknowledgment(connectionId, ackBlockNumber);
-        } else if (acknowledgement.hasItemAck()) {
-            logger.info("Item acknowledgement received for a batch of block items: {}", acknowledgement.getItemAck());
         }
     }
 
