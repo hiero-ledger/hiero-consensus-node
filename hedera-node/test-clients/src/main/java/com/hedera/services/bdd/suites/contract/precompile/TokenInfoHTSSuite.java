@@ -159,8 +159,6 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(TokenKeyType.METADATA_KEY.name()),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
                 contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
-                uploadInitCode("TokenInfo"),
-                contractCreate("TokenInfo").gas(1_000_000L),
                 tokenCreate(PRIMARY_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(MEMO)
@@ -203,14 +201,7 @@ public class TokenInfoHTSSuite {
                                 TOKEN_INFO_CONTRACT,
                                 GET_INFORMATION_FOR_TOKEN,
                                 HapiParserUtil.asHeadlongAddress(
-                                        asAddress(spec.registry().getTokenID(PRIMARY_TOKEN_NAME)))),
-                        contractCall(
-                                        "TokenInfo",
-                                        "getInformationForTokenV2",
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(PRIMARY_TOKEN_NAME))))
-                                .via("TOKEN_INFO_TXN_V2")
-                                .gas(1_000_000L))),
+                                        asAddress(spec.registry().getTokenID(PRIMARY_TOKEN_NAME)))))),
                 exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> {
                     final var getTokenInfoQuery = getTokenInfo(PRIMARY_TOKEN_NAME);
@@ -246,28 +237,6 @@ public class TokenInfoHTSSuite {
                                                                                     spec, TokenKeyType.ADMIN_KEY),
                                                                             expirySecond,
                                                                             targetLedgerId.get(),
-                                                                            TokenKycStatus.Revoked))))),
-                            childRecordsCheck(
-                                    "TOKEN_INFO_TXN_V2",
-                                    SUCCESS,
-                                    recordWith()
-                                            .status(SUCCESS)
-                                            .contractCallResult(resultWith()
-                                                    .contractCallResult(htsPrecompileResult()
-                                                            .forFunction(FunctionType.HAPI_GET_TOKEN_INFO_V2)
-                                                            .withStatus(SUCCESS)
-                                                            .withTokenInfo(
-                                                                    getTokenInfoStructForFungibleTokenV2(
-                                                                            spec,
-                                                                            PRIMARY_TOKEN_NAME,
-                                                                            SYMBOL,
-                                                                            MEMO,
-                                                                            spec.registry()
-                                                                                    .getAccountID(TOKEN_TREASURY),
-                                                                            getTokenKeyFromSpec(
-                                                                                    spec, TokenKeyType.ADMIN_KEY),
-                                                                            expirySecond,
-                                                                            targetLedgerId.get(),
                                                                             TokenKycStatus.Revoked))))));
                 }));
     }
@@ -290,8 +259,6 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(TokenKeyType.METADATA_KEY.name()),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
                 contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
-                uploadInitCode("TokenInfo"),
-                contractCreate("TokenInfo").gas(1_000_000L),
                 tokenCreate(FUNGIBLE_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(MEMO)
@@ -335,14 +302,7 @@ public class TokenInfoHTSSuite {
                                 TOKEN_INFO_CONTRACT,
                                 GET_INFORMATION_FOR_FUNGIBLE_TOKEN,
                                 HapiParserUtil.asHeadlongAddress(
-                                        asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN_NAME)))),
-                        contractCall(
-                                        "TokenInfo",
-                                        "getInformationForFungibleTokenV2",
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN_NAME))))
-                                .via("FUNGIBLE_TOKEN_INFO_TXN_V2")
-                                .gas(1_000_000L))),
+                                        asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN_NAME)))))),
                 exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> {
                     final var getTokenInfoQuery = getTokenInfo(FUNGIBLE_TOKEN_NAME);
@@ -378,29 +338,6 @@ public class TokenInfoHTSSuite {
                                                                                     spec, TokenKeyType.ADMIN_KEY),
                                                                             expirySecond,
                                                                             targetLedgerId.get(),
-                                                                            TokenKycStatus.Revoked))))),
-                            childRecordsCheck(
-                                    "FUNGIBLE_TOKEN_INFO_TXN_V2",
-                                    SUCCESS,
-                                    recordWith()
-                                            .status(SUCCESS)
-                                            .contractCallResult(resultWith()
-                                                    .contractCallResult(htsPrecompileResult()
-                                                            .forFunction(FunctionType.HAPI_GET_FUNGIBLE_TOKEN_INFO_V2)
-                                                            .withStatus(SUCCESS)
-                                                            .withDecimals(decimals)
-                                                            .withTokenInfo(
-                                                                    getTokenInfoStructForFungibleTokenV2(
-                                                                            spec,
-                                                                            FUNGIBLE_TOKEN_NAME,
-                                                                            FUNGIBLE_SYMBOL,
-                                                                            MEMO,
-                                                                            spec.registry()
-                                                                                    .getAccountID(TOKEN_TREASURY),
-                                                                            getTokenKeyFromSpec(
-                                                                                    spec, TokenKeyType.ADMIN_KEY),
-                                                                            expirySecond,
-                                                                            targetLedgerId.get(),
                                                                             TokenKycStatus.Revoked))))));
                 }));
     }
@@ -426,8 +363,6 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(TokenKeyType.METADATA_KEY.name()),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
                 contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
-                uploadInitCode("TokenInfo"),
-                contractCreate("TokenInfo").gas(1_000_000L),
                 tokenCreate(FEE_DENOM).treasury(HTS_COLLECTOR),
                 tokenCreate(NON_FUNGIBLE_TOKEN_NAME)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -480,15 +415,7 @@ public class TokenInfoHTSSuite {
                                 GET_INFORMATION_FOR_NON_FUNGIBLE_TOKEN,
                                 HapiParserUtil.asHeadlongAddress(
                                         asAddress(spec.registry().getTokenID(NON_FUNGIBLE_TOKEN_NAME))),
-                                1L),
-                        contractCall(
-                                        "TokenInfo",
-                                        "getInformationForNonFungibleTokenV2",
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(NON_FUNGIBLE_TOKEN_NAME))),
-                                        1L)
-                                .via("NON_FUNGIBLE_TOKEN_INFO_TXN_V2")
-                                .gas(1_000_000L))),
+                                1L))),
                 exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> {
                     final var getTokenInfoQuery = getTokenInfo(NON_FUNGIBLE_TOKEN_NAME);
@@ -523,28 +450,6 @@ public class TokenInfoHTSSuite {
                                                                             NON_FUNGIBLE_TOKEN_NAME,
                                                                             NON_FUNGIBLE_SYMBOL,
                                                                             MEMO,
-                                                                            spec.registry()
-                                                                                    .getAccountID(TOKEN_TREASURY),
-                                                                            getTokenKeyFromSpec(
-                                                                                    spec, TokenKeyType.ADMIN_KEY),
-                                                                            expirySecond,
-                                                                            targetLedgerId.get(),
-                                                                            TokenKycStatus.Revoked,
-                                                                            1L))
-                                                            .withNftTokenInfo(nftTokenInfo)))),
-                            childRecordsCheck(
-                                    "NON_FUNGIBLE_TOKEN_INFO_TXN_V2",
-                                    SUCCESS,
-                                    recordWith()
-                                            .status(SUCCESS)
-                                            .contractCallResult(resultWith()
-                                                    .contractCallResult(htsPrecompileResult()
-                                                            .forFunction(
-                                                                    FunctionType.HAPI_GET_NON_FUNGIBLE_TOKEN_INFO_V2)
-                                                            .withStatus(SUCCESS)
-                                                            .withTokenInfo(
-                                                                    getTokenInfoStructForNonFungibleTokenV2(
-                                                                            spec,
                                                                             spec.registry()
                                                                                     .getAccountID(TOKEN_TREASURY),
                                                                             getTokenKeyFromSpec(
@@ -1585,25 +1490,6 @@ public class TokenInfoHTSSuite {
                 .build();
     }
 
-    private TokenInfo getTokenInfoStructForFungibleTokenV2(
-            final HapiSpec spec,
-            final String tokenName,
-            final String symbol,
-            final String memo,
-            final AccountID treasury,
-            final Key adminKey,
-            final long expirySecond,
-            ByteString ledgerId,
-            final TokenKycStatus kycDefault) {
-
-        final ByteString meta = ByteString.copyFrom("metadata".getBytes(StandardCharsets.UTF_8));
-
-        return buildBaseTokenInfo(spec, tokenName, symbol, memo, treasury, adminKey, expirySecond, ledgerId, kycDefault)
-                .setMetadata(meta)
-                .setMetadataKey(getTokenKeyFromSpec(spec, TokenKeyType.METADATA_KEY))
-                .build();
-    }
-
     private static TokenInfo.Builder buildBaseTokenInfo(
             final HapiSpec spec,
             final String tokenName,
@@ -1705,30 +1591,6 @@ public class TokenInfoHTSSuite {
                 ledgerId,
                 null,
                 false,
-                kycDefault,
-                totalSupply);
-    }
-
-    private TokenInfo getTokenInfoStructForNonFungibleTokenV2(
-            final HapiSpec spec,
-            final AccountID treasury,
-            final Key adminKey,
-            final long expirySecond,
-            final ByteString ledgerId,
-            final TokenKycStatus kycDefault,
-            final long totalSupply) {
-        final ByteString meta = ByteString.copyFrom("metadata".getBytes(StandardCharsets.UTF_8));
-        return buildTokenInfo(
-                spec,
-                TokenInfoHTSSuite.NON_FUNGIBLE_TOKEN_NAME,
-                TokenInfoHTSSuite.NON_FUNGIBLE_SYMBOL,
-                TokenInfoHTSSuite.MEMO,
-                treasury,
-                adminKey,
-                expirySecond,
-                ledgerId,
-                meta,
-                true,
                 kycDefault,
                 totalSupply);
     }
