@@ -157,6 +157,8 @@ public class AtomicBatchNegativeTest {
         public Stream<DynamicTest> multiBatchFail() {
             final var batchOperator = "batchOperator";
             final var innerTxnPayer = "innerPayer";
+            final var innerTxnId1 = "innerId1";
+            final var innerTxnId2 = "innerId2";
             final var account1 = "foo1";
             final var account2 = "foo2";
             final var atomicTxn = "atomicTxn";
@@ -164,21 +166,28 @@ public class AtomicBatchNegativeTest {
             final var innerTxn1 = cryptoCreate(account1)
                     .withProtoStructure(TxnProtoStructure.NORMALIZED)
                     .balance(ONE_HBAR)
+                    .txnId(innerTxnId1)
                     .batchKey(batchOperator)
                     .payingWith(innerTxnPayer);
             final var innerTxn2 = cryptoCreate(account2)
                     .withProtoStructure(TxnProtoStructure.NORMALIZED)
                     .balance(ONE_MILLION_HBARS)
+                    .txnId(innerTxnId2)
                     .batchKey(batchOperator)
                     .payingWith(innerTxnPayer);
 
             return hapiTest(
                     cryptoCreate(batchOperator).balance(ONE_HBAR),
                     cryptoCreate(innerTxnPayer).balance(ONE_HUNDRED_HBARS),
+                    usableTxnIdNamed(innerTxnId1).payerId(innerTxnPayer),
+                    usableTxnIdNamed(innerTxnId2).payerId(innerTxnPayer),
                     atomicBatch(innerTxn1, innerTxn2)
                             .via(atomicTxn)
                             .payingWith(batchOperator)
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    getTxnRecord(atomicTxn).logged(),
+                    getTxnRecord(innerTxnId1).assertingNothingAboutHashes().logged(),
+                    getTxnRecord(innerTxnId2).assertingNothingAboutHashes().logged());
         }
     }
 
@@ -249,7 +258,8 @@ public class AtomicBatchNegativeTest {
                     .balance(ONE_HBAR)
                     .txnId(innerTxnId)
                     .batchKey(batchOperator)
-                    .payingWith(innerTxnPayer);
+                    .payingWith(innerTxnPayer)
+                    .signedBy(DEFAULT_PAYER);
 
             return hapiTest(
                     cryptoCreate(batchOperator).balance(ONE_HBAR),
