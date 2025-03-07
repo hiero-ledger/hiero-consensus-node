@@ -120,6 +120,44 @@ class CustomSelfDestructOperationTest {
 
     @ParameterizedTest
     @EnumSource(CustomSelfDestructOperation.UseEIP6780Semantics.class)
+    void rejectSelfDestructIfContractBeneficiaryIsTreasury(
+            @NonNull final CustomSelfDestructOperation.UseEIP6780Semantics useEIP6780Semantics) {
+        createSubject(useEIP6780Semantics);
+        given(frame.popStackItem()).willReturn(BENEFICIARY);
+        given(frame.getRecipientAddress()).willReturn(TBD);
+        given(frame.getRemainingGas()).willReturn(123L);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(proxyWorldUpdater.getAccount(BENEFICIARY)).willReturn(mutableAccount);
+        given(addressChecks.isPresent(BENEFICIARY, frame)).willReturn(true);
+        given(gasCalculator.selfDestructOperationGasCost(null, null)).willReturn(123L);
+        given(gasCalculator.selfDestructOperationGasCost(null, Wei.ZERO)).willReturn(123L);
+        given(proxyWorldUpdater.get(TBD)).willReturn(account).willReturn(proxyEvmAccount);
+        given(proxyEvmAccount.numTreasuryTitles()).willReturn(1);
+        final var expected = new Operation.OperationResult(123L, CustomExceptionalHaltReason.CONTRACT_IS_TREASURY);
+        assertSameResult(expected, subject.execute(frame, evm));
+    }
+
+    @ParameterizedTest
+    @EnumSource(CustomSelfDestructOperation.UseEIP6780Semantics.class)
+    void rejectSelfDestructIfContractBeneficiaryStillOwnsTokens(
+            @NonNull final CustomSelfDestructOperation.UseEIP6780Semantics useEIP6780Semantics) {
+        createSubject(useEIP6780Semantics);
+        given(frame.popStackItem()).willReturn(BENEFICIARY);
+        given(frame.getRecipientAddress()).willReturn(TBD);
+        given(frame.getRemainingGas()).willReturn(123L);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(proxyWorldUpdater.getAccount(BENEFICIARY)).willReturn(mutableAccount);
+        given(addressChecks.isPresent(BENEFICIARY, frame)).willReturn(true);
+        given(gasCalculator.selfDestructOperationGasCost(null, null)).willReturn(123L);
+        given(gasCalculator.selfDestructOperationGasCost(null, Wei.ZERO)).willReturn(123L);
+        given(proxyWorldUpdater.get(TBD)).willReturn(account).willReturn(proxyEvmAccount);
+        given(proxyEvmAccount.numPositiveTokenBalances()).willReturn(1);
+        final var expected = new Operation.OperationResult(123L, CustomExceptionalHaltReason.CONTRACT_STILL_OWNS_NFTS);
+        assertSameResult(expected, subject.execute(frame, evm));
+    }
+
+    @ParameterizedTest
+    @EnumSource(CustomSelfDestructOperation.UseEIP6780Semantics.class)
     void rejectsSelfDestructInStaticChanges(
             @NonNull final CustomSelfDestructOperation.UseEIP6780Semantics useEIP6780Semantics) {
         createSubject(useEIP6780Semantics);
