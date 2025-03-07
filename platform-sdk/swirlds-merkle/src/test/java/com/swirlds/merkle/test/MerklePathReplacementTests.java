@@ -173,7 +173,7 @@ class MerklePathReplacementTests {
     }
 
     /**
-     * Ensure that node replacement happend like we expected.
+     * Ensure that node replacement happened like we expected.
      */
     private void checkReplacedNodes(
             final List<MerkleNode> originalPath,

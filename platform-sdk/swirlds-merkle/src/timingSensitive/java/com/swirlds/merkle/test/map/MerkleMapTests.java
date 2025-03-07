@@ -205,7 +205,7 @@ class MerkleMapTests {
             mm.remove(key);
         }
 
-        assertEquals(0, mm.size(), "expected map to be emtpy");
+        assertEquals(0, mm.size(), "expected map to be empty");
         mm.release();
     }
 
@@ -247,7 +247,7 @@ class MerkleMapTests {
 
         mm.clear();
 
-        assertEquals(0, mm.size(), "expected map to be emtpy");
+        assertEquals(0, mm.size(), "expected map to be empty");
         mm.release();
     }
 
@@ -861,7 +861,7 @@ class MerkleMapTests {
 
         root2.release();
         assertEquals(-1, map.getReservationCount(), "reference count should be -1");
-        assertTrue(map.isDestroyed(), "Expected map to be releaed");
+        assertTrue(map.isDestroyed(), "Expected map to be released");
     }
 
     @Test

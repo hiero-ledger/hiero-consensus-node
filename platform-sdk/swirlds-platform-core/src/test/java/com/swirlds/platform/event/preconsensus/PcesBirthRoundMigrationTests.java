@@ -77,10 +77,10 @@ class PcesBirthRoundMigrationTests {
     }
 
     /**
-     * Describes the PCES stream that was writtne by {@link #generateLegacyPcesFiles(Random, DiscontinuityType)}
+     * Describes the PCES stream that was written by {@link #generateLegacyPcesFiles(Random, DiscontinuityType)}
      *
      * @param files                  a list of files that were written
-     * @param events                 a list of all events in the stream, if there is a discontinuty then only include
+     * @param events                 a list of all events in the stream, if there is a discontinuity then only include
      *                               events after the discontinuity
      */
     private record PcesFilesWritten(@NonNull List<PcesFile> files, @NonNull List<PlatformEvent> events) {}

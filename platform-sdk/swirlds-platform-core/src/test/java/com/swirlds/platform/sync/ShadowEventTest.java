@@ -74,7 +74,7 @@ class ShadowEventTest {
                         s.getOtherParent().getEvent().getHash(), sop.getEvent().getHash()),
                 "expected OP");
 
-        assertSame(s.getEvent(), e, "getting the EventImpl should give the EventImpl instnace itself");
+        assertSame(s.getEvent(), e, "getting the EventImpl should give the EventImpl instance itself");
     }
 
     @Test

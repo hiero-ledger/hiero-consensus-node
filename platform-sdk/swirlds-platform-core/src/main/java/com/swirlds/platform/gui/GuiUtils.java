@@ -32,7 +32,7 @@ public final class GuiUtils {
 
     /**
      * Insert line breaks into the given string so that each line is at most len characters long (not
-     * including trailing whitespace and the line break iteslf). Line breaks are only inserted after a
+     * including trailing whitespace and the line break itself). Line breaks are only inserted after a
      * whitespace character and before a non-whitespace character, resulting in some lines possibly being
      * shorter. If a line has no whitespace, then it will insert between two non-whitespace characters to
      * make it exactly len characters long.

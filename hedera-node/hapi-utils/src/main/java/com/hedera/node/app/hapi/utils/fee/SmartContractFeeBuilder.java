@@ -380,7 +380,7 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
          *
          * Response header NodeTransactionPrecheckCode - 4 bytes ResponseType - 4 bytes
          *
-         * bytes bytescode - calculated value
+         * bytes bytecode - calculated value
          *
          */
 

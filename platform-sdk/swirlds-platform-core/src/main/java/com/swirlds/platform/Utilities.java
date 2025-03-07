@@ -80,7 +80,7 @@ public final class Utilities {
     /**
      * Compare arrays lexicographically, with element 0 having the most influence.
      * A null array is considered less than a non-null array.
-     * This is the same as Java.Util.Arrays#compar
+     * This is the same as Java.Util.Arrays#compare
      *
      * @param b1
      * 		first array

@@ -45,7 +45,7 @@ public interface ExecutorFactory {
      *
      * @param runnable the runnable
      * @return the not started thread
-     * @deprecated all useage should be migrated to {@link #createExecutorService(int)}
+     * @deprecated all usage should be migrated to {@link #createExecutorService(int)}
      */
     @Deprecated
     @NonNull

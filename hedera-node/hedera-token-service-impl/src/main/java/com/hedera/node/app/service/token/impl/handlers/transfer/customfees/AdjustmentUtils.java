@@ -55,7 +55,7 @@ public class AdjustmentUtils {
     }
 
     /**
-     * Given the token deomination, fee collector and the amount to be charged, this method
+     * Given the token denomination, fee collector and the amount to be charged, this method
      * returns the {@link FixedFee} representation of custom fee.
      * @param unitsToCollect The amount to be charged
      * @param tokenDenomination The token denomination

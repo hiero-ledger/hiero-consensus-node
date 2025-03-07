@@ -175,7 +175,7 @@ class ConcurrentArrayTest {
     }
 
     /**
-     * Merged concurrent arrqys are immutable
+     * Merged concurrent arrays are immutable
      */
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache")})

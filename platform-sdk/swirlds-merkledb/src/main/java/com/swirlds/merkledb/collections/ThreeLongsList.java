@@ -128,7 +128,7 @@ public class ThreeLongsList {
      * For each to iterate over all triples stored.
      *
      * @param handler
-     * 		callback to receieve each triple.
+     * 		callback to receive each triple.
      */
     public <T extends Throwable> void forEach(final ThreeLongFunction<T> handler) throws T {
         int index = 0;

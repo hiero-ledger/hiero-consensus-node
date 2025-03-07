@@ -2322,7 +2322,7 @@ public class ContractCallSuite {
                         .addTokenAllowance(TOKEN_TREASURY, TOKEN, contract, 100)
                         .signedBy(DEFAULT_PAYER, TOKEN_TREASURY),
 
-                // Call transferToken() with insufficent gas
+                // Call transferToken() with insufficient gas
                 sourcing(() -> contractCall(
                                 contract,
                                 "callRequestedAndIgnoreFailure",

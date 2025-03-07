@@ -47,7 +47,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "##### All visualizations on this dashboard show the average utlization over the time period selected.",
+        "content": "##### All visualizations on this dashboard show the average utilization over the time period selected.",
         "mode": "markdown"
       },
       "pluginVersion": "10.0.3-cloud.4.aed62623",

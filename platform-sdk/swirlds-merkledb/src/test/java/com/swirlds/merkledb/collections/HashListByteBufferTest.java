@@ -246,7 +246,7 @@ class HashListByteBufferTest {
         assertEquals(hashList.maxHashes(), hashList2.maxHashes(), "Unexpected value for hashList2.maxHashes()");
         assertEquals(hashList.size(), hashList2.size(), "Unexpected value for hashList2.size()");
         for (int i = 0; i < 95; i++) {
-            assertEquals(hash(i), hashList2.get(i), "Unpected value for hashList2.get(" + i + ")");
+            assertEquals(hash(i), hashList2.get(i), "Unexpected value for hashList2.get(" + i + ")");
         }
         // delete file as we are done with it
         Files.delete(file);

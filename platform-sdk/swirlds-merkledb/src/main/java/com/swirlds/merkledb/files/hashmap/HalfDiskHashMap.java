@@ -145,7 +145,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     private final AtomicReference<AbstractTask> notifyTaskRef = new AtomicReference<>();
 
-    /** A holder for the first exception occured during endWriting() tasks */
+    /** A holder for the first exception occurred during endWriting() tasks */
     private final AtomicReference<Throwable> exceptionOccurred = new AtomicReference<>();
 
     /** Fork-join pool for HDHM.endWriting() */

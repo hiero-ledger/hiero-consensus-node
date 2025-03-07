@@ -7,7 +7,7 @@ import com.swirlds.config.api.spi.ConfigurationBuilderFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * Implentation of the {@link ConfigurationBuilderFactory} interface that will automatically be loaded by Java SPI (see
+ * Implementation of the {@link ConfigurationBuilderFactory} interface that will automatically be loaded by Java SPI (see
  * {@link java.util.ServiceLoader}).
  */
 @AutoService(ConfigurationBuilderFactory.class)

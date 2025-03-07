@@ -938,7 +938,7 @@ class VirtualMapTests extends VirtualTestBase {
             throw new AssertionError("flushCount metric is not a counter");
         }
         // There is a potential race condition here, as we release `VirtualRootNode.flushLatch`
-        // before we update the statiscs (see https://github.com/hashgraph/hedera-services/issues/8439)
+        // before we update the statistics (see https://github.com/hashgraph/hedera-services/issues/8439)
         assertEventuallyEquals(
                 flushCount,
                 () -> counterMetric.get(),
@@ -982,7 +982,7 @@ class VirtualMapTests extends VirtualTestBase {
         final VirtualMap<TestKey, TestValue> map2 = createMap();
         // read the serialized map back into map2
         // Note to Jasper/Richard: The call to deserializeException below fails - but somewhat unexpectedly!
-        // Did I not set up the serialiaztion/deserialization correctly?
+        // Did I not set up the serialization/deserialization correctly?
         // currently throws IOException here.
         map2.deserialize(in, testDirectory, VirtualMap.ClassVersion.MERKLE_SERIALIZATION_CLEANUP);
         assertEquals("serializationTest", map2.getLabel());

@@ -181,7 +181,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
 
         subject.calculateFees(feeContext);
 
-        // Not interested in return value from calculate, just that it was called and bpt and rbs were set approriately
+        // Not interested in return value from calculate, just that it was called and bpt and rbs were set appropriately
         InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
         inOrder.verify(feeCalculatorFactory, times(1)).feeCalculator(SubType.DEFAULT);
         inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(64L);
@@ -236,7 +236,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
 
         subject.calculateFees(feeContext);
 
-        // Not interested in return value from calculate, just that it was called and bpt and rbs were set approriately
+        // Not interested in return value from calculate, just that it was called and bpt and rbs were set appropriately
         InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
         inOrder.verify(feeCalculatorFactory, times(1)).feeCalculator(SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES);
         inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(176L);
@@ -283,7 +283,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
 
         subject.calculateFees(feeContext);
 
-        // Not interested in return value from calculate, just that it was called and bpt and rbs were set approriately
+        // Not interested in return value from calculate, just that it was called and bpt and rbs were set appropriately
         InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
         inOrder.verify(feeCalculatorFactory, times(1))
                 .feeCalculator(SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES);

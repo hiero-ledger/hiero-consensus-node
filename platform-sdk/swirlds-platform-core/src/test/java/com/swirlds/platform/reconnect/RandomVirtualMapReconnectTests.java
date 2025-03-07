@@ -110,7 +110,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
      * @param initialMapSize
      * 		how many key/values to store in both teacherMap and learnerMap before the reconnect
      * @param maximumKey
-     * 		how many distict Key values are allowed to exist
+     * 		how many distinct Key values are allowed to exist
      * @param operations
      * 		how many create/update/delete operations to perform on just the teacherMap, prior to the
      * 		reconnect

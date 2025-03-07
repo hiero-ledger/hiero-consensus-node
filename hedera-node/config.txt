@@ -105,9 +105,9 @@ app,		HederaNode.jar
 #                               (Only use 127.0.0.1 if ALL the members are on the same machine)
 #         external port       - in range 50000-65535
 #
-#         stream IP address   - (optioanl) four numbers, each in the range 0-255, separated by dots
+#         stream IP address   - (optional) four numbers, each in the range 0-255, separated by dots
 #                               (Only use 127.0.0.1 if ALL the members are on the same machine)
-#         stream port         - (optioanl) in range 50000-65535
+#         stream port         - (optional) in range 50000-65535
 #
 #
 # Each member should be listed only once, on a single line. If all the members are on the same
