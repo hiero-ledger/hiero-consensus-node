@@ -124,6 +124,9 @@ jobs:
           current_version="$(git-semver latest)"
           actual_next_version="${{ steps.next-release.outputs.version }}"
           
+          # git-semver does not support "next minor" or "next patch" version
+          #   so we calculate it here manually ourselves.
+          
           # Calculate the next minor roll version
           minor_roll_major=$(echo "${current_version}" | cut -d. -f1)
           minor_roll_minor=$(echo "${current_version}" | cut -d. -f2)
