@@ -49,6 +49,19 @@ public class ParameterizedClass {
     }
 
     /**
+     * Ensure that a number parameter is positive.
+     *
+     * @param number the number to check
+     * @return valid number if it passes the validation
+     */
+    protected int numberMustBePositive(final int number) {
+        if (number <= 0) {
+            throw new CommandLine.ParameterException(spec.commandLine(), spec.name() + " must be postive");
+        }
+        return number;
+    }
+
+    /**
      * Ensure that a path from the command line exists and that it is a directory.
      *
      * @param path a path from the command line

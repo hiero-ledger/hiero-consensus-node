@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
+import static com.swirlds.platform.system.SystemExitCode.CONFIGURATION_ERROR;
 import static com.swirlds.platform.system.SystemExitCode.FATAL_ERROR;
 import static java.util.concurrent.TimeUnit.MINUTES;
 
@@ -8,14 +9,21 @@ import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.platform.Browser;
 import com.swirlds.platform.CommandLineArgs;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
@@ -61,8 +69,14 @@ public class BrowseCommand extends AbstractCommand {
     @SuppressWarnings("InfiniteLoopStatement")
     @Override
     public Integer call() throws IOException, InterruptedException {
+        final Path sdkPath = Path.of(System.getProperty("user.dir"));
         if (clean) {
-            CleanCommand.clean(Path.of(System.getProperty("user.dir")));
+            CleanCommand.clean(sdkPath);
+        }
+
+        if (!hasPemFile(sdkPath.resolve("data/keys/"))) {
+            CommonUtils.tellUserConsole("please generate keys with generate-keys command first");
+            return CONFIGURATION_ERROR.getExitCode();
         }
 
         try {
@@ -76,5 +90,16 @@ public class BrowseCommand extends AbstractCommand {
         while (true) {
             MINUTES.sleep(1);
         }
+    }
+
+    /**
+     * Checks if any .pem file exists in the given directory and its subdirectories.
+     *
+     * @param directoryPath The path of the directory to search in.
+     * @return True if at least one .pem file exists, false otherwise.
+     * @throws IOException If an I/O error occurs.
+     */
+    public static boolean hasPemFile(@NonNull Path directoryPath) throws IOException {
+        return Objects.requireNonNull(directoryPath.toFile().listFiles((dir, name) -> name.endsWith(".pem"))).length>0;
     }
 }
