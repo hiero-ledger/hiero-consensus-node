@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.block.protoc.PublishStreamRequest;
 import com.hedera.hapi.block.protoc.PublishStreamResponse;
 import com.hedera.node.internal.network.BlockNodeConfig;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.helidon.webclient.grpc.GrpcServiceClient;
@@ -24,12 +27,19 @@ public class BlockNodeConnection {
     private final BlockNodeConnectionManager manager;
     private StreamObserver<PublishStreamRequest> requestObserver;
     private volatile boolean isActive = true;
+    private final String connectionId;
+    private final BlockAcknowledgementTracker acknowledgmentTracker;
 
     public BlockNodeConnection(
-            BlockNodeConfig nodeConfig, GrpcServiceClient grpcServiceClient, BlockNodeConnectionManager manager) {
-        this.node = nodeConfig;
-        this.grpcServiceClient = grpcServiceClient;
-        this.manager = manager;
+            @NonNull BlockNodeConfig nodeConfig,
+            @NonNull GrpcServiceClient grpcServiceClient,
+            @NonNull BlockNodeConnectionManager manager,
+            @NonNull BlockAcknowledgementTracker acknowledgmentTracker) {
+        this.node = requireNonNull(nodeConfig);
+        this.grpcServiceClient = requireNonNull(grpcServiceClient);
+        this.manager = requireNonNull(manager);
+        this.acknowledgmentTracker = requireNonNull(acknowledgmentTracker);
+        this.connectionId = generateConnectionId(nodeConfig);
         establishStream();
         logger.info("BlockNodeConnection INITIALIZED");
     }
@@ -63,7 +73,9 @@ public class BlockNodeConnection {
 
     private void handleAcknowledgement(PublishStreamResponse.Acknowledgement acknowledgement) {
         if (acknowledgement.hasBlockAck()) {
-            logger.info("Block acknowledgment received for a full block: {}", acknowledgement.getBlockAck());
+            final var ackBlockNumber = acknowledgement.getBlockAck().getBlockNumber();
+
+            acknowledgmentTracker.trackAcknowledgment(connectionId, ackBlockNumber);
         }
     }
 
@@ -73,6 +85,10 @@ public class BlockNodeConnection {
 
     private void removeFromActiveConnections(BlockNodeConfig node) {
         manager.handleConnectionError(node);
+    }
+
+    private String generateConnectionId(BlockNodeConfig nodeConfig) {
+        return nodeConfig.address() + ":" + nodeConfig.port();
     }
 
     public void handleStreamFailure() {
