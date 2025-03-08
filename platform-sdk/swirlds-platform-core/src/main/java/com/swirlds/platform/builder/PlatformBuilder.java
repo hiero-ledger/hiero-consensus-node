@@ -41,7 +41,6 @@ import com.swirlds.platform.roster.RosterHistory;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -50,6 +49,7 @@ import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -66,16 +66,17 @@ import org.apache.logging.log4j.Logger;
 /**
  * Builds a {@link SwirldsPlatform} instance.
  */
-public final class PlatformBuilder {
+public final class PlatformBuilder<T extends MerkleNodeState> {
 
     private static final Logger logger = LogManager.getLogger(PlatformBuilder.class);
 
     private final String appName;
     private final SoftwareVersion softwareVersion;
-    private final ReservedSignedState initialState;
+    private final ReservedSignedState<T> initialState;
 
-    private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
+    private final ConsensusStateEventHandler<T> consensusStateEventHandler;
     private final PlatformStateFacade platformStateFacade;
+    private final StateLifecycleManager<T> stateLifecycleManager;
 
     private final NodeId selfId;
     private final String swirldName;
@@ -90,7 +91,7 @@ public final class PlatformBuilder {
      * A RosterHistory that allows one to lookup a roster for a given round,
      * or get the active/previous roster.
      */
-    private RosterHistory rosterHistory;
+    private final RosterHistory rosterHistory;
 
     /**
      * A consensusEventStreamName for DefaultConsensusEventStream.
@@ -147,21 +148,23 @@ public final class PlatformBuilder {
      * @param consensusStateEventHandler          the state lifecycle events handler
      * @param selfId                   the ID of this node
      * @param consensusEventStreamName a part of the name of the directory where the consensus event stream is written
-     * @param platformStateFacade      the facade to access the platform state
      * @param rosterHistory            the roster history provided by the application to use at startup
+     * @param platformStateFacade      the facade to access the platform state
+     * @param stateLifecycleManager    the state lifecycle manager
      */
     @NonNull
-    public static PlatformBuilder create(
+    public static <T extends MerkleNodeState> PlatformBuilder<T> create(
             @NonNull final String appName,
             @NonNull final String swirldName,
             @NonNull final SoftwareVersion softwareVersion,
-            @NonNull final ReservedSignedState initialState,
-            @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
+            @NonNull final ReservedSignedState<T> initialState,
+            @NonNull final ConsensusStateEventHandler<T> consensusStateEventHandler,
             @NonNull final NodeId selfId,
             @NonNull final String consensusEventStreamName,
             @NonNull final RosterHistory rosterHistory,
-            @NonNull final PlatformStateFacade platformStateFacade) {
-        return new PlatformBuilder(
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final StateLifecycleManager<T> stateLifecycleManager) {
+        return new PlatformBuilder<T>(
                 appName,
                 swirldName,
                 softwareVersion,
@@ -170,7 +173,8 @@ public final class PlatformBuilder {
                 selfId,
                 consensusEventStreamName,
                 rosterHistory,
-                platformStateFacade);
+                platformStateFacade,
+                stateLifecycleManager);
     }
 
     /**
@@ -186,17 +190,19 @@ public final class PlatformBuilder {
      * @param consensusEventStreamName a part of the name of the directory where the consensus event stream is written
      * @param rosterHistory            the roster history provided by the application to use at startup
      * @param platformStateFacade      the facade to access the platform state
+     * @param stateLifecycleManager    the state lifecycle manager
      */
     private PlatformBuilder(
             @NonNull final String appName,
             @NonNull final String swirldName,
             @NonNull final SoftwareVersion softwareVersion,
-            @NonNull final ReservedSignedState initialState,
-            @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
+            @NonNull final ReservedSignedState<T> initialState,
+            @NonNull final ConsensusStateEventHandler<T> consensusStateEventHandler,
             @NonNull final NodeId selfId,
             @NonNull final String consensusEventStreamName,
             @NonNull final RosterHistory rosterHistory,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final StateLifecycleManager<T> stateLifecycleManager) {
 
         this.appName = Objects.requireNonNull(appName);
         this.swirldName = Objects.requireNonNull(swirldName);
@@ -207,6 +213,7 @@ public final class PlatformBuilder {
         this.consensusEventStreamName = Objects.requireNonNull(consensusEventStreamName);
         this.rosterHistory = Objects.requireNonNull(rosterHistory);
         this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
+        this.stateLifecycleManager = Objects.requireNonNull(stateLifecycleManager);
     }
 
     /**
@@ -218,7 +225,7 @@ public final class PlatformBuilder {
      * @return this
      */
     @NonNull
-    public PlatformBuilder withConfiguration(@NonNull final Configuration configuration) {
+    public PlatformBuilder<T> withConfiguration(@NonNull final Configuration configuration) {
         this.configuration = Objects.requireNonNull(configuration);
         checkConfiguration(configuration);
         return this;
@@ -242,7 +249,7 @@ public final class PlatformBuilder {
      * @return this
      */
     @NonNull
-    public PlatformBuilder withPreconsensusEventCallback(
+    public PlatformBuilder<T> withPreconsensusEventCallback(
             @NonNull final Consumer<PlatformEvent> preconsensusEventConsumer) {
         throwIfAlreadyUsed();
         this.preconsensusEventConsumer = Objects.requireNonNull(preconsensusEventConsumer);
@@ -266,7 +273,7 @@ public final class PlatformBuilder {
      * @return this
      */
     @NonNull
-    public PlatformBuilder withConsensusSnapshotOverrideCallback(
+    public PlatformBuilder<T> withConsensusSnapshotOverrideCallback(
             @NonNull final Consumer<ConsensusSnapshot> snapshotOverrideConsumer) {
         throwIfAlreadyUsed();
         this.snapshotOverrideConsumer = Objects.requireNonNull(snapshotOverrideConsumer);
@@ -284,7 +291,7 @@ public final class PlatformBuilder {
      * @return this
      */
     @NonNull
-    public PlatformBuilder withStaleEventCallback(@NonNull final Consumer<PlatformEvent> staleEventConsumer) {
+    public PlatformBuilder<T> withStaleEventCallback(@NonNull final Consumer<PlatformEvent> staleEventConsumer) {
         throwIfAlreadyUsed();
         this.staleEventConsumer = Objects.requireNonNull(staleEventConsumer);
         return this;
@@ -298,7 +305,7 @@ public final class PlatformBuilder {
      * @return this
      */
     @NonNull
-    public PlatformBuilder withSystemTransactionEncoderCallback(
+    public PlatformBuilder<T> withSystemTransactionEncoderCallback(
             @NonNull final Function<StateSignatureTransaction, Bytes> systemTransactionEncoder) {
         throwIfAlreadyUsed();
         this.systemTransactionEncoder = Objects.requireNonNull(systemTransactionEncoder);
@@ -313,7 +320,7 @@ public final class PlatformBuilder {
      * @throws IllegalStateException if the signing certificate is not valid or does not match the signing private key.
      */
     @NonNull
-    public PlatformBuilder withKeysAndCerts(@NonNull final KeysAndCerts keysAndCerts) {
+    public PlatformBuilder<T> withKeysAndCerts(@NonNull final KeysAndCerts keysAndCerts) {
         throwIfAlreadyUsed();
         this.keysAndCerts = Objects.requireNonNull(keysAndCerts);
         // Ensure that the platform has a valid signing cert that matches the signing private key.
@@ -338,7 +345,7 @@ public final class PlatformBuilder {
      * @param model the wiring model to use
      * @return this
      */
-    public PlatformBuilder withModel(@NonNull final WiringModel model) {
+    public PlatformBuilder<T> withModel(@NonNull final WiringModel model) {
         throwIfAlreadyUsed();
         this.model = Objects.requireNonNull(model);
         return this;
@@ -351,7 +358,7 @@ public final class PlatformBuilder {
      * @return this
      */
     @NonNull
-    public PlatformBuilder withRandomBuilder(@NonNull final RandomBuilder randomBuilder) {
+    public PlatformBuilder<T> withRandomBuilder(@NonNull final RandomBuilder randomBuilder) {
         throwIfAlreadyUsed();
         this.randomBuilder = Objects.requireNonNull(randomBuilder);
         return this;
@@ -364,7 +371,7 @@ public final class PlatformBuilder {
      * @return this
      */
     @NonNull
-    public PlatformBuilder withPlatformContext(@NonNull final PlatformContext platformContext) {
+    public PlatformBuilder<T> withPlatformContext(@NonNull final PlatformContext platformContext) {
         throwIfAlreadyUsed();
         this.platformContext = Objects.requireNonNull(platformContext);
         return this;
@@ -387,7 +394,7 @@ public final class PlatformBuilder {
      * @return a new platform component builder
      */
     @NonNull
-    public PlatformComponentBuilder buildComponentBuilder() {
+    public PlatformComponentBuilder<T> buildComponentBuilder() {
         throwIfAlreadyUsed();
         used = true;
 
@@ -437,14 +444,6 @@ public final class PlatformBuilder {
                 preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer, systemTransactionEncoder);
 
         final AtomicReference<StatusActionSubmitter> statusActionSubmitterAtomicReference = new AtomicReference<>();
-        final SwirldStateManager swirldStateManager = new SwirldStateManager(
-                platformContext,
-                currentRoster,
-                selfId,
-                x -> statusActionSubmitterAtomicReference.get().submitStatusAction(x),
-                softwareVersion,
-                consensusStateEventHandler,
-                platformStateFacade);
 
         if (model == null) {
             final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
@@ -474,7 +473,7 @@ public final class PlatformBuilder {
 
         final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks);
 
-        final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
+        final PlatformBuildingBlocks<T> buildingBlocks = new PlatformBuildingBlocks<T>(
                 platformWiring,
                 platformContext,
                 model,
@@ -498,15 +497,15 @@ public final class PlatformBuilder {
                 issScratchpad,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
                 statusActionSubmitterAtomicReference,
-                swirldStateManager,
                 new AtomicReference<>(),
                 new AtomicReference<>(),
                 new AtomicReference<>(),
                 firstPlatform,
                 consensusStateEventHandler,
-                platformStateFacade);
+                platformStateFacade,
+                stateLifecycleManager);
 
-        return new PlatformComponentBuilder(buildingBlocks);
+        return new PlatformComponentBuilder<T>(buildingBlocks);
     }
 
     /**

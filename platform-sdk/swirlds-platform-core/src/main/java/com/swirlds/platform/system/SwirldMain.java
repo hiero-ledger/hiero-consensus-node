@@ -7,6 +7,7 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 
@@ -63,6 +64,12 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
      * @return consensus state event handler
      */
     ConsensusStateEventHandler<T> newConsensusStateEvenHandler();
+
+    /**
+     * Instantiate and return a new instance of the state lifecycle manager for this SwirldMain object.
+     * @return state lifecycle manager
+     */
+    StateLifecycleManager<T> newStateLifecycleManager();
 
     /**
      * <p>

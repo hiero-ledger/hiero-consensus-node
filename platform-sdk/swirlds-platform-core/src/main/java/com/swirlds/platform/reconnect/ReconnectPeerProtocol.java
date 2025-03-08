@@ -37,7 +37,7 @@ public class ReconnectPeerProtocol implements PeerProtocol {
 
     private final NodeId peerId;
     private final ReconnectThrottle teacherThrottle;
-    private final Supplier<ReservedSignedState> lastCompleteSignedState;
+    private final Supplier<ReservedSignedState<?>> lastCompleteSignedState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics reconnectMetrics;
     private final ReconnectController reconnectController;
@@ -53,7 +53,7 @@ public class ReconnectPeerProtocol implements PeerProtocol {
     private final Supplier<PlatformStatus> platformStatusSupplier;
 
     private final Configuration configuration;
-    private ReservedSignedState teacherState;
+    private ReservedSignedState<?> teacherState;
     /**
      * A rate limited logger for when rejecting teacher role due to state being null.
      */
@@ -92,7 +92,7 @@ public class ReconnectPeerProtocol implements PeerProtocol {
             @NonNull final ThreadManager threadManager,
             @NonNull final NodeId peerId,
             @NonNull final ReconnectThrottle teacherThrottle,
-            @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
+            @NonNull final Supplier<ReservedSignedState<?>> lastCompleteSignedState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
             @NonNull final ReconnectController reconnectController,

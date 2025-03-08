@@ -47,7 +47,7 @@ import com.swirlds.platform.pool.TransactionPoolNexus;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.SwirldStateManager;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LockFreeStateNexus;
@@ -70,6 +70,7 @@ import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -85,7 +86,7 @@ import org.apache.logging.log4j.Logger;
  * The swirlds consensus node platform. Responsible for the creation, gossip, and consensus of events. Also manages the
  * transaction handling and state management.
  */
-public class SwirldsPlatform implements Platform {
+public class SwirldsPlatform<T extends MerkleNodeState> implements Platform {
 
     private static final Logger logger = LogManager.getLogger(SwirldsPlatform.class);
 
@@ -171,10 +172,10 @@ public class SwirldsPlatform implements Platform {
      * @param builder this object is responsible for building platform components and other things needed by the
      *                platform
      */
-    public SwirldsPlatform(@NonNull final PlatformComponentBuilder builder) {
-        final PlatformBuildingBlocks blocks = builder.getBuildingBlocks();
+    public SwirldsPlatform(@NonNull final PlatformComponentBuilder<T> builder) {
+        final PlatformBuildingBlocks<T> blocks = builder.getBuildingBlocks();
         platformContext = blocks.platformContext();
-        final ConsensusStateEventHandler consensusStateEventHandler = blocks.consensusStateEventHandler();
+        final ConsensusStateEventHandler<T> consensusStateEventHandler = blocks.consensusStateEventHandler();
 
         ancientMode = platformContext
                 .getConfiguration()
@@ -182,12 +183,12 @@ public class SwirldsPlatform implements Platform {
                 .getAncientMode();
 
         // The reservation on this state is held by the caller of this constructor.
-        final SignedState initialState = blocks.initialState().get();
+        final SignedState<T> initialState = blocks.initialState().get();
 
         // This method is a no-op if we are not in birth round mode, or if we have already migrated.
         final SoftwareVersion appVersion = blocks.appVersion();
         PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
-        modifyStateForBirthRoundMigration(initialState, ancientMode, appVersion, platformStateFacade);
+        modifyStateForBirthRoundMigration(initialState.getState(), ancientMode, appVersion, platformStateFacade);
 
         selfId = blocks.selfId();
 
@@ -253,16 +254,20 @@ public class SwirldsPlatform implements Platform {
 
         initializeState(this, platformContext, initialState, consensusStateEventHandler, platformStateFacade);
 
+        final StateLifecycleManager<T> stateLifecycleManager = blocks.stateLifecycleManager();
         // This object makes a copy of the state. After this point, initialState becomes immutable.
-        /**
-         * Handles all interaction with {@link ConsensusStateEventHandler}
-         */
-        SwirldStateManager swirldStateManager = blocks.swirldStateManager();
-        swirldStateManager.setInitialState(initialState.getState());
+
+        stateLifecycleManager.setInitialState(initialState.getState());
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
-        blocks.isInFreezePeriodReference().set(swirldStateManager::isInFreezePeriod);
+        blocks.isInFreezePeriodReference().set(timestamp -> {
+            MerkleNodeState mutableState = stateLifecycleManager.getMutableState();
+            return PlatformStateFacade.isInFreezePeriod(
+                    timestamp,
+                    platformStateFacade.freezeTimeOf(mutableState),
+                    platformStateFacade.lastFrozenTimeOf(mutableState));
+        });
 
         final BirthRoundMigrationShim birthRoundMigrationShim =
                 buildBirthRoundMigrationShim(initialState, ancientMode, platformStateFacade);
@@ -349,12 +354,12 @@ public class SwirldsPlatform implements Platform {
                 this,
                 platformContext,
                 platformWiring,
-                swirldStateManager,
                 latestImmutableStateNexus,
                 savedStateController,
                 currentRoster,
                 consensusStateEventHandler,
-                platformStateFacade);
+                platformStateFacade,
+                stateLifecycleManager);
 
         blocks.loadReconnectStateReference().set(reconnectStateLoader::loadReconnectState);
         blocks.clearAllPipelinesForReconnectReference().set(platformWiring::clear);

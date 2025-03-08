@@ -34,11 +34,13 @@ import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookUtils;
+import com.swirlds.platform.test.fixtures.state.TestStateLifecycleManager;
 import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsHolder;
 import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsListContainer;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
@@ -117,7 +119,7 @@ public class TurtleNode {
         final var recycleBin =
                 RecycleBin.create(metrics, configuration, getStaticThreadManager(), time, fileSystemManager, nodeId);
 
-        final var reservedState = getInitialState(
+        final HashedReservedSignedState<TurtleTestingToolState> reservedState = getInitialState(
                 recycleBin,
                 version,
                 TurtleTestingToolState::getStateRootNode,
@@ -129,7 +131,7 @@ public class TurtleNode {
                 platformContext);
         final var initialState = reservedState.state();
 
-        final PlatformBuilder platformBuilder = PlatformBuilder.create(
+        final PlatformBuilder<?> platformBuilder = PlatformBuilder.create(
                         "foo",
                         "bar",
                         softwareVersion,
@@ -138,7 +140,8 @@ public class TurtleNode {
                         nodeId,
                         AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
                         RosterUtils.buildRosterHistory(initialState.get().getState(), platformStateFacade),
-                        platformStateFacade)
+                        platformStateFacade,
+                        new TestStateLifecycleManager<>())
                 .withModel(model)
                 .withRandomBuilder(new RandomBuilder(randotron.nextLong()))
                 .withKeysAndCerts(privateKeys)
@@ -146,9 +149,9 @@ public class TurtleNode {
                 .withConfiguration(configuration)
                 .withSystemTransactionEncoderCallback(StateSignatureTransaction.PROTOBUF::toBytes);
 
-        final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
+        final PlatformComponentBuilder<?> platformComponentBuilder = platformBuilder.buildComponentBuilder();
 
-        final PlatformBuildingBlocks buildingBlocks = platformComponentBuilder.getBuildingBlocks();
+        final PlatformBuildingBlocks<?> buildingBlocks = platformComponentBuilder.getBuildingBlocks();
 
         final ComponentWiring<ConsensusRoundsHolder, Void> consensusRoundsHolderWiring =
                 new ComponentWiring<>(model, ConsensusRoundsHolder.class, TaskSchedulerConfiguration.parse("DIRECT"));

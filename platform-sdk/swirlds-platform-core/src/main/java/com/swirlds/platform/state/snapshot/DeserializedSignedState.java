@@ -2,6 +2,7 @@
 package com.swirlds.platform.state.snapshot;
 
 import com.swirlds.common.crypto.Hash;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 
 /**
@@ -12,4 +13,5 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
  * @param originalHash
  * 		the hash of the signed state when it was serialized, may not be the same as the current hash
  */
-public record DeserializedSignedState(ReservedSignedState reservedSignedState, Hash originalHash) {}
+public record DeserializedSignedState<T extends MerkleNodeState>(
+        ReservedSignedState<T> reservedSignedState, Hash originalHash) {}
