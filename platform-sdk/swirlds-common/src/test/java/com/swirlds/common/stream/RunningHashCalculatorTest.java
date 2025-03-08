@@ -7,14 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import org.junit.jupiter.api.Test;
 
 class RunningHashCalculatorTest {
-    private static Cryptography cryptography = CryptographyFactory.create();
+    private static Cryptography cryptography = CryptographyProvider.getInstance();
 
     @Test
     void runningHashTest() throws InterruptedException {

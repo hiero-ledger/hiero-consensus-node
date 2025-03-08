@@ -47,7 +47,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.RuntimeConstructable;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
@@ -255,7 +255,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final var platformConfig = buildPlatformConfig();
         // Immediately initialize the cryptography and merkle cryptography factories
         // to avoid using default behavior instead of that defined in platformConfig
-        final var cryptography = CryptographyFactory.create();
+        final var cryptography = CryptographyProvider.getInstance();
         final var merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         // Determine which nodes were _requested_ to run from the command line

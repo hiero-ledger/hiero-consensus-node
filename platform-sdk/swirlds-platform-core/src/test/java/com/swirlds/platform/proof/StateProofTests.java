@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
@@ -55,7 +55,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("StateProof Tests")
 class StateProofTests {
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {

@@ -21,7 +21,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.crypto.VerificationStatus;
@@ -99,7 +99,7 @@ public class PlatformTestingToolConsensusStateEventHandler
     private static final Marker LOGM_STARTUP = MarkerManager.getMarker("STARTUP");
     private static final long EXCEPTION_RATE_THRESHOLD = 10;
 
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     static final String STAT_TIMER_THREAD_NAME = "stat timer PTTState";
 

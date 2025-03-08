@@ -6,7 +6,7 @@ import static com.swirlds.common.utility.ByteUtils.longToByteArray;
 
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.SerializableHashable;
@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class FCQueue<E extends FastCopyable & SerializableHashable> extends PartialMerkleLeaf
         implements Queue<E>, MerkleLeaf {
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     private static class ClassVersion {
         /**
