@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class IsFrozenCallTest extends CallTestBase {
     @Test
     void returnsIsFrozenForPresentToken() {
+        mockEntityIdFactory();
         final var subject = new IsFrozenCall(
                 gasCalculator, mockEnhancement(), false, FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_HEADLONG_ADDRESS);
 

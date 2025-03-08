@@ -40,6 +40,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractLoginfo;
@@ -81,7 +82,7 @@ class ConversionUtilsTest {
 
     @Test
     void besuAddressIsZeroForDefaultContractId() {
-        assertEquals(Address.ZERO, contractIDToBesuAddress(ContractID.DEFAULT));
+        assertEquals(Address.ZERO, contractIDToBesuAddress(entityIdFactory, ContractID.DEFAULT));
     }
 
     @Test
@@ -128,7 +129,7 @@ class ConversionUtilsTest {
     @Test
     void returnsNumberIfSmallLongZeroAddressIsPresent() {
         final long number = A_NEW_ACCOUNT_ID.accountNumOrThrow();
-        given(nativeOperations.getAccount(number)).willReturn(SOMEBODY);
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address = asHeadlongAddress(asEvmAddress(shard, realm, number));
         final var actual = accountNumberForEvmReference(address, nativeOperations);
@@ -138,7 +139,7 @@ class ConversionUtilsTest {
     @Test
     void returnsNonCanonicalRefIfSmallLongZeroAddressRefersToAliasedAccount() {
         final var address = asHeadlongAddress(Address.fromHexString("0x1234").toArray());
-        given(nativeOperations.getAccount(0x1234)).willReturn(ALIASED_SOMEBODY);
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(ALIASED_SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var actual = accountNumberForEvmReference(address, nativeOperations);
         assertEquals(NON_CANONICAL_REFERENCE_NUMBER, actual);
@@ -244,10 +245,10 @@ class ConversionUtilsTest {
 
     @Test
     void convertContractIdToBesuAddressTest() {
-        final var actual = ConversionUtils.contractIDToBesuAddress(CALLED_CONTRACT_ID);
+        final var actual = ConversionUtils.contractIDToBesuAddress(entityIdFactory, CALLED_CONTRACT_ID);
         assertEquals(actual, asLongZeroAddress(entityIdFactory, CALLED_CONTRACT_ID.contractNum()));
 
-        final var actual2 = ConversionUtils.contractIDToBesuAddress(VALID_CONTRACT_ADDRESS);
+        final var actual2 = ConversionUtils.contractIDToBesuAddress(entityIdFactory, VALID_CONTRACT_ADDRESS);
         assertEquals(actual2, pbjToBesuAddress(VALID_CONTRACT_ADDRESS.evmAddress()));
     }
 

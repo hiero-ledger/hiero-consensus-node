@@ -11,8 +11,10 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -51,6 +53,8 @@ public class StateNetworkInfo implements NetworkInfo {
      */
     private volatile Map<Long, NodeInfo> nodeInfos;
 
+    private final Configuration configuration;
+
     /**
      * Constructs a new network information provider from the given state, roster, selfID, and configuration provider.
      *
@@ -67,10 +71,8 @@ public class StateNetworkInfo implements NetworkInfo {
         requireNonNull(state);
         requireNonNull(configProvider);
         this.activeRoster = requireNonNull(roster);
-        this.ledgerId = configProvider
-                .getConfiguration()
-                .getConfigData(LedgerConfig.class)
-                .id();
+        this.configuration = configProvider.getConfiguration();
+        this.ledgerId = configuration.getConfigData(LedgerConfig.class).id();
         this.nodeInfos = nodeInfosFrom(state);
         this.selfId = selfId;
     }
@@ -121,6 +123,7 @@ public class StateNetworkInfo implements NetworkInfo {
         final ReadableKVState<EntityNumber, Node> nodes =
                 state.getReadableStates(AddressBookService.NAME).get(NODES_KEY);
         final Map<Long, NodeInfo> nodeInfos = new LinkedHashMap<>();
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         for (final var rosterEntry : activeRoster.rosterEntries()) {
             // At genesis the node store is derived from the roster, hence must have info for every
             // node id; and from then on, the roster is derived from the node store, and hence the
@@ -137,6 +140,8 @@ public class StateNetworkInfo implements NetworkInfo {
                         fromRosterEntry(
                                 rosterEntry,
                                 AccountID.newBuilder()
+                                        .shardNum(hederaConfig.shard())
+                                        .realmNum(hederaConfig.realm())
                                         .accountNum(rosterEntry.nodeId() + 3)
                                         .build()));
                 log.warn("Node {} not found in node store", rosterEntry.nodeId());

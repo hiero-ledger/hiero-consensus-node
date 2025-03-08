@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -122,12 +123,12 @@ public class ContractUpdateSuite {
                                 .isDeclinedReward(true)
                                 .noStakedAccountId()
                                 .stakedNodeId(0)),
-                contractUpdate(CONTRACT).newDeclinedReward(false).newStakedAccountId("0.0.10"),
+                contractUpdate(CONTRACT).newDeclinedReward(false).newStakedAccountId(SHARD_AND_REALM + "10"),
                 getContractInfo(CONTRACT)
                         .has(contractWith()
                                 .isDeclinedReward(false)
                                 .noStakingNodeId()
-                                .stakedAccountId("0.0.10"))
+                                .stakedAccountId(SHARD_AND_REALM + "10"))
                         .logged(),
 
                 /* --- reset the staking account */

@@ -2,9 +2,9 @@
   {
     "inputs": [
       {
-        "internalType": "uint64",
+        "internalType": "uint160",
         "name": "account_num",
-        "type": "uint64"
+        "type": "uint160"
       },
       {
         "internalType": "uint64",

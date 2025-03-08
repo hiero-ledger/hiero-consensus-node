@@ -79,7 +79,7 @@ class TokenCancelAirdropDecoderTest {
     void cancelAirdropDecoder1FTTest() {
         // given:
         given(tokensConfig.maxAllowedPendingAirdropsToCancel()).willReturn(10);
-        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID)).willReturn(FUNGIBLE_TOKEN);
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
@@ -130,7 +130,7 @@ class TokenCancelAirdropDecoderTest {
     void failsIfTokenIsNull() {
         // given:
         given(tokensConfig.maxAllowedPendingAirdropsToCancel()).willReturn(10);
-        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(null);
+        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID)).willReturn(null);
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
@@ -153,7 +153,7 @@ class TokenCancelAirdropDecoderTest {
     void cancelAirdropDecoder1NFTTest() {
         // given:
         given(tokensConfig.maxAllowedPendingAirdropsToCancel()).willReturn(10);
-        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(NON_FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(NON_FUNGIBLE_TOKEN);
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);

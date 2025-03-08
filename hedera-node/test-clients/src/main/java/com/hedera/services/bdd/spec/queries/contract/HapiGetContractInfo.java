@@ -142,7 +142,9 @@ public class HapiGetContractInfo extends HapiQueryOp<HapiGetContractInfo> {
                 || expectations.isPresent()
                 || registryEntry.isPresent()) {
             final var detailsLookup = QueryVerbs.getAccountDetails(
-                            "0.0." + actualInfo.getContractID().getContractNum())
+                            spec.setup().defaultShard().getShardNum() + "."
+                                    + spec.setup().defaultRealm().getRealmNum() + "."
+                                    + actualInfo.getContractID().getContractNum())
                     .payingWith(GENESIS);
             CustomSpecAssert.allRunFor(spec, detailsLookup);
             final var response = detailsLookup.getResponse();

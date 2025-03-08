@@ -33,6 +33,8 @@ public class ContractUpdateTranslator implements BlockTransactionPartsTranslator
                         if (account.smartContract()) {
                             iter.remove();
                             final var contractId = ContractID.newBuilder()
+                                    .shardNum(account.accountIdOrThrow().shardNum())
+                                    .realmNum(account.accountIdOrThrow().realmNum())
                                     .contractNum(account.accountIdOrThrow().accountNumOrThrow())
                                     .build();
                             receiptBuilder.contractID(contractId);

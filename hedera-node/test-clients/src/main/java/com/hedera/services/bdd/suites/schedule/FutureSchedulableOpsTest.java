@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.schedule;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -55,7 +57,6 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
-import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,8 +69,6 @@ import org.junit.jupiter.api.DynamicTest;
  */
 @HapiTestLifecycle
 public class FutureSchedulableOpsTest {
-    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
-    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -110,7 +109,7 @@ public class FutureSchedulableOpsTest {
                 cryptoCreate(PAYING_ACCOUNT_2),
                 scheduleCreate(
                                 A_SCHEDULE,
-                                fileUpdate(String.format("%s.%s.150", SHARD, REALM))
+                                fileUpdate(String.format("%s.%s.150", shard, realm))
                                         .contents("fooo!"))
                         .withEntityMemo(randomUppercase(100))
                         .designatingPayer(PAYING_ACCOUNT_2)
@@ -168,7 +167,7 @@ public class FutureSchedulableOpsTest {
                 doWithStartupConfig(
                         "accounts.lastThrottleExempt",
                         value -> doAdhoc(() ->
-                                unprivilegedThrottleExemptPayerId.set(String.format("%s.%s.%s", SHARD, REALM, value)))),
+                                unprivilegedThrottleExemptPayerId.set(String.format("%s.%s.%s", shard, realm, value)))),
                 cryptoCreate(PAYING_ACCOUNT),
                 fileCreate("misc").lifetime(THREE_MONTHS_IN_SECONDS).contents(ORIG_FILE),
                 sourcing(() -> scheduleCreate(

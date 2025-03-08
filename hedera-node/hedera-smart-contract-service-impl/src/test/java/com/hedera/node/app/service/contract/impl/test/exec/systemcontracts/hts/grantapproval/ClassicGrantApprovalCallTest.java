@@ -94,8 +94,8 @@ public class ClassicGrantApprovalCallTest extends CallTestBase {
                 TokenType.NON_FUNGIBLE_UNIQUE);
         given(systemContractOperations.dispatch(any(), any(), any(), any())).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID.tokenNum(), 100L)).willReturn(nft);
-        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(token);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 100L)).willReturn(nft);
+        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(token);
         given(frame.getWorldUpdater()).willReturn(updater);
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var result = subject.execute(frame).fullResult().result();

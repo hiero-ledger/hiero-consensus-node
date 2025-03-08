@@ -2,6 +2,9 @@
 package com.hedera.services.bdd.suites.misc;
 
 import static com.hedera.services.bdd.junit.TestTags.ISS;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -30,12 +33,15 @@ import org.junit.jupiter.api.Tag;
 class IssHandlingTestSuite {
     private static final long NODE_0_ACCT_ID = 3; // The ISS node
     private static final long NODE_1_ACCT_ID = 4; // One of the Non-ISS nodes
-    private static final String NODE_1_FULL_ACCT_ID = "0.0." + NODE_1_ACCT_ID;
+    private static final String NODE_1_FULL_ACCT_ID = asEntityString(NODE_1_ACCT_ID);
 
     @HapiTest
     final Stream<DynamicTest> simulateIss() {
-        final var node0Selector = NodeSelector.byOperatorAccountId(
-                AccountID.newBuilder().accountNum(NODE_0_ACCT_ID).build());
+        final var node0Selector = NodeSelector.byOperatorAccountId(AccountID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .accountNum(NODE_0_ACCT_ID)
+                .build());
         return hapiTest(
                 // Log Preconditions: Make sure the network is configured to simulate an ISS
                 UtilVerbs.assertHgcaaLogContains(node0Selector, "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
@@ -60,7 +66,7 @@ class IssHandlingTestSuite {
                         .signedBy("key1", "key2", "key3")
                         .payingWith("civilian1")
                         // Intentionally submit this transfer to the modified node
-                        .setNode("0.0." + NODE_0_ACCT_ID)
+                        .setNode(asEntityString(NODE_0_ACCT_ID))
                         // The ISS node will shut down its GRPC server after detecting the ISS, so we need to allow for
                         // any status type
                         .hasAnyStatusAtAll(),

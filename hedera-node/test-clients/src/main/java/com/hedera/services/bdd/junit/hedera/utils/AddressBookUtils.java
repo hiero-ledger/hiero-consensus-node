@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.hedera.utils;
 
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 
@@ -128,7 +129,7 @@ public class AddressBookUtils {
                     .append(", 127.0.0.1, ")
                     .append(nextExternalGossipPort + (node.getNodeId() * 2))
                     .append(", ")
-                    .append(SHARD + "." + REALM + ".")
+                    .append(SHARD_AND_REALM)
                     .append(node.getAccountId().accountNumOrThrow())
                     .append('\n');
             maxNodeId = Math.max(node.getNodeId(), maxNodeId);

@@ -25,7 +25,7 @@ public class GenesisNetworkInfo implements NetworkInfo {
      * Constructs a new {@link GenesisNetworkInfo} instance.
      *
      * @param genesisNetwork The genesis network
-     * @param ledgerId      The ledger ID
+     * @param ledgerId       The ledger ID
      */
     public GenesisNetworkInfo(@NonNull final Network genesisNetwork, @NonNull final Bytes ledgerId) {
         this.ledgerId = requireNonNull(ledgerId);

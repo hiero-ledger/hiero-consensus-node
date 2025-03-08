@@ -23,8 +23,7 @@ class TokenUriCallTest extends CallTestBase {
     void returnsUnaliasedOwnerLongZeroForPresentTokenAndNonTreasuryNft() {
         subject = new TokenUriCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, NFT_SERIAL_NO);
 
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID.tokenNum(), NFT_SERIAL_NO))
-                .willReturn(CIVILIAN_OWNED_NFT);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, NFT_SERIAL_NO)).willReturn(CIVILIAN_OWNED_NFT);
 
         final var result = subject.execute(frame).fullResult().result();
 
@@ -42,7 +41,7 @@ class TokenUriCallTest extends CallTestBase {
     void returnNonExistingTokenErrorMetadata() {
         // given
         subject = new TokenUriCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, NFT_SERIAL_NO);
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN.tokenId().tokenNum(), NFT_SERIAL_NO))
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN.tokenId(), NFT_SERIAL_NO))
                 .willReturn(null);
         // when
         final var result = subject.execute(frame).fullResult().result();
