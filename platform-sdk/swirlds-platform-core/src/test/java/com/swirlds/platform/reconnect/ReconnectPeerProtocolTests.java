@@ -144,7 +144,6 @@ class ReconnectPeerProtocolTests {
                 .toList();
 
         final FallenBehindManager fallenBehindManager = mock(FallenBehindManager.class);
-        when(fallenBehindManager.getNeighborsForReconnect()).thenReturn(neighborsForReconnect);
         when(fallenBehindManager.shouldReconnectFrom(any()))
                 .thenAnswer(a -> neighborsForReconnect.contains(a.getArgument(0, NodeId.class)));
 

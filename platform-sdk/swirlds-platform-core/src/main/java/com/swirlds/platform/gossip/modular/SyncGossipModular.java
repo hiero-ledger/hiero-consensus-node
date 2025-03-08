@@ -9,7 +9,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
 import com.swirlds.component.framework.model.WiringModel;
@@ -49,6 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -61,6 +61,8 @@ public class SyncGossipModular implements Gossip {
 
     private final SyncGossipController controller;
     private final PeerCommunication network;
+    private final SyncPermitProvider syncPermitProvider;
+    private final FallenBehindManagerImpl fallenBehindManager;
     private SyncGossipSharedProtocolState sharedState;
 
     // this is not a nice dependency, should be removed as well as the sharedState
@@ -118,9 +120,9 @@ public class SyncGossipModular implements Gossip {
 
         final Shadowgraph shadowgraph = new Shadowgraph(platformContext, peers.size() + 1, intakeEventCounter);
 
-        final FallenBehindManagerImpl fallenBehindManager = new FallenBehindManagerImpl(
+        this.fallenBehindManager = new FallenBehindManagerImpl(
                 selfId,
-                this.network.getTopology(),
+                peers.size(),
                 statusActionSubmitter,
                 () -> sharedState.fallenBehindCallback().get().run(),
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class));
@@ -135,7 +137,7 @@ public class SyncGossipModular implements Gossip {
             permitCount = syncConfig.syncProtocolPermitCount();
         }
 
-        final SyncPermitProvider syncPermitProvider = new SyncPermitProvider(platformContext, permitCount);
+        this.syncPermitProvider = new SyncPermitProvider(platformContext, permitCount);
 
         sharedState = new SyncGossipSharedProtocolState(
                 this.network.getNetworkMetrics(),
@@ -151,14 +153,13 @@ public class SyncGossipModular implements Gossip {
         this.controller = new SyncGossipController(intakeEventCounter, sharedState);
 
         final List<Protocol> protocols = ImmutableList.of(
-                HeartbeatProtocol.create(platformContext, sharedState),
+                HeartbeatProtocol.create(platformContext, sharedState.networkMetrics()),
                 ReconnectProtocol.create(
                         platformContext,
                         sharedState,
                         threadManager,
                         latestCompleteState,
                         roster,
-                        network.getPeers(),
                         loadReconnectState,
                         clearAllPipelinesForReconnect,
                         swirldStateManager,
@@ -172,11 +173,30 @@ public class SyncGossipModular implements Gossip {
                 new VersionCompareHandshake(appVersion, !protocolConfig.tolerateMismatchedVersion());
         final List<ProtocolRunnable> handshakeProtocols = List.of(versionCompareHandshake);
 
-        final List<StoppableThread> threads =
-                network.buildProtocolThreads(threadManager, selfId, handshakeProtocols, protocols);
+        var networkThreads = network.initialize(threadManager, handshakeProtocols, protocols);
+        final List<DedicatedStoppableThread<NodeId>> threads = network.buildProtocolThreadsFromCurrentNeighbors();
 
-        controller.registerThingToStartButNotStop(sharedState.shadowgraphExecutor());
-        controller.registerThingsToStart(threads);
+        networkThreads.forEach(controller::registerThingToStart);
+        controller.registerThingToStart(sharedState.shadowgraphExecutor());
+        controller.registerDedicatedThreads(threads);
+    }
+
+    /**
+     * Modify list of current connected peers. Notify all underlying components and start needed threads.
+     * In the case data for the same peer changes (one with the same nodeId), it should be present in both removed and added lists,
+     * with old data in removed and fresh data in added. Internally it will be first removed and then added, so there can be
+     * a short moment when it will drop out of the network if disconnect happens at a bad moment.
+     * NOT THREAD SAFE. Synchronize externally.
+     * @param added peers to be added
+     * @param removed peers to be removed
+     */
+    public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
+        fallenBehindManager.addRemovePeers(
+                added.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()),
+                removed.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()));
+        controller.registerDedicatedThreads(network.addRemovePeers(added, removed));
+        syncPermitProvider.adjustTotalPermits(added.size() - removed.size());
+        controller.applyDedicatedThreadsToModify();
     }
 
     /**
