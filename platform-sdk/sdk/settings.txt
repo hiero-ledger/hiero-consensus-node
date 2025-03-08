@@ -42,6 +42,6 @@ prometheus.endpointEnabled,               false
                                           #           Misc.           #
                                           #############################
 
-loadKeysFromPfxFiles,                     false
-crypto.enableNewKeyStoreModel,            false
+loadKeysFromPfxFiles,                     true
+crypto.enableNewKeyStoreModel,            true
 crypto.cpuDigestThreadRatio,              0.1
