@@ -17,8 +17,8 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
 import com.hedera.node.app.history.WritableHistoryStore;
+import com.hedera.node.app.history.impl.ProofKeysAccessorImpl.SchnorrKeyPair;
 import com.hedera.node.app.roster.RosterTransitionWeights;
-import com.hedera.node.app.tss.TssKeyPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,6 +47,10 @@ public class ProofControllerImpl implements ProofController {
     private static final Logger log = LogManager.getLogger(ProofControllerImpl.class);
     private static final Comparator<ProofKey> PROOF_KEY_COMPARATOR = Comparator.comparingLong(ProofKey::nodeId);
     private static final Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
+    private static final int INSUFFICIENT_SIGNATURES_CHECK_RETRY_SECS = 10;
+    private static final String INSUFFICIENT_SIGNATURES_FAILURE_REASON = "insufficient signatures";
+
+    public static final String PROOF_COMPLETE_MSG = "History proof constructed";
 
     private final long selfId;
 
@@ -56,7 +61,7 @@ public class ProofControllerImpl implements ProofController {
     private final Bytes ledgerId;
 
     private final Executor executor;
-    private final TssKeyPair schnorrKeyPair;
+    private final SchnorrKeyPair schnorrKeyPair;
     private final HistoryLibrary library;
     private final HistorySubmissions submissions;
     private final RosterTransitionWeights weights;
@@ -119,7 +124,7 @@ public class ProofControllerImpl implements ProofController {
 
     public ProofControllerImpl(
             final long selfId,
-            @NonNull final TssKeyPair schnorrKeyPair,
+            @NonNull final SchnorrKeyPair schnorrKeyPair,
             @Nullable final Bytes ledgerId,
             @NonNull final HistoryProofConstruction construction,
             @NonNull final RosterTransitionWeights weights,
@@ -169,22 +174,42 @@ public class ProofControllerImpl implements ProofController {
             @Nullable final Bytes metadata,
             @NonNull final WritableHistoryStore historyStore,
             final boolean isActive) {
-        if (construction.hasTargetProof()) {
+        if (construction.hasTargetProof() || construction.hasFailureReason()) {
             return;
         }
         targetMetadata = metadata;
         if (targetMetadata == null && isActive) {
             ensureProofKeyPublished();
-        } else if (construction.hasAssemblyStartTime() && isActive) {
-            if (!votes.containsKey(selfId) && proofFuture == null) {
-                if (hasSufficientSignatures()) {
-                    proofFuture = startProofFuture();
-                } else if (!signingNodeIds.contains(selfId) && signingFuture == null) {
-                    signingFuture = startSigningFuture();
+        } else if (construction.hasAssemblyStartTime()) {
+            boolean stillCollectingSignatures = true;
+            final long elapsedSeconds = Math.max(
+                    1,
+                    now.getEpochSecond()
+                            - construction.assemblyStartTimeOrThrow().seconds());
+            if (elapsedSeconds % INSUFFICIENT_SIGNATURES_CHECK_RETRY_SECS == 0) {
+                stillCollectingSignatures = couldStillGetSufficientSignatures();
+            }
+            if (stillCollectingSignatures && isActive) {
+                if (!votes.containsKey(selfId) && proofFuture == null) {
+                    if (hasSufficientSignatures()) {
+                        log.info("Started proof future for construction {}", construction.constructionId());
+                        proofFuture = startProofFuture();
+                    } else if (!signingNodeIds.contains(selfId) && signingFuture == null) {
+                        signingFuture = startSigningFuture();
+                        log.info("Started signing future for construction {}", construction.constructionId());
+                    }
                 }
+            } else if (!stillCollectingSignatures) {
+                log.info(
+                        "Failed construction {} due to {}",
+                        construction.constructionId(),
+                        INSUFFICIENT_SIGNATURES_FAILURE_REASON);
+                construction = historyStore.failForReason(
+                        construction.constructionId(), INSUFFICIENT_SIGNATURES_FAILURE_REASON);
             }
         } else {
             if (shouldAssemble(now)) {
+                log.info("Assembly start time for construction #{} is {}", construction.constructionId(), now);
                 construction = historyStore.setAssemblyTime(construction.constructionId(), now);
                 if (isActive) {
                     signingFuture = startSigningFuture();
@@ -245,6 +270,7 @@ public class ProofControllerImpl implements ProofController {
                 .findFirst();
         maybeWinningProof.ifPresent(proof -> {
             construction = historyStore.completeProof(construction.constructionId(), proof);
+            log.info("{} (#{})", PROOF_COMPLETE_MSG, construction.constructionId());
             if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
                 proofConsumer.accept(proof);
                 if (ledgerId == null) {
@@ -252,7 +278,7 @@ public class ProofControllerImpl implements ProofController {
                     final var encodedId =
                             encodeLedgerId(proof.sourceAddressBookHash().toByteArray(), targetMetadata.toByteArray());
                     historyStore.setLedgerId(encodedId);
-                    log.info("Set LedgerID to {}", encodedId);
+                    log.info("Set ledger id to {}", encodedId);
                 }
             }
         });
@@ -260,16 +286,31 @@ public class ProofControllerImpl implements ProofController {
 
     @Override
     public void cancelPendingWork() {
-        if (publicationFuture != null) {
+        final var sb =
+                new StringBuilder("Cancelled work on proof construction #").append(construction.constructionId());
+        if (publicationFuture != null && !publicationFuture.isDone()) {
+            sb.append("\n  * In-flight publication");
             publicationFuture.cancel(true);
         }
-        if (signingFuture != null) {
+        if (signingFuture != null && !signingFuture.isDone()) {
+            sb.append("\n  * In-flight signing");
             signingFuture.cancel(true);
         }
         if (proofFuture != null) {
+            sb.append("\n  * In-flight proof");
             proofFuture.cancel(true);
         }
-        verificationFutures.values().forEach(future -> future.cancel(true));
+        final var numCancelledVerifications = new AtomicInteger();
+        verificationFutures.values().forEach(future -> {
+            if (!future.isDone()) {
+                numCancelledVerifications.incrementAndGet();
+                future.cancel(true);
+            }
+        });
+        if (numCancelledVerifications.get() > 0) {
+            sb.append("\n  * ").append(numCancelledVerifications.get()).append(" in-flight verifications");
+        }
+        log.info(sb.toString());
     }
 
     /**
@@ -282,6 +323,7 @@ public class ProofControllerImpl implements ProofController {
         // If every active node in the target roster has published a proof key,
         // assemble the new history now; there is nothing else to wait for
         if (targetProofKeys.size() == weights.numTargetNodesInSource()) {
+            log.info("All target nodes have published proof keys for construction #{}", construction.constructionId());
             return true;
         }
         if (now.isBefore(asInstant(construction.gracePeriodEndTimeOrThrow()))) {
@@ -296,6 +338,7 @@ public class ProofControllerImpl implements ProofController {
      */
     private void ensureProofKeyPublished() {
         if (publicationFuture == null && weights.targetIncludes(selfId) && !targetProofKeys.containsKey(selfId)) {
+            log.info("Publishing schnorr key for construction #{}", construction.constructionId());
             publicationFuture = CompletableFuture.runAsync(
                     () -> submissions
                             .submitProofKeyPublication(schnorrKeyPair.publicKey())
@@ -366,7 +409,6 @@ public class ProofControllerImpl implements ProofController {
             sourceProofKeys = Map.copyOf(targetProofKeys);
         }
         final var targetMetadata = requireNonNull(this.targetMetadata);
-
         final long[] sourceNodeIds = weights.sourceNodeWeights().keySet().stream()
                 .mapToLong(Long::longValue)
                 .toArray();
@@ -385,18 +427,19 @@ public class ProofControllerImpl implements ProofController {
                 .mapToObj(
                         id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
                 .toArray(byte[][]::new);
+        final long inProgressId = construction.constructionId();
+        final var proofKeyList = proofKeyListFrom(targetProofKeys);
         return CompletableFuture.runAsync(
                 () -> {
                     final var sourceHash = library.hashAddressBook(sourceWeights, sourceProofKeysArray);
                     final var targetHash = library.hashAddressBook(targetWeights, targetProofKeysArray);
-                    // Note that sourceWeights, sourceProofKeysArray and verifyingSignatures should have same length
-                    // arrays.
-                    // Any node that has not submitted signature will have null in verifyingSignatures.
+                    // Nodes that did not submit signatures have null in their array index here
                     final var verifyingSignatures = Arrays.stream(sourceNodeIds)
                             .mapToObj(i -> Optional.ofNullable(signatures.get(i))
                                     .map(Bytes::toByteArray)
                                     .orElse(null))
                             .toArray(byte[][]::new);
+                    log.info("Starting chain-of-trust proof for construction #{}", inProgressId);
                     final var proof = library.proveChainOfTrust(
                             Optional.ofNullable(ledgerId).orElse(sourceHash),
                             sourceProof,
@@ -406,15 +449,14 @@ public class ProofControllerImpl implements ProofController {
                             targetProofKeysArray,
                             verifyingSignatures,
                             targetMetadata);
+                    log.info("Finished chain-of-trust proof for construction #{}", inProgressId);
                     final var metadataProof = HistoryProof.newBuilder()
                             .sourceAddressBookHash(sourceHash)
-                            .targetProofKeys(proofKeyListFrom(targetProofKeys))
+                            .targetProofKeys(proofKeyList)
                             .targetHistory(new History(targetHash, targetMetadata))
                             .proof(proof)
                             .build();
-                    submissions
-                            .submitProofVote(construction.constructionId(), metadataProof)
-                            .join();
+                    submissions.submitProofVote(inProgressId, metadataProof).join();
                 },
                 executor);
     }
@@ -424,6 +466,30 @@ public class ProofControllerImpl implements ProofController {
      */
     private boolean hasSufficientSignatures() {
         return firstSufficientSignatures() != null;
+    }
+
+    /**
+     * Whether there is no hope of collecting enough valid signatures to initiate a proof.
+     */
+    private boolean couldStillGetSufficientSignatures() {
+        final Map<History, Long> historyWeights = new HashMap<>();
+        long invalidWeight = 0;
+        long maxValidWeight = 0;
+        for (final var entry : verificationFutures.entrySet()) {
+            final var verification = entry.getValue().join();
+            if (verification.isValid()) {
+                maxValidWeight = Math.max(
+                        maxValidWeight,
+                        historyWeights.merge(
+                                verification.history(), weights.sourceWeightOf(verification.nodeId()), Long::sum));
+            } else {
+                invalidWeight += weights.sourceWeightOf(verification.nodeId());
+            }
+        }
+        long unassignedWeight = weights.totalSourceWeight()
+                - invalidWeight
+                - historyWeights.values().stream().mapToLong(Long::longValue).sum();
+        return maxValidWeight + unassignedWeight >= weights.sourceWeightThreshold();
     }
 
     /**

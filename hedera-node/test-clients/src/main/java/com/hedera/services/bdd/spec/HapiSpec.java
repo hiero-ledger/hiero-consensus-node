@@ -76,6 +76,7 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.SysFileOverrideOp;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualStreamAssertion;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
+import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.swirlds.state.spi.WritableKVState;
@@ -97,6 +98,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.DelayQueue;
+import java.util.concurrent.Delayed;
 import java.util.concurrent.Future;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
@@ -122,7 +125,7 @@ import org.junit.jupiter.api.function.Executable;
  * <p>Most specs can be run against any {@link HederaNetwork} implementation, though
  * some operations do require an embedded or subprocess network.
  */
-public class HapiSpec implements Runnable, Executable {
+public class HapiSpec implements Runnable, Executable, LifecycleTest {
     private static final int CONCURRENT_EMBEDDED_STATUS_WAIT_SLEEP_MS = 1;
     private static final String CI_CHECK_NAME_SYSTEM_PROPERTY = "ci.check.name";
     private static final String QUIET_MODE_SYSTEM_PROPERTY = "hapi.spec.quiet.mode";
@@ -133,6 +136,19 @@ public class HapiSpec implements Runnable, Executable {
      * operations with equivalent EthereumTransactions
      */
     private static final String AS_WRITTEN_DISPLAY_NAME = "as written";
+
+    @Nullable
+    private static volatile DelayQueue<DelayedDuration> prepareUpgradeOffsets;
+
+    /**
+     * Requests all executing specs to issue a prepare upgrade transaction if they are
+     * the first to pass an offset from now in the given list.
+     * @param offsets the durations to wait before issuing prepare upgrade transactions
+     */
+    public static void doDelayedPrepareUpgrades(@NonNull final List<Duration> offsets) {
+        prepareUpgradeOffsets =
+                new DelayQueue<>(offsets.stream().map(DelayedDuration::new).toList());
+    }
 
     public static final ThreadLocal<HederaNetwork> TARGET_NETWORK = new ThreadLocal<>();
     /**
@@ -593,7 +609,12 @@ public class HapiSpec implements Runnable, Executable {
         }
 
         List<SpecOperation> ops = new ArrayList<>();
-
+        final var offsets = prepareUpgradeOffsets;
+        DelayedDuration dd;
+        if (offsets != null && (dd = offsets.poll()) != null) {
+            log.info("Executing PREPARE_UPGRADE requested to run circa {}", dd.end);
+            ops.add(prepareFakeUpgrade());
+        }
         if (!suitePrefix.endsWith(ETH_SUFFIX)) {
             ops.addAll(Stream.of(given, when, then).flatMap(Arrays::stream).toList());
         } else {
@@ -1283,5 +1304,28 @@ public class HapiSpec implements Runnable, Executable {
             throw new IllegalStateException("Target network is not embedded");
         }
         return network;
+    }
+
+    private static class DelayedDuration implements Delayed {
+        private final Instant end;
+
+        DelayedDuration(@NonNull final Duration duration) {
+            requireNonNull(duration);
+            end = Instant.now().plus(duration);
+        }
+
+        @Override
+        public long getDelay(TimeUnit unit) {
+            return unit.convert(Duration.between(Instant.now(), end).toNanos(), TimeUnit.NANOSECONDS);
+        }
+
+        @Override
+        public int compareTo(@NonNull final Delayed d) {
+            if (d instanceof DelayedDuration that) {
+                return end.compareTo(that.end);
+            } else {
+                throw new IllegalArgumentException();
+            }
+        }
     }
 }

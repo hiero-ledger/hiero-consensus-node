@@ -36,7 +36,7 @@ public interface HintsController {
      * @param hintsStore the hints store, in case the controller is able to complete the construction
      * @param isActive   if the platform is active
      */
-    void advanceConstruction(@NonNull Instant now, @NonNull WritableHintsStore hintsStore, final boolean isActive);
+    void advanceConstruction(@NonNull Instant now, @NonNull WritableHintsStore hintsStore, boolean isActive);
 
     /**
      * Advances the ongoing CRS work, if possible. This is only relevant when TSS is enabled or on genesis
@@ -46,7 +46,7 @@ public interface HintsController {
      * @param hintsStore            the hints store
      * @param isActive              if the platform is active
      */
-    void advanceCRSWork(@NonNull Instant now, @NonNull WritableHintsStore hintsStore, final boolean isActive);
+    void advanceCRSWork(@NonNull Instant now, @NonNull WritableHintsStore hintsStore, boolean isActive);
 
     /**
      * Returns the expected party id for the given node id, if available.

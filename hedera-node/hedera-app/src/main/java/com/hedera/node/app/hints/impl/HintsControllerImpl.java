@@ -679,9 +679,8 @@ public class HintsControllerImpl implements HintsController {
      */
     public static CrsUpdateOutput decodeCrsUpdate(final long oldCRSLength, @NonNull final Bytes output) {
         requireNonNull(output);
-        requireNonNull(output);
-        final Bytes crs = output.slice(0, oldCRSLength);
-        final Bytes proof = output.slice(oldCRSLength, output.length() - oldCRSLength);
+        final var crs = output.slice(0, oldCRSLength);
+        final var proof = output.slice(oldCRSLength, output.length() - oldCRSLength);
         return new CrsUpdateOutput(crs, proof);
     }
 

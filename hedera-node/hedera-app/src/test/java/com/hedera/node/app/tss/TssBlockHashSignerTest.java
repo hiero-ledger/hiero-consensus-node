@@ -27,7 +27,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class TssBlockHashSignerTest {
     private static final Bytes FAKE_BLOCK_HASH = Bytes.wrap("FAKE_BLOCK_HASH");
     private static final Bytes FAKE_HINTS_SIGNATURE = CommonUtils.noThrowSha384HashOf(FAKE_BLOCK_HASH);
-    private static final Bytes FAKE_PROOF = Bytes.wrap("FAKE_PROOF");
     private static final Bytes FAKE_VK = Bytes.wrap("FAKE_VK");
 
     @Mock
@@ -86,11 +85,10 @@ class TssBlockHashSignerTest {
         assertThrows(IllegalStateException.class, () -> subject.signFuture(FAKE_BLOCK_HASH));
         given(historyService.isReady()).willReturn(true);
         assertTrue(subject.isReady());
-        given(historyService.getCurrentProof(Bytes.EMPTY)).willReturn(FAKE_PROOF);
 
         final var signature = subject.signFuture(FAKE_BLOCK_HASH).join();
 
-        assertEquals(TssBlockHashSigner.assemble(FAKE_HINTS_SIGNATURE, Bytes.EMPTY, FAKE_PROOF), signature);
+        assertEquals(FAKE_HINTS_SIGNATURE, signature);
     }
 
     @Test
@@ -104,14 +102,12 @@ class TssBlockHashSignerTest {
         assertThrows(IllegalStateException.class, () -> subject.signFuture(FAKE_BLOCK_HASH));
         given(hintsService.isReady()).willReturn(true);
         assertTrue(subject.isReady());
-        given(hintsService.activeVerificationKeyOrThrow()).willReturn(FAKE_VK);
         given(hintsService.signFuture(FAKE_BLOCK_HASH))
                 .willReturn(CompletableFuture.completedFuture(FAKE_HINTS_SIGNATURE));
-        given(historyService.getCurrentProof(FAKE_VK)).willReturn(FAKE_PROOF);
 
         final var signature = subject.signFuture(FAKE_BLOCK_HASH).join();
 
-        assertEquals(TssBlockHashSigner.assemble(FAKE_HINTS_SIGNATURE, FAKE_VK, FAKE_PROOF), signature);
+        assertEquals(FAKE_HINTS_SIGNATURE, signature);
     }
 
     private void givenSubjectWith(

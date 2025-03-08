@@ -184,7 +184,8 @@ public final class IngestChecker {
         final var consensusTime = instantSource.instant();
 
         // 1. Check the syntax
-        final var txInfo = transactionChecker.parseAndCheck(serializedTransaction);
+        final int maxBytes = configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
+        final var txInfo = transactionChecker.parseAndCheck(serializedTransaction, maxBytes);
         final var txBody = txInfo.txBody();
         final var functionality = txInfo.functionality();
 

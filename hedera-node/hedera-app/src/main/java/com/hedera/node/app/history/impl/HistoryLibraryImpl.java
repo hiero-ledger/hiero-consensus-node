@@ -12,11 +12,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.util.SplittableRandom;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of the {@link HistoryLibrary}.
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
+    private static final Logger log = LogManager.getLogger(HistoryLibraryImpl.class);
+
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final HistoryLibraryBridge BRIDGE = HistoryLibraryBridge.getInstance();
     private static final ProvingAndVerifyingSnarkKeys SNARK_KEYS;
@@ -70,6 +74,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
 
     @Override
     public Bytes hashHintsVerificationKey(@NonNull final Bytes hintsVerificationKey) {
+        requireNonNull(hintsVerificationKey);
         return Bytes.wrap(BRIDGE.hashHintsVerificationKey(hintsVerificationKey.toByteArray()));
     }
 

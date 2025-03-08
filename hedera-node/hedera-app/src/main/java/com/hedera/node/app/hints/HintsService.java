@@ -59,6 +59,11 @@ public interface HintsService extends Service, BlockHashSigner {
     int MIGRATION_ORDER = RosterService.MIGRATION_ORDER - 1;
 
     /**
+     * Placeholder for the history service to use when hinTS is disabled.
+     */
+    Bytes DISABLED_HINTS_METADATA = Bytes.wrap(new byte[32]);
+
+    /**
      * Returns the active verification key, or throws if none is active.
      */
     @NonNull
@@ -67,7 +72,7 @@ public interface HintsService extends Service, BlockHashSigner {
     /**
      * Initializes hinTS signing from the next construction in the given {@link ReadableHintsStore}.
      */
-    void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore);
+    void initSigningForNextScheme(@NonNull ReadableHintsStore hintsStore);
 
     /**
      * Takes any actions needed to advance the state of the {@link HintsService} toward
@@ -100,7 +105,7 @@ public interface HintsService extends Service, BlockHashSigner {
             @NonNull WritableHintsStore hintsStore,
             @NonNull Instant now,
             @NonNull TssConfig tssConfig,
-            final boolean isActive);
+            boolean isActive);
 
     /**
      * Executes the work needed to set the CRS for the network and start the preprocessing vote.
@@ -109,7 +114,7 @@ public interface HintsService extends Service, BlockHashSigner {
      * @param now                   the current consensus time
      * @param isActive               if the platform is active
      */
-    void executeCrsWork(@NonNull WritableHintsStore hintsStore, @NonNull Instant now, final boolean isActive);
+    void executeCrsWork(@NonNull WritableHintsStore hintsStore, @NonNull Instant now, boolean isActive);
 
     /**
      * Stops the hinTS service, causing it to abandon any in-progress work.

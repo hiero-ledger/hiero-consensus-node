@@ -33,11 +33,15 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of {@link WritableHistoryStore}.
  */
 public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implements WritableHistoryStore {
+    private static final Logger logger = LogManager.getLogger(WritableHistoryStoreImpl.class);
+
     private final WritableSingletonState<ProtoBytes> ledgerId;
     private final WritableSingletonState<HistoryProofConstruction> nextConstruction;
     private final WritableSingletonState<HistoryProofConstruction> activeConstruction;
@@ -129,6 +133,12 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     @Override
+    public HistoryProofConstruction failForReason(final long constructionId, @NonNull final String reason) {
+        requireNonNull(reason);
+        return updateOrThrow(constructionId, b -> b.failureReason(reason));
+    }
+
+    @Override
     public void setLedgerId(@NonNull final Bytes bytes) {
         requireNonNull(bytes);
         ledgerId.put(new ProtoBytes(bytes));
@@ -189,20 +199,29 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             @NonNull final Function<Bytes, Roster> lookup,
             @NonNull final Instant now,
             @NonNull final Duration gracePeriod) {
-        final var construction = HistoryProofConstruction.newBuilder()
+        var construction = HistoryProofConstruction.newBuilder()
                 .constructionId(newConstructionId())
                 .sourceRosterHash(sourceRosterHash)
                 .targetRosterHash(targetRosterHash)
                 .gracePeriodEndTime(asTimestamp(now.plus(gracePeriod)))
                 .build();
-        if (requireNonNull(activeConstruction.get()).equals(HistoryProofConstruction.DEFAULT)) {
+        final var activeChoice = requireNonNull(activeConstruction.get());
+        if (activeChoice.equals(HistoryProofConstruction.DEFAULT)) {
             activeConstruction.put(construction);
+            logNewConstruction(construction, InSlot.ACTIVE, sourceRosterHash, targetRosterHash);
         } else {
             if (!requireNonNull(nextConstruction.get()).equals(HistoryProofConstruction.DEFAULT)) {
                 // Before replacing the next construction, purge its votes
                 purgeVotesAndSignatures(requireNonNull(nextConstruction.get()), lookup);
             }
+            if (activeChoice.hasTargetProof() && activeChoice.targetRosterHash().equals(sourceRosterHash)) {
+                construction = construction
+                        .copyBuilder()
+                        .sourceProof(activeChoice.targetProofOrThrow())
+                        .build();
+            }
             nextConstruction.put(construction);
+            logNewConstruction(construction, InSlot.NEXT, sourceRosterHash, targetRosterHash);
         }
         // Rotate any proof keys requested to be used in the next construction
         final var adoptionTime = asTimestamp(now);
@@ -220,6 +239,25 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             }
         });
         return construction;
+    }
+
+    private enum InSlot {
+        ACTIVE,
+        NEXT
+    }
+
+    private void logNewConstruction(
+            @NonNull final HistoryProofConstruction construction,
+            @NonNull final InSlot slot,
+            @NonNull final Bytes sourceRosterHash,
+            @NonNull final Bytes targetRosterHash) {
+        logger.info(
+                "Created {} construction #{} for rosters (source={}, target={}) {} source proof",
+                slot,
+                construction.constructionId(),
+                sourceRosterHash,
+                targetRosterHash,
+                construction.hasSourceProof() ? "WITH" : "WITHOUT");
     }
 
     /**

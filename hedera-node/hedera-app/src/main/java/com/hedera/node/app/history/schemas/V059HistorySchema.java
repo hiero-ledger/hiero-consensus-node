@@ -43,7 +43,7 @@ import java.util.function.Consumer;
  */
 public class V059HistorySchema extends Schema {
     private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().minor(59).build();
+            SemanticVersion.newBuilder().minor(60).build();
 
     private static final long MAX_PROOF_KEYS = 1L << 21;
     private static final long MAX_ASSEMBLY_SIGNATURES = MAX_PROOF_KEYS;

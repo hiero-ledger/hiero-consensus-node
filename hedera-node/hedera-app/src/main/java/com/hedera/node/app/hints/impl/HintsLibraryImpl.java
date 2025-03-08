@@ -14,7 +14,7 @@ import java.util.SortedMap;
 import java.util.SplittableRandom;
 
 /**
- * Default implementation of {@link HintsLibrary} (all TODO).
+ * Default implementation of {@link HintsLibrary}.
  */
 public class HintsLibraryImpl implements HintsLibrary {
     private static final SplittableRandom RANDOM = new SplittableRandom();
