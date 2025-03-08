@@ -1733,4 +1733,9 @@ enum ResponseCodeEnum {
      * The batch key is not valid
      */
     INVALID_BATCH_KEY = 394;
+
+    /**
+     * The throttle validation failed
+     */
+    THROTTLE_VALIDATION_FAILED = 395;
 }

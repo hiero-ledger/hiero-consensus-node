@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl;
 
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.spi.workflows.SystemContext;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Function;
 import javax.inject.Inject;
 
 /** Standard implementation of the {@link FileService} {@link RpcService}. */
@@ -39,13 +42,16 @@ public final class FileServiceImpl implements FileService {
      * @param context the genesis context
      * @param nodeStore the ReadableNodeStore
      */
-    public void createSystemEntities(@NonNull final SystemContext context, @NonNull final ReadableNodeStore nodeStore) {
+    public void createSystemEntities(
+            @NonNull final SystemContext context,
+            @NonNull final ReadableNodeStore nodeStore,
+            @NonNull final Function<Bytes, ResponseCodeEnum> validatedThrottles) {
         fileSchema.createGenesisAddressBookAndNodeDetails(context, nodeStore);
         fileSchema.createGenesisFeeSchedule(context);
         fileSchema.createGenesisExchangeRate(context);
         fileSchema.createGenesisNetworkProperties(context);
         fileSchema.createGenesisHapiPermissions(context);
-        fileSchema.createGenesisThrottleDefinitions(context);
+        fileSchema.createGenesisThrottleDefinitions(context, validatedThrottles);
         fileSchema.createGenesisSoftwareUpdateFiles(context);
     }
 

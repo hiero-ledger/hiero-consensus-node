@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.file.impl.schemas;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.fromString;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.swirlds.common.utility.CommonUtils.hex;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
@@ -18,6 +19,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.NodeAddress;
 import com.hedera.hapi.node.base.NodeAddressBook;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServicesConfigurationList;
 import com.hedera.hapi.node.base.Setting;
@@ -36,6 +38,7 @@ import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BootstrapConfig;
@@ -69,6 +72,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.Spliterators;
+import java.util.function.Function;
 import java.util.stream.StreamSupport;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -529,15 +533,22 @@ public class V0490FileSchema extends Schema {
 
     // ================================================================================================================
     // Creates and loads the Throttle definitions into state
-    public void createGenesisThrottleDefinitions(@NonNull final SystemContext systemContext) {
+    public void createGenesisThrottleDefinitions(
+            @NonNull final SystemContext systemContext,
+            @NonNull final Function<Bytes, ResponseCodeEnum> validatedThrottles) {
         final var config = systemContext.configuration();
         final var bootstrapConfig = config.getConfigData(BootstrapConfig.class);
         final var masterKey =
                 Key.newBuilder().ed25519(bootstrapConfig.genesisPublicKey()).build();
+        final var throttleBytes = genesisThrottleDefinitions(config);
+        final var validated = validatedThrottles.apply(throttleBytes);
+        if (validated != SUCCESS) {
+            throw new HandleException(validated);
+        }
         systemContext.dispatchCreation(
                 TransactionBody.newBuilder()
                         .fileCreate(FileCreateTransactionBody.newBuilder()
-                                .contents(genesisThrottleDefinitions(config))
+                                .contents(throttleBytes)
                                 .keys(KeyList.newBuilder().keys(masterKey))
                                 .expirationTime(maxLifetimeExpiry(systemContext))
                                 .build())
