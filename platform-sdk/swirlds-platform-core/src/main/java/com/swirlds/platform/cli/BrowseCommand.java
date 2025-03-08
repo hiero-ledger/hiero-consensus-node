@@ -13,6 +13,8 @@ import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.platform.Browser;
 import com.swirlds.platform.CommandLineArgs;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
@@ -21,6 +23,7 @@ import java.nio.file.PathMatcher;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
@@ -71,7 +74,7 @@ public class BrowseCommand extends AbstractCommand {
             CleanCommand.clean(sdkPath);
         }
 
-        if (!hasPemFile(sdkPath.resolve("data/keys"))) {
+        if (!hasPemFile(sdkPath.resolve("data/keys/"))) {
             CommonUtils.tellUserConsole("please generate keys with generate-keys command first");
             return CONFIGURATION_ERROR.getExitCode();
         }
@@ -96,9 +99,7 @@ public class BrowseCommand extends AbstractCommand {
      * @return True if at least one .pem file exists, false otherwise.
      * @throws IOException If an I/O error occurs.
      */
-    public static boolean hasPemFile(Path directoryPath) throws IOException {
-        final FileSystem fileSystem = FileSystems.getDefault();
-        final PathMatcher pathMatcher = fileSystem.getPathMatcher("glob:a{,.pem}");
-        return pathMatcher.matches(directoryPath);
+    public static boolean hasPemFile(@NonNull Path directoryPath) throws IOException {
+        return Objects.requireNonNull(directoryPath.toFile().listFiles((dir, name) -> name.endsWith(".pem"))).length>0;
     }
 }
