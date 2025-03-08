@@ -124,6 +124,7 @@ public class ProcessUtils {
         environment.put("grpc.port", Integer.toString(metadata.grpcPort()));
         environment.put("grpc.nodeOperatorPort", Integer.toString(metadata.grpcNodeOperatorPort()));
         environment.put("hedera.config.version", Integer.toString(configVersion));
+        environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(2));
         environment.putAll(envOverrides);
         try {
             final var redirectFile = guaranteedExtantFile(

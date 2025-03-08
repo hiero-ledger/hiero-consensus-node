@@ -15,9 +15,12 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Singleton
 public class HistoryProofVoteHandler implements TransactionHandler {
+    private static final Logger log = LogManager.getLogger(HistoryProofVoteHandler.class);
     private final ProofControllers controllers;
 
     @Inject
@@ -41,6 +44,11 @@ public class HistoryProofVoteHandler implements TransactionHandler {
         requireNonNull(context);
         final var op = context.body().historyProofVoteOrThrow();
         final long constructionId = op.constructionId();
+        log.info(
+                "Received proof vote from {} (congruent? {}) for construction {}",
+                context.creatorInfo().nodeId(),
+                op.voteOrElse(HistoryProofVote.DEFAULT).hasCongruentNodeId(),
+                constructionId);
         controllers.getInProgressById(constructionId).ifPresent(controller -> {
             final long nodeId = context.creatorInfo().nodeId();
             final var historyStore = context.storeFactory().writableStore(WritableHistoryStore.class);

@@ -24,7 +24,7 @@ class CacheWarmerTest {
     @Test
     @DisplayName("Instantiation test")
     void testInstantiation() {
-        final var cacheWarmer = new CacheWarmer(checker, dispatcher, Runnable::run, ServicesSoftwareVersion::new);
+        final var cacheWarmer = new CacheWarmer(6144, checker, dispatcher, Runnable::run, ServicesSoftwareVersion::new);
         assertThat(cacheWarmer).isInstanceOf(CacheWarmer.class);
     }
 }

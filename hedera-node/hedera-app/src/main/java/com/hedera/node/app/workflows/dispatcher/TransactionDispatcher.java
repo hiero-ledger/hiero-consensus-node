@@ -205,6 +205,7 @@ public class TransactionDispatcher {
             case HINTS_KEY_PUBLICATION -> handlers.hintsKeyPublicationHandler();
             case HINTS_PARTIAL_SIGNATURE -> handlers.hintsPartialSignatureHandler();
             case HINTS_PREPROCESSING_VOTE -> handlers.hintsPreprocessingVoteHandler();
+            case CRS_PUBLICATION -> handlers.crsPublicationHandler();
 
             case SYSTEM_DELETE -> switch (txBody.systemDeleteOrThrow().id().kind()) {
                 case CONTRACT_ID -> handlers.contractSystemDeleteHandler();

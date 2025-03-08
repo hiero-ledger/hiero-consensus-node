@@ -373,7 +373,8 @@ class HintsControllerImplTest {
                         .proof(PROOF)
                         .build(),
                 CONSENSUS_NOW,
-                store);
+                store,
+                0L);
 
         final var task1 = requireNonNull(scheduledTasks.poll());
         task1.run();
@@ -418,7 +419,8 @@ class HintsControllerImplTest {
         given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
         given(weights.sourceWeightOf(0L)).willReturn(8L);
         given(weights.sourceWeightOf(1L)).willReturn(10L);
-        subject.setFinalUpdatedCrsFuture(CompletableFuture.completedFuture(INITIAL_CRS));
+        subject.setFinalUpdatedCrsFuture(
+                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
         subject.advanceCRSWork(CONSENSUS_NOW, store, true);
 
         verify(store)
@@ -447,7 +449,8 @@ class HintsControllerImplTest {
         given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
         given(weights.sourceWeightOf(0L)).willReturn(8L);
         given(weights.sourceWeightOf(2L)).willReturn(1L);
-        subject.setFinalUpdatedCrsFuture(CompletableFuture.completedFuture(INITIAL_CRS));
+        subject.setFinalUpdatedCrsFuture(
+                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
         subject.advanceCRSWork(CONSENSUS_NOW, store, true);
 
         verify(store, never())
@@ -479,7 +482,8 @@ class HintsControllerImplTest {
                         .build());
 
         given(weights.sourceNodeIds()).willReturn(SOURCE_NODE_IDS);
-        subject.setFinalUpdatedCrsFuture(CompletableFuture.completedFuture(INITIAL_CRS));
+        subject.setFinalUpdatedCrsFuture(
+                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
         subject.advanceCRSWork(CONSENSUS_NOW, store, true);
 
         verify(store).moveToNextNode(OptionalLong.of(2L), CONSENSUS_NOW.plus(Duration.ofSeconds(10)));

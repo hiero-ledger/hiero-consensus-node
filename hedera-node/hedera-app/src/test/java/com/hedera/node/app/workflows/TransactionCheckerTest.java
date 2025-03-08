@@ -72,6 +72,8 @@ final class TransactionCheckerTest extends AppTestBase {
 
     private ConfigProvider props;
 
+    private final int maxBytes = MAX_TX_SIZE;
+
     private Transaction tx;
     private SignatureMap signatureMap;
     private SignedTransaction signedTx;
@@ -195,19 +197,19 @@ final class TransactionCheckerTest extends AppTestBase {
         @SuppressWarnings("ConstantConditions")
         @DisplayName("`parseAndCheck` requires Bytes")
         void parseAndCheck() {
-            assertThatThrownBy(() -> checker.parseAndCheck(null)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> checker.parseAndCheck(null, maxBytes)).isInstanceOf(NullPointerException.class);
         }
 
         @Test
         @DisplayName("`parseAndCheck` bytes must have no more than the configured MaxSignedTxnSize bytes")
         void parseAndCheckWithTooManyBytes() {
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1)))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), maxBytes))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(TRANSACTION_OVERSIZE));
 
             // NOTE: I'm going to also try a number of bytes that JUST FITS. But these are not real transaction
             //       bytes, so they will fail to parse. But that is OK, as long as it is not TRANSACTION_OVERSIZE.
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE)))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE), maxBytes))
                     .isInstanceOf(PreCheckException.class)
                     .doesNotHave(responseCode(TRANSACTION_OVERSIZE));
         }
@@ -217,7 +219,7 @@ final class TransactionCheckerTest extends AppTestBase {
         void parseAndCheckWithNoBytes() throws PreCheckException {
             // Given a transaction with no bytes at all
             // Then the checker should throw a PreCheckException
-            assertThatThrownBy(() -> checker.parseAndCheck(Bytes.EMPTY))
+            assertThatThrownBy(() -> checker.parseAndCheck(Bytes.EMPTY, maxBytes))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
         }
@@ -232,7 +234,7 @@ final class TransactionCheckerTest extends AppTestBase {
         @DisplayName("A valid transaction passes parse and check")
         void happyPath() throws PreCheckException {
             // Given a valid serialized transaction, when we parseStrict and check
-            final var info = checker.parseAndCheck(inputBuffer);
+            final var info = checker.parseAndCheck(inputBuffer, maxBytes);
 
             // Then the parsed data is as we expected
             assertThat(info.transaction()).isEqualTo(tx);
@@ -261,7 +263,7 @@ final class TransactionCheckerTest extends AppTestBase {
             inputBuffer = Bytes.wrap(asByteArray(localTx));
 
             // When we parseStrict and check
-            final var info = checker.parseAndCheck(inputBuffer);
+            final var info = checker.parseAndCheck(inputBuffer, maxBytes);
 
             // Then everything works because the deprecated fields are supported
             assertThat(info.transaction()).isEqualTo(localTx);
@@ -288,7 +290,7 @@ final class TransactionCheckerTest extends AppTestBase {
             inputBuffer = Bytes.wrap(asByteArray(localTx));
 
             // When we check, then we get a PreCheckException with INVALID_TRANSACTION_BODY
-            assertThatThrownBy(() -> checker.parseAndCheck(inputBuffer))
+            assertThatThrownBy(() -> checker.parseAndCheck(inputBuffer, maxBytes))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
 
@@ -305,7 +307,7 @@ final class TransactionCheckerTest extends AppTestBase {
             inputBuffer = Bytes.wrap(invalidProtobuf());
 
             // When we parse and check, then the parsing fails because this is an INVALID_TRANSACTION
-            assertThatThrownBy(() -> checker.parseAndCheck(inputBuffer))
+            assertThatThrownBy(() -> checker.parseAndCheck(inputBuffer, maxBytes))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TRANSACTION));
         }
@@ -317,7 +319,7 @@ final class TransactionCheckerTest extends AppTestBase {
             inputBuffer = Bytes.wrap(appendUnknownField(asByteArray(tx)));
 
             // When we parse and check, then the parsing fails because has unknown fields
-            assertThatThrownBy(() -> checker.parseAndCheck(inputBuffer))
+            assertThatThrownBy(() -> checker.parseAndCheck(inputBuffer, maxBytes))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(TRANSACTION_HAS_UNKNOWN_FIELDS));
         }

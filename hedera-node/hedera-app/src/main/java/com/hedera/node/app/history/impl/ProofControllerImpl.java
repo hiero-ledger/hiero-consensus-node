@@ -20,6 +20,7 @@ import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.roster.RosterTransitionWeights;
 import com.hedera.node.app.tss.TssKeyPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -178,13 +179,16 @@ public class ProofControllerImpl implements ProofController {
         } else if (construction.hasAssemblyStartTime() && isActive) {
             if (!votes.containsKey(selfId) && proofFuture == null) {
                 if (hasSufficientSignatures()) {
+                    log.info("Started proof future for construction {}", construction.constructionId());
                     proofFuture = startProofFuture();
                 } else if (!signingNodeIds.contains(selfId) && signingFuture == null) {
                     signingFuture = startSigningFuture();
+                    log.info("Started signing future for construction {}", construction.constructionId());
                 }
             }
         } else {
             if (shouldAssemble(now)) {
+                log.info("Starting assembly time for construction {} as {}", construction.constructionId(), now);
                 construction = historyStore.setAssemblyTime(construction.constructionId(), now);
                 if (isActive) {
                     signingFuture = startSigningFuture();
@@ -239,11 +243,22 @@ public class ProofControllerImpl implements ProofController {
                 .collect(groupingBy(
                         entry -> entry.getValue().proofOrThrow(),
                         summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
+        log.info(
+                "proofWeights now (threshold={}): {}",
+                weights.sourceWeightThreshold(),
+                proofWeights.entrySet().stream()
+                        .map(e -> List.of(
+                                e.getValue(),
+                                CommonUtils.hex(com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf(
+                                                e.getKey().proof())
+                                        .toByteArray())))
+                        .toList());
         final var maybeWinningProof = proofWeights.entrySet().stream()
                 .filter(entry -> entry.getValue() >= weights.sourceWeightThreshold())
                 .map(Map.Entry::getKey)
                 .findFirst();
         maybeWinningProof.ifPresent(proof -> {
+            log.info("maybeWinningProof found!");
             construction = historyStore.completeProof(construction.constructionId(), proof);
             if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
                 proofConsumer.accept(proof);
@@ -281,12 +296,22 @@ public class ProofControllerImpl implements ProofController {
     private boolean shouldAssemble(@NonNull final Instant now) {
         // If every active node in the target roster has published a proof key,
         // assemble the new history now; there is nothing else to wait for
+        log.info(
+                "shouldAssemble targetProofKeys {}, weights {} ",
+                targetProofKeys.size(),
+                weights.numTargetNodesInSource());
         if (targetProofKeys.size() == weights.numTargetNodesInSource()) {
+            log.info("All target nodes have published proof keys for construction {}", construction.constructionId());
             return true;
         }
+        log.info("shouldAssemble gracePeriodEndTime {}, now {} ", construction.gracePeriodEndTimeOrThrow(), now);
         if (now.isBefore(asInstant(construction.gracePeriodEndTimeOrThrow()))) {
             return false;
         } else {
+            log.info(
+                    "shouldAssemble publishedWeight {}, weights.targetWeightThreshold {} ",
+                    publishedWeight(),
+                    weights.targetWeightThreshold());
             return publishedWeight() >= weights.targetWeightThreshold();
         }
     }
@@ -296,6 +321,7 @@ public class ProofControllerImpl implements ProofController {
      */
     private void ensureProofKeyPublished() {
         if (publicationFuture == null && weights.targetIncludes(selfId) && !targetProofKeys.containsKey(selfId)) {
+            log.info("Publishing schnorr key for construction {}", construction.constructionId());
             publicationFuture = CompletableFuture.runAsync(
                     () -> submissions
                             .submitProofKeyPublication(schnorrKeyPair.publicKey())
@@ -338,6 +364,7 @@ public class ProofControllerImpl implements ProofController {
                     final var history = new History(targetHash, targetMetadata);
                     final var message = encodeHistory(history);
                     final var signature = library.signSchnorr(message, schnorrKeyPair.privateKey());
+                    log.info("signSchnorr {}", signature);
                     final var historySignature = new HistorySignature(history, signature);
                     submissions
                             .submitAssemblySignature(construction.constructionId(), historySignature)
@@ -406,6 +433,7 @@ public class ProofControllerImpl implements ProofController {
                             targetProofKeysArray,
                             verifyingSignatures,
                             targetMetadata);
+                    log.info("proveChainOfTrust FINISHED");
                     final var metadataProof = HistoryProof.newBuilder()
                             .sourceAddressBookHash(sourceHash)
                             .targetProofKeys(proofKeyListFrom(targetProofKeys))
@@ -437,10 +465,15 @@ public class ProofControllerImpl implements ProofController {
         final Map<History, Long> historyWeights = new HashMap<>();
         for (final var entry : verificationFutures.entrySet()) {
             final var verification = entry.getValue().join();
+            log.info("firstSufficientSignatures verification {}", verification);
             if (verification.isValid()) {
                 final long weight = historyWeights.merge(
                         verification.history(), weights.sourceWeightOf(verification.nodeId()), Long::sum);
                 if (weight >= weights.sourceWeightThreshold()) {
+                    log.info(
+                            "firstSufficientSignatures weight {}, sourceWeightThreshold {}",
+                            weight,
+                            weights.sourceWeightThreshold());
                     return new Signatures(verification.history(), entry.getKey());
                 }
             }

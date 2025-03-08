@@ -84,8 +84,6 @@ public class TransactionChecker {
     private static final String COUNTER_RECEIVED_SUPER_DEPRECATED_DESC =
             "number of super-deprecated txns (body, sigs) received";
 
-    /** The maximum number of bytes that can exist in the transaction */
-    private final int maxSignedTxnSize;
     /** The {@link ConfigProvider} used to get properties needed for these checks. */
     private final ConfigProvider props;
     /** The {@link Counter} used to track the number of deprecated transactions (bodyBytes, sigMap) received. */
@@ -119,7 +117,6 @@ public class TransactionChecker {
         }
 
         this.nodeAccount = requireNonNull(nodeAccount);
-        this.maxSignedTxnSize = maxSignedTxnSize;
         this.props = requireNonNull(configProvider);
         this.deprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_DEPRECATED_TXNS_NAME)
                 .withDescription(COUNTER_RECEIVED_DEPRECATED_DESC));
@@ -131,13 +128,14 @@ public class TransactionChecker {
      * Parses and checks the transaction encoded as protobuf in the given buffer.
      *
      * @param buffer The buffer containing the protobuf bytes of the transaction
+     * @param maxBytes The maximum number of bytes that can exist in the transaction
      * @return The parsed {@link TransactionInfo}
      * @throws PreCheckException If parsing fails or any of the checks fail.
      */
     @NonNull
-    public TransactionInfo parseAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
+    public TransactionInfo parseAndCheck(@NonNull final Bytes buffer, final int maxBytes) throws PreCheckException {
         // Fail fast if there are too many transaction bytes
-        if (buffer.length() > maxSignedTxnSize) {
+        if (buffer.length() > maxBytes) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
 

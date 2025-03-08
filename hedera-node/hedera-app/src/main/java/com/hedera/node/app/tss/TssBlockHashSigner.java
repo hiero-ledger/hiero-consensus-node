@@ -57,6 +57,8 @@ import java.util.concurrent.CompletableFuture;
  * </ol>
  */
 public class TssBlockHashSigner implements BlockHashSigner {
+    public static final Bytes DISABLED_HINTS_METADTATA = Bytes.wrap(new byte[32]);
+
     @Nullable
     private final HintsService hintsService;
 
@@ -90,7 +92,8 @@ public class TssBlockHashSigner implements BlockHashSigner {
                 return hintsService.signFuture(blockHash);
             }
         } else {
-            final var vk = hintsService == null ? Bytes.EMPTY : hintsService.activeVerificationKeyOrThrow();
+            final var vk =
+                    hintsService == null ? DISABLED_HINTS_METADTATA : hintsService.activeVerificationKeyOrThrow();
             final var proof = historyService.getCurrentProof(vk);
             if (hintsService == null) {
                 return CompletableFuture.supplyAsync(() -> assemble(noThrowSha384HashOf(blockHash), vk, proof));

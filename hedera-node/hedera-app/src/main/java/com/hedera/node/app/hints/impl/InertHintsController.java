@@ -84,7 +84,8 @@ public class InertHintsController implements HintsController {
     public void addCrsPublication(
             @NonNull final CrsPublicationTransactionBody publication,
             @NonNull final Instant consensusTime,
-            @NonNull final WritableHintsStore hintsStore) {
+            @NonNull final WritableHintsStore hintsStore,
+            final long creatorId) {
         requireNonNull(publication);
         requireNonNull(consensusTime);
         requireNonNull(hintsStore);
@@ -93,7 +94,9 @@ public class InertHintsController implements HintsController {
 
     @Override
     public void verifyCrsUpdate(
-            @NonNull final CrsPublicationTransactionBody publication, @NonNull final WritableHintsStore hintsStore) {
+            @NonNull final CrsPublicationTransactionBody publication,
+            @NonNull final WritableHintsStore hintsStore,
+            final long creatorId) {
         requireNonNull(publication);
         requireNonNull(hintsStore);
         // No-op

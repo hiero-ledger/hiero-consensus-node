@@ -22,11 +22,15 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of the {@link HistoryService}.
  */
 public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof> {
+    private static final Logger log = LogManager.getLogger(HistoryServiceImpl.class);
+
     @Deprecated
     private final Configuration bootstrapConfig;
 

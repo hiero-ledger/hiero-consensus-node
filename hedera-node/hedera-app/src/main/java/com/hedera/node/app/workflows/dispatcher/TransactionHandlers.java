@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.dispatcher;
 
+import com.hedera.node.app.hints.handlers.CrsPublicationHandler;
 import com.hedera.node.app.hints.handlers.HintsKeyPublicationHandler;
 import com.hedera.node.app.hints.handlers.HintsPartialSignatureHandler;
 import com.hedera.node.app.hints.handlers.HintsPreprocessingVoteHandler;
@@ -129,4 +130,5 @@ public record TransactionHandlers(
         @NonNull AtomicBatchHandler atomicBatchHandler,
         @NonNull HistoryProofKeyPublicationHandler historyProofKeyPublicationHandler,
         @NonNull HistoryProofSignatureHandler historyProofSignatureHandler,
-        @NonNull HistoryProofVoteHandler historyProofVoteHandler) {}
+        @NonNull HistoryProofVoteHandler historyProofVoteHandler,
+        @NonNull CrsPublicationHandler crsPublicationHandler) {}

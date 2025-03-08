@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.annotations.MaxSignedTxnSize;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
@@ -41,20 +42,23 @@ public class CacheWarmer {
     private final TransactionChecker checker;
     private final TransactionDispatcher dispatcher;
     private final Executor executor;
+    private final int maxSignedTxnSize;
 
     @NonNull
     private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     @Inject
     public CacheWarmer(
+            @MaxSignedTxnSize final int maxSignedTxnSize,
             @NonNull final TransactionChecker checker,
             @NonNull final TransactionDispatcher dispatcher,
             @NonNull @Named("CacheWarmer") final Executor executor,
             @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
-        this.checker = checker;
+        this.checker = requireNonNull(checker);
         this.dispatcher = requireNonNull(dispatcher);
         this.executor = requireNonNull(executor);
         this.softwareVersionFactory = softwareVersionFactory;
+        this.maxSignedTxnSize = maxSignedTxnSize;
     }
 
     /**
@@ -97,7 +101,9 @@ public class CacheWarmer {
         // or keeping the result for later.
         try {
             final Bytes buffer = platformTransaction.getApplicationTransaction();
-            return checker.parseAndCheck(buffer).txBody();
+            // There is no cache warming to do for oversize TSS transactions, so it's fine
+            // to fail with TRANSACTION_OVERSIZE here in any case
+            return checker.parseAndCheck(buffer, maxSignedTxnSize).txBody();
         } catch (PreCheckException ex) {
             return null;
         }
