@@ -51,13 +51,13 @@ class HintsLibraryImplTest {
 
     @Test
     void computesAndValidateHints() {
-        final var crs = subject.newCrs(4);
+        final var crs = subject.newCrs(16);
         final var blsPrivateKey = subject.newBlsKeyPair();
-        final var hints = subject.computeHints(crs, blsPrivateKey, 1, 4);
+        final var hints = subject.computeHints(crs, blsPrivateKey, 1, 16);
         assertNotNull(hints);
         assertNotEquals(hints, Bytes.EMPTY);
 
-        final var isValid = subject.validateHintsKey(crs, hints, 1, 4);
+        final var isValid = subject.validateHintsKey(crs, hints, 1, 16);
         assertTrue(isValid);
     }
 
