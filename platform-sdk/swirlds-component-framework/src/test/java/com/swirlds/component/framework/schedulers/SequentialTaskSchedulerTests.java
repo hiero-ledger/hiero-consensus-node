@@ -41,6 +41,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.RepetitionInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -1209,9 +1211,9 @@ class SequentialTaskSchedulerTests {
         model.stop();
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void exceptionHandlingTest(final String typeString) throws InterruptedException {
+    @RepeatedTest(value = 30000, name = "exceptionHandlingTest {currentRepetition}/{totalRepetitions}")
+    void exceptionHandlingTest(final RepetitionInfo info) throws InterruptedException {
+        final var typeString = info.getCurrentRepetition() % 2 == 0 ? "SEQUENTIAL" : "SEQUENTIAL_THREAD";
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
@@ -1258,21 +1260,23 @@ class SequentialTaskSchedulerTests {
         assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
         final int exceptionCountValue = exceptionCount.get();
         if (exceptionCountValue != 1) {
-            var unhadledTaskCount = platformContext.getMetrics().getValue("platform", "test_unhandled_task_count");
-            var busyFraction = platformContext.getMetrics().getValue("platform", "test_busy_fraction");
-            Thread.sleep(10);
+            final long checkExecutedNanoTime = System.nanoTime();
+            long timeItGets1 = 0;
+            while (exceptionCount.get() != 1) {}
+            timeItGets1 = System.nanoTime();
             String debugInfo = ("The throwing task %s executed at:%d(ns)."
                             + " UncaughtExceptions:(duringCheck:%d;now:%d)"
                             + " - UncaughtHandler executed at:%d(ns)"
-                            + " - UnhadledTaskCount:%s. busyFraction %s")
+                            + " - Check executed at:%d(ns)"
+                            + " - count becomes 1 at:%d(ns)")
                     .formatted(
                             handlerExecutedFlag.get() ? "was" : "WAS NOT",
                             handlerExecutedNanoTime.get(),
                             exceptionCountValue,
                             exceptionCount.get(),
                             uncaughtExceptionHandlerNanoTime.get(),
-                            unhadledTaskCount,
-                            busyFraction);
+                            checkExecutedNanoTime,
+                            timeItGets1);
             fail(debugInfo);
         }
 
