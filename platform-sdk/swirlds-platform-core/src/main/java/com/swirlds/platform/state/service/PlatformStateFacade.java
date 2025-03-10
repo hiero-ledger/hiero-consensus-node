@@ -18,7 +18,6 @@ import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -243,26 +242,6 @@ public class PlatformStateFacade {
     @Nullable
     public Instant lastFrozenTimeOf(State state) {
         return readablePlatformStateStore(state).getLastFrozenTime();
-    }
-
-    /**
-     * Given a {@link State}, returns the address book if it exists.
-     * @param state the state to extract the address book from
-     * @return the address book, or null if the state is a genesis state
-     */
-    @Nullable
-    public AddressBook addressBookOf(State state) {
-        return readablePlatformStateStore(state).getAddressBook();
-    }
-
-    /**
-     * Get the previous address book from the state.
-     * @param state the state to extract the address book from
-     * @return the previous address book, or null if the state is a genesis state
-     */
-    @Nullable
-    public AddressBook previousAddressBookOf(State state) {
-        return readablePlatformStateStore(state).getPreviousAddressBook();
     }
 
     /**

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test;
 
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleNode;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.common.utility.StopWatch;
@@ -27,7 +27,7 @@ public class MerkleHashBenchmarks {
 
     @BeforeAll
     public static void setUp() {
-        cryptography = MerkleCryptoFactory.getInstance();
+        cryptography = TestMerkleCryptoFactory.getInstance();
     }
 
     /**

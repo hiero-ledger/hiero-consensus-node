@@ -1050,6 +1050,7 @@ hedera-node/hedera-app/test/**
 # Preconsensus event stream files
 *.pces
 *.pcesD
+!**/src/test/resources/**/*.pces
 
 # Do not ignore the files required by the Platform Core tests
 !platform-sdk/**/src/test/resources/**/*.jar
