@@ -80,13 +80,13 @@ public final class KeyUtils {
     }
 
     public static <T extends PrivateKey> T readKeyFrom(
-            final File pem, final String passphrase, final Provider provider) {
+            final File pem, final String passphrase, final Provider pemKeyProvider) {
         final var relocatedPem = KeyUtils.relocatedIfNotPresentInWorkingDir(pem);
         try (final var in = new FileInputStream(relocatedPem)) {
             final var decryptProvider = new JceOpenSSLPKCS8DecryptorProviderBuilder()
-                    .setProvider(provider)
+                    .setProvider(BC_PROVIDER)
                     .build(passphrase.toCharArray());
-            final var converter = new JcaPEMKeyConverter().setProvider(provider);
+            final var converter = new JcaPEMKeyConverter().setProvider(pemKeyProvider);
             try (final var parser = new PEMParser(new InputStreamReader(in))) {
                 final var encryptedPrivateKeyInfo = (PKCS8EncryptedPrivateKeyInfo) parser.readObject();
                 final var info = encryptedPrivateKeyInfo.decryptPrivateKeyInfo(decryptProvider);
