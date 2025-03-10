@@ -61,7 +61,8 @@ public class MigrationTestToolConsensusStateEventHandler
         }
 
         final SemanticVersion staticPrevVersion = PREVIOUS_SOFTWARE_VERSION.getPbjSemanticVersion();
-        if (previousVersion == null || HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(previousVersion, staticPrevVersion) != 0) {
+        if (previousVersion == null
+                || HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(previousVersion, staticPrevVersion) != 0) {
             logger.warn(
                     STARTUP.getMarker(),
                     "previousSoftwareVersion was {} when expecting it to be {}",

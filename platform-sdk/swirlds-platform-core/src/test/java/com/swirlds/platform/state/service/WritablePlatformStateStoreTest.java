@@ -48,9 +48,7 @@ class WritablePlatformStateStoreTest {
     void verifySetAllFrom() {
         final var platformState = randomPlatformState(randotron);
         store.setAllFrom(platformState);
-        assertEquals(
-                platformState.getCreationSoftwareVersion(),
-                store.getCreationSoftwareVersion());
+        assertEquals(platformState.getCreationSoftwareVersion(), store.getCreationSoftwareVersion());
         assertEquals(platformState.getSnapshot().round(), store.getRound());
         assertEquals(platformState.getLegacyRunningEventHash(), store.getLegacyRunningEventHash());
         assertEquals(
@@ -59,9 +57,7 @@ class WritablePlatformStateStoreTest {
         assertEquals(platformState.getRoundsNonAncient(), store.getRoundsNonAncient());
         assertEquals(platformState.getSnapshot(), store.getSnapshot());
         assertEquals(platformState.getFreezeTime(), store.getFreezeTime());
-        assertEquals(
-                platformState.getFirstVersionInBirthRoundMode(),
-                store.getFirstVersionInBirthRoundMode());
+        assertEquals(platformState.getFirstVersionInBirthRoundMode(), store.getFirstVersionInBirthRoundMode());
         assertEquals(platformState.getLastRoundBeforeBirthRoundMode(), store.getLastRoundBeforeBirthRoundMode());
         assertEquals(
                 platformState.getLowestJudgeGenerationBeforeBirthRoundMode(),
@@ -72,9 +68,7 @@ class WritablePlatformStateStoreTest {
     void verifyCreationSoftwareVersion() {
         final var version = nextInt(1, 100);
         store.setCreationSoftwareVersion(new BasicSoftwareVersion(version).getPbjSemanticVersion());
-        assertEquals(
-                version,
-                store.getCreationSoftwareVersion().major());
+        assertEquals(version, store.getCreationSoftwareVersion().major());
     }
 
     @Test
@@ -130,9 +124,7 @@ class WritablePlatformStateStoreTest {
     void verifyFirstVersionInBirthRoundMode() {
         final var version = nextInt(1, 100);
         store.setFirstVersionInBirthRoundMode(new BasicSoftwareVersion(version).getPbjSemanticVersion());
-        assertEquals(
-                version,
-                store.getFirstVersionInBirthRoundMode().major());
+        assertEquals(version, store.getFirstVersionInBirthRoundMode().major());
     }
 
     @Test

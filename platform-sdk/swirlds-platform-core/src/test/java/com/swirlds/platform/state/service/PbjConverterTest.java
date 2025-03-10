@@ -55,9 +55,7 @@ class PbjConverterTest {
         final com.hedera.hapi.platform.state.PlatformState pbjPlatformState =
                 PbjConverter.toPbjPlatformState(platformState);
 
-        assertEquals(
-                platformState.getCreationSoftwareVersion(),
-                pbjPlatformState.creationSoftwareVersion());
+        assertEquals(platformState.getCreationSoftwareVersion(), pbjPlatformState.creationSoftwareVersion());
         assertEquals(platformState.getRoundsNonAncient(), pbjPlatformState.roundsNonAncient());
         assertEquals(
                 platformState.getLastFrozenTime().getEpochSecond(),
@@ -66,9 +64,7 @@ class PbjConverterTest {
         assertEquals(
                 platformState.getLowestJudgeGenerationBeforeBirthRoundMode(),
                 pbjPlatformState.lowestJudgeGenerationBeforeBirthRoundMode());
-        assertEquals(
-                platformState.getFirstVersionInBirthRoundMode(),
-                pbjPlatformState.firstVersionInBirthRoundMode());
+        assertEquals(platformState.getFirstVersionInBirthRoundMode(), pbjPlatformState.firstVersionInBirthRoundMode());
 
         assertEquals(platformState.getSnapshot(), pbjPlatformState.consensusSnapshot());
     }
@@ -123,9 +119,7 @@ class PbjConverterTest {
 
         accumulator.setCreationSoftwareVersion(newValue);
 
-        assertEquals(
-                newValue,
-                toPbjPlatformState(oldState, accumulator).creationSoftwareVersion());
+        assertEquals(newValue, toPbjPlatformState(oldState, accumulator).creationSoftwareVersion());
     }
 
     @Test
@@ -233,9 +227,7 @@ class PbjConverterTest {
 
         accumulator.setFirstVersionInBirthRoundMode(newValue);
 
-        assertEquals(
-                newValue,
-                toPbjPlatformState(oldState, accumulator).firstVersionInBirthRoundMode());
+        assertEquals(newValue, toPbjPlatformState(oldState, accumulator).firstVersionInBirthRoundMode());
     }
 
     @Test
@@ -358,9 +350,7 @@ class PbjConverterTest {
         assertEquals(
                 newValue.getLowestJudgeGenerationBeforeBirthRoundMode(),
                 pbjState.lowestJudgeGenerationBeforeBirthRoundMode());
-        assertEquals(
-                newValue.getFirstVersionInBirthRoundMode(),
-                pbjState.firstVersionInBirthRoundMode());
+        assertEquals(newValue.getFirstVersionInBirthRoundMode(), pbjState.firstVersionInBirthRoundMode());
         assertEquals(newValue.getLastRoundBeforeBirthRoundMode(), pbjState.lastRoundBeforeBirthRoundMode());
     }
 

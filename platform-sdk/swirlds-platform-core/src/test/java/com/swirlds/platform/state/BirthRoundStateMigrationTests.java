@@ -134,7 +134,9 @@ class BirthRoundStateMigrationTests {
     }
 
     private static SemanticVersion createNextVersion(final SemanticVersion previousSoftwareVersion) {
-        return new SemanticVersion.Builder().major(previousSoftwareVersion.major() + 1).build();
+        return new SemanticVersion.Builder()
+                .major(previousSoftwareVersion.major() + 1)
+                .build();
     }
 
     @Test
@@ -160,9 +162,7 @@ class BirthRoundStateMigrationTests {
         assertNotEquals(originalHash, signedState.getState().getHash());
 
         // We expect these fields to be populated at the migration boundary
-        assertEquals(
-                newSoftwareVersion,
-                platformStateFacade.firstVersionInBirthRoundModeOf(signedState.getState()));
+        assertEquals(newSoftwareVersion, platformStateFacade.firstVersionInBirthRoundModeOf(signedState.getState()));
         assertEquals(
                 lastRoundMinimumJudgeGeneration,
                 platformStateFacade.lowestJudgeGenerationBeforeBirthRoundModeOf(signedState.getState()));

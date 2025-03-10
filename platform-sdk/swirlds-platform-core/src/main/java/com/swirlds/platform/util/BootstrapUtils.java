@@ -229,7 +229,8 @@ public final class BootstrapUtils {
         }
         final int versionComparison = loadedSoftwareVersion == null
                 ? 1
-                : HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(appVersion.getPbjSemanticVersion(), loadedSoftwareVersion);
+                : HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(
+                        appVersion.getPbjSemanticVersion(), loadedSoftwareVersion);
         final boolean softwareUpgrade;
         if (versionComparison < 0) {
             throw new IllegalStateException(

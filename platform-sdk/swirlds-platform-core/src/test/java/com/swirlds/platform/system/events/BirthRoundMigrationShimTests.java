@@ -55,7 +55,8 @@ class BirthRoundMigrationShimTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final SemanticVersion firstVersionInBirthRoundMode = new BasicSoftwareVersion(random.nextInt(10, 100)).getPbjSemanticVersion();
+        final SemanticVersion firstVersionInBirthRoundMode =
+                new BasicSoftwareVersion(random.nextInt(10, 100)).getPbjSemanticVersion();
         final long lastRoundBeforeBirthRoundMode = random.nextLong(100, 1_000);
         final long lowestJudgeGenerationBeforeBirthRoundMode = random.nextLong(100, 1_000);
 
@@ -98,7 +99,8 @@ class BirthRoundMigrationShimTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final SemanticVersion firstVersionInBirthRoundMode = new BasicSoftwareVersion(random.nextInt(10, 100)).getPbjSemanticVersion();
+        final SemanticVersion firstVersionInBirthRoundMode =
+                new BasicSoftwareVersion(random.nextInt(10, 100)).getPbjSemanticVersion();
         final long lastRoundBeforeBirthRoundMode = random.nextLong(100, 1_000);
         final long lowestJudgeGenerationBeforeBirthRoundMode = random.nextLong(100, 1_000);
 
@@ -142,7 +144,8 @@ class BirthRoundMigrationShimTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final SemanticVersion firstVersionInBirthRoundMode = new BasicSoftwareVersion(random.nextInt(10, 100)).getPbjSemanticVersion();
+        final SemanticVersion firstVersionInBirthRoundMode =
+                new BasicSoftwareVersion(random.nextInt(10, 100)).getPbjSemanticVersion();
         final long lastRoundBeforeBirthRoundMode = random.nextLong(100, 1_000);
         final long lowestJudgeGenerationBeforeBirthRoundMode = random.nextLong(100, 1_000);
 

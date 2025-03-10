@@ -208,8 +208,7 @@ class PlatformStateFacadeTest {
         final var newCreationSoftwareVersion = new BasicSoftwareVersion(RandomUtils.nextInt());
         platformStateFacade.setCreationSoftwareVersionTo(state, newCreationSoftwareVersion);
         assertEquals(
-                newCreationSoftwareVersion.getPbjSemanticVersion(),
-                platformStateModifier.getCreationSoftwareVersion());
+                newCreationSoftwareVersion.getPbjSemanticVersion(), platformStateModifier.getCreationSoftwareVersion());
     }
 
     @Test
