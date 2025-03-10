@@ -10,9 +10,13 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -27,6 +31,7 @@ public class HintsKeyAccessorImpl
     private static final String SUB_DIRECTORY = "hints";
     private static final String FILE_CONTENT = "Hints private key";
     private static final String FILE_NAME = "bls.bin";
+    private static final Logger log = LogManager.getLogger(HintsKeyAccessorImpl.class);
 
     private final HintsLibrary library;
     // Volatile because lazy initialized and, in principle, could be accessed by multiple threads
@@ -42,7 +47,9 @@ public class HintsKeyAccessorImpl
 
     @Override
     public Bytes signWithBlsPrivateKey(final long constructionId, @NonNull final Bytes message) {
-        return library.signBls(message, getOrCreateBlsPrivateKey(constructionId));
+        final var key = getOrCreateBlsPrivateKey(constructionId);
+//        log.info("Signing message with BLS key {}", HexFormat.of().formatHex(key.toByteArray()));
+        return library.signBls(message, key);
     }
 
     @Override

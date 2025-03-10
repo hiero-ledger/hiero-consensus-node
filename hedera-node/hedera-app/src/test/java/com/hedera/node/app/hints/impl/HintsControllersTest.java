@@ -94,7 +94,7 @@ class HintsControllersTest {
     void returnsActiveControllerWhenSourceNodesHaveTargetThresholdWeight() {
         given(activeRosters.transitionWeights()).willReturn(weights);
         given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
-        given(keyAccessor.getOrCreateBlsPrivateKey(1L)).willReturn(BLS_KEY_PAIR);
+//        given(keyAccessor.getOrCreateBlsPrivateKey(1L)).willReturn(BLS_KEY_PAIR);
         given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
         given(hintsStore.getCrsState()).willReturn(CRSState.DEFAULT);
 

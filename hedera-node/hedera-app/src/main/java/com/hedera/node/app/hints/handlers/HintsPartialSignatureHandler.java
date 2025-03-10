@@ -53,8 +53,6 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         requireNonNull(context);
         final var op = context.body().hintsPartialSignatureOrThrow();
         final var creator = context.creatorInfo().nodeId();
-        logger.info("Handling partial signature for message {} from {}----- {}", op.message(), creator,
-                signings.get(op.message()));
         final var hintsStore = context.storeFactory().writableStore(WritableHintsStore.class);
         final var crs = hintsStore.getCrsState().crs();
         signings.get(op.message()).incorporate(crs, op.constructionId(), creator, op.partialSignature());

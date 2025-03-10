@@ -47,6 +47,7 @@ public class HintsKeyPublicationHandler implements TransactionHandler {
         controllers.getInProgressForNumParties(numParties).ifPresent(controller -> {
             final long nodeId = context.creatorInfo().nodeId();
             final int partyId = controller.partyIdOf(nodeId).orElse(INVALID_PARTY_ID);
+            log.info("op.partyId() {}, partyId {}", op.partyId(), partyId);
             // Ignore hinTS keys that nodes publish with party ids other than their consensus party id
             if (op.partyId() == partyId) {
                 final var hintsKey = op.hintsKey();

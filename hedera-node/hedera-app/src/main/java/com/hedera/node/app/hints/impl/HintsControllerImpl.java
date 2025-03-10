@@ -391,6 +391,8 @@ public class HintsControllerImpl implements HintsController {
 
     @Override
     public @NonNull OptionalInt partyIdOf(final long nodeId) {
+        log.info("nodeId {}, nodePartyIds {},  expectedPartyId {}, weights {}", nodeId, nodePartyIds,
+                expectedPartyId(nodeId), weights);
         if (!weights.targetIncludes(nodeId)) {
             return OptionalInt.empty();
         }
@@ -595,7 +597,7 @@ public class HintsControllerImpl implements HintsController {
                 .filter(id -> !nodePartyIds.containsKey(id))
                 .sorted()
                 .toList();
-        final var unusedPartyIds = IntStream.range(0, numParties)
+        final var unusedPartyIds = IntStream.range(1, numParties + 1)
                 .filter(id -> !partyNodeIds.containsKey(id))
                 .boxed()
                 .toList();
@@ -650,9 +652,9 @@ public class HintsControllerImpl implements HintsController {
             final int selfPartyId = expectedPartyId(selfId);
             publicationFuture = CompletableFuture.runAsync(
                             () -> {
-                                log.info("Starting computing hinTS key for construction {}", crs.length());
+                                log.info("Starting computing hinTS key for construction {}", construction.constructionId());
                                 final var hints = library.computeHints(crs, blsPrivateKey, selfPartyId, numParties);
-                                log.info("Submitting hinTS key for construction for {}", numParties);
+//                                log.info("Submitting hinTS key with {} - selfPartyId {}", blsPrivateKey, selfPartyId);
                                 submissions
                                         .submitHintsKey(selfPartyId, numParties, hints)
                                         .join();

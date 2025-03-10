@@ -192,12 +192,10 @@ public class HintsContext {
                 final long nodeId,
                 @NonNull final Bytes signature) {
             requireNonNull(signature);
-            log.info("Incorporating partial signature from node {} for partyIds {} : this.construction {} for construction {}",
-                    nodeId, partyIds, this.constructionId, constructionId);
             if (this.constructionId == constructionId && partyIds.containsKey(nodeId)) {
                 final int partyId = partyIds.get(nodeId);
                 final var isValid = library.verifyBls(crs, signature, message, aggregationKey, partyId);
-                log.info("Partial signature from node {} for party {} is {}", nodeId, partyId, isValid);
+                log.info("Partial signature from node {} for party {} isValid {}", nodeId, partyId, isValid);
                 if (isValid) {
                     signatures.put(partyId, signature);
                     final var weight = currentRoster.rosterEntries().stream()

@@ -94,21 +94,22 @@ class HintsLibraryImplTest {
     void signsAndVerifiesBlsSignature() {
         final var message = "Hello World".getBytes();
         final var blsPrivateKey = subject.newBlsKeyPair();
-        final var crs = subject.newCrs(4);
-        final var extendedPublicKey = subject.computeHints(crs, blsPrivateKey, 1, 4);
+        final var crs = subject.newCrs(8);
+        final int partyId = 0;
+        final var extendedPublicKey = subject.computeHints(crs, blsPrivateKey, partyId, 4);
         final var signature = subject.signBls(Bytes.wrap(message), blsPrivateKey);
         assertNotNull(signature);
 
         final SortedMap<Integer, Bytes> hintsForAllParties = new TreeMap<>();
-        hintsForAllParties.put(1, extendedPublicKey);
+        hintsForAllParties.put(partyId, extendedPublicKey);
 
         final SortedMap<Integer, Long> weights = new TreeMap<>();
-        weights.put(1, 200L);
+        weights.put(partyId, 1L);
 
         final var keys = subject.preprocess(crs, hintsForAllParties, weights, 4);
 
         final var isValid =
-                subject.verifyBls(crs, signature, Bytes.wrap(message), Bytes.wrap(keys.aggregationKey()), 1);
+                subject.verifyBls(crs, signature, Bytes.wrap(message), Bytes.wrap(keys.aggregationKey()), partyId);
         assertTrue(isValid);
     }
 
