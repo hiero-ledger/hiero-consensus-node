@@ -392,7 +392,7 @@ public class HandleWorkflow {
         if (streamMode != RECORDS) {
             handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
             if (!userTxnHandled) {
-                blockStreamManager.setRoundFirstUserTransactionTime(handleOutput.firstAssignedConsensusTime());
+                blockStreamManager.setRoundFirstTransactionTime(handleOutput.firstAssignedConsensusTime());
             }
         }
 

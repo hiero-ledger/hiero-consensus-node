@@ -23,5 +23,5 @@ public interface HintsKeyAccessor {
      * @param constructionId the active construction ID
      * @return the hinTS key pair
      */
-    Bytes getOrCreateBlsKeyPair(long constructionId);
+    Bytes getOrCreateBlsPrivateKey(long constructionId);
 }

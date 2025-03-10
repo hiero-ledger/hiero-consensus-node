@@ -275,11 +275,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void setRoundFirstUserTransactionTime(@NonNull final Instant at) {
+    public void setRoundFirstTransactionTime(@NonNull final Instant at) {
         if (preTxnItems != null) {
             flushPreUserItems(asTimestamp(at));
-        } else {
-            log.warn("setRoundFirstUserTransactionTime() called redundantly at {}", at);
         }
     }
 

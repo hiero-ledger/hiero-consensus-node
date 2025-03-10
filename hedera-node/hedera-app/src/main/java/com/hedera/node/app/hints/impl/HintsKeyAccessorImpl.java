@@ -13,6 +13,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -30,6 +32,7 @@ public class HintsKeyAccessorImpl
     // Volatile because lazy initialized and, in principle, could be accessed by multiple threads
     private volatile SequentialContentManager<Bytes> contentManager;
     private final Supplier<Configuration> config;
+    private final Map<Long, Bytes> privateKeys = new ConcurrentHashMap<>();
 
     @Inject
     public HintsKeyAccessorImpl(@NonNull final HintsLibrary library, final Supplier<Configuration> config) {
@@ -39,12 +42,12 @@ public class HintsKeyAccessorImpl
 
     @Override
     public Bytes signWithBlsPrivateKey(final long constructionId, @NonNull final Bytes message) {
-        return library.signBls(message, contentManager().getOrCreateContent(constructionId));
+        return library.signBls(message, getOrCreateBlsPrivateKey(constructionId));
     }
 
     @Override
-    public Bytes getOrCreateBlsKeyPair(final long constructionId) {
-        return contentManager().getOrCreateContent(constructionId);
+    public Bytes getOrCreateBlsPrivateKey(final long constructionId) {
+        return privateKeys.computeIfAbsent(constructionId, contentManager()::getOrCreateContent);
     }
 
     private @NonNull SequentialContentManager<Bytes> contentManager() {

@@ -281,7 +281,7 @@ class BlockStreamManagerImplTest {
         // Write some items to the block
         subject.writeItem(FAKE_EVENT_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
-        subject.setRoundFirstUserTransactionTime(CONSENSUS_NOW);
+        subject.setRoundFirstTransactionTime(CONSENSUS_NOW);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
 
@@ -501,7 +501,7 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_EVENT_TRANSACTION);
         assertEquals(Bytes.fromHex("aa".repeat(48)), subject.prngSeed());
         subject.writeItem(FAKE_TRANSACTION_RESULT);
-        subject.setRoundFirstUserTransactionTime(CONSENSUS_NOW);
+        subject.setRoundFirstTransactionTime(CONSENSUS_NOW);
         assertEquals(Bytes.fromHex("bb".repeat(48)), subject.prngSeed());
         subject.writeItem(FAKE_STATE_CHANGES);
         for (int i = 0; i < 8; i++) {

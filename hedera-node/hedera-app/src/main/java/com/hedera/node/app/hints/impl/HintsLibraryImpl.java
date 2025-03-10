@@ -132,8 +132,9 @@ public class HintsLibraryImpl implements HintsLibrary {
         final byte[][] signatures = Arrays.stream(parties)
                 .mapToObj(party -> partialSignatures.get(party).toByteArray())
                 .toArray(byte[][]::new);
-        return Bytes.wrap(BRIDGE.aggregateSignatures(
-                crs.toByteArray(), aggregationKey.toByteArray(), verificationKey.toByteArray(), parties, signatures));
+        final var aggregatedSignature = BRIDGE.aggregateSignatures(
+                crs.toByteArray(), aggregationKey.toByteArray(), verificationKey.toByteArray(), parties, signatures);
+        return Bytes.wrap(aggregatedSignature);
     }
 
     @Override

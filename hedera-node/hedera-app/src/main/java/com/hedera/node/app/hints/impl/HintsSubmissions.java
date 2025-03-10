@@ -14,11 +14,13 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -44,9 +46,10 @@ public class HintsSubmissions extends TssSubmissions {
 
     /**
      * Attempts to submit a hinTS key aggregation vote to the network.
-     * @param partyId the ID of the party submitting the vote
+     *
+     * @param partyId    the ID of the party submitting the vote
      * @param numParties the total number of parties in the vote
-     * @param hintsKey the key to vote for
+     * @param hintsKey   the key to vote for
      * @return a future that completes when the vote has been submitted
      */
     public CompletableFuture<Void> submitHintsKey(
@@ -58,7 +61,8 @@ public class HintsSubmissions extends TssSubmissions {
 
     /**
      * Attempts to submit a CRS update to the network.
-     * @param crs the updated CRS
+     *
+     * @param crs   the updated CRS
      * @param proof the proof of the update
      * @return a future that completes when the update has been submitted
      */
@@ -74,7 +78,8 @@ public class HintsSubmissions extends TssSubmissions {
     /**
      * Submits a vote for the same hinTS preprocessing output for the given construction id that another
      * node with the given ID has already voted for.
-     * @param constructionId the construction ID to vote for
+     *
+     * @param constructionId  the construction ID to vote for
      * @param congruentNodeId the ID of the node that has already voted
      * @return a future that completes when the vote has been submitted
      */
@@ -90,7 +95,8 @@ public class HintsSubmissions extends TssSubmissions {
 
     /**
      * Submits a vote for the given hinTS preprocessing output for the given construction id.
-     * @param constructionId the construction ID to vote for
+     *
+     * @param constructionId   the construction ID to vote for
      * @param preprocessedKeys the keys to vote for
      * @return a future that completes when the vote has been submitted
      */
@@ -107,6 +113,7 @@ public class HintsSubmissions extends TssSubmissions {
 
     /**
      * Attempts to submit a hinTS partial signature.
+     *
      * @param message the message to sign
      * @return a future that completes when the vote has been submitted
      */
@@ -116,9 +123,13 @@ public class HintsSubmissions extends TssSubmissions {
         return submit(
                 b -> {
                     final var signature = keyAccessor.signWithBlsPrivateKey(constructionId, message);
+                    logger.info("Submitting partial signature  {} - {}", signature, message);
                     b.hintsPartialSignature(
                             new HintsPartialSignatureTransactionBody(constructionId, message, signature));
                 },
-                onFailure);
+                onFailure).exceptionally(t -> {
+            logger.warn("Failed to submit partial signature for message {}", message, t);
+            return null;
+        });
     }
 }
