@@ -10,6 +10,7 @@ open module com.swirlds.state.impl.test.fixtures {
     requires transitive com.swirlds.state.impl;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.junit.jupiter.params;
+    requires com.swirlds.common.test.fixtures;
     requires com.swirlds.merkledb;
     requires org.junit.jupiter.api;
     requires static transitive com.github.spotbugs.annotations;
