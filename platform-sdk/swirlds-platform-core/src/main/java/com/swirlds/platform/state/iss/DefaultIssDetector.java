@@ -20,6 +20,7 @@ import com.swirlds.platform.metrics.IssMetrics;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.sequence.map.ConcurrentSequenceMap;
 import com.swirlds.platform.sequence.map.SequenceMap;
+import com.swirlds.platform.sequence.set.ConcurrentSequenceSet;
 import com.swirlds.platform.sequence.set.SequenceSet;
 import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
@@ -50,7 +51,7 @@ public class DefaultIssDetector implements IssDetector {
 
     private final SequenceMap<Long /* round */, RoundHashValidator> roundData;
     /** Signatures for rounds in the future */
-    private final SequenceSet<SavedSignature> savedSignatures;
+    private final SequenceSet<ScopedSystemTransaction<StateSignatureTransaction>> savedSignatures;
 
     private long previousRound = -1;
 
@@ -138,6 +139,8 @@ public class DefaultIssDetector implements IssDetector {
 
         this.roundData = new ConcurrentSequenceMap<>(
                 -consensusConfig.roundsNonAncient(), consensusConfig.roundsNonAncient(), x -> x);
+        this.savedSignatures = new ConcurrentSequenceSet<>(0, consensusConfig.roundsNonAncient(),
+                s -> s.transaction().round());
 
         this.ignorePreconsensusSignatures = ignorePreconsensusSignatures;
         if (ignorePreconsensusSignatures) {
@@ -176,7 +179,7 @@ public class DefaultIssDetector implements IssDetector {
     }
 
     /**
-     * Shift the round data window when a new round is completed.
+     * Shift the round data window when a new round's state is hashed.
      * <p>
      * If any round that is removed by shifting the window hasn't already had its hash decided, then this method will
      * force a decision on the hash, and handle any ISS events that result.
@@ -222,14 +225,35 @@ public class DefaultIssDetector implements IssDetector {
     public List<IssNotification> handleStateSignatureTransactions(
             @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {
         logger.info(STARTUP.getMarker(), "Handling state signature transactions in a round without a state");
-        return handlePostconsensusSignatures(systemTransactions);
+
+        final List<IssNotification> issNotifications = new ArrayList<>();
+        for (final ScopedSystemTransaction<StateSignatureTransaction> transaction : systemTransactions) {
+            final StateSignatureTransaction signaturePayload = transaction.transaction();
+            final long round = signaturePayload.round();
+            if (round <= savedSignatures.getFirstSequenceNumberInWindow()) {
+                final NodeId signerId = transaction.submitterId();
+                final RosterEntry node = RosterUtils.getRosterEntryOrNull(roster, signerId.id());
+                if (node == null) {
+                    continue;
+                }
+                final RoundHashValidator roundValidator = roundData.get(round);
+                final boolean decided = roundValidator.reportHashFromNetwork(signerId, node.weight(),
+                        new Hash(signaturePayload.hash()));
+                if (decided) {
+                    issNotifications.add(checkValidity(roundValidator));
+                }
+            } else {
+                savedSignatures.getEntriesWithSequenceNumber(round).add(transaction);
+            }
+        }
+        return issNotifications;
     }
 
     /**
      * Called when a round has been completed.
      * <p>
-     * Expects the state to have been reserved by the caller for this method. This method will release the
-     * state reservation when it is done with it.
+     * Expects the state to have been reserved by the caller for this method. This method will release the state
+     * reservation when it is done with it.
      *
      * @param reservedSignedState the reserved state to be handled
      * @return a list of ISS notifications, or null if no ISS occurred
@@ -249,7 +273,9 @@ public class DefaultIssDetector implements IssDetector {
                 issNotifications.add(selfHashCheckResult);
             }
 
-            issNotifications.addAll(handlePostconsensusSignatures(stateAndRound.systemTransactions()));
+            issNotifications.addAll(
+                    handlePostconsensusSignatures(savedSignatures.getEntriesWithSequenceNumber(roundNumber)));
+            savedSignatures.shiftWindow(roundNumber);
 
             return issNotifications.isEmpty() ? null : issNotifications;
         }
@@ -299,7 +325,7 @@ public class DefaultIssDetector implements IssDetector {
      */
     @NonNull
     private List<IssNotification> handlePostconsensusSignatures(
-            final Queue<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactions) {
+            final List<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactions) {
         if (stateSignatureTransactions == null) {
             return List.of();
         }
