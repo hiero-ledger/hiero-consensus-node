@@ -4,7 +4,6 @@ package com.swirlds.platform.state;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -21,20 +20,6 @@ public interface PlatformStateModifier extends PlatformStateAccessor {
      * @param creationVersion the creation version
      */
     void setCreationSoftwareVersion(@NonNull SoftwareVersion creationVersion);
-
-    /**
-     * Set the address book.
-     *
-     * @param addressBook an address book
-     */
-    void setAddressBook(@Nullable AddressBook addressBook);
-
-    /**
-     * Set the previous address book.
-     *
-     * @param addressBook an address book
-     */
-    void setPreviousAddressBook(@Nullable AddressBook addressBook);
 
     /**
      * Set the round when this state was generated.

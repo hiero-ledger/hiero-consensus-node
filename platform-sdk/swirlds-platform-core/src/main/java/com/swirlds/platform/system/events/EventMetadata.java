@@ -28,15 +28,15 @@ public class EventMetadata extends AbstractHashable {
     /**
      * the self parent event descriptor
      */
-    private final EventDescriptorWrapper selfParent;
+    private EventDescriptorWrapper selfParent;
 
     /**
      * the other parents' event descriptors
      */
-    private final List<EventDescriptorWrapper> otherParents;
+    private List<EventDescriptorWrapper> otherParents;
 
     /** a combined list of all parents, selfParent + otherParents */
-    private final List<EventDescriptorWrapper> allParents;
+    private List<EventDescriptorWrapper> allParents;
 
     private final long generation;
 
@@ -55,6 +55,17 @@ public class EventMetadata extends AbstractHashable {
     private EventDescriptorWrapper descriptor;
 
     /**
+     * If this event took part in birth round migration, then the birth round will be overridden by this value.
+     */
+    private Long birthRoundOverride = null;
+
+    /**
+     * The birth round that was initialized to the event. This may be overridden at a later time via
+     * {@link #setBirthRoundOverride(long, long)}.
+     */
+    private final long birthRound;
+
+    /**
      * Create a EventMetadata object
      *
      * @param creatorId       ID of this event's creator
@@ -62,13 +73,15 @@ public class EventMetadata extends AbstractHashable {
      * @param otherParents    other parent event descriptors
      * @param timeCreated     creation time, as claimed by its creator
      * @param transactions    list of transactions included in this event instance
+     * @param birthRound      birth round associated with event
      */
     public EventMetadata(
             @NonNull final NodeId creatorId,
             @Nullable final EventDescriptorWrapper selfParent,
             @NonNull final List<EventDescriptorWrapper> otherParents,
             @NonNull final Instant timeCreated,
-            @NonNull final List<Bytes> transactions) {
+            @NonNull final List<Bytes> transactions,
+            final long birthRound) {
 
         Objects.requireNonNull(transactions, "The transactions must not be null");
         this.creatorId = Objects.requireNonNull(creatorId, "The creatorId must not be null");
@@ -82,6 +95,7 @@ public class EventMetadata extends AbstractHashable {
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null").stream()
                 .map(TransactionWrapper::new)
                 .toList();
+        this.birthRound = birthRound;
     }
 
     /**
@@ -109,6 +123,7 @@ public class EventMetadata extends AbstractHashable {
                 Objects.requireNonNull(gossipEvent.eventCore().timeCreated(), "The timeCreated must not be null"));
         this.transactions =
                 gossipEvent.transactions().stream().map(TransactionWrapper::new).toList();
+        birthRound = gossipEvent.eventCore().birthRound();
     }
 
     private static long calculateGeneration(@NonNull final List<EventDescriptorWrapper> allParents) {
@@ -117,6 +132,16 @@ public class EventMetadata extends AbstractHashable {
                         .mapToLong(d -> d.eventDescriptor().generation())
                         .max()
                         .orElse(EventConstants.GENERATION_UNDEFINED);
+    }
+
+    /**
+     * The birth round of the event. If this event was migrated - as part of birth round migration - then the value
+     * returned is the overridden birth round and not the original.
+     *
+     * @return the birth round for this event
+     */
+    public long getBirthRound() {
+        return birthRoundOverride != null ? birthRoundOverride : birthRound;
     }
 
     /**
@@ -202,16 +227,60 @@ public class EventMetadata extends AbstractHashable {
      * @throws IllegalStateException if called prior to this event being hashed
      */
     @NonNull
-    public EventDescriptorWrapper getDescriptor(final long birthRound) {
+    public EventDescriptorWrapper getDescriptor() {
         if (descriptor == null) {
             if (getHash() == null) {
                 throw new IllegalStateException("The hash of the event must be set before creating the descriptor");
             }
 
             descriptor = new EventDescriptorWrapper(
-                    new EventDescriptor(getHash().getBytes(), creatorId.id(), birthRound, getGeneration()));
+                    new EventDescriptor(getHash().getBytes(), creatorId.id(), getBirthRound(), getGeneration()));
         }
 
         return descriptor;
+    }
+
+    /**
+     * Override the birth round for this event and potentially any parents associated with the event. Parents will
+     * have their birth round overridden if their  generation is greater or equal to the specified
+     * {@code ancientGenerationThreshold} value.
+     *
+     * @param birthRound the birth round to use for this event and potential parents
+     * @param ancientGenerationThreshold the threshold used to determine if parents will also have their birth round
+     *                                   overridden
+     */
+    public void setBirthRoundOverride(final long birthRound, final long ancientGenerationThreshold) {
+        if (birthRoundOverride != null) {
+            throw new IllegalStateException(
+                    "The birth round has already been overridden, you cannot override it again");
+        }
+
+        birthRoundOverride = birthRound;
+
+        if (selfParent != null && selfParent.eventDescriptor().generation() >= ancientGenerationThreshold) {
+            selfParent = new EventDescriptorWrapper(new EventDescriptor(
+                    selfParent.eventDescriptor().hash(),
+                    selfParent.eventDescriptor().creatorNodeId(),
+                    birthRoundOverride,
+                    selfParent.eventDescriptor().generation()));
+        }
+
+        otherParents = otherParents.stream()
+                .map(parent -> {
+                    if (parent.eventDescriptor().generation() >= ancientGenerationThreshold) {
+                        return new EventDescriptorWrapper(new EventDescriptor(
+                                parent.eventDescriptor().hash(),
+                                parent.eventDescriptor().creatorNodeId(),
+                                birthRoundOverride,
+                                parent.eventDescriptor().generation()));
+                    }
+
+                    return parent;
+                })
+                .toList();
+
+        allParents = selfParent == null
+                ? this.otherParents
+                : Stream.concat(Stream.of(selfParent), otherParents.stream()).toList();
     }
 }

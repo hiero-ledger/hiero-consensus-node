@@ -6,6 +6,9 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
+import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.WritableHistoryStore;
+import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.roster.RosterService;
@@ -104,6 +107,9 @@ public class WritableStoreFactory {
         newMap.put(
                 WritableHintsStore.class,
                 new StoreEntry(HintsService.NAME, (states, entityCounters) -> new WritableHintsStoreImpl(states)));
+        newMap.put(
+                WritableHistoryStore.class,
+                new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new WritableHistoryStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 

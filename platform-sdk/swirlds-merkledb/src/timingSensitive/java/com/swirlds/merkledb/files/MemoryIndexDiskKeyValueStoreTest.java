@@ -168,7 +168,7 @@ class MemoryIndexDiskKeyValueStoreTest {
     void createDataAndCheckImpl(final FilesTestType testType) throws Exception {
         // let's store hashes as easy test class
         final Path tempDir = testDirectory.resolve("DataFileTest");
-        final LongListOffHeap index = new LongListOffHeap();
+        final LongListOffHeap index = new LongListOffHeap(1024, 1_000_000, 256);
         final AtomicLong timeSpent = new AtomicLong(0);
         final AtomicDouble savedSpace = new AtomicDouble(0.0);
         String storeName = "MemoryIndexDiskKeyValueStoreTest";
@@ -281,7 +281,7 @@ class MemoryIndexDiskKeyValueStoreTest {
             });
         }
         // open snapshot and check data
-        final LongListOffHeap snapshotIndex = new LongListOffHeap();
+        final LongListOffHeap snapshotIndex = new LongListOffHeap(1024, 1_000_000, 256);
         final MemoryIndexDiskKeyValueStore storeFromSnapshot = new MemoryIndexDiskKeyValueStore(
                 CONFIGURATION.getConfigData(MerkleDbConfig.class),
                 tempSnapshotDir,

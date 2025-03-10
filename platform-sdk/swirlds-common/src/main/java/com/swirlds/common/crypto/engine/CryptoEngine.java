@@ -3,24 +3,19 @@ package com.swirlds.common.crypto.engine;
 
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyException;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.HashBuilder;
 import com.swirlds.common.crypto.Message;
 import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.crypto.VerificationStatus;
 import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.threading.futures.StandardFuture;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Future;
+import java.util.Objects;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class CryptoEngine implements Cryptography {
@@ -56,11 +51,6 @@ public class CryptoEngine implements Cryptography {
     private final EcdsaSecp256k1VerificationProvider ecdsaSecp256k1VerificationProvider;
 
     /**
-     * a pre-computed {@link Map} of each algorithm's {@code null} hash value.
-     */
-    private Map<DigestType, Hash> nullHashes;
-
-    /**
      * Constructor.
      */
     public CryptoEngine() {
@@ -71,8 +61,6 @@ public class CryptoEngine implements Cryptography {
 
         this.serializationDigestProvider = new SerializationDigestProvider();
         this.runningHashProvider = new RunningHashProvider();
-
-        buildNullHashes();
     }
 
     /**
@@ -80,21 +68,17 @@ public class CryptoEngine implements Cryptography {
      *
      * @param signature the signature to be verified
      * @param provider  the underlying provider to be used
-     * @param future    the {@link Future} to be associated with the {@link TransactionSignature}
      * @return true if the signature is valid; otherwise false
      */
     private static boolean verifySyncInternal(
             final TransactionSignature signature,
-            final OperationProvider<TransactionSignature, Void, Boolean, ?, SignatureType> provider,
-            final StandardFuture<Void> future) {
+            final OperationProvider<TransactionSignature, Void, Boolean, ?, SignatureType> provider) {
         final boolean isValid;
 
         try {
             isValid = provider.compute(signature, signature.getSignatureType());
             signature.setSignatureStatus(isValid ? VerificationStatus.VALID : VerificationStatus.INVALID);
-            signature.setFuture(future);
         } catch (final NoSuchAlgorithmException ex) {
-            signature.setFuture(future);
             throw new CryptographyException(ex, LogMarker.EXCEPTION);
         }
 
@@ -104,18 +88,20 @@ public class CryptoEngine implements Cryptography {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
-    public Hash digestSync(final byte[] message, final DigestType digestType) {
-        return new Hash(digestSyncInternal(message, digestType, digestProvider), digestType);
+    public Hash digestSync(@NonNull final byte[] message) {
+        return new Hash(digestSyncInternal(message, digestProvider), DEFAULT_DIGEST_TYPE);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public byte[] digestBytesSync(final SelfSerializable serializable, final DigestType digestType) {
+    public byte[] digestBytesSync(@NonNull final SelfSerializable serializable) {
+        Objects.requireNonNull(serializable, "serializable must not be null");
         try {
-            return serializationDigestProvider.compute(serializable, digestType);
+            return serializationDigestProvider.compute(serializable, DEFAULT_DIGEST_TYPE);
         } catch (final NoSuchAlgorithmException ex) {
             throw new CryptographyException(ex, LogMarker.EXCEPTION);
         }
@@ -125,56 +111,29 @@ public class CryptoEngine implements Cryptography {
      * {@inheritDoc}
      */
     @Override
-    public Hash digestSync(
-            final SerializableHashable serializableHashable, final DigestType digestType, final boolean setHash) {
-        try {
-            final byte[] bytes = serializationDigestProvider.compute(serializableHashable, digestType);
-            final Hash hash = new Hash(bytes, digestType);
-            if (setHash) {
-                serializableHashable.setHash(hash);
-            }
-            return hash;
-        } catch (final NoSuchAlgorithmException ex) {
-            throw new CryptographyException(ex, LogMarker.EXCEPTION);
+    public Hash digestSync(@NonNull final SerializableHashable serializableHashable, final boolean setHash) {
+        final Hash hash = new Hash(digestBytesSync(serializableHashable), DEFAULT_DIGEST_TYPE);
+        if (setHash) {
+            serializableHashable.setHash(hash);
         }
+        return hash;
     }
 
     @NonNull
     @Override
-    public byte[] digestBytesSync(@NonNull final byte[] message, @NonNull final DigestType digestType) {
-        return digestSyncInternal(message, digestType, digestProvider);
-    }
-
-    /**
-     * Compute and store hash for null using different digest types.
-     */
-    private void buildNullHashes() {
-        nullHashes = new HashMap<>();
-        for (final DigestType digestType : DigestType.values()) {
-            final HashBuilder hb = new HashBuilder(digestType);
-            nullHashes.put(digestType, hb.build());
-        }
+    public byte[] digestBytesSync(@NonNull final byte[] message) {
+        return digestSyncInternal(message, digestProvider);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public Hash getNullHash(final DigestType digestType) {
-        return nullHashes.get(digestType);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean verifySync(final TransactionSignature signature) {
-        final StandardFuture<Void> future = new StandardFuture<>();
-        future.complete(null);
+    public boolean verifySync(@NonNull final TransactionSignature signature) {
         if (signature.getSignatureType() == SignatureType.ECDSA_SECP256K1) {
-            return verifySyncInternal(signature, ecdsaSecp256k1VerificationProvider, future);
+            return verifySyncInternal(signature, ecdsaSecp256k1VerificationProvider);
         } else {
-            return verifySyncInternal(signature, ed25519VerificationProvider, future);
+            return verifySyncInternal(signature, ed25519VerificationProvider);
         }
     }
 
@@ -182,10 +141,7 @@ public class CryptoEngine implements Cryptography {
      * {@inheritDoc}
      */
     @Override
-    public boolean verifySync(final List<TransactionSignature> signatures) {
-        final StandardFuture<Void> future = new StandardFuture<>();
-        future.complete(null);
-
+    public boolean verifySync(@NonNull final List<TransactionSignature> signatures) {
         boolean finalOutcome = true;
 
         OperationProvider<TransactionSignature, Void, Boolean, ?, SignatureType> provider;
@@ -196,7 +152,7 @@ public class CryptoEngine implements Cryptography {
                 provider = ed25519VerificationProvider;
             }
 
-            if (!verifySyncInternal(signature, provider, future)) {
+            if (!verifySyncInternal(signature, provider)) {
                 finalOutcome = false;
             }
         }
@@ -209,7 +165,10 @@ public class CryptoEngine implements Cryptography {
      */
     @Override
     public boolean verifySync(
-            final byte[] data, final byte[] signature, final byte[] publicKey, final SignatureType signatureType) {
+            @NonNull final byte[] data,
+            @NonNull final byte[] signature,
+            @NonNull final byte[] publicKey,
+            @NonNull final SignatureType signatureType) {
         if (signatureType == SignatureType.ECDSA_SECP256K1) {
             return ecdsaSecp256k1VerificationProvider.compute(data, signature, publicKey, signatureType);
         } else {
@@ -220,10 +179,11 @@ public class CryptoEngine implements Cryptography {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
-    public Hash calcRunningHash(final Hash runningHash, final Hash newHashToAdd, final DigestType digestType) {
+    public Hash calcRunningHash(@NonNull final Hash runningHash, @NonNull final Hash newHashToAdd) {
         try {
-            return runningHashProvider.compute(runningHash, newHashToAdd, digestType);
+            return runningHashProvider.compute(runningHash, newHashToAdd, Cryptography.DEFAULT_DIGEST_TYPE);
         } catch (final NoSuchAlgorithmException e) {
             throw new CryptographyException(e, LogMarker.EXCEPTION);
         }
@@ -231,17 +191,15 @@ public class CryptoEngine implements Cryptography {
     /**
      * Common private utility method for performing synchronous digest computations.
      *
-     * @param message    the message contents to be hashed
-     * @param digestType the type of digest used to compute the hash
-     * @param provider   the underlying provider to be used
+     * @param message  the message contents to be hashed
+     * @param provider the underlying provider to be used
      * @return the cryptographic hash for the given message contents
      */
-    private @NonNull byte[] digestSyncInternal(
-            @NonNull final byte[] message,
-            @NonNull final DigestType digestType,
-            @NonNull final DigestProvider provider) {
+    private @NonNull byte[] digestSyncInternal(@NonNull final byte[] message, @NonNull final DigestProvider provider) {
+        Objects.requireNonNull(message, "message must not be null");
+        Objects.requireNonNull(provider, "provider must not be null");
         try {
-            return provider.compute(message, digestType);
+            return provider.compute(message, Cryptography.DEFAULT_DIGEST_TYPE);
         } catch (final NoSuchAlgorithmException ex) {
             throw new CryptographyException(ex, LogMarker.EXCEPTION);
         }

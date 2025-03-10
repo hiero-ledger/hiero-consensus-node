@@ -9,9 +9,9 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.consensus.framework.validation.ConsensusRoundValidation;
-import com.swirlds.platform.test.consensus.framework.validation.Validations;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidation;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -138,12 +138,12 @@ public class Turtle {
                     node1.getConsensusRoundsHolder().getCollectedRounds();
 
             for (int i = 1; i < nodes.size(); i++) {
-                final TurtleNode node2 = nodes.get(i);
+                final TurtleNode otherNode = nodes.get(i);
                 final List<ConsensusRound> consensusRoundsForNode2 =
-                        node2.getConsensusRoundsHolder().getCollectedRounds();
+                        otherNode.getConsensusRoundsHolder().getCollectedRounds();
 
                 for (final ConsensusRoundValidation validator :
-                        validations.getConsensusValidator().getConsensusRoundList()) {
+                        validations.getConsensusValidator().getRoundValidations()) {
                     validator.validate(consensusRoundsForNode1, consensusRoundsForNode2);
                 }
             }
