@@ -110,7 +110,7 @@ public class PlatformStateFacade {
      * @return the version of the state if it was deserialized, otherwise null
      */
     @Nullable
-    public SoftwareVersion creationSoftwareVersionOf(@NonNull final State state) {
+    public SemanticVersion creationSoftwareVersionOf(@NonNull final State state) {
         requireNonNull(state);
         if (isPlatformStateEmpty(state)) {
             return null;

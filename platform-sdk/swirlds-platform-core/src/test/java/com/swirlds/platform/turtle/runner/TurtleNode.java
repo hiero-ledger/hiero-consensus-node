@@ -119,7 +119,7 @@ public class TurtleNode {
 
         final var reservedState = getInitialState(
                 recycleBin,
-                version,
+                version.getPbjSemanticVersion(),
                 TurtleTestingToolState::getStateRootNode,
                 "foo",
                 "bar",

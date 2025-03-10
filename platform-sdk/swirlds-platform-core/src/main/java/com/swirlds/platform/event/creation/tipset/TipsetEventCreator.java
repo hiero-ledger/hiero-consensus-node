@@ -5,6 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 import static com.swirlds.platform.system.events.EventConstants.CREATOR_ID_UNDEFINED;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -22,7 +23,6 @@ import com.swirlds.platform.event.hashing.PbjStreamHasher;
 import com.swirlds.platform.event.hashing.UnsignedEventHasher;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import com.swirlds.platform.system.events.UnsignedEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -53,7 +53,7 @@ public class TipsetEventCreator implements EventCreator {
     private final TipsetWeightCalculator tipsetWeightCalculator;
     private final ChildlessEventTracker childlessOtherEventTracker;
     private final TransactionSupplier transactionSupplier;
-    private final SoftwareVersion softwareVersion;
+    private final SemanticVersion softwareVersion;
     private EventWindow eventWindow;
 
     /**
@@ -123,7 +123,7 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final Signer signer,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final SoftwareVersion softwareVersion,
+            @NonNull final SemanticVersion softwareVersion,
             @NonNull final TransactionSupplier transactionSupplier) {
 
         this.time = platformContext.getTime();

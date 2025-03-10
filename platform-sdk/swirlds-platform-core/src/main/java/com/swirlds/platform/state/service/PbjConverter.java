@@ -45,7 +45,7 @@ public final class PbjConverter {
             @NonNull final PlatformStateAccessor accessor) {
         requireNonNull(accessor);
         return new PlatformState(
-                accessor.getCreationSoftwareVersion().getPbjSemanticVersion(),
+                accessor.getCreationSoftwareVersion(),
                 accessor.getRoundsNonAncient(),
                 accessor.getSnapshot(),
                 toPbjTimestamp(accessor.getFreezeTime()),
@@ -73,8 +73,7 @@ public final class PbjConverter {
         var builder = previousState.copyBuilder();
 
         if (accumulator.isCreationSoftwareVersionUpdated()) {
-            builder.creationSoftwareVersion(
-                    accumulator.getCreationSoftwareVersion().getPbjSemanticVersion());
+            builder.creationSoftwareVersion(accumulator.getCreationSoftwareVersion());
         }
 
         if (accumulator.isRoundsNonAncientUpdated()) {

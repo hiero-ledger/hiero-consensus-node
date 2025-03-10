@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.event.AncientMode;
@@ -24,7 +25,7 @@ public interface PlatformStateAccessor {
      * @return the creation version
      */
     @NonNull
-    SoftwareVersion getCreationSoftwareVersion();
+    SemanticVersion getCreationSoftwareVersion();
 
     /**
      * Get the round when this state was generated.

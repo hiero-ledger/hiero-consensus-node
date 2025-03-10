@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.common.crypto.Hash;
@@ -48,7 +49,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
     /**
      * The version of the application software that was responsible for creating this state.
      */
-    private SoftwareVersion creationSoftwareVersion;
+    private SemanticVersion creationSoftwareVersion;
 
     private boolean creationSoftwareVersionUpdated;
 
@@ -105,12 +106,12 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
 
     @NonNull
     @Override
-    public SoftwareVersion getCreationSoftwareVersion() {
+    public SemanticVersion getCreationSoftwareVersion() {
         return creationSoftwareVersion;
     }
 
     @Override
-    public void setCreationSoftwareVersion(@NonNull final SoftwareVersion creationVersion) {
+    public void setCreationSoftwareVersion(@NonNull final SemanticVersion creationVersion) {
         this.creationSoftwareVersion = Objects.requireNonNull(creationVersion);
         creationSoftwareVersionUpdated = true;
     }

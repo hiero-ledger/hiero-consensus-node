@@ -24,6 +24,7 @@ import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
@@ -297,7 +298,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final HashedReservedSignedState reservedState = loadInitialState(
                 platformConfig,
                 recycleBin,
-                version,
+                version.getPbjSemanticVersion(),
                 () -> {
                     isGenesis.set(true);
                     Network genesisNetwork;
@@ -488,7 +489,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     private static HashedReservedSignedState loadInitialState(
             @NonNull final Configuration configuration,
             @NonNull final RecycleBin recycleBin,
-            @NonNull final SoftwareVersion softwareVersion,
+            @NonNull final SemanticVersion softwareVersion,
             @NonNull final Supplier<MerkleNodeState> stateRootSupplier,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
