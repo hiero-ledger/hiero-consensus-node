@@ -6,7 +6,6 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
 import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
@@ -52,6 +51,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.THROTTLE_DEFS;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.isLongZeroAddress;
 import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
 import static com.hederahashgraph.api.proto.java.FreezeType.FREEZE_ABORT;
@@ -278,6 +278,21 @@ public class UtilVerbs {
     public static SpecOperation doWithStartupConfig(
             @NonNull final String property, @NonNull final Function<String, SpecOperation> factory) {
         return doSeveralWithStartupConfig(property, startupValue -> new SpecOperation[] {factory.apply(startupValue)});
+    }
+
+    /**
+     * Returns an operation that, when executed, will compute a delegate operation by calling the given factory
+     * with the startup value of the given property on the target network; and execute its delegate.
+     *
+     * @param factory the factory for the delegate operation
+     * @return the operation that will execute the delegate created from the target network's startup value
+     */
+    public static SpecOperation doWithShardAndRealm(@NonNull final BiFunction<Long, Long, SpecOperation> factory) {
+        return withOpContext((spec, opLog) -> {
+            final long shard = spec.targetNetworkOrThrow().startupProperties().getLong("hedera.shard");
+            final long realm = spec.targetNetworkOrThrow().startupProperties().getLong("hedera.realm");
+            allRunFor(spec, factory.apply(shard, realm));
+        });
     }
 
     /**
@@ -540,7 +555,12 @@ public class UtilVerbs {
     }
 
     public static WaitForStatusOp waitForFrozenNetwork(@NonNull final Duration timeout) {
-        return new WaitForStatusOp(NodeSelector.allNodes(), FREEZE_COMPLETE, timeout);
+        return waitForFrozenNetwork(timeout, NodeSelector.allNodes());
+    }
+
+    public static WaitForStatusOp waitForFrozenNetwork(
+            @NonNull final Duration timeout, @NonNull final NodeSelector selector) {
+        return new WaitForStatusOp(selector, FREEZE_COMPLETE, timeout);
     }
 
     /**
@@ -2465,8 +2485,10 @@ public class UtilVerbs {
     }
 
     private static Object swapLongZeroToEVMAddresses(HapiSpec spec, Object arg, Address address) {
-        var explicitFromHeadlong = explicitFromHeadlong(address);
-        if (isLongZeroAddress(explicitFromHeadlong)) {
+        if (isLongZeroAddress(
+                spec.setup().defaultShard().getShardNum(),
+                spec.setup().defaultRealm().getRealmNum(),
+                explicitFromHeadlong(address))) {
             var contractNum = numberOfLongZero(explicitFromHeadlong(address));
             if (spec.registry().hasEVMAddress(String.valueOf(contractNum))) {
                 return HapiParserUtil.asHeadlongAddress(spec.registry().getEVMAddress(String.valueOf(contractNum)));

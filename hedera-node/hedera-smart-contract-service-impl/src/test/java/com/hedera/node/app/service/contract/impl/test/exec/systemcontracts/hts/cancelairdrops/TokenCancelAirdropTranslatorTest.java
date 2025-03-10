@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.cancelairdrops;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorAndCustomConfig;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorForRedirectWithConfig;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -142,6 +143,7 @@ class TokenCancelAirdropTranslatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractCancelAirdropsEnabled()).willReturn(true);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHtsAttemptWithSelectorForRedirectWithConfig(
                 TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_FT,
                 subject,
@@ -160,6 +162,7 @@ class TokenCancelAirdropTranslatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractCancelAirdropsEnabled()).willReturn(false);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHtsAttemptWithSelectorForRedirectWithConfig(
                 TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_FT,
                 subject,
@@ -178,6 +181,7 @@ class TokenCancelAirdropTranslatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractCancelAirdropsEnabled()).willReturn(true);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHtsAttemptWithSelectorForRedirectWithConfig(
                 TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_NFT,
                 subject,
@@ -196,6 +200,7 @@ class TokenCancelAirdropTranslatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractCancelAirdropsEnabled()).willReturn(false);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHtsAttemptWithSelectorForRedirectWithConfig(
                 TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_NFT,
                 subject,

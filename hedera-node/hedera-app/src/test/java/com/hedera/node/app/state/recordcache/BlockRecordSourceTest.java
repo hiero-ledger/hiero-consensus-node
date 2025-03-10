@@ -12,7 +12,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.output.CryptoTransferOutput;
+import com.hedera.hapi.block.stream.output.CreateAccountOutput;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.AccountID;
@@ -45,9 +45,11 @@ class BlockRecordSourceTest {
             .transactionID(TransactionID.newBuilder().nonce(2).build())
             .memo("SECOND")
             .build();
+    private static final AccountID ACCOUNT_ID =
+            AccountID.newBuilder().accountNum(1L).build();
     private static final BlockItem FIRST_OUTPUT = BlockItem.newBuilder()
             .transactionOutput(TransactionOutput.newBuilder()
-                    .cryptoTransfer(new CryptoTransferOutput(List.of()))
+                    .accountCreate(new CreateAccountOutput(ACCOUNT_ID))
                     .build())
             .build();
     private static final BlockItem TRANSACTION_RESULT = BlockItem.newBuilder()

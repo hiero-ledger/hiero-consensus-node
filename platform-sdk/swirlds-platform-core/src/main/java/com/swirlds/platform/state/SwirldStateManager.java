@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
- * Manages all interactions with the state object required by {@link StateLifecycles}.
+ * Manages all interactions with the state object required by {@link ConsensusStateEventHandler}.
  */
 public class SwirldStateManager implements FreezePeriodChecker {
 
@@ -60,7 +60,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
      */
     private final SoftwareVersion softwareVersion;
 
-    private final StateLifecycles<MerkleNodeState> stateLifecycles;
+    private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
 
     private final PlatformStateFacade platformStateFacade;
 
@@ -72,7 +72,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
      * @param selfId                this node's id
      * @param statusActionSubmitter enables submitting platform status actions
      * @param softwareVersion       the current software version
-     * @param stateLifecycles       the state lifecycles
+     * @param consensusStateEventHandler       the state lifecycles
      */
     public SwirldStateManager(
             @NonNull final PlatformContext platformContext,
@@ -80,16 +80,16 @@ public class SwirldStateManager implements FreezePeriodChecker {
             @NonNull final NodeId selfId,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final SoftwareVersion softwareVersion,
-            @NonNull final StateLifecycles<MerkleNodeState> stateLifecycles,
+            @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         requireNonNull(platformContext);
         requireNonNull(roster);
         requireNonNull(selfId);
-        requireNonNull(stateLifecycles);
+        requireNonNull(consensusStateEventHandler);
 
         this.platformStateFacade = requireNonNull(platformStateFacade);
-        this.stateLifecycles = stateLifecycles;
+        this.consensusStateEventHandler = consensusStateEventHandler;
         this.stats = new StateMetrics(platformContext.getMetrics());
         requireNonNull(statusActionSubmitter);
         this.softwareVersion = requireNonNull(softwareVersion);
@@ -120,7 +120,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
 
     /**
      * Handles the events in a consensus round. Implementations are responsible for invoking
-     * {@link StateLifecycles#onHandleConsensusRound(Round, MerkleNodeState, Consumer)} .
+     * {@link ConsensusStateEventHandler#onHandleConsensusRound(Round, MerkleNodeState, Consumer)} .
      *
      * @param round the round to handle
      */
@@ -128,7 +128,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
         final MerkleNodeState state = stateRef.get();
 
         uptimeTracker.handleRound(round);
-        return transactionHandler.handleRound(round, stateLifecycles, state);
+        return transactionHandler.handleRound(round, consensusStateEventHandler, state);
     }
 
     /**
@@ -138,7 +138,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
     public boolean sealConsensusRound(@NonNull final Round round) {
         requireNonNull(round);
         final MerkleNodeState state = stateRef.get();
-        return stateLifecycles.onSealConsensusRound(round, state);
+        return consensusStateEventHandler.onSealConsensusRound(round, state);
     }
 
     /**

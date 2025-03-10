@@ -13,10 +13,10 @@ import com.swirlds.base.utility.Pair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
@@ -31,7 +31,7 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder.WeightDistributionStrategy;
-import com.swirlds.platform.test.fixtures.state.FakeStateLifecycles;
+import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import java.io.IOException;
@@ -73,7 +73,7 @@ final class ReconnectTest {
         registry.registerConstructables("com.swirlds.platform.state.signed");
         registry.registerConstructables("com.swirlds.platform.system");
         registry.registerConstructables("com.swirlds.state.merkle");
-        FakeStateLifecycles.registerMerkleStateRootClassIds();
+        FakeConsensusStateEventHandler.registerMerkleStateRootClassIds();
     }
 
     @AfterAll
@@ -121,7 +121,7 @@ final class ReconnectTest {
             final SignedState signedState = signedStateFacadePair.left();
             final PlatformStateFacade platformStateFacade = signedStateFacadePair.right();
 
-            final MerkleCryptography cryptography = MerkleCryptoFactory.getInstance();
+            final MerkleCryptography cryptography = TestMerkleCryptoFactory.getInstance();
             cryptography.digestSync(signedState.getState().getRoot());
 
             final ReconnectLearner receiver = buildReceiver(
@@ -173,7 +173,6 @@ final class ReconnectTest {
                 otherId,
                 lastRoundReceived,
                 reconnectMetrics,
-                platformContext.getConfiguration(),
                 platformStateFacade);
     }
 

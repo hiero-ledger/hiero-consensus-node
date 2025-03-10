@@ -32,7 +32,8 @@ import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeData;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -47,6 +48,7 @@ import javax.inject.Singleton;
 @Singleton
 public class FileGetInfoHandler extends FileQueryBase {
     private final FileOpsUsage fileOpsUsage;
+    private final Cryptography cryptography;
 
     /**
      * Constructs a {@link FileGetInfoHandler} with the given {@link FileOpsUsage}.
@@ -55,6 +57,7 @@ public class FileGetInfoHandler extends FileQueryBase {
     @Inject
     public FileGetInfoHandler(final FileOpsUsage fileOpsUsage) {
         this.fileOpsUsage = fileOpsUsage;
+        cryptography = CryptographyFactory.create();
     }
 
     @Override
@@ -153,7 +156,7 @@ public class FileGetInfoHandler extends FileQueryBase {
                 // The "memo" of a special upgrade file is its hexed SHA-384 hash for DevOps convenience
                 final var contents = upgradeFileStore.getFull(fileID).toByteArray();
                 contentSize = contents.length;
-                final var upgradeHash = hex(CryptographyHolder.get().digestBytesSync(contents));
+                final var upgradeHash = hex(cryptography.digestBytesSync(contents));
                 meta = new FileMetadata(
                         file.fileId(),
                         Timestamp.newBuilder().seconds(file.expirationSecond()).build(),
