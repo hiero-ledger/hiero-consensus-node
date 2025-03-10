@@ -10,6 +10,7 @@ import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder.UNLIMITED_CAPACITY;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.assertj.core.api.Fail.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -37,6 +38,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
@@ -1209,23 +1211,33 @@ class SequentialTaskSchedulerTests {
 
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void exceptionHandlingTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+    void exceptionHandlingTest(final String typeString) throws InterruptedException {
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
+        final WiringModel model = WiringModelBuilder.create(platformContext).build();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final AtomicInteger wireValue = new AtomicInteger();
+        final AtomicBoolean handlerExecutedFlag = new AtomicBoolean(false);
+        final AtomicLong handlerExecutedNanoTime = new AtomicLong();
         final Consumer<Integer> handler = x -> {
             if (x == 50) {
+                handlerExecutedFlag.set(true);
+                handlerExecutedNanoTime.set(System.nanoTime());
                 throw new IllegalStateException("intentional");
             }
             wireValue.set(hash32(wireValue.get(), x));
         };
 
         final AtomicInteger exceptionCount = new AtomicInteger();
+        final AtomicLong uncaughtExceptionHandlerNanoTime = new AtomicLong();
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
-                .withUncaughtExceptionHandler((t, e) -> exceptionCount.incrementAndGet())
+                .withUncaughtExceptionHandler((t, e) -> {
+                    uncaughtExceptionHandlerNanoTime.set(System.nanoTime());
+                    exceptionCount.incrementAndGet();
+                })
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .build();
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
@@ -1244,7 +1256,25 @@ class SequentialTaskSchedulerTests {
         }
 
         assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-        assertEquals(1, exceptionCount.get());
+        final int exceptionCountValue = exceptionCount.get();
+        if (exceptionCountValue != 1) {
+            var unhadledTaskCount = platformContext.getMetrics().getValue("platform", "test_unhandled_task_count");
+            var busyFraction = platformContext.getMetrics().getValue("platform", "test_busy_fraction");
+            Thread.sleep(10);
+            String debugInfo = ("The throwing task %s executed at:%d(ns)."
+                            + " UncaughtExceptions:(duringCheck:%d;now:%d)"
+                            + " - UncaughtHandler executed at:%d(ns)"
+                            + " - UnhadledTaskCount:%s. busyFraction %s")
+                    .formatted(
+                            handlerExecutedFlag.get() ? "was" : "WAS NOT",
+                            handlerExecutedNanoTime.get(),
+                            exceptionCountValue,
+                            exceptionCount.get(),
+                            uncaughtExceptionHandlerNanoTime.get(),
+                            unhadledTaskCount,
+                            busyFraction);
+            fail(debugInfo);
+        }
 
         model.stop();
     }
