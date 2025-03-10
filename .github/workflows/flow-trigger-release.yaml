@@ -113,8 +113,8 @@ jobs:
       # stable = false WILL NO LONGER BE VALID
       - name: Compute Next Version Number
         id: next-release
-        env: 
-           ALPHA_FLAG: ${{ inputs.alpha_release }}
+        env:
+          ALPHA_FLAG: ${{ inputs.alpha_release }}
         run: |
           echo "Alpha Flag: ${ALPHA_FLAG}"
           echo "Compute next version number using git-semver"
