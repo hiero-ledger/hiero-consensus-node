@@ -20,7 +20,6 @@ import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -135,7 +134,7 @@ class BirthRoundStateMigrationTests {
     }
 
     private static SemanticVersion createNextVersion(final SemanticVersion previousSoftwareVersion) {
-        return new SemanticVersion.newBuilder().major(previousSoftwareVersion.major() + 1).build();
+        return new SemanticVersion.Builder().major(previousSoftwareVersion.major() + 1).build();
     }
 
     @Test
@@ -163,9 +162,7 @@ class BirthRoundStateMigrationTests {
         // We expect these fields to be populated at the migration boundary
         assertEquals(
                 newSoftwareVersion,
-                platformStateFacade
-                        .firstVersionInBirthRoundModeOf(signedState.getState())
-                        .getPbjSemanticVersion());
+                platformStateFacade.firstVersionInBirthRoundModeOf(signedState.getState()));
         assertEquals(
                 lastRoundMinimumJudgeGeneration,
                 platformStateFacade.lowestJudgeGenerationBeforeBirthRoundModeOf(signedState.getState()));

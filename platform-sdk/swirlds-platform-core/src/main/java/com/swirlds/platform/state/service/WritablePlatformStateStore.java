@@ -158,12 +158,12 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      * {@inheritDoc}
      */
     @Override
-    public void setFirstVersionInBirthRoundMode(@NonNull final SoftwareVersion firstVersionInBirthRoundMode) {
+    public void setFirstVersionInBirthRoundMode(@NonNull final SemanticVersion firstVersionInBirthRoundMode) {
         requireNonNull(firstVersionInBirthRoundMode);
         final var previousState = stateOrThrow();
         update(previousState
                 .copyBuilder()
-                .firstVersionInBirthRoundMode(firstVersionInBirthRoundMode.getPbjSemanticVersion())
+                .firstVersionInBirthRoundMode(firstVersionInBirthRoundMode)
                 .build());
     }
 

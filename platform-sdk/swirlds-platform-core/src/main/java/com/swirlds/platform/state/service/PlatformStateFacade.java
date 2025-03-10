@@ -185,7 +185,7 @@ public class PlatformStateFacade {
      * @return the number of non-ancient rounds, or zero if the state is a genesis state
      */
     @Nullable
-    public SoftwareVersion firstVersionInBirthRoundModeOf(@NonNull final State state) {
+    public SemanticVersion firstVersionInBirthRoundModeOf(@NonNull final State state) {
         return readablePlatformStateStore(state).getFirstVersionInBirthRoundMode();
     }
 

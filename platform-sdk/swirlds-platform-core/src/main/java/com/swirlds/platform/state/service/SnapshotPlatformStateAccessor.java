@@ -135,9 +135,8 @@ public class SnapshotPlatformStateAccessor implements PlatformStateAccessor {
      */
     @Nullable
     @Override
-    public SoftwareVersion getFirstVersionInBirthRoundMode() {
-        final var version = stateOrThrow().firstVersionInBirthRoundMode();
-        return version == null ? null : versionFactory.apply(version);
+    public SemanticVersion getFirstVersionInBirthRoundMode() {
+        return stateOrThrow().firstVersionInBirthRoundMode();
     }
 
     /**

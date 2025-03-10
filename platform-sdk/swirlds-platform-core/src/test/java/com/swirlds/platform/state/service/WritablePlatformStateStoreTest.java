@@ -60,8 +60,8 @@ class WritablePlatformStateStoreTest {
         assertEquals(platformState.getSnapshot(), store.getSnapshot());
         assertEquals(platformState.getFreezeTime(), store.getFreezeTime());
         assertEquals(
-                platformState.getFirstVersionInBirthRoundMode().getPbjSemanticVersion(),
-                store.getFirstVersionInBirthRoundMode().getPbjSemanticVersion());
+                platformState.getFirstVersionInBirthRoundMode(),
+                store.getFirstVersionInBirthRoundMode());
         assertEquals(platformState.getLastRoundBeforeBirthRoundMode(), store.getLastRoundBeforeBirthRoundMode());
         assertEquals(
                 platformState.getLowestJudgeGenerationBeforeBirthRoundMode(),
@@ -129,10 +129,10 @@ class WritablePlatformStateStoreTest {
     @Test
     void verifyFirstVersionInBirthRoundMode() {
         final var version = nextInt(1, 100);
-        store.setFirstVersionInBirthRoundMode(new BasicSoftwareVersion(version));
+        store.setFirstVersionInBirthRoundMode(new BasicSoftwareVersion(version).getPbjSemanticVersion());
         assertEquals(
                 version,
-                store.getFirstVersionInBirthRoundMode().getPbjSemanticVersion().major());
+                store.getFirstVersionInBirthRoundMode().major());
     }
 
     @Test

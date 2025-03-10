@@ -5,7 +5,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -101,7 +100,7 @@ public interface PlatformStateAccessor {
      * @return the first software version where the birth round migration happened
      */
     @Nullable
-    SoftwareVersion getFirstVersionInBirthRoundMode();
+    SemanticVersion getFirstVersionInBirthRoundMode();
 
     /**
      * Get the last round before the birth round mode was enabled, or -1 if birth round mode has not yet been enabled.

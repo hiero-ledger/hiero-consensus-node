@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
@@ -24,7 +25,6 @@ import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.system.address.AddressBook;
 import java.security.KeyPair;
@@ -67,7 +67,7 @@ class PbjConverterTest {
                 platformState.getLowestJudgeGenerationBeforeBirthRoundMode(),
                 pbjPlatformState.lowestJudgeGenerationBeforeBirthRoundMode());
         assertEquals(
-                platformState.getFirstVersionInBirthRoundMode().getPbjSemanticVersion(),
+                platformState.getFirstVersionInBirthRoundMode(),
                 pbjPlatformState.firstVersionInBirthRoundMode());
 
         assertEquals(platformState.getSnapshot(), pbjPlatformState.consensusSnapshot());
@@ -121,10 +121,10 @@ class PbjConverterTest {
 
         var newValue = randomSoftwareVersion();
 
-        accumulator.setCreationSoftwareVersion(newValue.getPbjSemanticVersion());
+        accumulator.setCreationSoftwareVersion(newValue);
 
         assertEquals(
-                newValue.getPbjSemanticVersion(),
+                newValue,
                 toPbjPlatformState(oldState, accumulator).creationSoftwareVersion());
     }
 
@@ -234,7 +234,7 @@ class PbjConverterTest {
         accumulator.setFirstVersionInBirthRoundMode(newValue);
 
         assertEquals(
-                newValue.getPbjSemanticVersion(),
+                newValue,
                 toPbjPlatformState(oldState, accumulator).firstVersionInBirthRoundMode());
     }
 
@@ -359,14 +359,14 @@ class PbjConverterTest {
                 newValue.getLowestJudgeGenerationBeforeBirthRoundMode(),
                 pbjState.lowestJudgeGenerationBeforeBirthRoundMode());
         assertEquals(
-                newValue.getFirstVersionInBirthRoundMode().getPbjSemanticVersion(),
+                newValue.getFirstVersionInBirthRoundMode(),
                 pbjState.firstVersionInBirthRoundMode());
         assertEquals(newValue.getLastRoundBeforeBirthRoundMode(), pbjState.lastRoundBeforeBirthRoundMode());
     }
 
     static PlatformStateModifier randomPlatformState(Randotron randotron) {
         final PlatformStateValueAccumulator platformState = new PlatformStateValueAccumulator();
-        platformState.setCreationSoftwareVersion(randomSoftwareVersion().getPbjSemanticVersion());
+        platformState.setCreationSoftwareVersion(randomSoftwareVersion());
         platformState.setRoundsNonAncient(nextInt());
         platformState.setLastFrozenTime(randomInstant(randotron));
         platformState.setLegacyRunningEventHash(randomHash());
@@ -486,8 +486,8 @@ class PbjConverterTest {
         }
     }
 
-    private static SoftwareVersion randomSoftwareVersion() {
-        return new BasicSoftwareVersion(nextInt(1, 100));
+    private static SemanticVersion randomSoftwareVersion() {
+        return new BasicSoftwareVersion(nextInt(1, 100)).getPbjSemanticVersion();
     }
 
     private static SerializableX509Certificate randomX509Certificate() {
