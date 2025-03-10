@@ -24,10 +24,10 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -140,7 +140,7 @@ class SignedStateFileReadWriteTest {
                 TestPlatformContextBuilder.create().build().getConfiguration();
         final DeserializedSignedState deserializedSignedState =
                 readStateFile(stateFile, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
-        MerkleCryptoFactory.getInstance()
+        TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(deserializedSignedState
                         .reservedSignedState()
                         .get()

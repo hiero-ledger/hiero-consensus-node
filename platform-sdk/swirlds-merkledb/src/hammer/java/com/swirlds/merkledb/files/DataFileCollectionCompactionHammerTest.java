@@ -56,7 +56,7 @@ class DataFileCollectionCompactionHammerTest {
         final Path tempFileDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(
                 "DataFileCollectionCompactionHammerTest", CONFIGURATION);
         assertDoesNotThrow(() -> {
-            final LongListHeap index = new LongListHeap();
+            final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
             String storeName = "benchmark";
             final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
             final var coll = new DataFileCollection(
@@ -120,7 +120,7 @@ class DataFileCollectionCompactionHammerTest {
     void hammer() throws IOException, InterruptedException, ExecutionException {
         final Path tempFileDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(
                 "DataFileCollectionCompactionHammerTest", CONFIGURATION);
-        final LongListHeap index = new LongListHeap();
+        final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
         String storeName = "hammer";
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final var coll = new DataFileCollection(

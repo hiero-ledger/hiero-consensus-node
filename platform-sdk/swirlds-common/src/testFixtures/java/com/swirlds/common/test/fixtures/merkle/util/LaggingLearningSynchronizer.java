@@ -11,6 +11,7 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,7 +35,15 @@ public class LaggingLearningSynchronizer extends LearningSynchronizer {
             final Runnable breakConnection,
             final ReconnectConfig reconnectConfig,
             @NonNull final Metrics metrics) {
-        super(getStaticThreadManager(), in, out, root, breakConnection, reconnectConfig, metrics);
+        super(
+                getStaticThreadManager(),
+                in,
+                out,
+                root,
+                breakConnection,
+                TestMerkleCryptoFactory.getInstance(),
+                reconnectConfig,
+                metrics);
 
         this.latencyMilliseconds = latencyMilliseconds;
     }

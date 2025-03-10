@@ -11,6 +11,7 @@ import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
@@ -31,6 +32,7 @@ public final class TestPlatformContextBuilder {
     private static final Metrics defaultMetrics = new NoOpMetrics();
     private static final Configuration defaultConfig =
             ConfigurationBuilder.create().autoDiscoverExtensions().build();
+    private static final MerkleCryptography defaultMerkleCryptography = MerkleCryptographyFactory.create(defaultConfig);
     private Configuration configuration;
     private Metrics metrics;
     private Time time = Time.getCurrent();
@@ -118,13 +120,16 @@ public final class TestPlatformContextBuilder {
             this.configuration = defaultConfig;
         }
         if (metrics == null) {
-            this.metrics = defaultMetrics; // FUTURE WORK: replace this with NoOp Metrics
+            this.metrics = defaultMetrics;
         }
         if (recycleBin == null) {
             this.recycleBin = new NoOpRecycleBin();
         }
         if (this.fileSystemManager == null) {
             this.fileSystemManager = getTestFileSystemManager();
+        }
+        if (merkleCryptography == null) {
+            this.merkleCryptography = defaultMerkleCryptography;
         }
 
         final ExecutorFactory executorFactory = ExecutorFactory.create("test", new UncaughtExceptionHandler() {

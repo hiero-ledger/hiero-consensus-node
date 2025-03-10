@@ -25,7 +25,7 @@ class InertProofControllerTest {
         final var subject = new InertProofController(123L);
         assertEquals(123L, subject.constructionId());
         assertFalse(subject.isStillInProgress());
-        assertDoesNotThrow(() -> subject.advanceConstruction(Instant.EPOCH, Bytes.EMPTY, store));
+        assertDoesNotThrow(() -> subject.advanceConstruction(Instant.EPOCH, Bytes.EMPTY, store, true));
         assertDoesNotThrow(
                 () -> subject.addProofKeyPublication(new ProofKeyPublication(123L, Bytes.EMPTY, Instant.EPOCH)));
         assertDoesNotThrow(() -> subject.addProofVote(123L, HistoryProofVote.DEFAULT, store));

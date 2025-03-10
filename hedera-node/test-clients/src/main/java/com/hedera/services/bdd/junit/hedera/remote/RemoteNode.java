@@ -52,4 +52,9 @@ public class RemoteNode extends AbstractNode implements HederaNode {
         // (FUTURE) Implement this via Prometheus and gRPC if it turns out to be useful
         throw new UnsupportedOperationException("Cannot stop a remote node");
     }
+
+    @Override
+    public CompletableFuture<Void> logFuture(@NonNull final String pattern) {
+        throw new UnsupportedOperationException("Cannot await log file creation in an embedded network");
+    }
 }

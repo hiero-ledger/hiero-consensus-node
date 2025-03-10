@@ -3,25 +3,33 @@ package com.hedera.node.app.hints.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.cryptography.hints.AggregationAndVerificationKeys;
+import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.SplittableRandom;
 
 /**
  * Default implementation of {@link HintsLibrary} (all TODO).
  */
 public class HintsLibraryImpl implements HintsLibrary {
+    private static final SplittableRandom RANDOM = new SplittableRandom();
+    private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
+
     @Override
     public Bytes newCrs(final int n) {
-        throw new UnsupportedOperationException();
+        return Bytes.wrap(BRIDGE.initCRS(n));
     }
 
     @Override
     public Bytes updateCrs(@NonNull final Bytes crs, @NonNull final Bytes entropy) {
         requireNonNull(crs);
         requireNonNull(entropy);
-        throw new UnsupportedOperationException();
+        return Bytes.wrap(BRIDGE.updateCRS(crs.toByteArray(), entropy.toByteArray()));
     }
 
     @Override
@@ -29,71 +37,117 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(oldCrs);
         requireNonNull(newCrs);
         requireNonNull(proof);
-        throw new UnsupportedOperationException();
+        return BRIDGE.verifyCRS(oldCrs.toByteArray(), newCrs.toByteArray(), proof.toByteArray());
     }
 
     @Override
     public Bytes newBlsKeyPair() {
-        throw new UnsupportedOperationException();
+        final byte[] randomBytes = new byte[32];
+        RANDOM.nextBytes(randomBytes);
+        return Bytes.wrap(BRIDGE.generateSecretKey(randomBytes));
     }
 
     @Override
-    public Bytes computeHints(@NonNull final Bytes blsPrivateKey, final int partyId, final int n) {
+    public Bytes computeHints(
+            @NonNull final Bytes crs, @NonNull final Bytes blsPrivateKey, final int partyId, final int n) {
         requireNonNull(blsPrivateKey);
-        throw new UnsupportedOperationException();
+        return Bytes.wrap(BRIDGE.computeHints(crs.toByteArray(), blsPrivateKey.toByteArray(), partyId, n));
     }
 
     @Override
-    public boolean validateHintsKey(@NonNull final Bytes hintsKey, final int partyId, final int n) {
+    public boolean validateHintsKey(
+            @NonNull final Bytes crs, @NonNull final Bytes hintsKey, final int partyId, final int n) {
+        requireNonNull(crs);
         requireNonNull(hintsKey);
-        throw new UnsupportedOperationException();
+        return BRIDGE.validateHintsKey(crs.toByteArray(), hintsKey.toByteArray(), partyId, n);
     }
 
     @Override
-    public Bytes preprocess(
-            @NonNull final Map<Integer, Bytes> hintsKeys, @NonNull final Map<Integer, Long> weights, final int n) {
+    public AggregationAndVerificationKeys preprocess(
+            @NonNull final Bytes crs,
+            @NonNull final SortedMap<Integer, Bytes> hintsKeys,
+            @NonNull final SortedMap<Integer, Long> weights,
+            final int n) {
+        requireNonNull(crs);
         requireNonNull(hintsKeys);
         requireNonNull(weights);
-        throw new UnsupportedOperationException();
+        if (!hintsKeys.keySet().equals(weights.keySet())) {
+            throw new IllegalArgumentException("The number of hint keys and weights must be the same");
+        }
+        final int[] parties =
+                hintsKeys.keySet().stream().mapToInt(Integer::intValue).toArray();
+        final byte[][] hintsPublicKeys = Arrays.stream(parties)
+                .mapToObj(hintsKeys::get)
+                .map(Bytes::toByteArray)
+                .toArray(byte[][]::new);
+        final long[] weightsArray =
+                Arrays.stream(parties).mapToLong(weights::get).toArray();
+        return BRIDGE.preprocess(crs.toByteArray(), parties, hintsPublicKeys, weightsArray, n);
     }
 
     @Override
     public Bytes signBls(@NonNull final Bytes message, @NonNull final Bytes privateKey) {
         requireNonNull(message);
         requireNonNull(privateKey);
-        throw new UnsupportedOperationException();
+        return Bytes.wrap(BRIDGE.signBls(message.toByteArray(), privateKey.toByteArray()));
     }
 
     @Override
     public boolean verifyBls(
-            @NonNull final Bytes signature, @NonNull final Bytes message, @NonNull final Bytes publicKey) {
+            @NonNull final Bytes crs,
+            @NonNull final Bytes signature,
+            @NonNull final Bytes message,
+            @NonNull final Bytes aggregationKey,
+            int partyId) {
+        requireNonNull(crs);
         requireNonNull(signature);
         requireNonNull(message);
-        requireNonNull(publicKey);
-        throw new UnsupportedOperationException();
+        requireNonNull(aggregationKey);
+        return BRIDGE.verifyBls(
+                crs.toByteArray(),
+                signature.toByteArray(),
+                message.toByteArray(),
+                aggregationKey.toByteArray(),
+                partyId);
     }
 
     @Override
     public Bytes aggregateSignatures(
+            @NonNull final Bytes crs,
             @NonNull final Bytes aggregationKey,
             @NonNull final Bytes verificationKey,
             @NonNull final Map<Integer, Bytes> partialSignatures) {
+        requireNonNull(crs);
         requireNonNull(aggregationKey);
         requireNonNull(verificationKey);
         requireNonNull(partialSignatures);
-        throw new UnsupportedOperationException();
+        final int[] parties =
+                partialSignatures.keySet().stream().mapToInt(Integer::intValue).toArray();
+        final byte[][] signatures = Arrays.stream(parties)
+                .mapToObj(party -> partialSignatures.get(party).toByteArray())
+                .toArray(byte[][]::new);
+        return Bytes.wrap(BRIDGE.aggregateSignatures(
+                crs.toByteArray(), aggregationKey.toByteArray(), verificationKey.toByteArray(), parties, signatures));
     }
 
     @Override
     public boolean verifyAggregate(
+            @NonNull final Bytes crs,
             @NonNull final Bytes signature,
             @NonNull final Bytes message,
             @NonNull final Bytes verificationKey,
             final long thresholdNumerator,
             long thresholdDenominator) {
+        requireNonNull(crs);
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(verificationKey);
-        throw new UnsupportedOperationException();
+        return BRIDGE.verifyAggregate(
+                crs.toByteArray(),
+                signature.toByteArray(),
+                message.toByteArray(),
+                verificationKey.toByteArray(),
+                thresholdNumerator,
+                thresholdDenominator);
     }
 }

@@ -12,7 +12,6 @@ import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistr
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
@@ -330,7 +329,8 @@ public final class EventRecoveryWorkflow {
 
         logger.info(STARTUP.getMarker(), "Hashing resulting signed state");
         try {
-            MerkleCryptoFactory.getInstance()
+            platformContext
+                    .getMerkleCryptography()
                     .digestTreeAsync(signedState.get().getState().getRoot())
                     .get();
         } catch (final InterruptedException e) {

@@ -7,10 +7,10 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleNode;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.common.utility.StopWatch;
@@ -35,7 +35,7 @@ public class MerkleSynchronizationBenchmarks {
 
     @BeforeAll
     public static void setUp() throws FileNotFoundException {
-        cryptography = MerkleCryptoFactory.getInstance();
+        cryptography = TestMerkleCryptoFactory.getInstance();
         loadLog4jContext();
     }
 

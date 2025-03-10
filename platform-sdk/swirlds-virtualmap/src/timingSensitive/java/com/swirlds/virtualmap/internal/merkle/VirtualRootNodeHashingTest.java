@@ -8,10 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.virtualmap.test.fixtures.DummyVirtualStateAccessor;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
@@ -24,7 +23,6 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 @DisplayName("VirtualRootNode Hashing Tests")
 class VirtualRootNodeHashingTest {
-    private static final MerkleCryptography CRYPTO = MerkleCryptoFactory.getInstance();
 
     // FUTURE WORK tests to write:
     //  - deterministic hashing
@@ -42,7 +40,7 @@ class VirtualRootNodeHashingTest {
         assertNotNull(hash, "hash should not be null");
 
         final MerkleInternal expected = new InternalWithBasicHash();
-        final Hash expectedHash = CRYPTO.digestTreeSync(expected);
+        final Hash expectedHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(expected);
         assertEquals(expectedHash, hash, "empty root hash value didn't match expectations");
 
         root.release();
@@ -112,7 +110,7 @@ class VirtualRootNodeHashingTest {
             rootB.put(new TestKey(i), new TestValue(Integer.toString(i)));
         }
         final VirtualRootNode<TestKey, TestValue> copyB = rootB.copy();
-        final Hash hashB = MerkleCryptoFactory.getInstance().digestTreeSync(rootA);
+        final Hash hashB = TestMerkleCryptoFactory.getInstance().digestTreeSync(rootA);
 
         assertEquals(hashA, hashB, "both algorithms should derive the same hash");
 
@@ -141,7 +139,7 @@ class VirtualRootNodeHashingTest {
         }
         final VirtualRootNode<TestKey, TestValue> copyB = rootB.copy();
         final Hash hashB =
-                MerkleCryptoFactory.getInstance().digestTreeAsync(rootA).get();
+                TestMerkleCryptoFactory.getInstance().digestTreeAsync(rootA).get();
 
         assertEquals(hashA, hashB, "both algorithms should derive the same hash");
 

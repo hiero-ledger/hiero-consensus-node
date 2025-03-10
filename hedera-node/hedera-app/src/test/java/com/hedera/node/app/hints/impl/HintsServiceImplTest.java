@@ -101,7 +101,7 @@ class HintsServiceImplTest {
     void callPurgeAfterHandoff() {
         given(activeRosters.phase()).willReturn(ActiveRosters.Phase.HANDOFF);
 
-        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
 
         verify(hintsStore).updateForHandoff(activeRosters);
     }
@@ -114,7 +114,7 @@ class HintsServiceImplTest {
         given(hintsStore.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
                 .willReturn(construction);
 
-        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
 
         verifyNoInteractions(component);
     }
@@ -129,9 +129,9 @@ class HintsServiceImplTest {
         given(controllers.getOrCreateFor(activeRosters, construction, hintsStore))
                 .willReturn(controller);
 
-        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
 
-        verify(controller).advanceConstruction(CONSENSUS_NOW, hintsStore);
+        verify(controller).advanceConstruction(CONSENSUS_NOW, hintsStore, true);
     }
 
     @Test

@@ -2,7 +2,6 @@
 package com.swirlds.platform.system.transaction;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.util.TransactionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -90,8 +89,8 @@ public non-sealed class TransactionWrapper implements ConsensusTransaction {
      * @return the size of the transaction in the unit of byte
      */
     @Override
-    public int getSize() {
-        return TransactionUtils.getLegacyTransactionSize(transaction);
+    public long getSize() {
+        return transaction.length();
     }
 
     /**

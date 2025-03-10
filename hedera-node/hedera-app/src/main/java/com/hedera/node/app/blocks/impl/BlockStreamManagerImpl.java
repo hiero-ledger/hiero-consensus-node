@@ -118,8 +118,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     // If not null, the part of the block preceding a possible first user transaction
     @Nullable
     private PreUserItems preUserItems;
-    // Whether the block signer was ready at the start of the current block
-    private boolean signerReady;
 
     /**
      * Represents the part of a block preceding a possible first user transaction; we defer writing this part until
@@ -212,7 +210,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.runningHashManager = new RunningHashManager();
         this.lastNonEmptyRoundNumber = initialStateHash.roundNum();
         final var hashFuture = initialStateHash.hashFuture();
-        signerReady = blockHashSigner.isReady();
         endRoundStateHashes.put(lastNonEmptyRoundNumber, hashFuture);
         log.info(
                 "Initialized BlockStreamManager from round {} with end-of-round hash {}",
@@ -222,7 +219,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean hasLedgerId() {
-        return signerReady;
+        return blockHashSigner.isReady();
     }
 
     @Override
@@ -272,8 +269,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .hashAlgorithm(SHA2_384)
                     .softwareVersion(platformStateFacade.creationSemanticVersionOf(state))
                     .hapiProtoVersion(hapiVersion);
-            signerReady = blockHashSigner.isReady();
-            if (signerReady) {
+            if (blockHashSigner.isReady()) {
                 preUserItems = new PreUserItems(header, new ArrayList<>());
             } else {
                 // If the signer is not ready, we will not be accepting any user transactions

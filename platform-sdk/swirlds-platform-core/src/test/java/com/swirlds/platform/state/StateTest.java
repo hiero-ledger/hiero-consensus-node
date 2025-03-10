@@ -8,10 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.Reservable;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.interfaces.HasMerkleRoute;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -37,8 +37,8 @@ class StateTest {
         assertNotSame(state, copy, "copy should not return the same object");
 
         state.invalidateHash();
-        MerkleCryptoFactory.getInstance().digestTreeSync(state.getRoot());
-        MerkleCryptoFactory.getInstance().digestTreeSync(copy.getRoot());
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(state.getRoot());
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(copy.getRoot());
 
         assertEquals(state.getHash(), copy.getHash(), "copy should be equal to the original");
         assertFalse(state.isDestroyed(), "copy should not have been deleted");

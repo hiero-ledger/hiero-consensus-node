@@ -13,10 +13,10 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.demo.platform.PlatformTestingToolConsensusStateEventHandler;
 import com.swirlds.demo.platform.PlatformTestingToolState;
 import com.swirlds.demo.platform.TestUtil;
@@ -61,7 +61,7 @@ public class MapValueFCQTests {
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
-        cryptography = MerkleCryptoFactory.getInstance();
+        cryptography = TestMerkleCryptoFactory.getInstance();
 
         mapKey = new MapKey(0, 0, random.nextLong());
         state = Mockito.spy(PlatformTestingToolState.class);

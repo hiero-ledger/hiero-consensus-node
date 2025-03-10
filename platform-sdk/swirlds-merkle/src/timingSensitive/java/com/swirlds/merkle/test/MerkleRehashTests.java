@@ -12,19 +12,19 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.exceptions.FailedRehashException;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleNode;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import java.io.IOException;
@@ -38,7 +38,6 @@ import org.mockito.stubbing.Answer;
 
 @DisplayName("Merkle Rehash Tests")
 class MerkleRehashTests {
-    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
     /**
      * If the root of the tree is an internal node, add some self hashing nodes that "explode" if rehashed.
@@ -72,13 +71,13 @@ class MerkleRehashTests {
 
             root.forEachNode((final MerkleNode node) -> {
                 if (node.isSelfHashing()) {
-                    assertEquals(NULL_HASH, node.getHash(), "dummy node should have null hash");
+                    assertEquals(Cryptography.NULL_HASH, node.getHash(), "dummy node should have null hash");
                 } else {
                     assertNull(node.getHash(), "node should have a null hash");
                 }
             });
 
-            MerkleCryptoFactory.getInstance().digestTreeSync(root);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
             root.forEachNode((final MerkleNode node) -> {
                 assertNotNull(node.getHash(), "node should not have a null hash");
@@ -88,7 +87,7 @@ class MerkleRehashTests {
 
             root.forEachNode((final MerkleNode node) -> {
                 if (node.isSelfHashing()) {
-                    assertEquals(NULL_HASH, node.getHash(), "dummy node should have null hash");
+                    assertEquals(Cryptography.NULL_HASH, node.getHash(), "dummy node should have null hash");
                 } else {
                     assertNull(node.getHash(), "node should have a null hash");
                 }
@@ -110,13 +109,13 @@ class MerkleRehashTests {
 
             root.forEachNode((final MerkleNode node) -> {
                 if (node.isSelfHashing()) {
-                    assertEquals(NULL_HASH, node.getHash(), "dummy node should have null hash");
+                    assertEquals(Cryptography.NULL_HASH, node.getHash(), "dummy node should have null hash");
                 } else {
                     assertNull(node.getHash(), "node should have a null hash");
                 }
             });
 
-            MerkleCryptoFactory.getInstance().digestTreeSync(root);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
             final Map<MerkleRoute, Hash> hashes = new HashMap<>();
 
@@ -125,7 +124,7 @@ class MerkleRehashTests {
                 hashes.put(node.getRoute(), node.getHash());
             });
 
-            rehashTree(root);
+            rehashTree(TestMerkleCryptoFactory.getInstance(), root);
 
             root.forEachNode((final MerkleNode node) -> {
                 assertNotNull(node.getHash(), "node should not have a null hash");
@@ -158,7 +157,7 @@ class MerkleRehashTests {
                 }
             }
         });
-        assertThrows(FailedRehashException.class, () -> rehashTree(root));
+        assertThrows(FailedRehashException.class, () -> rehashTree(TestMerkleCryptoFactory.getInstance(), root));
     }
 
     private static class DummySelfHashingLeaf extends PartialMerkleLeaf implements MerkleLeaf {
@@ -192,7 +191,7 @@ class MerkleRehashTests {
 
         @Override
         public Hash getHash() {
-            return NULL_HASH;
+            return Cryptography.NULL_HASH;
         }
 
         @Override
@@ -231,7 +230,7 @@ class MerkleRehashTests {
 
         @Override
         public Hash getHash() {
-            return NULL_HASH;
+            return Cryptography.NULL_HASH;
         }
 
         @Override

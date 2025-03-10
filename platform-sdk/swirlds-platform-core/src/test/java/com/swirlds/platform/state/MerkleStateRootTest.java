@@ -21,7 +21,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.merkle.MerkleNode;
@@ -832,11 +831,9 @@ class MerkleStateRootTest extends MerkleTestBase {
             stateRoot.putServiceStateIfAbsent(countryMetadata, () -> countrySingleton);
             stateRoot.putServiceStateIfAbsent(steamMetadata, () -> steamQueue);
 
-            merkleCryptography = MerkleCryptographyFactory.create(
-                    ConfigurationBuilder.create()
-                            .withConfigDataType(CryptoConfig.class)
-                            .build(),
-                    CryptographyFactory.create());
+            merkleCryptography = MerkleCryptographyFactory.create(ConfigurationBuilder.create()
+                    .withConfigDataType(CryptoConfig.class)
+                    .build());
             stateRoot.init(new FakeTime(), new NoOpMetrics(), merkleCryptography, () -> GENESIS_ROUND);
         }
 

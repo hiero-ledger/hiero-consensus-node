@@ -6,11 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.test.fixtures.dummy.Key;
 import com.swirlds.common.test.fixtures.dummy.Value;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleSerializeUtils;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.merkle.test.fixtures.map.util.KeyValueProvider;
@@ -34,7 +34,7 @@ class MMSerializeTests {
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
-        cryptography = MerkleCryptoFactory.getInstance();
+        cryptography = TestMerkleCryptoFactory.getInstance();
     }
 
     @Test

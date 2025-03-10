@@ -95,6 +95,11 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
     }
 
     @Override
+    public CompletableFuture<Void> logFuture(@NonNull final String pattern) {
+        throw new UnsupportedOperationException("Cannot await log file creation in an embedded network");
+    }
+
+    @Override
     public CompletableFuture<Void> stopFuture() {
         throw new UnsupportedOperationException("Cannot stop a single node in an embedded network");
     }

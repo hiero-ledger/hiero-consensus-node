@@ -18,8 +18,7 @@ class RunningHashCalculatorTest {
 
     @Test
     void runningHashTest() throws InterruptedException {
-        final DigestType digestType = DigestType.SHA_384;
-        final Hash initialHash = new Hash(new byte[digestType.digestLength()]);
+        final Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()]);
         final RunningHashCalculatorForStream<ObjectForTestStream> runningHashCalculator =
                 new RunningHashCalculatorForStream();
         runningHashCalculator.setRunningHash(initialHash);
@@ -28,7 +27,7 @@ class RunningHashCalculatorTest {
         for (int i = 0; i < 100; i++) {
             ObjectForTestStream object = ObjectForTestStream.getRandomObjectForTestStream(PAY_LOAD_SIZE_4);
             runningHashCalculator.addObject(object);
-            expected = cryptography.calcRunningHash(expected, object.getHash(), digestType);
+            expected = cryptography.calcRunningHash(expected, object.getHash());
             assertEquals(
                     expected,
                     runningHashCalculator.getRunningHash(),
@@ -38,7 +37,6 @@ class RunningHashCalculatorTest {
 
     @Test
     void nullInitialHashTest() throws InterruptedException {
-        final DigestType digestType = DigestType.SHA_384;
         final RunningHashCalculatorForStream<ObjectForTestStream> runningHashCalculator =
                 new RunningHashCalculatorForStream();
         runningHashCalculator.setRunningHash(null);
@@ -47,7 +45,7 @@ class RunningHashCalculatorTest {
         for (int i = 0; i < 100; i++) {
             ObjectForTestStream object = ObjectForTestStream.getRandomObjectForTestStream(PAY_LOAD_SIZE_4);
             runningHashCalculator.addObject(object);
-            expected = cryptography.calcRunningHash(expected, object.getHash(), digestType);
+            expected = cryptography.calcRunningHash(expected, object.getHash());
             assertEquals(
                     expected,
                     runningHashCalculator.getRunningHash(),
@@ -59,7 +57,7 @@ class RunningHashCalculatorTest {
     void newHashIsNullTest() {
         Exception exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> cryptography.calcRunningHash(null, null, DigestType.SHA_384),
+                () -> cryptography.calcRunningHash(null, null),
                 "should throw IllegalArgumentException when newHashToAdd is null");
         assertTrue(
                 exception.getMessage().contains("newHashToAdd is null"),

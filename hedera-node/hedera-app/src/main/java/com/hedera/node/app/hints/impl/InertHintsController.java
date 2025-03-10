@@ -39,14 +39,18 @@ public class InertHintsController implements HintsController {
     }
 
     @Override
-    public void advanceConstruction(@NonNull final Instant now, @NonNull final WritableHintsStore hintsStore) {
+    public void advanceConstruction(
+            @NonNull final Instant now, @NonNull final WritableHintsStore hintsStore, final boolean isActive) {
         requireNonNull(now);
         requireNonNull(hintsStore);
         // No-op
     }
 
     @Override
-    public void advanceCRSWork(@NonNull final Instant now, @NonNull final WritableHintsStore hintsStore) {
+    public void advanceCRSWork(
+            @NonNull final Instant now,
+            @NonNull final WritableHintsStore hintsStore,
+            final boolean currentPlatformStatus) {
         requireNonNull(now);
         requireNonNull(hintsStore);
     }

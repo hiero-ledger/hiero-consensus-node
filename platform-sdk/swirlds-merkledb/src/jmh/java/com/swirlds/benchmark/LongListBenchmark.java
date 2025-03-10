@@ -44,8 +44,8 @@ public class LongListBenchmark {
     public void setup() {
         random = new Random(1234);
         list = switch (listImpl) {
-            default -> new LongListHeap();
-            case "LongListOffHeap" -> new LongListOffHeap();};
+            default -> new LongListHeap(1024 * 1024, INITIAL_DATA_SIZE, 256 * 1024);
+            case "LongListOffHeap" -> new LongListOffHeap(1024 * 1024, INITIAL_DATA_SIZE, 256 * 1024);};
         // fill with some data
         for (int i = 0; i < INITIAL_DATA_SIZE; i++) {
             list.put(i, i + 1);

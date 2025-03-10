@@ -4,7 +4,6 @@ package com.swirlds.common.context;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.concurrent.ExecutorFactory;
 import com.swirlds.common.context.internal.PlatformUncaughtExceptionHandler;
-import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
@@ -40,10 +39,9 @@ public interface PlatformContext {
     @NonNull
     static PlatformContext create(@NonNull final Configuration configuration) {
         final Metrics metrics = new NoOpMetrics();
-        final Cryptography cryptography = CryptographyFactory.create();
         final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
         final Time time = Time.getCurrent();
-        final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration, cryptography);
+        final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
         return create(configuration, time, metrics, fileSystemManager, new NoOpRecycleBin(), merkleCryptography);
     }
 

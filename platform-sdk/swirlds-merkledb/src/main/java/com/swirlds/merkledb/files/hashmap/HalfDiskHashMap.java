@@ -249,13 +249,14 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final boolean forceIndexRebuilding = merkleDbConfig.indexRebuildingEnforced();
             if (Files.exists(indexFile) && !forceIndexRebuilding) {
                 bucketIndexToBucketLocation = preferDiskBasedIndex
-                        ? new LongListDisk(indexFile, configuration)
-                        : new LongListOffHeap(indexFile, configuration);
+                        ? new LongListDisk(indexFile, numOfBuckets, configuration)
+                        : new LongListOffHeap(indexFile, numOfBuckets, configuration);
                 loadedDataCallback = null;
             } else {
                 // create new index and setup call back to rebuild
-                bucketIndexToBucketLocation =
-                        preferDiskBasedIndex ? new LongListDisk(indexFile, configuration) : new LongListOffHeap();
+                bucketIndexToBucketLocation = preferDiskBasedIndex
+                        ? new LongListDisk(numOfBuckets, configuration)
+                        : new LongListOffHeap(numOfBuckets, configuration);
                 loadedDataCallback = (dataLocation, bucketData) -> {
                     final Bucket bucket = bucketPool.getBucket();
                     bucket.readFrom(bucketData);
@@ -265,13 +266,14 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         } else {
             // create store dir
             Files.createDirectories(storeDir);
-            // create new index
-            bucketIndexToBucketLocation =
-                    preferDiskBasedIndex ? new LongListDisk(indexFile, configuration) : new LongListOffHeap();
             // calculate number of entries we can store in a disk page
             final int minimumBuckets = (int) (mapSize / GOOD_AVERAGE_BUCKET_ENTRY_COUNT);
             // numOfBuckets is the nearest power of two greater than minimumBuckets with a min of 2
             numOfBuckets = Math.max(Integer.highestOneBit(minimumBuckets) * 2, 2);
+            // create new index
+            bucketIndexToBucketLocation = preferDiskBasedIndex
+                    ? new LongListDisk(numOfBuckets, configuration)
+                    : new LongListOffHeap(numOfBuckets, configuration);
             // we are new so no need for a loadedDataCallback
             loadedDataCallback = null;
             // write metadata

@@ -25,7 +25,6 @@ public class ProofControllers {
     private final Executor executor;
     private final ProofKeysAccessor keyAccessor;
     private final HistoryLibrary library;
-    private final HistoryLibraryCodec codec;
     private final HistorySubmissions submissions;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
     private final Consumer<HistoryProof> proofConsumer;
@@ -42,14 +41,12 @@ public class ProofControllers {
             @NonNull final Executor executor,
             @NonNull final ProofKeysAccessor keyAccessor,
             @NonNull final HistoryLibrary library,
-            @NonNull final HistoryLibraryCodec codec,
             @NonNull final HistorySubmissions submissions,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
             @NonNull final Consumer<HistoryProof> proofConsumer) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
         this.library = requireNonNull(library);
-        this.codec = requireNonNull(codec);
         this.submissions = requireNonNull(submissions);
         this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
         this.proofConsumer = requireNonNull(proofConsumer);
@@ -129,7 +126,6 @@ public class ProofControllers {
                     weights,
                     executor,
                     library,
-                    codec,
                     submissions,
                     keyPublications,
                     signaturePublications,

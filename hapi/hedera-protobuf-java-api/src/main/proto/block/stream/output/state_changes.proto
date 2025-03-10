@@ -1006,6 +1006,21 @@ message MapChangeValue {
          * A CRS publication submission.
          */
         com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody crs_publication_value = 25;
+
+        /**
+         * A history signature.
+         */
+        com.hedera.hapi.node.state.history.RecordedHistorySignature history_signature_value = 26;
+
+        /**
+         * A history proof vote.
+         */
+        com.hedera.hapi.node.state.history.HistoryProofVote history_proof_vote_value = 27;
+
+        /**
+         * A proof key set.
+         */
+        com.hedera.hapi.node.state.history.ProofKeySet proof_key_set_value = 28;
     }
 }
 

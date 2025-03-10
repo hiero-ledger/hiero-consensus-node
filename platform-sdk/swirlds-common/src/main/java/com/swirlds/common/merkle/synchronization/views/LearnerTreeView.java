@@ -98,7 +98,7 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, Learn
 
     /**
      * Get the hash of a node. If this view represents a tree that has null nodes within it, those nodes should cause
-     * this method to return a {@link Cryptography#getNullHash() null hash}.
+     * this method to return a {@link Cryptography#NULL_HASH null hash}.
      *
      * @param node
      * 		the node

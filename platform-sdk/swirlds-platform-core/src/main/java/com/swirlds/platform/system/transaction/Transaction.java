@@ -25,7 +25,7 @@ public sealed interface Transaction permits ConsensusTransaction {
      *
      * @return the size of the transaction in the unit of byte
      */
-    int getSize();
+    long getSize();
 
     /**
      * Returns the custom metadata object set via {@link #setMetadata(Object)}.

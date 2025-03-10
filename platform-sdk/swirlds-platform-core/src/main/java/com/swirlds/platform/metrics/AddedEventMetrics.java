@@ -142,7 +142,7 @@ public class AddedEventMetrics {
         // count the bytes in the transactions, and bytes per second, and transactions per event
         // for both app transactions and system transactions.
         // Handle system transactions
-        int appSize = 0;
+        long appSize = 0;
         int numAppTrans = 0;
 
         final Iterator<Transaction> iterator = event.getBaseEvent().transactionIterator();

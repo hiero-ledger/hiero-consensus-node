@@ -10,7 +10,6 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.exceptions.ReferenceCountException;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
@@ -19,6 +18,7 @@ import com.swirlds.common.test.fixtures.dummy.Key;
 import com.swirlds.common.test.fixtures.dummy.Value;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.merkle.tree.MerkleBinaryTree;
 import com.swirlds.merkle.tree.MerkleTreeInternalNode;
 import java.io.IOException;
@@ -799,7 +799,7 @@ class MerkleBinaryTreeTests {
                 tree02Iterator.hasNext(),
                 "No elements should be available in either iterator");
 
-        final MerkleCryptography cryptography = MerkleCryptoFactory.getInstance();
+        final MerkleCryptography cryptography = TestMerkleCryptoFactory.getInstance();
         cryptography.digestTreeSync(tree01);
         cryptography.digestTreeSync(tree02);
 

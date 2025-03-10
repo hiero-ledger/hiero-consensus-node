@@ -31,7 +31,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
@@ -239,8 +238,7 @@ public class Browser {
             cryptography.digestSync(appDefinition.getConfigAddressBook());
 
             // Set the MerkleCryptography instance for this node
-            final var merkleCryptography = MerkleCryptographyFactory.create(configuration, cryptography);
-            MerkleCryptoFactory.set(merkleCryptography);
+            final var merkleCryptography = MerkleCryptographyFactory.create(configuration);
 
             // Register with the ConstructableRegistry classes which need configuration.
             BootstrapUtils.setupConstructableRegistryWithConfiguration(configuration);
@@ -252,7 +250,7 @@ public class Browser {
                     guiMetrics,
                     FileSystemManager.create(configuration),
                     recycleBin,
-                    MerkleCryptographyFactory.create(configuration, cryptography));
+                    merkleCryptography);
             // Each platform needs a different temporary state on disk.
             MerkleDb.resetDefaultInstancePath();
             PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));

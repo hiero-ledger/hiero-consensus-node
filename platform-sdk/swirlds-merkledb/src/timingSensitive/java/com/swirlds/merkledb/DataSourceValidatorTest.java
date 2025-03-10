@@ -48,10 +48,10 @@ class DataSourceValidatorTest {
                     final var validator = new DataSourceValidator<>(keySerializer, valueSerializer, dataSource);
                     // create some node hashes
                     dataSource.saveRecords(
-                            count,
-                            count * 2L,
-                            IntStream.range(0, count).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
-                            IntStream.range(count, count * 2 + 1)
+                            count - 1,
+                            count * 2L - 2,
+                            IntStream.range(0, count - 1).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                            IntStream.range(count - 1, count * 2 - 1)
                                     .mapToObj(
                                             i -> TestType.fixed_fixed.dataType().createVirtualLeafRecord(i))
                                     .map(r -> r.toBytes(keySerializer, valueSerializer)),
@@ -76,9 +76,9 @@ class DataSourceValidatorTest {
                     final var validator = new DataSourceValidator<>(keySerializer, valueSerializer, dataSource);
                     // create some node hashes
                     dataSource.saveRecords(
-                            count,
-                            count * 2L,
-                            IntStream.range(0, count).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                            count - 1,
+                            count * 2L - 2,
+                            IntStream.range(0, count - 1).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                             // leaves are missing
                             Stream.empty(),
                             Stream.empty());

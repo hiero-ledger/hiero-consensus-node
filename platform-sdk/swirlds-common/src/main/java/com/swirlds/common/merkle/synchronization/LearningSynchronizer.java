@@ -10,7 +10,7 @@ import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
@@ -72,6 +72,8 @@ public class LearningSynchronizer implements ReconnectNodeCount {
     private long hashTimeMilliseconds;
     private long initializationTimeMilliseconds;
 
+    private final MerkleCryptography merkleCryptography;
+
     protected final ReconnectConfig reconnectConfig;
 
     /**
@@ -100,6 +102,7 @@ public class LearningSynchronizer implements ReconnectNodeCount {
             @NonNull final MerkleDataOutputStream out,
             @NonNull final MerkleNode root,
             @NonNull final Runnable breakConnection,
+            @NonNull final MerkleCryptography merkleCryptography,
             @NonNull final ReconnectConfig reconnectConfig,
             @NonNull final Metrics metrics) {
 
@@ -107,6 +110,7 @@ public class LearningSynchronizer implements ReconnectNodeCount {
 
         inputStream = Objects.requireNonNull(in, "inputStream is null");
         outputStream = Objects.requireNonNull(out, "outputStream is null");
+        this.merkleCryptography = Objects.requireNonNull(merkleCryptography, "merkleCryptography is null");
         this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
 
         rootsToReceive = new LinkedList<>();
@@ -208,7 +212,7 @@ public class LearningSynchronizer implements ReconnectNodeCount {
         final long start = System.currentTimeMillis();
 
         try {
-            MerkleCryptoFactory.getInstance().digestTreeAsync(newRoot).get();
+            merkleCryptography.digestTreeAsync(newRoot).get();
         } catch (ExecutionException e) {
             logger.error(EXCEPTION.getMarker(), "exception while computing hash of reconstructed tree", e);
             return;

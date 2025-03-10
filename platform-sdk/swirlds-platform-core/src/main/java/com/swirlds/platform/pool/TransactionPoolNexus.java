@@ -11,7 +11,6 @@ import com.swirlds.platform.components.transaction.TransactionSupplier;
 import com.swirlds.platform.config.TransactionConfig;
 import com.swirlds.platform.eventhandling.TransactionPoolMetrics;
 import com.swirlds.platform.system.status.PlatformStatus;
-import com.swirlds.platform.util.TransactionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -131,7 +130,7 @@ public class TransactionPoolNexus implements TransactionSupplier {
             illegalTransactionLogger.error(EXCEPTION.getMarker(), "transaction is null");
             return false;
         }
-        if (TransactionUtils.getLegacyTransactionSize(appTransaction) > maximumTransactionSize) {
+        if (appTransaction.length() > maximumTransactionSize) {
             // FUTURE WORK: This really should throw, but to avoid changing existing API this will be changed later.
             illegalTransactionLogger.error(
                     EXCEPTION.getMarker(),
@@ -207,17 +206,21 @@ public class TransactionPoolNexus implements TransactionSupplier {
      * @return the next transaction, or null if no transaction is available
      */
     @Nullable
-    private Bytes getNextTransaction(final int currentEventSize) {
-        final int maxSize = maxTransactionBytesPerEvent - currentEventSize;
+    private Bytes getNextTransaction(final long currentEventSize) {
+        final long maxSize = maxTransactionBytesPerEvent - currentEventSize;
+
+        if (maxSize <= 0) {
+            // the event is at capacity
+            return null;
+        }
 
         if (!priorityBufferedTransactions.isEmpty()
-                && TransactionUtils.getLegacyTransactionSize(priorityBufferedTransactions.peek()) <= maxSize) {
+                && priorityBufferedTransactions.peek().length() <= maxSize) {
             bufferedSignatureTransactionCount--;
             return priorityBufferedTransactions.poll();
         }
 
-        if (!bufferedTransactions.isEmpty()
-                && TransactionUtils.getLegacyTransactionSize(bufferedTransactions.peek()) <= maxSize) {
+        if (!bufferedTransactions.isEmpty() && bufferedTransactions.peek().length() <= maxSize) {
             return bufferedTransactions.poll();
         }
 
@@ -238,7 +241,7 @@ public class TransactionPoolNexus implements TransactionSupplier {
         }
 
         final List<Bytes> selectedTrans = new LinkedList<>();
-        int currEventSize = 0;
+        long currEventSize = 0;
 
         while (true) {
             final Bytes transaction = getNextTransaction(currEventSize);
@@ -248,7 +251,7 @@ public class TransactionPoolNexus implements TransactionSupplier {
                 break;
             }
 
-            currEventSize += TransactionUtils.getLegacyTransactionSize(transaction);
+            currEventSize += transaction.length();
             selectedTrans.add(transaction);
         }
 

@@ -3,31 +3,50 @@ package com.hedera.node.app.history.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.cryptography.rpm.HistoryLibraryBridge;
+import com.hedera.cryptography.rpm.ProvingAndVerifyingSnarkKeys;
+import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Map;
+import java.io.IOException;
+import java.util.SplittableRandom;
 
 /**
  * Default implementation of the {@link HistoryLibrary}.
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
-    @Override
-    public Bytes snarkVerificationKey() {
-        throw new AssertionError("Not implemented");
+    private static final SplittableRandom RANDOM = new SplittableRandom();
+    private static final HistoryLibraryBridge BRIDGE = HistoryLibraryBridge.getInstance();
+    private static final ProvingAndVerifyingSnarkKeys SNARK_KEYS;
+
+    static {
+        try {
+            final var elf = HistoryLibraryBridge.loadAddressBookRotationProgram();
+            SNARK_KEYS = BRIDGE.snarkVerificationKey(elf);
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not load HistoryLibrary ELF", e);
+        }
     }
 
     @Override
-    public Bytes newSchnorrKeyPair() {
-        throw new AssertionError("Not implemented");
+    public Bytes snarkVerificationKey() {
+        return Bytes.wrap(SNARK_KEYS.verifyingKey());
+    }
+
+    @Override
+    public SigningAndVerifyingSchnorrKeys newSchnorrKeyPair() {
+        final var bytes = new byte[32];
+        RANDOM.nextBytes(bytes);
+        return BRIDGE.newSchnorrKeyPair(bytes);
     }
 
     @Override
     public Bytes signSchnorr(@NonNull final Bytes message, @NonNull final Bytes privateKey) {
         requireNonNull(message);
         requireNonNull(privateKey);
-        throw new AssertionError("Not implemented");
+        return Bytes.wrap(BRIDGE.signSchnorr(message.toByteArray(), privateKey.toByteArray()));
     }
 
     @Override
@@ -36,13 +55,22 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(publicKey);
-        throw new AssertionError("Not implemented");
+        return BRIDGE.verifySchnorr(signature.toByteArray(), message.toByteArray(), publicKey.toByteArray());
     }
 
     @Override
-    public Bytes hashAddressBook(@NonNull final Bytes addressBook) {
-        requireNonNull(addressBook);
-        throw new AssertionError("Not implemented");
+    public Bytes hashAddressBook(@NonNull long[] weights, @NonNull byte[][] publicKeys) {
+        requireNonNull(weights);
+        requireNonNull(publicKeys);
+        if (weights.length != publicKeys.length) {
+            throw new IllegalArgumentException("The number of weights and public keys must be the same");
+        }
+        return Bytes.wrap(BRIDGE.hashAddressBook(publicKeys, weights));
+    }
+
+    @Override
+    public Bytes hashHintsVerificationKey(@NonNull final Bytes hintsVerificationKey) {
+        return Bytes.wrap(BRIDGE.hashHintsVerificationKey(hintsVerificationKey.toByteArray()));
     }
 
     @NonNull
@@ -50,16 +78,36 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     public Bytes proveChainOfTrust(
             @NonNull final Bytes ledgerId,
             @Nullable final Bytes sourceProof,
-            @NonNull final Bytes sourceAddressBook,
-            @NonNull Map<Long, Bytes> sourceSignatures,
-            @NonNull final Bytes targetAddressBookHash,
+            @NonNull final long[] currentAddressBookWeights,
+            @NonNull final byte[][] currentAddressBookVerifyingKeys,
+            @NonNull final long[] nextAddressBookWeights,
+            @NonNull final byte[][] nextAddressBookVerifyingKeys,
+            @NonNull byte[][] sourceSignatures,
             @NonNull final Bytes targetMetadata) {
         requireNonNull(ledgerId);
-        requireNonNull(sourceAddressBook);
+        requireNonNull(currentAddressBookWeights);
+        requireNonNull(currentAddressBookVerifyingKeys);
+        requireNonNull(nextAddressBookWeights);
+        requireNonNull(nextAddressBookVerifyingKeys);
         requireNonNull(sourceSignatures);
-        requireNonNull(targetAddressBookHash);
         requireNonNull(targetMetadata);
-        throw new AssertionError("Not implemented");
+        if (currentAddressBookWeights.length != currentAddressBookVerifyingKeys.length) {
+            throw new IllegalArgumentException("The number of weights and verifying keys must be the same");
+        }
+        if (nextAddressBookWeights.length != nextAddressBookVerifyingKeys.length) {
+            throw new IllegalArgumentException("The number of weights and verifying keys must be the same");
+        }
+        return Bytes.wrap(BRIDGE.proveChainOfTrust(
+                SNARK_KEYS.provingKey(),
+                SNARK_KEYS.verifyingKey(),
+                ledgerId.toByteArray(),
+                currentAddressBookVerifyingKeys,
+                currentAddressBookWeights,
+                nextAddressBookVerifyingKeys,
+                nextAddressBookWeights,
+                sourceProof == null ? null : sourceProof.toByteArray(),
+                targetMetadata.toByteArray(),
+                sourceSignatures));
     }
 
     @Override
@@ -72,6 +120,6 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(addressBookHash);
         requireNonNull(metadata);
         requireNonNull(proof);
-        throw new AssertionError("Not implemented");
+        return BRIDGE.verifyChainOfTrust(SNARK_KEYS.verifyingKey(), proof.toByteArray());
     }
 }
