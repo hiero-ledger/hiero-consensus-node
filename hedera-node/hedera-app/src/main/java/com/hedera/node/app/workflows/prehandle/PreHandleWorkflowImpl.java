@@ -211,7 +211,6 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                     e.txInfo(),
                     configProvider.getConfiguration().getVersion());
         } catch (PreCheckException e) {
-            e.printStackTrace();
             return nodeDueDiligenceFailure(
                     creator,
                     e.responseCode(),

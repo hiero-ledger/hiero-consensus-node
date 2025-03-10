@@ -97,6 +97,14 @@ val prCheckStartPorts =
         "hapiTestIss" to "26400",
         "hapiTestMisc" to "26800",
     )
+val prCheckPropOverrides =
+    mapOf(
+        "hapiTestAdhoc" to "tss.historyEnabled=true",
+        "hapiTestSmartContract" to "tss.historyEnabled=false",
+    )
+val prCheckPrepareUpgradeOffsets =
+    mapOf("hapiTestAdhoc" to "PT1S", "hapiTestSmartContract" to "PT30M")
+val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "1", "hapiTestSmartContract" to "0")
 
 tasks {
     prCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testSubprocess") } }
@@ -131,6 +139,32 @@ tasks.register<Test>("testSubprocess") {
             .findFirst()
             .orElse("")
     systemProperty("hapi.spec.initial.port", initialPort)
+
+    // Gather overrides into a single comma‐separated list
+    val testOverrides =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPropOverrides[it] }
+            .joinToString(separator = ",")
+    // Only set the system property if non-empty
+    if (testOverrides.isNotBlank()) {
+        systemProperty("hapi.spec.test.overrides", testOverrides)
+    }
+
+    val maxHistoryProofsToObserve =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
+            .maxOrNull()
+    if (maxHistoryProofsToObserve != null) {
+        systemProperty("hapi.spec.numHistoryProofsToObserve", maxHistoryProofsToObserve.toString())
+    }
+
+    val prepareUpgradeOffsets =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPrepareUpgradeOffsets[it] }
+            .joinToString(",")
+    if (prepareUpgradeOffsets.isNotEmpty()) {
+        systemProperty("hapi.spec.prepareUpgradeOffsets", prepareUpgradeOffsets)
+    }
 
     // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
     systemProperty(

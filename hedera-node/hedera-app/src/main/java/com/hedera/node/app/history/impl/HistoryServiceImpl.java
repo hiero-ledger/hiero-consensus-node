@@ -22,15 +22,11 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of the {@link HistoryService}.
  */
 public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof> {
-    private static final Logger log = LogManager.getLogger(HistoryServiceImpl.class);
-
     @Deprecated
     private final Configuration bootstrapConfig;
 
@@ -101,7 +97,12 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
 
     @Override
     public boolean isReady() {
-        return historyProof != null;
+        // We don't delay signing blocks until we have a proof for the genesis
+        // address book hash; and once we have adopted *any* subsequent roster
+        // with the HistoryService enabled, the proof will be available---c.f.
+        // Hedera#canAdoptRoster(), which requires a proof to be present for
+        // the candidate roster hash.
+        return true;
     }
 
     @Override

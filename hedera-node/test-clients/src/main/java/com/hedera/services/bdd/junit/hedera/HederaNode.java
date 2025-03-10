@@ -88,7 +88,23 @@ public interface HederaNode {
     CompletableFuture<Void> statusFuture(
             @NonNull PlatformStatus status, @Nullable Consumer<NodeStatus> nodeStatusObserver);
 
-    CompletableFuture<Void> logFuture(@NonNull String pattern);
+    /**
+     * Returns a future that resolves when the node has written the specified log pattern.
+     * @param pattern the pattern to wait for
+     * @return a future that resolves when the node has written the specified log pattern
+     */
+    default CompletableFuture<Void> logFuture(@NonNull String pattern) {
+        return minLogsFuture(pattern, 1);
+    }
+
+    /**
+     * Returns a future that resolves when the node has written the specified log pattern
+     * on at least {@code n} different lines.
+     * @param pattern the pattern to wait for
+     * @param n the minimum number of lines that must match the pattern
+     * @return a future that resolves when the node has written the specified log pattern
+     */
+    CompletableFuture<Void> minLogsFuture(@NonNull String pattern, int n);
 
     /**
      * Returns a future that resolves when the node has written the specified <i>.mf</i> file.

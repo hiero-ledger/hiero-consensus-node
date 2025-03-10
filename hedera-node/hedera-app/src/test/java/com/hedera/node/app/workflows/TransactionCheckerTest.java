@@ -164,7 +164,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 1);
 
         // And create the checker itself
-        checker = new TransactionChecker(MAX_TX_SIZE, nodeSelfAccountId, props, metrics);
+        checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
     }
 
     @Nested
@@ -174,15 +174,11 @@ final class TransactionCheckerTest extends AppTestBase {
         @SuppressWarnings("ConstantConditions")
         @DisplayName("Constructor throws on illegal arguments")
         void testConstructorWithIllegalArguments() {
-            assertThatThrownBy(() -> new TransactionChecker(-1, nodeSelfAccountId, props, metrics))
-                    .isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> new TransactionChecker(0, nodeSelfAccountId, props, metrics))
-                    .isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> new TransactionChecker(MAX_TX_SIZE, null, props, metrics))
+            assertThatThrownBy(() -> new TransactionChecker(null, props, metrics))
                     .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> new TransactionChecker(MAX_TX_SIZE, nodeSelfAccountId, null, metrics))
+            assertThatThrownBy(() -> new TransactionChecker(nodeSelfAccountId, null, metrics))
                     .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> new TransactionChecker(MAX_TX_SIZE, nodeSelfAccountId, props, null))
+            assertThatThrownBy(() -> new TransactionChecker(nodeSelfAccountId, props, null))
                     .isInstanceOf(NullPointerException.class);
         }
     }

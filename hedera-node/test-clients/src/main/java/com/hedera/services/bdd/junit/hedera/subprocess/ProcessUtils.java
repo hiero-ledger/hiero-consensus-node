@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -124,8 +125,14 @@ public class ProcessUtils {
         environment.put("grpc.port", Integer.toString(metadata.grpcPort()));
         environment.put("grpc.nodeOperatorPort", Integer.toString(metadata.grpcNodeOperatorPort()));
         environment.put("hedera.config.version", Integer.toString(configVersion));
-        environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(2));
+        environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(1));
         environment.putAll(envOverrides);
+        Optional.ofNullable(System.getProperty("hapi.spec.test.overrides")).ifPresent(testOverrides -> {
+            Arrays.stream(testOverrides.split(",")).forEach(override -> {
+                final var parts = override.split("=");
+                environment.put(parts[0], parts[1]);
+            });
+        });
         try {
             final var redirectFile = guaranteedExtantFile(
                     metadata.workingDirOrThrow().resolve(OUTPUT_DIR).resolve(ERROR_REDIRECT_FILE));

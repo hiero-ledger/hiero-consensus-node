@@ -24,7 +24,6 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.ReadableHintsStore.HintsKeyPublication;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.roster.RosterTransitionWeights;
-import com.hedera.node.app.tss.TssKeyPair;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -58,7 +57,7 @@ public class HintsControllerImpl implements HintsController {
     private final int numParties;
     private final long selfId;
     private final Executor executor;
-    private final TssKeyPair blsKeyPair;
+    private final Bytes blsPrivateKey;
     private final HintsLibrary library;
     private final HintsSubmissions submissions;
     private final HintsContext context;
@@ -116,7 +115,7 @@ public class HintsControllerImpl implements HintsController {
 
     public HintsControllerImpl(
             final long selfId,
-            @NonNull final TssKeyPair blsKeyPair,
+            @NonNull final Bytes blsPrivateKey,
             @NonNull final HintsConstruction construction,
             @NonNull final RosterTransitionWeights weights,
             @NonNull final Executor executor,
@@ -128,7 +127,7 @@ public class HintsControllerImpl implements HintsController {
             @NonNull final Supplier<Configuration> configuration,
             @NonNull final WritableHintsStore hintsStore) {
         this.selfId = selfId;
-        this.blsKeyPair = requireNonNull(blsKeyPair);
+        this.blsPrivateKey = requireNonNull(blsPrivateKey);
         this.weights = requireNonNull(weights);
         this.numParties = partySizeForRosterNodeCount(weights.targetRosterSize());
         this.executor = requireNonNull(executor);
@@ -651,8 +650,7 @@ public class HintsControllerImpl implements HintsController {
             publicationFuture = CompletableFuture.runAsync(
                             () -> {
                                 log.info("Starting computing hinTS key for construction {}", crs.length());
-                                final var hints =
-                                        library.computeHints(crs, blsKeyPair.privateKey(), selfPartyId, numParties);
+                                final var hints = library.computeHints(crs, blsPrivateKey, selfPartyId, numParties);
                                 log.info("Submitting hinTS key for construction for {}", numParties);
                                 submissions
                                         .submitHintsKey(selfPartyId, numParties, hints)
@@ -736,9 +734,8 @@ public class HintsControllerImpl implements HintsController {
      */
     public static CrsUpdateOutput decodeCrsUpdate(final long oldCRSLength, @NonNull final Bytes output) {
         requireNonNull(output);
-        requireNonNull(output);
-        final Bytes crs = output.slice(0, oldCRSLength);
-        final Bytes proof = output.slice(oldCRSLength, output.length() - oldCRSLength);
+        final var crs = output.slice(0, oldCRSLength);
+        final var proof = output.slice(oldCRSLength, output.length() - oldCRSLength);
         return new CrsUpdateOutput(crs, proof);
     }
 

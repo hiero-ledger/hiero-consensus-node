@@ -543,7 +543,7 @@ class HintsControllerImplTest {
                 .willReturn(List.of(CrsPublicationTransactionBody.newBuilder().build()));
         subject = new HintsControllerImpl(
                 SELF_ID,
-                BLS_KEY_PAIR,
+                BLS_KEY_PAIR.privateKey(),
                 construction,
                 weights,
                 scheduledTasks::offer,
