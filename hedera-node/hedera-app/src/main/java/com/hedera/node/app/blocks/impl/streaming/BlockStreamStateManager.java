@@ -24,15 +24,19 @@ public class BlockStreamStateManager {
      * @param blockNumber the block number to register
      */
     public void registerBlock(long blockNumber) {
-        currentBlockState = BlockState.from(blockNumber);
-        blockStates.put(blockNumber, currentBlockState);
+        synchronized (statesLock) {
+            currentBlockState = BlockState.from(blockNumber);
+            blockStates.put(blockNumber, currentBlockState);
+        }
     }
 
     /**
      * @return the block state for the current processing block
      */
     public BlockState getCurrentBlockState() {
-        return currentBlockState;
+        synchronized (statesLock) {
+            return currentBlockState;
+        }
     }
 
     /**
