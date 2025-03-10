@@ -51,5 +51,3 @@ By participating, you are expected to uphold this code of conduct.
 ## License
 
 [Apache License 2.0](LICENSE)
-
-HI
