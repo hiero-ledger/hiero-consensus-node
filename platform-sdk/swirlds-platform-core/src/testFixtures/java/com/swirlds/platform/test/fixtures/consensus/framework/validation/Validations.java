@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
-import com.swirlds.platform.test.consensus.framework.validation.ConsensusValidator.ConsensusValidationType;
-
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusValidator.ConsensusValidationType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class Validations {

@@ -5,10 +5,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.EventConstants;
-import com.swirlds.platform.test.consensus.framework.validation.ConsensusOutputValidation;
-import com.swirlds.platform.test.consensus.framework.validation.ConsensusRoundValidation;
-import com.swirlds.platform.test.consensus.framework.validation.Validations;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidation;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.gui.ListEventProvider;
@@ -112,8 +109,8 @@ public class ConsensusTestOrchestrator {
         final ConsensusTestNode node1 = nodes.get(0);
         for (int i = 1; i < nodes.size(); i++) {
             final ConsensusTestNode node2 = nodes.get(i);
-            for (final ConsensusOutputValidation validator :
-                    validations.getConsensusValidator().getConsensusOutputList()) {
+            for (final com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidation
+                    validator : validations.getConsensusValidator().getConsensusOutputList()) {
                 validator.validate(node1.getOutput(), node2.getOutput());
             }
             for (final ConsensusRoundValidation validator :

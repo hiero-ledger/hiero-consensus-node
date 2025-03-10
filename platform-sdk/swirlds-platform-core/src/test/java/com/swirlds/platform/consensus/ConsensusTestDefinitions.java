@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
+import static com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusValidator.ConsensusValidationType.DIFFERENT_ORDER;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createBalancedOtherParentMatrix;
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createCliqueOtherParentMatrix;
@@ -13,17 +14,6 @@ import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.test.consensus.framework.ConsensusTestNode;
-import com.swirlds.platform.test.consensus.framework.ConsensusTestOrchestrator;
-import com.swirlds.platform.test.consensus.framework.ConsensusTestUtils;
-import com.swirlds.platform.test.consensus.framework.OrchestratorBuilder;
-import com.swirlds.platform.test.consensus.framework.TestInput;
-import com.swirlds.platform.test.consensus.framework.validation.ConsensusValidator.ConsensusValidationType;
-import com.swirlds.platform.test.consensus.framework.validation.EventRatioValidation;
-import com.swirlds.platform.test.consensus.framework.validation.Validations;
-import com.swirlds.platform.test.event.emitter.PriorityEventEmitter;
-import com.swirlds.platform.test.event.emitter.StandardEventEmitter;
-import com.swirlds.platform.test.event.source.ForkingEventSource;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestNode;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestOrchestrator;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestUtils;
@@ -403,7 +393,7 @@ public final class ConsensusTestDefinitions {
                 .consensusAllValidationsWithRatios(EventRatioValidation.standard()
                         .setMinimumConsensusRatio(0.0)
                         .setMaximumConsensusRatio(0.2))
-                .withoutConsensusValidationType(ConsensusValidationType.DIFFERENT_ORDER));
+                .withoutConsensusValidationType(DIFFERENT_ORDER));
 
         //
         // Phase 3
@@ -577,7 +567,7 @@ public final class ConsensusTestDefinitions {
         orchestrator.validateAndClear(Validations.newInstance()
                 .consensusAllValidationsWithRatios(EventRatioValidation.blank().setMaximumConsensusRatio(0))
                 // only 1 event will actually be added, that is the judge, so there can be no variation in the order
-                .withoutConsensusValidationType(ConsensusValidationType.DIFFERENT_ORDER));
+                .withoutConsensusValidationType(DIFFERENT_ORDER));
 
         orchestrator.generateEvents(0.5);
         orchestrator.validate(Validations.newInstance()

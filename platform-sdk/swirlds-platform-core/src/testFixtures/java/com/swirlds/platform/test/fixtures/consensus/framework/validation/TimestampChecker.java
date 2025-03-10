@@ -3,7 +3,6 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;
