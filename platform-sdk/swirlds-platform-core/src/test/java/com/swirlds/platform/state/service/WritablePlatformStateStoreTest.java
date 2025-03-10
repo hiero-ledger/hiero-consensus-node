@@ -49,8 +49,8 @@ class WritablePlatformStateStoreTest {
         final var platformState = randomPlatformState(randotron);
         store.setAllFrom(platformState);
         assertEquals(
-                platformState.getCreationSoftwareVersion().getPbjSemanticVersion(),
-                store.getCreationSoftwareVersion().getPbjSemanticVersion());
+                platformState.getCreationSoftwareVersion(),
+                store.getCreationSoftwareVersion());
         assertEquals(platformState.getSnapshot().round(), store.getRound());
         assertEquals(platformState.getLegacyRunningEventHash(), store.getLegacyRunningEventHash());
         assertEquals(
@@ -71,10 +71,10 @@ class WritablePlatformStateStoreTest {
     @Test
     void verifyCreationSoftwareVersion() {
         final var version = nextInt(1, 100);
-        store.setCreationSoftwareVersion(new BasicSoftwareVersion(version));
+        store.setCreationSoftwareVersion(new BasicSoftwareVersion(version).getPbjSemanticVersion());
         assertEquals(
                 version,
-                store.getCreationSoftwareVersion().getPbjSemanticVersion().major());
+                store.getCreationSoftwareVersion().major());
     }
 
     @Test

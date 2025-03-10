@@ -7,6 +7,7 @@ import static com.swirlds.common.utility.NonCryptographicHashing.hash64;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -21,7 +22,6 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.events.Event;
@@ -59,10 +59,10 @@ public class ISSTestingToolConsensusStateEventHandler implements ConsensusStateE
 
     @Override
     public void onStateInitialized(
-            @NonNull ISSTestingToolState state,
-            @NonNull Platform platform,
-            @NonNull InitTrigger trigger,
-            @Nullable SoftwareVersion previousVersion) {
+            @NonNull final ISSTestingToolState state,
+            @NonNull final Platform platform,
+            @NonNull final InitTrigger trigger,
+            @Nullable final SemanticVersion previousVersion) {
         state.throwIfImmutable();
 
         state.initState(trigger, platform);

@@ -197,7 +197,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      *     and the working directory <i>settings.txt</i>, providing the same
      *     {@link Hedera#newStateRoot()} method reference as the genesis state
      *     factory. (<b>IMPORTANT:</b> This step instantiates and invokes
-     *     {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SoftwareVersion)}
+     *     {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SemanticVersion)}
      *     on a {@link MerkleNodeState} instance that delegates the call back to our
      *     Hedera instance.)</li>
      *     <li>Call {@link Hedera#init(Platform, NodeId)} to complete startup phase

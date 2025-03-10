@@ -56,7 +56,7 @@ class PbjConverterTest {
                 PbjConverter.toPbjPlatformState(platformState);
 
         assertEquals(
-                platformState.getCreationSoftwareVersion().getPbjSemanticVersion(),
+                platformState.getCreationSoftwareVersion(),
                 pbjPlatformState.creationSoftwareVersion());
         assertEquals(platformState.getRoundsNonAncient(), pbjPlatformState.roundsNonAncient());
         assertEquals(
@@ -121,7 +121,7 @@ class PbjConverterTest {
 
         var newValue = randomSoftwareVersion();
 
-        accumulator.setCreationSoftwareVersion(newValue);
+        accumulator.setCreationSoftwareVersion(newValue.getPbjSemanticVersion());
 
         assertEquals(
                 newValue.getPbjSemanticVersion(),
@@ -347,7 +347,7 @@ class PbjConverterTest {
 
         var pbjState = toPbjPlatformState(oldState, accumulator);
 
-        assertEquals(newValue.getCreationSoftwareVersion().getPbjSemanticVersion(), pbjState.creationSoftwareVersion());
+        assertEquals(newValue.getCreationSoftwareVersion(), pbjState.creationSoftwareVersion());
         assertEquals(newValue.getRoundsNonAncient(), pbjState.roundsNonAncient());
         assertEquals(newValue.getSnapshot(), pbjState.consensusSnapshot());
         assertEquals(toPbjTimestamp(newValue.getLastFrozenTime()), pbjState.freezeTime());
@@ -366,7 +366,7 @@ class PbjConverterTest {
 
     static PlatformStateModifier randomPlatformState(Randotron randotron) {
         final PlatformStateValueAccumulator platformState = new PlatformStateValueAccumulator();
-        platformState.setCreationSoftwareVersion(randomSoftwareVersion());
+        platformState.setCreationSoftwareVersion(randomSoftwareVersion().getPbjSemanticVersion());
         platformState.setRoundsNonAncient(nextInt());
         platformState.setLastFrozenTime(randomInstant(randotron));
         platformState.setLegacyRunningEventHash(randomHash());

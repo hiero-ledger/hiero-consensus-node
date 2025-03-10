@@ -14,6 +14,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -35,7 +36,6 @@ import com.swirlds.platform.event.creation.tipset.TipsetTracker;
 import com.swirlds.platform.event.creation.tipset.TipsetWeightCalculator;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import com.swirlds.platform.system.events.UnsignedEvent;
@@ -93,7 +93,7 @@ class TipsetEventCreatorTests {
         final Signer signer = mock(Signer.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
 
-        final SoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
+        final SemanticVersion softwareVersion = new BasicSoftwareVersion(1).getPbjSemanticVersion();
 
         return new TipsetEventCreator(
                 platformContext, random, signer, roster, nodeId, softwareVersion, transactionSupplier);

@@ -288,7 +288,7 @@ public class PlatformStateFacade {
      * @param creationVersion the creation version
      */
     public void setCreationSoftwareVersionTo(@NonNull final State state, @NonNull SoftwareVersion creationVersion) {
-        getWritablePlatformStateOf(state).setCreationSoftwareVersion(creationVersion);
+        getWritablePlatformStateOf(state).setCreationSoftwareVersion(creationVersion.getPbjSemanticVersion());
     }
 
     /**

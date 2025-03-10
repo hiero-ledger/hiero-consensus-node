@@ -40,8 +40,8 @@ public class SnapshotPlatformStateAccessor implements PlatformStateAccessor {
      */
     @Override
     @NonNull
-    public SoftwareVersion getCreationSoftwareVersion() {
-        return versionFactory.apply(stateOrThrow().creationSoftwareVersionOrThrow());
+    public SemanticVersion getCreationSoftwareVersion() {
+        return stateOrThrow().creationSoftwareVersionOrThrow();
     }
 
     /**

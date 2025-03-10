@@ -482,7 +482,7 @@ public class PlatformComponentBuilder {
                     data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
-                    blocks.appVersion(),
+                    blocks.appVersion().getPbjSemanticVersion(),
                     blocks.transactionPoolNexus());
 
             eventCreationManager = new DefaultEventCreationManager(
@@ -1210,7 +1210,7 @@ public class PlatformComponentBuilder {
                     blocks.platformContext(),
                     blocks.swirldStateManager(),
                     blocks.statusActionSubmitterReference().get(),
-                    blocks.appVersion(),
+                    blocks.appVersion().getPbjSemanticVersion(),
                     blocks.platformStateFacade());
         }
         return transactionHandler;

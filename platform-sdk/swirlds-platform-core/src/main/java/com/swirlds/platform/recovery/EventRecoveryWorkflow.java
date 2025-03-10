@@ -9,6 +9,7 @@ import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO
 import static com.swirlds.platform.util.BootstrapUtils.loadAppMain;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.IOIterator;
@@ -45,7 +46,6 @@ import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.system.events.ConsensusEvent;
@@ -296,7 +296,7 @@ public final class EventRecoveryWorkflow {
                 new RecoveryPlatform(configuration, initialState.get(), selfId, loadSigningKeys);
 
         ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
-        SoftwareVersion softwareVersion =
+        SemanticVersion softwareVersion =
                 platformStateFacade.creationSoftwareVersionOf(initialState.get().getState());
         initialState.get().init(platformContext);
         final var notificationEngine = platform.getNotificationEngine();
