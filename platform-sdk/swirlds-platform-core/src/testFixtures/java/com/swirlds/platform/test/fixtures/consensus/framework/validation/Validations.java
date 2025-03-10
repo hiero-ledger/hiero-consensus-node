@@ -4,6 +4,11 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusValidator.ConsensusValidationType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+/**
+ * A class that allows for the creation of a {@link ConsensusValidator} with specific validations.
+ * You can have a validator with different set of validations or remove a specific validation type
+ * pointed by its {@link ConsensusValidationType}.
+ */
 public class Validations {
 
     private ConsensusValidator consensusValidator;
@@ -12,12 +17,12 @@ public class Validations {
         return new Validations();
     }
 
-    public @NonNull Validations consensusAllValidations() {
+    public @NonNull Validations allValidations() {
         consensusValidator = ConsensusValidator.newInstance().standard();
         return this;
     }
 
-    public @NonNull Validations consensusAllValidationsWithRatios(@NonNull final EventRatioValidation ratioValidation) {
+    public @NonNull Validations allConsensusValidationsWithRatios(@NonNull final EventRatioValidation ratioValidation) {
         consensusValidator = ConsensusValidator.newInstance().standard().ratios(ratioValidation);
         return this;
     }

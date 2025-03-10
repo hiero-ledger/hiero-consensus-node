@@ -21,8 +21,21 @@ import java.util.Map;
  * Each custom validation should be defined with an enum value and be added in the suitable map structure holding
  * entries of common validations.
  *
- * */
+ */
 public class ConsensusValidator {
+
+    /***;
+     * Enum defining different validation checks for consensus related data - output, rounds, events.
+     * The validation can be configured to use specific types of validations.
+     */
+    public enum ConsensusValidationType {
+        INPUTS_ARE_SAME,
+        DIFFERENT_ORDER,
+        CONSENSUS_EVENTS,
+        CONSENSUS_TIMESTAMPS,
+        RATIOS,
+        NO_EVENTS_LOST
+    }
 
     private final Map<ConsensusValidationType, ConsensusOutputValidation> consensusOutputValidationsMap =
             new EnumMap<>(ConsensusValidationType.class);
@@ -36,7 +49,7 @@ public class ConsensusValidator {
 
     /**
      * Removes a specific validation type noted by its {@link ConsensusValidationType}
-     * */
+     */
     public @NonNull ConsensusValidator remove(final ConsensusValidationType type) {
         consensusOutputValidationsMap.remove(type);
         return this;
@@ -45,7 +58,7 @@ public class ConsensusValidator {
     /**
      * Initializes a standard {@link ConsensusValidator} instance with default consensus output and
      * consensus round validations.
-     * */
+     */
     public @NonNull ConsensusValidator standard() {
         consensusOutputValidationsMap.putAll(Map.of(
                 INPUTS_ARE_SAME, InputEventsValidation::validateInputsAreTheSame,
@@ -60,7 +73,7 @@ public class ConsensusValidator {
 
     /**
      * Adds a ratio related validation for consensus output.
-     * */
+     */
     public @NonNull ConsensusValidator ratios(@NonNull final EventRatioValidation ratioValidation) {
         consensusOutputValidationsMap.put(RATIOS, ratioValidation);
         return this;
@@ -68,7 +81,7 @@ public class ConsensusValidator {
 
     /**
      * Initializes {@link ConsensusValidator} with only consensus round validations.
-     * */
+     */
     public @NonNull ConsensusValidator rounds() {
         consensusRoundValidationsMap.putAll(Map.of(
                 CONSENSUS_EVENTS,
@@ -79,24 +92,15 @@ public class ConsensusValidator {
 
     /**
      * Initializes {@link ConsensusValidator} with only consensus output validations.
-     * */
-    public @NonNull List<ConsensusOutputValidation> getConsensusOutputList() {
+     */
+    public @NonNull List<ConsensusOutputValidation> getOutputValidations() {
         return consensusOutputValidationsMap.values().stream().toList();
     }
 
     /**
      * Returns validations related to consensus round.
-     * */
-    public @NonNull List<ConsensusRoundValidation> getConsensusRoundList() {
+     */
+    public @NonNull List<ConsensusRoundValidation> getRoundValidations() {
         return consensusRoundValidationsMap.values().stream().toList();
-    }
-
-    public enum ConsensusValidationType {
-        INPUTS_ARE_SAME,
-        DIFFERENT_ORDER,
-        CONSENSUS_EVENTS,
-        CONSENSUS_TIMESTAMPS,
-        RATIOS,
-        NO_EVENTS_LOST
     }
 }

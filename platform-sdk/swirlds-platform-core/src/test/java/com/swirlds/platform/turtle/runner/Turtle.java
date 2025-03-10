@@ -138,12 +138,12 @@ public class Turtle {
                     node1.getConsensusRoundsHolder().getCollectedRounds();
 
             for (int i = 1; i < nodes.size(); i++) {
-                final TurtleNode node2 = nodes.get(i);
+                final TurtleNode otherNode = nodes.get(i);
                 final List<ConsensusRound> consensusRoundsForNode2 =
-                        node2.getConsensusRoundsHolder().getCollectedRounds();
+                        otherNode.getConsensusRoundsHolder().getCollectedRounds();
 
                 for (final ConsensusRoundValidation validator :
-                        validations.getConsensusValidator().getConsensusRoundList()) {
+                        validations.getConsensusValidator().getRoundValidations()) {
                     validator.validate(consensusRoundsForNode1, consensusRoundsForNode2);
                 }
             }

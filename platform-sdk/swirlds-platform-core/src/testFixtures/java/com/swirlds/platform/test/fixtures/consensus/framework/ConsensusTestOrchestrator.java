@@ -110,11 +110,11 @@ public class ConsensusTestOrchestrator {
         for (int i = 1; i < nodes.size(); i++) {
             final ConsensusTestNode node2 = nodes.get(i);
             for (final com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidation
-                    validator : validations.getConsensusValidator().getConsensusOutputList()) {
+                    validator : validations.getConsensusValidator().getOutputValidations()) {
                 validator.validate(node1.getOutput(), node2.getOutput());
             }
             for (final ConsensusRoundValidation validator :
-                    validations.getConsensusValidator().getConsensusRoundList()) {
+                    validations.getConsensusValidator().getRoundValidations()) {
                 validator.validate(
                         node1.getOutput().getConsensusRounds(),
                         node2.getOutput().getConsensusRounds());
