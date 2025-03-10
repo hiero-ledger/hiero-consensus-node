@@ -6,7 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SignedStateListContainer implements SignedStateHolder {
+public class DefaultSignedStatesTestCollector implements SignedStatesTestCollector {
 
     final List<ReservedSignedState> collectedSignedStates = new ArrayList<>();
 
@@ -18,7 +18,12 @@ public class SignedStateListContainer implements SignedStateHolder {
     }
 
     @Override
-    public void clear(@NonNull final Object ignored) {
+    public void clear() {
         collectedSignedStates.clear();
+    }
+
+    @Override
+    public List<ReservedSignedState> getCollectedSignedStates() {
+        return collectedSignedStates;
     }
 }

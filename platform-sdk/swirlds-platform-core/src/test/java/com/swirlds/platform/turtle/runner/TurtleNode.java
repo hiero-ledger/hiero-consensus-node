@@ -40,12 +40,12 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookUtils;
-import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsHolder;
-import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsListContainer;
+import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsTestCollector;
+import com.swirlds.platform.test.fixtures.turtle.consensus.DefaultConsensusRoundsTestCollector;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
-import com.swirlds.platform.test.fixtures.turtle.signedstate.SignedStateHolder;
-import com.swirlds.platform.test.fixtures.turtle.signedstate.SignedStateListContainer;
+import com.swirlds.platform.test.fixtures.turtle.signedstate.DefaultSignedStatesTestCollector;
+import com.swirlds.platform.test.fixtures.turtle.signedstate.SignedStatesTestCollector;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -73,8 +73,8 @@ public class TurtleNode {
     private final DeterministicWiringModel model;
     private final Platform platform;
     private final NodeId nodeId;
-    private ConsensusRoundsHolder consensusRoundsHolder;
-    private SignedStateHolder signedStateHolder;
+    private ConsensusRoundsTestCollector consensusRoundsTestCollector;
+    private SignedStatesTestCollector signedStatesTestCollector;
 
     /**
      * Create a new TurtleNode. Simulates a single consensus node in a TURTLE network.
@@ -170,14 +170,14 @@ public class TurtleNode {
     }
 
     private void wireConsensusRoundsHolder(final PlatformWiring platformWiring) {
-        final ComponentWiring<ConsensusRoundsHolder, Void> consensusRoundsHolderWiring =
-                new ComponentWiring<>(model, ConsensusRoundsHolder.class, TaskSchedulerConfiguration.parse("DIRECT"));
+        final ComponentWiring<ConsensusRoundsTestCollector, Void> consensusRoundsHolderWiring = new ComponentWiring<>(
+                model, ConsensusRoundsTestCollector.class, TaskSchedulerConfiguration.parse("DIRECT"));
 
-        consensusRoundsHolder = new ConsensusRoundsListContainer();
-        consensusRoundsHolderWiring.bind(consensusRoundsHolder);
+        consensusRoundsTestCollector = new DefaultConsensusRoundsTestCollector();
+        consensusRoundsHolderWiring.bind(consensusRoundsTestCollector);
 
         final InputWire<List<ConsensusRound>> consensusRoundsHolderInputWire =
-                consensusRoundsHolderWiring.getInputWire(ConsensusRoundsHolder::interceptRounds);
+                consensusRoundsHolderWiring.getInputWire(ConsensusRoundsTestCollector::interceptRounds);
 
         final OutputWire<List<ConsensusRound>> consensusEngineOutputWire =
                 platformWiring.getConsensusEngineOutputWire();
@@ -188,14 +188,14 @@ public class TurtleNode {
         final OutputWire<ReservedSignedState> reservedSignedStatesOutputWiring =
                 platformWiring.getReservedSignedStateCollectorOutputWire();
 
-        final ComponentWiring<SignedStateHolder, Void> signedStatesHolderWiring =
-                new ComponentWiring<>(model, SignedStateHolder.class, TaskSchedulerConfiguration.parse("DIRECT"));
+        final ComponentWiring<SignedStatesTestCollector, Void> signedStatesHolderWiring = new ComponentWiring<>(
+                model, SignedStatesTestCollector.class, TaskSchedulerConfiguration.parse("DIRECT"));
 
-        signedStateHolder = new SignedStateListContainer();
-        signedStatesHolderWiring.bind(signedStateHolder);
+        signedStatesTestCollector = new DefaultSignedStatesTestCollector();
+        signedStatesHolderWiring.bind(signedStatesTestCollector);
 
         final InputWire<ReservedSignedState> signedStateHolderInputWire =
-                signedStatesHolderWiring.getInputWire(SignedStateHolder::interceptReservedSignedState);
+                signedStatesHolderWiring.getInputWire(SignedStatesTestCollector::interceptReservedSignedState);
         reservedSignedStatesOutputWiring.solderTo(signedStateHolderInputWire);
     }
 
@@ -214,17 +214,17 @@ public class TurtleNode {
     }
 
     public void clear() {
-        consensusRoundsHolder.clear("clear data");
-        signedStateHolder.clear("clear data");
+        consensusRoundsTestCollector.clear("clear data");
+        signedStatesTestCollector.clear("clear data");
     }
 
     @NonNull
-    public ConsensusRoundsHolder getConsensusRoundsHolder() {
-        return consensusRoundsHolder;
+    public ConsensusRoundsTestCollector getConsensusRoundsHolder() {
+        return consensusRoundsTestCollector;
     }
 
     @NonNull
-    public SignedStateHolder getSignedStateHolder() {
-        return signedStateHolder;
+    public SignedStatesTestCollector getSignedStateHolder() {
+        return signedStatesTestCollector;
     }
 }

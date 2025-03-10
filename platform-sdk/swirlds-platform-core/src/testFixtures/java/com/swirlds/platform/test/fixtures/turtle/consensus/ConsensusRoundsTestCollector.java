@@ -2,13 +2,12 @@
 package com.swirlds.platform.test.fixtures.turtle.consensus;
 
 import com.swirlds.platform.internal.ConsensusRound;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 
 /**
  * A test component collecting consensus rounds produced by the ConsensusEngine
  */
-public interface ConsensusRoundsHolder {
+public interface ConsensusRoundsTestCollector {
 
     /**
      * Intercept the consensus rounds produced by the ConsensusEngine and adds them to a collection.
@@ -20,9 +19,8 @@ public interface ConsensusRoundsHolder {
     /**
      * Clear the internal state of this collector.
      *
-     * @param ignored ignored trigger object
      */
-    void clear(@NonNull final Object ignored);
+    void clear();
 
     /**
      * Get the collected consensus rounds.

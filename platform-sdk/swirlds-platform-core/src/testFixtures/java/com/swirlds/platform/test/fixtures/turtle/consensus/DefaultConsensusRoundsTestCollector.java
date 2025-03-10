@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * A container for collecting list of consensus rounds produced by the ConsensusEngine using List.
  */
-public class ConsensusRoundsListContainer implements ConsensusRoundsHolder {
+public class DefaultConsensusRoundsTestCollector implements ConsensusRoundsTestCollector {
 
     final List<ConsensusRound> collectedRounds = new ArrayList<>();
 
@@ -19,7 +19,7 @@ public class ConsensusRoundsListContainer implements ConsensusRoundsHolder {
     }
 
     @Override
-    public void clear(@NonNull final Object ignored) {
+    public void clear() {
         collectedRounds.clear();
     }
 
