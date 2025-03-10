@@ -139,28 +139,8 @@ public class BlockNodeConnectionManager {
         logger.info("Streaming block {} to {} active connections", blockNumber, connectionsToStream.size());
 
         // Create all batches once
-        List<PublishStreamRequest> batchRequests = new ArrayList<>();
-        final int blockItemBatchSize = blockNodeConfigurations.getBlockItemBatchSize();
-        for (int i = 0; i < block.itemBytes().size(); i += blockItemBatchSize) {
-            int end = Math.min(i + blockItemBatchSize, block.itemBytes().size());
-            List<Bytes> batch = block.itemBytes().subList(i, end);
-            List<com.hedera.hapi.block.stream.protoc.BlockItem> protocBlockItems = new ArrayList<>();
-            batch.forEach(batchItem -> {
-                try {
-                    protocBlockItems.add(
-                            com.hedera.hapi.block.stream.protoc.BlockItem.parseFrom(batchItem.toByteArray()));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-
-            // Create BlockItemSet by adding all items at once
-            BlockItemSet itemSet =
-                    BlockItemSet.newBuilder().addAllBlockItems(protocBlockItems).build();
-
-            batchRequests.add(
-                    PublishStreamRequest.newBuilder().setBlockItems(itemSet).build());
-        }
+        List<PublishStreamRequest> batchRequests =
+                createPublishStreamRequests(block, blockNodeConfigurations.getBlockItemBatchSize());
 
         // Stream prepared batches to each connection
         for (BlockNodeConnection connection : connectionsToStream) {
@@ -183,6 +163,32 @@ public class BlockNodeConnectionManager {
                         e);
             }
         }
+    }
+
+    public static @NonNull List<PublishStreamRequest> createPublishStreamRequests(
+            @NonNull final BlockState block, final int blockItemBatchSize) {
+        List<PublishStreamRequest> batchRequests = new ArrayList<>();
+        for (int i = 0; i < block.itemBytes().size(); i += blockItemBatchSize) {
+            int end = Math.min(i + blockItemBatchSize, block.itemBytes().size());
+            List<Bytes> batch = block.itemBytes().subList(i, end);
+            List<com.hedera.hapi.block.stream.protoc.BlockItem> protocBlockItems = new ArrayList<>();
+            batch.forEach(batchItem -> {
+                try {
+                    protocBlockItems.add(
+                            com.hedera.hapi.block.stream.protoc.BlockItem.parseFrom(batchItem.toByteArray()));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
+            // Create BlockItemSet by adding all items at once
+            BlockItemSet itemSet =
+                    BlockItemSet.newBuilder().addAllBlockItems(protocBlockItems).build();
+
+            batchRequests.add(
+                    PublishStreamRequest.newBuilder().setBlockItems(itemSet).build());
+        }
+        return batchRequests;
     }
 
     /**
