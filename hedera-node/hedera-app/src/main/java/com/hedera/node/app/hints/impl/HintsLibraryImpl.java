@@ -138,18 +138,15 @@ public class HintsLibraryImpl implements HintsLibrary {
 
     @Override
     public boolean verifyAggregate(
-            @NonNull final Bytes crs,
             @NonNull final Bytes signature,
             @NonNull final Bytes message,
             @NonNull final Bytes verificationKey,
             final long thresholdNumerator,
             long thresholdDenominator) {
-        requireNonNull(crs);
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(verificationKey);
         return BRIDGE.verifyAggregate(
-                crs.toByteArray(),
                 signature.toByteArray(),
                 message.toByteArray(),
                 verificationKey.toByteArray(),

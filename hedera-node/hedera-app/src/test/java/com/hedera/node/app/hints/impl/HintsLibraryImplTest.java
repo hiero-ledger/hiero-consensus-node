@@ -51,7 +51,7 @@ class HintsLibraryImplTest {
 
     @Test
     void computesAndValidateHints() {
-        final var crs = subject.newCrs(16);
+        final var crs = subject.newCrs(1024);
         final var blsPrivateKey = subject.newBlsKeyPair();
         final var hints = subject.computeHints(crs, blsPrivateKey, 1, 16);
         assertNotNull(hints);
@@ -153,7 +153,7 @@ class HintsLibraryImplTest {
         assertNotEquals(aggregatedSignature, Bytes.EMPTY);
 
         final var isValid =
-                subject.verifyAggregate(crs, aggregatedSignature, message, Bytes.wrap(keys.verificationKey()), 1, 4);
+                subject.verifyAggregate(aggregatedSignature, message, Bytes.wrap(keys.verificationKey()), 1, 4);
         assertTrue(isValid);
     }
 }

@@ -182,8 +182,7 @@ public class HintsControllerImpl implements HintsController {
             @NonNull final Instant now, @NonNull final WritableHintsStore hintsStore, final boolean isActive) {
         requireNonNull(now);
         requireNonNull(hintsStore);
-
-        if (construction.hasHintsScheme()) {
+        if (hintsStore.getCrsState().stage() != COMPLETED || construction.hasHintsScheme()) {
             return;
         }
         if (construction.hasPreprocessingStartTime() && isActive) {
@@ -651,10 +650,10 @@ public class HintsControllerImpl implements HintsController {
             final int selfPartyId = expectedPartyId(selfId);
             publicationFuture = CompletableFuture.runAsync(
                             () -> {
-                                log.info("Starting computing hinTS key for construction ");
+                                log.info("Starting computing hinTS key for construction {}", crs.length());
                                 final var hints =
                                         library.computeHints(crs, blsKeyPair.privateKey(), selfPartyId, numParties);
-                                log.info("Submitting hinTS key for construction ");
+                                log.info("Submitting hinTS key for construction for {}", numParties);
                                 submissions
                                         .submitHintsKey(selfPartyId, numParties, hints)
                                         .join();

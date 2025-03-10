@@ -59,6 +59,7 @@ public class HintsSubmissions extends TssSubmissions {
     /**
      * Attempts to submit a CRS update to the network.
      * @param crs the updated CRS
+     * @param proof the proof of the update
      * @return a future that completes when the update has been submitted
      */
     public CompletableFuture<Void> submitUpdateCRS(@NonNull final Bytes crs, @NonNull final Bytes proof) {
