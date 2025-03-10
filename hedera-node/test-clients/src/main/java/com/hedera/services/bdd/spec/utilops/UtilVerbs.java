@@ -555,7 +555,12 @@ public class UtilVerbs {
     }
 
     public static WaitForStatusOp waitForFrozenNetwork(@NonNull final Duration timeout) {
-        return new WaitForStatusOp(NodeSelector.allNodes(), FREEZE_COMPLETE, timeout);
+        return waitForFrozenNetwork(timeout, NodeSelector.allNodes());
+    }
+
+    public static WaitForStatusOp waitForFrozenNetwork(
+            @NonNull final Duration timeout, @NonNull final NodeSelector selector) {
+        return new WaitForStatusOp(selector, FREEZE_COMPLETE, timeout);
     }
 
     /**

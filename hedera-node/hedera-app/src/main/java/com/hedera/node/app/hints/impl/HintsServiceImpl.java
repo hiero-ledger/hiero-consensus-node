@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.ReadableHintsStore;
@@ -20,6 +21,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -38,6 +40,9 @@ public class HintsServiceImpl implements HintsService {
     private final HintsServiceComponent component;
 
     private final HintsLibrary library;
+
+    @Nullable
+    private Roster currentRoster;
 
     public HintsServiceImpl(
             @NonNull final Metrics metrics,
@@ -72,7 +77,8 @@ public class HintsServiceImpl implements HintsService {
             @NonNull final ActiveRosters activeRosters,
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive) {
         requireNonNull(activeRosters);
         requireNonNull(hintsStore);
         requireNonNull(now);
@@ -83,15 +89,19 @@ public class HintsServiceImpl implements HintsService {
                 if (!construction.hasHintsScheme()) {
                     final var controller =
                             component.controllers().getOrCreateFor(activeRosters, construction, hintsStore);
-                    controller.advanceConstruction(now, hintsStore);
+                    controller.advanceConstruction(now, hintsStore, isActive);
                 }
             }
             case HANDOFF -> hintsStore.updateForHandoff(activeRosters);
         }
+        if (currentRoster == null) {
+            currentRoster = activeRosters.findRelatedRoster(activeRosters.currentRosterHash());
+        }
     }
 
     @Override
-    public void executeCrsWork(@NonNull final WritableHintsStore hintsStore, @NonNull final Instant now) {
+    public void executeCrsWork(
+            @NonNull final WritableHintsStore hintsStore, @NonNull final Instant now, final boolean isActive) {
         requireNonNull(hintsStore);
         requireNonNull(now);
 
@@ -102,7 +112,7 @@ public class HintsServiceImpl implements HintsService {
         }
         // Do the work needed to set the CRS for network and start the preprocessing vote
         if (hintsStore.getCrsState().stage() != COMPLETED) {
-            controller.get().advanceCRSWork(now, hintsStore);
+            controller.get().advanceCRSWork(now, hintsStore, isActive);
         }
     }
 
@@ -139,7 +149,9 @@ public class HintsServiceImpl implements HintsService {
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }
-        final var signing = component.signings().computeIfAbsent(blockHash, component.signingContext()::newSigning);
+        final var signing = component
+                .signings()
+                .computeIfAbsent(blockHash, b -> component.signingContext().newSigning(b, currentRoster));
         component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
             logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
             return null;

@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.junit.platform.engine.TestSource;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.launcher.LauncherSession;
 import org.junit.platform.launcher.LauncherSessionListener;
@@ -67,8 +68,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                                 SubProcessNetwork.initializeNextPortsForNetwork(
                                         CLASSIC_HAPI_TEST_NETWORK_SIZE, initialPort);
                             }
+                            final boolean isIssScenario = isIssScenario(testPlan);
                             SubProcessNetwork subProcessNetwork = (SubProcessNetwork)
-                                    SubProcessNetwork.newSharedNetwork(CLASSIC_HAPI_TEST_NETWORK_SIZE);
+                                    SubProcessNetwork.newSharedNetwork(CLASSIC_HAPI_TEST_NETWORK_SIZE, isIssScenario);
 
                             // Check test classes for WithBlockNodes annotation
                             log.info("Checking test classes for WithBlockNodes annotation...");
@@ -162,6 +164,21 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 case "repeatable" -> Embedding.REPEATABLE;
                 default -> Embedding.NA;
             };
+        }
+
+        private static boolean isIssScenario(final TestPlan testPlan) {
+            final Set<TestIdentifier> testChildren =
+                    testPlan.getChildren(testPlan.getRoots().iterator().next());
+            if (testChildren.iterator().hasNext()) {
+                final Optional<TestSource> testSource =
+                        testChildren.iterator().next().getSource();
+                if (testSource.isPresent() && testSource.get() instanceof ClassSource tscs) {
+                    final Class<?> javaClass = tscs.getJavaClass();
+                    return javaClass.isAnnotationPresent(IssHapiTest.class);
+                }
+            }
+
+            return false;
         }
     }
 }
