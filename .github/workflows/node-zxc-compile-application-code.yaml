@@ -576,22 +576,6 @@ jobs:
           name: Test Reports
           path: "**/build/reports/tests/**"
 
-      - name: Disable Gradle Configuration Cache
-        if: >-
-          ${{
-            inputs.enable-snyk-scan &&
-            steps.gradle-build.conclusion == 'success' &&
-            (
-              github.event.pull_request.head.repo.full_name == github.repository ||
-              github.event_name == 'push' ||
-              github.event_name == 'workflow_dispatch'
-            ) &&
-            !cancelled()
-          }}
-        run: |
-          sed -i 's/^org.gradle.configuration-cache=.*$/org.gradle.configuration-cache=false/' gradle.properties
-          touch build.gradle.kts
-
       - name: Setup Snyk
         if: >-
           ${{
@@ -635,7 +619,7 @@ jobs:
             ) &&
             !cancelled()
           }}
-        run: ${CG_EXEC} snyk test --all-sub-projects --severity-threshold=high --policy-path=.snyk --json-file-output=snyk-test.json --org=hiero-consensus-node
+        run: ${CG_EXEC} snyk test --subProject=aggregation --configuration-matching=mainRuntimeClasspath --severity-threshold=high --policy-path=.snyk --json-file-output=snyk-test.json --org=hiero-consensus-node
 
       - name: Snyk Code
         id: snyk-code

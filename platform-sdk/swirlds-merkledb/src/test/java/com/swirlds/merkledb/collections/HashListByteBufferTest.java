@@ -39,8 +39,8 @@ class HashListByteBufferTest {
         return new HashListByteBuffer(numHashesPerBuffer, maxHashes, offHeap);
     }
 
-    public HashList createHashList(final Path file) throws IOException {
-        return new HashListByteBuffer(file);
+    public HashList createHashList(final Path file, final long expectedMaxHashes) throws IOException {
+        return new HashListByteBuffer(file, expectedMaxHashes);
     }
 
     /**
@@ -240,7 +240,7 @@ class HashListByteBufferTest {
         assertTrue(Files.exists(file), "file should exist");
         assertTrue(Files.size(file) > (48 * 95), "file should contain some data");
         // now try and construct a new HashList reading from the file
-        HashList hashList2 = createHashList(file);
+        HashList hashList2 = createHashList(file, hashList.maxHashes());
         // now check data and other attributes
         assertEquals(hashList.capacity(), hashList2.capacity(), "Unexpected value for hashList2.capacity()");
         assertEquals(hashList.maxHashes(), hashList2.maxHashes(), "Unexpected value for hashList2.maxHashes()");

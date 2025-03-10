@@ -20,7 +20,6 @@ import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.suites.crypto.ParseableIssBlockStreamValidationOp;
 import java.time.Duration;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -28,9 +27,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(ISS)
 @IssHapiTest
 @Order(Integer.MAX_VALUE - 3)
-// This test requires a specific network configuration to run in CI. We will enable it when we can get it running as a
-// separate PR check
-@Disabled
 class IssHandlingTestSuite {
     private static final long NODE_0_ACCT_ID = 3; // The ISS node
     private static final long NODE_1_ACCT_ID = 4; // One of the Non-ISS nodes

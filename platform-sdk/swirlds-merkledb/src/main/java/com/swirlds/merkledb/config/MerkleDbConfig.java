@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.config;
 
+import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
+
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
@@ -17,6 +19,8 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  * 		Get the maximum number of unique keys we expect to be stored in this database. This is used for
  * 		calculating in memory index sizes. IMPORTANT: This can only be set before a new database is created, changing
  * 		on an existing database will break it.
+ * @param size
+ *      Reserved for future use.
  * @param hashesRamToDiskThreshold
  * 		Get threshold where we switch from storing node hashes in ram to
  * 		storing them on disk. If it is 0 then everything is on disk, if it is Long.MAX_VALUE then everything is in ram.
@@ -24,6 +28,12 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  * 		which we swap from ram to disk. This allows a tree where the lower levels of the tree nodes hashes are in ram
  * 		and the upper larger less changing layers are on disk. IMPORTANT: This can only be set before a new database is
  * 		created, changing on an existing database will break it.
+ * @param hashStoreRamBufferSize
+ *      Number of hashes to store in a single buffer in HashListByteBuffer.
+ * @param longListChunkSize
+ *      Number of longs to store in a single chunk in long lists (heap, off-heap, disk).
+ * @param longListReservedBufferSize
+ *      Length of a reserved buffer in long lists. Value in bytes.
  * @param minNumberOfFilesInCompaction
  * 		The minimum number of files before we do a compaction. If there are less than this number then it is
  * 		acceptable to not do a compaction.
@@ -44,8 +54,6 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  * @param numHalfDiskHashMapFlushThreads
  *      Number of threads to use for half disk hash map background flushing. If set to a negative value, the number of
  *      threads to use is calculated based on {@link #percentHalfDiskHashMapFlushThreads}
- * @param reservedBufferLengthForLeafList
- *      Length of a reserved buffer in a LongList used to store leafs. Value in bytes.
  * @param leafRecordCacheSize
  *      Cache size in bytes for reading virtual leaf records. Initialized in data source creation time from MerkleDb config.
  *      If the value is zero, leaf records cache isn't used.
@@ -57,7 +65,11 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
 @ConfigData("merkleDb")
 public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "500000000") long maxNumOfKeys,
+        @Positive @ConfigProperty(defaultValue = "" + 4_000_000_000L) long size,
         @Min(0) @ConfigProperty(defaultValue = "8388608") long hashesRamToDiskThreshold,
+        @Positive @ConfigProperty(defaultValue = "1000000") int hashStoreRamBufferSize,
+        @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES) int longListChunkSize,
+        @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
         @Min(1) @ConfigProperty(defaultValue = "3") int compactionThreads,
         @ConstraintMethod("minNumberOfFilesInCompactionValidation") @ConfigProperty(defaultValue = "8")
                 int minNumberOfFilesInCompaction,
@@ -68,7 +80,6 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "false") boolean indexRebuildingEnforced,
         @ConfigProperty(defaultValue = "75.0") double percentHalfDiskHashMapFlushThreads,
         @ConfigProperty(defaultValue = "-1") int numHalfDiskHashMapFlushThreads,
-        @ConfigProperty(defaultValue = "262144") int reservedBufferLengthForLeafList,
         @ConfigProperty(defaultValue = "1048576") int leafRecordCacheSize,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxFileChannelsPerFileReader,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxThreadsPerFileChannel) {
