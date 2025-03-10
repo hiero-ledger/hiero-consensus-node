@@ -804,8 +804,9 @@ public class ThrottleAccumulator {
      * Rebuilds the throttle requirements based on the given throttle definitions.
      *
      * @param defs the throttle definitions to rebuild the throttle requirements based on
+     * @return error message if the rebuild failed, null otherwise
      */
-    public void rebuildFor(@NonNull final ThrottleDefinitions defs) {
+    public String rebuildFor(@NonNull final ThrottleDefinitions defs) {
         List<DeterministicThrottle> newActiveThrottles = new ArrayList<>();
         EnumMap<HederaFunctionality, List<Pair<DeterministicThrottle, Integer>>> reqLists =
                 new EnumMap<>(HederaFunctionality.class);
@@ -827,7 +828,10 @@ public class ThrottleAccumulator {
                 }
                 newActiveThrottles.add(throttle);
             } catch (IllegalStateException badBucket) {
-                log.error("When constructing bucket '{}' from state: {}", bucket.name(), badBucket.getMessage());
+                final var error = String.format(
+                        "When constructing bucket '%s' from state: %s", bucket.name(), badBucket.getMessage());
+                log.error(error);
+                return error;
             }
         }
         EnumMap<HederaFunctionality, ThrottleReqsManager> newFunctionReqs = new EnumMap<>(HederaFunctionality.class);
@@ -842,6 +846,7 @@ public class ThrottleAccumulator {
         }
 
         logResolvedDefinitions(capacitySplitSource.getAsInt());
+        return null;
     }
 
     /**

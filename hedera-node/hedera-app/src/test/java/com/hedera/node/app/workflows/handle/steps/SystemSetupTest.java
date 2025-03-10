@@ -51,6 +51,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.record.SystemSetup;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
@@ -146,6 +147,9 @@ class SystemSetupTest {
     @Mock
     private StreamBuilder streamBuilder;
 
+    @Mock
+    private ThrottleServiceManager throttleServiceManager;
+
     @LoggingSubject
     private SystemSetup subject;
 
@@ -163,7 +167,7 @@ class SystemSetupTest {
         given(context.addPrecedingChildRecordBuilder(NodeCreateStreamBuilder.class, NODE_CREATE))
                 .willReturn(genesisNodeRecordBuilder);
 
-        subject = new SystemSetup(fileService, syntheticAccountCreator, syntheticNodeCreator);
+        subject = new SystemSetup(fileService, syntheticAccountCreator, syntheticNodeCreator, throttleServiceManager);
     }
 
     @Test

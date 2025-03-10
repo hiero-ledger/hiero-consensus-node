@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLE_VALIDATION_FAILED;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.CONGESTION_LEVEL_STARTS_STATE_KEY;
 import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.THROTTLE_USAGE_SNAPSHOTS_STATE_KEY;
@@ -19,6 +20,7 @@ import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
 import com.hedera.node.app.throttle.annotations.IngestThrottle;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -177,8 +179,10 @@ public class ThrottleServiceManager {
 
     private @NonNull ThrottleParser.ValidatedThrottles rebuildThrottlesFrom(@NonNull final Bytes encoded) {
         final var validatedThrottles = throttleParser.parse(encoded);
-        ingestThrottle.rebuildFor(validatedThrottles.throttleDefinitions());
-        backendThrottle.rebuildFor(validatedThrottles.throttleDefinitions());
+        var rebuildRet = ingestThrottle.rebuildFor(validatedThrottles.throttleDefinitions());
+        if (rebuildRet != null) throw new HandleException(THROTTLE_VALIDATION_FAILED);
+        rebuildRet = backendThrottle.rebuildFor(validatedThrottles.throttleDefinitions());
+        if (rebuildRet != null) throw new HandleException(THROTTLE_VALIDATION_FAILED);
         this.activeDefinitions = validatedThrottles.throttleDefinitions();
         return validatedThrottles;
     }
