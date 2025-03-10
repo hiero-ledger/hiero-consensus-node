@@ -35,7 +35,7 @@ public class DataFileCollectionBench extends BaseBench {
         String storeName = "compactionBench";
         beforeTest(storeName);
 
-        final LongListOffHeap index = new LongListOffHeap();
+        final LongListOffHeap index = new LongListOffHeap(1024 * 1024, maxKey, 256 * 1024);
         final BenchmarkRecord[] map = new BenchmarkRecord[verify ? maxKey : 0];
         final MerkleDbConfig dbConfig = getConfig(MerkleDbConfig.class);
         final BenchmarkRecordSerializer serializer = new BenchmarkRecordSerializer();
