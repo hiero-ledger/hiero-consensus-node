@@ -19,10 +19,6 @@ They can vary based on the specific application that the platform is built for. 
 using the constructor and the builder methods of the `PlatformBuilder`. In this way we can tailor the platform structure
 based on our use case.
 
-![](building-blocks.png)
-
-As we can see all of these building blocks are app specific and need to be provided externally.
-
 ### PlatformComponentBuilder
 
 Since the platform consists of various components, we need a way to construct them and set specific implementation for
@@ -135,15 +131,10 @@ Hedera apps, which are constructed by the `Browser` class, which is deprecated. 
 these unique app configurations and properties and create the needed `Platform` instance. It was initially created by
 extracting common logic from the `Browser`.
 
-Here we can see the specific fields that are passed to build the platform and the main classes, which initialize the
-different applications with the customized platform.
-
-![](app-and-platform-dependency.png)
-
 ### Overview
 
-Here is a diagram illustrating the connection and sequence between all of the builders and key components used to
-construct the `SwirldsPlatform` and their dependencies with the different applications and main classes that start the
+Here is a diagram illustrating the connection and sequence between all of the builders and helper classes used to
+construct the `Platform` and their dependencies with the different applications that start the
 consensus node.
 
-![](platform-setup.png)
+![](platform-building.png)
