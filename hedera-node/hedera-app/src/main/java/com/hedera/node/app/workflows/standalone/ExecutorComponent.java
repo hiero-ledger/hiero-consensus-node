@@ -76,6 +76,9 @@ public interface ExecutorComponent {
         Builder configProviderImpl(ConfigProviderImpl configProvider);
 
         @BindsInstance
+        Builder disableThrottles(boolean disableThrottles);
+
+        @BindsInstance
         Builder bootstrapConfigProviderImpl(BootstrapConfigProviderImpl bootstrapConfigProvider);
 
         @BindsInstance

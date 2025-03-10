@@ -2,7 +2,6 @@
 package com.hedera.node.app.throttle;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
-import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.FRONTEND_THROTTLE;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -28,29 +27,10 @@ import javax.inject.Singleton;
 
 @Module
 public interface ThrottleServiceModule {
-    IntSupplier SUPPLY_ONE = () -> 1;
-
     @Binds
     @Singleton
     NetworkUtilizationManager provideNetworkUtilizationManager(
             NetworkUtilizationManagerImpl networkUtilizationManagerImpl);
-
-    @Provides
-    @Singleton
-    @BackendThrottle
-    static ThrottleAccumulator provideBackendThrottleAccumulator(
-            @NonNull final ConfigProvider configProvider,
-            @NonNull final Metrics metrics,
-            @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
-        final var throttleMetrics = new ThrottleMetrics(metrics, BACKEND_THROTTLE);
-        return new ThrottleAccumulator(
-                SUPPLY_ONE,
-                configProvider::getConfiguration,
-                BACKEND_THROTTLE,
-                throttleMetrics,
-                Verbose.YES,
-                softwareVersionFactory);
-    }
 
     @Provides
     @Singleton
@@ -59,7 +39,7 @@ public interface ThrottleServiceModule {
             @NonNull final NetworkInfo networkInfo,
             @NonNull final ConfigProvider configProvider,
             @NonNull final Metrics metrics,
-            @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         final var throttleMetrics = new ThrottleMetrics(metrics, FRONTEND_THROTTLE);
         final IntSupplier frontendThrottleSplit =
                 () -> networkInfo.addressBook().size();
