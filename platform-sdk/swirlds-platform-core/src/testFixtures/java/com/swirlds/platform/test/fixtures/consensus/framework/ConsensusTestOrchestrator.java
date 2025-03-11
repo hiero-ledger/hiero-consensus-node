@@ -5,9 +5,11 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.EventConstants;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
+import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.gui.ListEventProvider;
 import com.swirlds.platform.test.fixtures.gui.TestGuiSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -109,8 +111,8 @@ public class ConsensusTestOrchestrator {
         final ConsensusTestNode node1 = nodes.get(0);
         for (int i = 1; i < nodes.size(); i++) {
             final ConsensusTestNode node2 = nodes.get(i);
-            for (final com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidation
-                    validator : validations.getConsensusValidator().getOutputValidations()) {
+            for (final ConsensusOutputValidation validator :
+                    validations.getConsensusValidator().getOutputValidations()) {
                 validator.validate(node1.getOutput(), node2.getOutput());
             }
             for (final ConsensusRoundValidation validator :
@@ -165,7 +167,7 @@ public class ConsensusTestOrchestrator {
     }
 
     /**
-     * Calls {@link com.swirlds.platform.test.fixtures.event.source.EventSource#setNewEventWeight(double)}
+     * Calls {@link EventSource#setNewEventWeight(double)}
      */
     public void setNewEventWeight(final int nodeIndex, final double eventWeight) {
         for (final ConsensusTestNode node : nodes) {

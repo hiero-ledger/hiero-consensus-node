@@ -25,7 +25,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opentest4j.AssertionFailedError;
 
 /**
  * Runs a TURTLE network. All nodes run in this JVM, and if configured properly the execution is expected to be
@@ -160,30 +159,26 @@ public class Turtle {
      * At the end of the validation, all collected items are cleared to keep memory usage low.
      */
     public void validate() {
-        try {
-            final Validations validations = Validations.newInstance().consensusRoundValidations();
+        final Validations validations = Validations.newInstance().consensusRoundValidations();
 
-            final TurtleNode node1 = nodes.getFirst();
-            final List<ConsensusRound> consensusRoundsForNode1 =
-                    node1.getConsensusRoundsHolder().getCollectedRounds();
+        final TurtleNode node1 = nodes.getFirst();
+        final List<ConsensusRound> consensusRoundsForNode1 =
+                node1.getConsensusRoundsHolder().getCollectedRounds();
 
-            for (int i = 1; i < nodes.size(); i++) {
-                final TurtleNode otherNode = nodes.get(i);
-                final List<ConsensusRound> consensusRoundsForOtherNode =
-                        otherNode.getConsensusRoundsHolder().getCollectedRounds();
+        for (int i = 1; i < nodes.size(); i++) {
+            final TurtleNode otherNode = nodes.get(i);
+            final List<ConsensusRound> consensusRoundsForOtherNode =
+                    otherNode.getConsensusRoundsHolder().getCollectedRounds();
 
-                for (final ConsensusRoundValidation validator :
-                        validations.getConsensusValidator().getRoundValidations()) {
-                    validator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
-                }
-
-                otherNode.getConsensusRoundsHolder().clear();
+            for (final ConsensusRoundValidation validator :
+                    validations.getConsensusValidator().getRoundValidations()) {
+                validator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
             }
 
-            node1.getConsensusRoundsHolder().clear();
-        } catch (final AssertionFailedError | IndexOutOfBoundsException e) {
-            log.error("Validation failed: {}", e.getMessage());
+            otherNode.getConsensusRoundsHolder().clear();
         }
+
+        node1.getConsensusRoundsHolder().clear();
     }
 
     /**
