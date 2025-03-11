@@ -134,7 +134,6 @@ public class TlsFactory implements SocketFactory {
                 // we just reset the list for now, until the work to calculate diffs is done
                 // then, we will have two lists of peers to add and to remove
                 final KeyStore signingTrustStore = CryptoStatic.createPublicKeyStore(Objects.requireNonNull(peers));
-                System.out.println("Reloading " + peers.size() + " peers");
                 trustManagerFactory.init(signingTrustStore);
                 sslContext.init(
                         keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), nonDetRandom);

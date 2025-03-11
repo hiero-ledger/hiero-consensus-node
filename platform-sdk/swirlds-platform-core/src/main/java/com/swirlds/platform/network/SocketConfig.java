@@ -20,6 +20,8 @@ import com.swirlds.config.api.ConfigProperty;
  * @param tcpNoDelay                 if true, then Nagel's algorithm is disabled, which helps latency, hurts bandwidth
  *                                   usage
  * @param gzipCompression            whether to use gzip compression over the network
+ * @param waitBetweenReconnects       how many ms should we wait before trying to establish new connection after previous
+ *                                   one is broken, to avoid spam on broken cert; zero or negative for no-sleep
  */
 @ConfigData("socket")
 public record SocketConfig(
@@ -30,4 +32,5 @@ public record SocketConfig(
         @ConfigProperty(defaultValue = "5000") int timeoutServerAcceptConnect,
         @ConfigProperty(defaultValue = "false") boolean useLoopbackIp,
         @ConfigProperty(defaultValue = "true") boolean tcpNoDelay,
-        @ConfigProperty(defaultValue = "false") boolean gzipCompression) {}
+        @ConfigProperty(defaultValue = "false") boolean gzipCompression,
+        @ConfigProperty(defaultValue = "-1") int waitBetweenReconnects) {}

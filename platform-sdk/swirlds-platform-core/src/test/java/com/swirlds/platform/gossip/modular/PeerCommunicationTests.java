@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.modular;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -15,8 +13,8 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
-import com.swirlds.platform.crypto.EnhancedKeyStoreLoader;
 import com.swirlds.platform.crypto.KeysAndCerts;
+import com.swirlds.platform.crypto.PublicStores;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.ProtocolConfig;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
@@ -27,15 +25,11 @@ import com.swirlds.platform.network.protocol.HeartbeatProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.resource.ResourceLoader;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
@@ -45,12 +39,12 @@ import org.junit.jupiter.api.Test;
 public class PeerCommunicationTests {
 
     private static final int MAX_NODES = 10;
+    private static final int CHECK_LOOPS = 10;
+    private static final int LOOP_WAIT = 200;
 
-    private Path testDataDirectory;
-    private AddressBook addressBook;
     private Map<NodeId, KeysAndCerts> perNodeCerts;
     private PlatformContext platformContext;
-    private ArrayList<PeerInfo> allPeers;
+    private List<PeerInfo> allPeers;
     private PeerCommunication[] peerCommunications;
     private SyncGossipController[] controllers;
     private final ArrayList<CommunicationEvent> events = new ArrayList<>();
@@ -58,10 +52,6 @@ public class PeerCommunicationTests {
     @BeforeEach
     void testSetup() throws Exception {
         ConstructableRegistry.getInstance().registerConstructables("");
-        final ResourceLoader<PeerCommunicationTests> loader = new ResourceLoader<>(PeerCommunicationTests.class);
-        this.testDataDirectory = loader.loadDirectory("com/swirlds/platform/gossip.files");
-
-        final Path keyDirectory = testDataDirectory.resolve("certs");
 
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .withSource(SystemEnvironmentConfigSource.getInstance())
@@ -69,10 +59,9 @@ public class PeerCommunicationTests {
                 .autoDiscoverExtensions();
 
         configurationBuilder.withValue("socket.timeoutServerAcceptConnect", "100");
-        configurationBuilder.withValue("socket.timeoutSyncClientSocket", "100");
+        configurationBuilder.withValue("socket.timeoutSyncClientSocket", "500");
         configurationBuilder.withValue("socket.timeoutSyncClientConnect", "100");
-        configurationBuilder.withValue(
-                "paths.keysDirPath", keyDirectory.toAbsolutePath().toString());
+        configurationBuilder.withValue("socket.waitBetweenReconnects", "100");
 
         final Configuration configuration = configurationBuilder.build();
 
@@ -87,58 +76,18 @@ public class PeerCommunicationTests {
         }
     }
 
-    /**
-     * A helper method to create testing address book with MAX_NODES nodes
-     *
-     * @return the address book without certificates
-     */
-    private AddressBook addressBook() {
-        return new AddressBook(IntStream.range(0, MAX_NODES)
-                .mapToObj(idx -> new Address(
-                        NodeId.of(idx),
-                        "Node" + idx,
-                        "node" + idx,
-                        1,
-                        "127.0.0.1",
-                        15301 + idx,
-                        "127.0.0.1",
-                        15301 + idx,
-                        null,
-                        null,
-                        "memo"))
-                .toList());
-    }
+    private static final byte[] EMPTY_ARRAY = new byte[] {};
 
     private void loadAddressBook(int nodeCount) throws Exception {
 
-        this.addressBook = addressBook();
-
-        for (int i = this.addressBook.getSize(); i > nodeCount; i--) {
-            this.addressBook.remove(this.addressBook.getNodeId(i - 1));
-        }
-
-        final Set<NodeId> nodesToStart = addressBook.getNodeIdSet();
-
-        final EnhancedKeyStoreLoader loader =
-                EnhancedKeyStoreLoader.using(addressBook, platformContext.getConfiguration(), nodesToStart);
-
-        assertThat(loader).isNotNull();
-        assertThatCode(loader::migrate).doesNotThrowAnyException();
-        assertThatCode(loader::scan).doesNotThrowAnyException();
-        assertThatCode(loader::generate).doesNotThrowAnyException();
-        assertThatCode(loader::verify).doesNotThrowAnyException();
-        assertThatCode(loader::injectInAddressBook).doesNotThrowAnyException();
-
-        this.perNodeCerts = loader.keysAndCerts();
-
-        this.allPeers = new ArrayList<PeerInfo>();
-        for (Address address : addressBook) {
-            var pi = new PeerInfo(
-                    address.getNodeId(),
-                    address.getHostnameExternal(),
-                    address.getListenPort(),
-                    perNodeCerts.get(address.getNodeId()).sigCert());
-            allPeers.add(pi);
+        this.perNodeCerts = new HashMap<>();
+        this.allPeers = new ArrayList<>();
+        for (int i = 0; i < nodeCount; i++) {
+            NodeId nodeId = NodeId.of(i);
+            KeysAndCerts keysAndCerts =
+                    KeysAndCerts.generate(nodeId, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+            perNodeCerts.put(nodeId, keysAndCerts);
+            allPeers.add(new PeerInfo(nodeId, "127.0.0.1", 15301 + i, keysAndCerts.sigCert()));
         }
     }
 
@@ -216,7 +165,7 @@ public class PeerCommunicationTests {
     }
 
     private void validateCommunication(int nodeA, int nodeB, int threshold) {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < CHECK_LOOPS; i++) {
             synchronized (events) {
                 if (events.stream().filter(evt -> evt.isFrom(nodeA, nodeB)).count() >= threshold
                         && events.stream()
@@ -227,7 +176,7 @@ public class PeerCommunicationTests {
                 }
             }
             try {
-                Thread.sleep(200);
+                Thread.sleep(LOOP_WAIT);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -256,10 +205,6 @@ public class PeerCommunicationTests {
         synchronized (events) {
             events.clear();
         }
-    }
-
-    int[] rangeExcept(int upTo, int except) {
-        return IntStream.range(0, upTo).filter(i -> i != except).toArray();
     }
 
     int[] range(int fromInclusive, int toInclusive) {
@@ -297,8 +242,8 @@ public class PeerCommunicationTests {
 
         loadAddressBook(MAX_NODES);
         startNonConnected();
-        for (int i = 0; i < 9; i++) {
-            establishBidirectionalConnection(i, range(i + 1, 9));
+        for (int i = 0; i < MAX_NODES - 1; i++) {
+            establishBidirectionalConnection(i, range(i + 1, MAX_NODES - 1));
         }
 
         for (int i = 0; i < MAX_NODES; i++) {
@@ -314,8 +259,8 @@ public class PeerCommunicationTests {
     public void testDisconnectOne() throws Exception {
         loadAddressBook(MAX_NODES);
         startNonConnected();
-        for (int i = 0; i < 9; i++) {
-            establishBidirectionalConnection(i, range(i + 1, 9));
+        for (int i = 0; i < MAX_NODES - 1; i++) {
+            establishBidirectionalConnection(i, range(i + 1, MAX_NODES - 1));
         }
 
         for (int i = 0; i < MAX_NODES; i++) {

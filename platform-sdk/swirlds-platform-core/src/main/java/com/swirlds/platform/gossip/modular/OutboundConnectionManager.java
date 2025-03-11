@@ -89,6 +89,13 @@ public class OutboundConnectionManager implements ConnectionManager {
             while (!resource.getResource().connected()) {
                 resource.getResource().disconnect();
                 resource.setResource(createConnection());
+                if (this.socketConfig.waitBetweenReconnects() > 0) {
+                    try {
+                        Thread.sleep(this.socketConfig.waitBetweenReconnects());
+                    } catch (InterruptedException e) {
+                        return NotConnectedConnection.getSingleton();
+                    }
+                }
             }
             currentConn = resource.getResource();
         }
