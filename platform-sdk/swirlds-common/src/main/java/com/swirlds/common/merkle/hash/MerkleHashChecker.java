@@ -10,7 +10,6 @@ import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import java.util.LinkedList;
 import java.util.List;
@@ -34,17 +33,21 @@ public final class MerkleHashChecker {
      * @param mismatchCallback
      * 		the method to call if a mismatch is found. May be called many times.
      */
-    public static void findInvalidHashes(final MerkleNode root, final Consumer<MerkleNode> mismatchCallback) {
+    public static void findInvalidHashes(
+            final MerkleCryptography merkleCryptography,
+            final MerkleNode root,
+            final Consumer<MerkleNode> mismatchCallback) {
         if (root == null) {
             return;
         }
 
-        root.forEachNode(node -> findInvalidHash(node, mismatchCallback));
+        root.forEachNode(node -> findInvalidHash(merkleCryptography, node, mismatchCallback));
     }
 
-    private static void findInvalidHash(final MerkleNode node, final Consumer<MerkleNode> mismatchCallback) {
-        final MerkleCryptography cryptography = MerkleCryptoFactory.getInstance();
-
+    private static void findInvalidHash(
+            final MerkleCryptography merkleCryptography,
+            final MerkleNode node,
+            final Consumer<MerkleNode> mismatchCallback) {
         // some nodes calculate their own hash, we could potentially check these if we serialize and deserialize
         // them and then check their hash
         if (node == null || node.isSelfHashing()) {
@@ -59,8 +62,7 @@ public final class MerkleHashChecker {
 
         final Hash recalculated;
         if (node.isLeaf()) {
-            recalculated =
-                    CRYPTOGRAPHY.digestSync((SerializableHashable) node, Cryptography.DEFAULT_DIGEST_TYPE, false);
+            recalculated = CRYPTOGRAPHY.digestSync((SerializableHashable) node, false);
         } else {
             final MerkleInternal internal = node.asInternal();
             for (int childIndex = 0; childIndex < internal.getNumberOfChildren(); childIndex++) {
@@ -70,7 +72,7 @@ public final class MerkleHashChecker {
                     return;
                 }
             }
-            recalculated = cryptography.digestSync(internal, Cryptography.DEFAULT_DIGEST_TYPE, false);
+            recalculated = merkleCryptography.digestSync(internal, false);
         }
 
         if (!old.equals(recalculated)) {
@@ -82,13 +84,16 @@ public final class MerkleHashChecker {
      * Get a list of all nodes in a tree that have an invalid hash.
      * Returns an empty list if the entire tree has valid hashes.
      *
+     * @param merkleCryptography
+     *      the cryptography provider to use for hashing
      * @param root
      * 		the root of the tree in question
      * @return a list of nodes with invalid hashes (if there are any)
      */
-    public static List<MerkleNode> getNodesWithInvalidHashes(final MerkleNode root) {
+    public static List<MerkleNode> getNodesWithInvalidHashes(
+            final MerkleCryptography merkleCryptography, final MerkleNode root) {
         final List<MerkleNode> nodesWithInvalidHashes = new LinkedList<>();
-        findInvalidHashes(root, nodesWithInvalidHashes::add);
+        findInvalidHashes(merkleCryptography, root, nodesWithInvalidHashes::add);
         return nodesWithInvalidHashes;
     }
 
@@ -105,9 +110,10 @@ public final class MerkleHashChecker {
      * 		spammed. A sane limit reduces the amount logged in that situation.
      * @return true if the tree is valid, false if it is not valid
      */
-    public static boolean checkHashAndLog(final MerkleNode root, final String context, final int limit) {
+    public static boolean checkHashAndLog(
+            final MerkleCryptography merkleCryptography, final MerkleNode root, final String context, final int limit) {
 
-        final List<MerkleNode> nodesWithInvalidHashes = getNodesWithInvalidHashes(root);
+        final List<MerkleNode> nodesWithInvalidHashes = getNodesWithInvalidHashes(merkleCryptography, root);
 
         if (nodesWithInvalidHashes.isEmpty()) {
             return true;

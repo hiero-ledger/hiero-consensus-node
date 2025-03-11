@@ -9,7 +9,6 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSig
 
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.logging.legacy.LogMarker;
@@ -42,9 +41,13 @@ public class StateEditorSave extends StateEditorOperation {
     @Override
     public void run() {
         try (final ReservedSignedState reservedSignedState = getStateEditor().getState("StateEditorSave.run()")) {
+            final Configuration configuration =
+                    DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
+            final PlatformContext platformContext = PlatformContext.create(configuration);
 
             logger.info(LogMarker.CLI.getMarker(), "Hashing state");
-            MerkleCryptoFactory.getInstance()
+            platformContext
+                    .getMerkleCryptography()
                     .digestTreeAsync(reservedSignedState.get().getState().getRoot())
                     .get();
 
@@ -55,11 +58,6 @@ public class StateEditorSave extends StateEditorOperation {
             if (!Files.exists(directory)) {
                 Files.createDirectories(directory);
             }
-
-            final Configuration configuration =
-                    DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
-
-            final PlatformContext platformContext = PlatformContext.create(configuration);
 
             try (final ReservedSignedState signedState = getStateEditor().getSignedStateCopy()) {
                 writeSignedStateFilesToDirectory(
