@@ -1,20 +1,7 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows;
+
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -36,7 +23,9 @@ import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Represents the context of a single {@code handle()}-call.
@@ -77,7 +66,11 @@ public interface HandleContext {
         /**
          * A transaction submitted by Node for TSS service
          */
-        NODE
+        NODE,
+        /**
+         * A child transaction submitted via atomic batch user transaction.
+         */
+        BATCH
     }
 
     /**
@@ -106,17 +99,62 @@ public interface HandleContext {
     class DispatchMetadata {
         public static final DispatchMetadata EMPTY_METADATA = new DispatchMetadata(Map.of());
 
-        // Metadata keys
-        public static final String TRANSACTION_FIXED_FEE = "transactionFixedFee";
+        private final Map<Type, Object> metadata;
 
-        private final Map<String, Object> metadata;
-
-        public DispatchMetadata(Map<String, Object> metadata) {
-            this.metadata = metadata;
+        /**
+         * Constructs a new DispatchMetadata instance with the given metadata map.
+         *
+         * @param metadata the metadata map
+         */
+        public DispatchMetadata(@NonNull final Map<Type, Object> metadata) {
+            this.metadata = requireNonNull(metadata);
         }
 
-        public Object getMetadata(String dataKey) {
-            return metadata.get(dataKey);
+        /**
+         * Constructs a new DispatchMetadata instance with a single metadata entry.
+         *
+         * @param type the metadata key
+         * @param value the metadata value
+         */
+        public DispatchMetadata(@NonNull final Type type, @NonNull Object value) {
+            this.metadata = new HashMap<>(Map.of(type, value));
+        }
+
+        /**
+         * Adds or updates a metadata entry.
+         *
+         * @param type the metadata key
+         * @param value the metadata value
+         */
+        public void putMetadata(@NonNull final Type type, @NonNull final Object value) {
+            metadata.put(type, value);
+        }
+
+        /**
+         * Retrieves the metadata value associated with the given key.
+         *
+         * @param type the metadata key
+         * @param javaType the Java type of the metadata value
+         * @return the metadata value, if present
+         */
+        public <T> Optional<T> getMetadata(@NonNull final Type type, @NonNull final Class<T> javaType) {
+            requireNonNull(type);
+            requireNonNull(javaType);
+            return Optional.ofNullable(metadata.get(type)).map(javaType::cast);
+        }
+
+        /**
+         * Enumerates the possible types of dispatch metadata.
+         */
+        public enum Type {
+            /**
+             * The fixed fee of a transaction.
+             */
+            TRANSACTION_FIXED_FEE,
+            /**
+             * A fee charging strategy that should be used to customize further dispatches.
+             */
+            CUSTOM_FEE_CHARGING,
         }
     }
 

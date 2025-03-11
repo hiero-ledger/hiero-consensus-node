@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.util;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
@@ -217,11 +202,7 @@ public class SigReqAdapterUtils {
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .pauseKey(TOKEN_PAUSE_KT.asPbjKey())
                         .paused(true)
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(3)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(3).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_FREEZE),
@@ -234,11 +215,7 @@ public class SigReqAdapterUtils {
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .freezeKey(TOKEN_FREEZE_KT.asPbjKey())
                         .accountsFrozenByDefault(true)
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(3)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(3).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_KYC),
@@ -250,11 +227,7 @@ public class SigReqAdapterUtils {
                         .name("KYCTOKENNAME")
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .kycKey(TOKEN_KYC_KT.asPbjKey())
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_FEE_SCHEDULE_KEY),
@@ -266,11 +239,7 @@ public class SigReqAdapterUtils {
                         .name("FEE_SCHEDULETOKENNAME")
                         .feeScheduleKey(TOKEN_FEE_SCHEDULE_KT.asPbjKey())
                         .accountsKycGrantedByDefault(true)
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_ROYALTY_FEE_AND_FALLBACK),
@@ -303,11 +272,7 @@ public class SigReqAdapterUtils {
                         .name("SUPPLYTOKENNAME")
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_WIPE),
@@ -319,11 +284,7 @@ public class SigReqAdapterUtils {
                         .name("WIPETOKENNAME")
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .wipeKey(TOKEN_WIPE_KT.asPbjKey())
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
                 toPbj(DELETED_TOKEN),
@@ -335,11 +296,7 @@ public class SigReqAdapterUtils {
                         .name("DELETEDTOKENNAME")
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .deleted(true)
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         return new MapWritableKVState<>("TOKENS", destination);
     }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer.customfees;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
@@ -24,6 +9,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
@@ -105,15 +91,17 @@ public class CustomFeeAssessor extends BaseTokenHandler {
     }
 
     /**
-     * Converts the transfer body to a fixed fee.
-     * If the transfers in the body contain more than one sender and one receiver, an exception is thrown.
+     * Sets the transaction fees as assessed for a given payer and custom fee.
+     * This method updates the assessment result with the specified custom fee.
+     * Note: This method does not adjust the payer's balance.
      *
-     * @param body simple transfer body representing the custom fixed fee
-     * @param result assessment result
+     * @param payer The Account ID of the payer responsible for the custom fee.
+     * @param fee The custom fee to be assessed.
+     * @param result The assessment result to be updated with the custom fee.
      */
-    public void convertTransferToFixedFee(
-            @NonNull final CryptoTransferTransactionBody body, @NonNull final AssessmentResult result) {
-        fixedFeeAssessor.convertTransferToFixedFee(body, result);
+    public void setTransactionFeesAsAssessed(
+            @NonNull final AccountID payer, @NonNull final FixedCustomFee fee, @NonNull final AssessmentResult result) {
+        fixedFeeAssessor.setTransactionFeesAsAssessed(payer, fee, result);
     }
 
     /**

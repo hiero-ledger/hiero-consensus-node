@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package com.hedera.mirror.api.proto;
+
+option java_multiple_files = true; // Required for the reactor-grpc generator to work correctly
+option java_package = "com.hedera.mirror.api.proto";
+
+import "services/basic_types.proto";
+import "services/timestamp.proto";
+
+/**
+ * Request object to query an address book for its list of nodes
+ */
+message AddressBookQuery {
+    /**
+     * The ID of the address book file on the network. Can be either 0.0.101 or 0.0.102.
+     */
+    .proto.FileID file_id = 1;
+
+    /**
+     * The maximum number of node addresses to receive before stopping. If not set or set to zero it will return all node addresses in the database.
+     */
+    int32 limit = 2;
+}
+
+/**
+ * Provides cross network APIs like address book queries
+ */
+service NetworkService {
+    /*
+     * Query for an address book and return its nodes. The nodes are returned in ascending order by node ID. The
+     * response is not guaranteed to be a byte-for-byte equivalent to the NodeAddress in the Hedera file on
+     * the network since it is reconstructed from a normalized database table.
+     */
+    rpc getNodes (AddressBookQuery) returns (stream .proto.NodeAddress);
+}
+

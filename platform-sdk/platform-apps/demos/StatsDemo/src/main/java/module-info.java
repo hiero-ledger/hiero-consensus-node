@@ -1,5 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.swirlds.demo.stats {
     requires com.hedera.node.hapi;
+    requires com.hedera.pbj.runtime;
     requires com.swirlds.base;
     requires com.swirlds.common;
     requires com.swirlds.metrics.api;

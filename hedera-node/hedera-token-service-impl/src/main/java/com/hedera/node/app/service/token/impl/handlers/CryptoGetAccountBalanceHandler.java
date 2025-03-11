@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -47,6 +32,8 @@ import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.workflows.FreeQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Metrics;
@@ -68,13 +55,17 @@ public class CryptoGetAccountBalanceHandler extends FreeQueryHandler {
             .withDescription("Number of balances requested in GetAccountBalance queries per second");
 
     private final SpeedometerMetric balanceSpeedometer;
+    private final HederaConfig hederaConfig;
 
     /**
      * Default constructor for injection.
      */
     @Inject
-    public CryptoGetAccountBalanceHandler(@NonNull final Metrics metrics) {
+    public CryptoGetAccountBalanceHandler(
+            @NonNull final Metrics metrics, @NonNull final ConfigProvider configProvider) {
+        super();
         this.balanceSpeedometer = metrics.getOrCreate(BALANCE_SPEEDOMETER_CONFIG);
+        this.hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
     }
 
     @Override
@@ -111,8 +102,8 @@ public class CryptoGetAccountBalanceHandler extends FreeQueryHandler {
             throws PreCheckException {
         mustExist(op.contractID(), INVALID_CONTRACT_ID);
         final ContractID contractId = (ContractID) op.balanceSource().value();
-        validateTruePreCheck(contractId.shardNum() == 0, INVALID_CONTRACT_ID);
-        validateTruePreCheck(contractId.realmNum() == 0, INVALID_CONTRACT_ID);
+        validateTruePreCheck(contractId.shardNum() == hederaConfig.shard(), INVALID_CONTRACT_ID);
+        validateTruePreCheck(contractId.realmNum() == hederaConfig.realm(), INVALID_CONTRACT_ID);
         validateTruePreCheck(
                 (contractId.hasContractNum() && contractId.contractNumOrThrow() >= 0) || contractId.hasEvmAddress(),
                 INVALID_CONTRACT_ID);
@@ -125,8 +116,8 @@ public class CryptoGetAccountBalanceHandler extends FreeQueryHandler {
     private void validateAccountId(CryptoGetAccountBalanceQuery op, ReadableAccountStore accountStore)
             throws PreCheckException {
         AccountID accountId = (AccountID) op.balanceSource().value();
-        validateTruePreCheck(accountId.shardNum() == 0, INVALID_ACCOUNT_ID);
-        validateTruePreCheck(accountId.realmNum() == 0, INVALID_ACCOUNT_ID);
+        validateTruePreCheck(accountId.shardNum() == hederaConfig.shard(), INVALID_ACCOUNT_ID);
+        validateTruePreCheck(accountId.realmNum() == hederaConfig.realm(), INVALID_ACCOUNT_ID);
         validateAccountID(accountId, INVALID_ACCOUNT_ID);
         final var account = accountStore.getAliasedAccountById(requireNonNull(op.accountID()));
         validateFalsePreCheck(account == null, INVALID_ACCOUNT_ID);

@@ -1,36 +1,29 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// SPDX-License-Identifier: Apache-2.0
+plugins { id("org.hiero.gradle.build") version "0.3.6" }
 
-plugins { id("org.hiero.gradle.build") version "0.3.1" }
+// Downgrade 'dependency-analysis-gradle-plugin' as 2.8.0 delivers unexpected results
+// we need to investigate
+buildscript {
+    dependencies.constraints {
+        classpath("com.autonomousapps:dependency-analysis-gradle-plugin:2.7.0!!")
+    }
+}
 
 javaModules {
     // This "intermediate parent project" should be removed
     module("platform-sdk") { artifact = "swirlds-platform" }
 
     // The Hedera API module
-    module("hapi") { group = "com.hedera.hashgraph" }
+    directory("hapi") {
+        group = "com.hedera.hashgraph"
+        module("hedera-protobuf-java-api") // raw proto files to be published separately
+    }
 
     // The Hedera platform modules
     directory("platform-sdk") {
         group = "com.swirlds"
         module("swirlds") // not actually a Module as it has no module-info.java
         module("swirlds-benchmarks") // not actually a Module as it has no module-info.java
-        module(
-            "swirlds-unit-tests/core/swirlds-platform-test"
-        ) // nested module is not found automatically
     }
 
     // The Hedera services modules

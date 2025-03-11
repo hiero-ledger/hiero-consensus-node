@@ -1,28 +1,15 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.workflows.handle.TransactionType.GENESIS_TRANSACTION;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -37,7 +24,7 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.platform.event.EventTransaction;
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
@@ -50,9 +37,11 @@ import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
@@ -71,6 +60,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.Instant;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -82,7 +72,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class UserTxnTest {
     private static final long CONGESTION_MULTIPLIER = 2L;
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
-    private static final ConsensusTransaction PLATFORM_TXN = new TransactionWrapper(EventTransaction.DEFAULT);
+    private static final ConsensusTransaction PLATFORM_TXN = new TransactionWrapper(Bytes.EMPTY);
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(1234).build();
     private static final Key AN_ED25519_KEY = Key.newBuilder()
@@ -149,12 +139,24 @@ class UserTxnTest {
     @Mock
     private ConfigProvider configProvider;
 
+    @Mock
+    private TransactionChecker transactionChecker;
+
+    @Mock
+    private Consumer<StateSignatureTransaction> stateSignatureTxnCallback;
+
+    @Mock
+    private DeduplicationCache deduplicationCache;
+
     private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory = ServicesSoftwareVersion::new;
 
     @BeforeEach
     void setUp() {
         given(preHandleWorkflow.getCurrentPreHandleResult(
-                        eq(creatorInfo), eq(PLATFORM_TXN), any(ReadableStoreFactory.class)))
+                        eq(creatorInfo),
+                        eq(PLATFORM_TXN),
+                        any(ReadableStoreFactory.class),
+                        eq(stateSignatureTxnCallback)))
                 .willReturn(preHandleResult);
         given(preHandleResult.txInfo()).willReturn(txnInfo);
         given(txnInfo.functionality()).willReturn(CONSENSUS_CREATE_TOPIC);
@@ -165,7 +167,8 @@ class UserTxnTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION);
+        final var subject = factory.createUserTxn(
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback);
 
         assertSame(GENESIS_TRANSACTION, subject.type());
         assertSame(CONSENSUS_CREATE_TOPIC, subject.functionality());
@@ -180,6 +183,16 @@ class UserTxnTest {
         assertNotNull(subject.config());
 
         assertThat(subject.baseBuilder()).isInstanceOf(PairedStreamBuilder.class);
+    }
+
+    @Test
+    void returnsNullForStateSignatureTxn() {
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
+        given(txnInfo.functionality()).willReturn(STATE_SIGNATURE_TRANSACTION);
+
+        final var factory = createUserTxnFactory();
+        assertNull(factory.createUserTxn(
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback));
     }
 
     @Test
@@ -200,7 +213,8 @@ class UserTxnTest {
         given(dispatcher.dispatchComputeFees(any())).willReturn(Fees.FREE);
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION);
+        final var subject = factory.createUserTxn(
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -231,7 +245,8 @@ class UserTxnTest {
         given(dispatcher.dispatchComputeFees(any())).willReturn(Fees.FREE);
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION);
+        final var subject = factory.createUserTxn(
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -262,6 +277,7 @@ class UserTxnTest {
                 blockRecordManager,
                 blockStreamManager,
                 childDispatchFactory,
-                softwareVersionFactory);
+                softwareVersionFactory,
+                transactionChecker);
     }
 }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.config;
 
 import com.swirlds.config.api.ConfigData;
@@ -33,25 +18,30 @@ import java.util.Optional;
  *                          deployments, where custom network interfaces may be required.
  *                          Each entry specifies how the node should bind to its network
  *                          interfaces.
- *
  * @param endpointOverrides A list of endpoint overrides used in {@link OutboundConnectionCreator}.
  *                          These overrides provide the ability to replace the default IP
  *                          address and port of endpoints obtained from the roster. This is
  *                          particularly useful in cases where the actual network configuration
  *                          differs from the information specified in the roster, such as
  *                          behind NATs or when using virtualized networks.
+ * @param useModularizedGossip feature switch to disable new modularized gossip architecture; while
+ *                             all care is taken to make sure it is backward compatible and error free,
+ *                             until it is fully tested in final form, setting it to false allows quick
+ *                             rollback to old code; code diverges between {@link com.swirlds.platform.gossip.SyncGossip} for 'false'
+ *                             and {@link com.swirlds.platform.gossip.modular.SyncGossipModular} for 'true'
  */
 @ConfigData("gossip")
 public record GossipConfig(
         @ConfigProperty(defaultValue = Configuration.EMPTY_LIST) List<NetworkEndpoint> interfaceBindings,
-        @ConfigProperty(defaultValue = Configuration.EMPTY_LIST) List<NetworkEndpoint> endpointOverrides) {
+        @ConfigProperty(defaultValue = Configuration.EMPTY_LIST) List<NetworkEndpoint> endpointOverrides,
+        @ConfigProperty(defaultValue = "true") boolean useModularizedGossip) {
 
     /**
      * Returns the interface binding for the given node ID.
      * <p>
-     *     <b>Note:</b> If there are multiple interface bindings for the same node ID, only the first one will be
-     *     returned.
-     *</p>
+     * <b>Note:</b> If there are multiple interface bindings for the same node ID, only the first one will be
+     * returned.
+     * </p>
      *
      * @param nodeId the node ID
      * @return optional of the interface binding, empty if not found
@@ -65,9 +55,9 @@ public record GossipConfig(
     /**
      * Returns the endpoint override for the given node ID.
      * <p>
-     *     <b>Note:</b> If there are multiple endpoint overrides for the same node ID, only the first one will be
-     *     returned.
-     *</p>
+     * <b>Note:</b> If there are multiple endpoint overrides for the same node ID, only the first one will be
+     * returned.
+     * </p>
      *
      * @param nodeId the node ID
      * @return optional of the endpoint override, empty if not found

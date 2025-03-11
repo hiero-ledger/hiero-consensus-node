@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
@@ -54,6 +39,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.io.IOException;
@@ -81,6 +67,9 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
     private HandleContext handleContext;
 
     @Mock
+    private PureChecksContext pureChecksContext;
+
+    @Mock
     private NodeDeleteHandler subject;
 
     protected Configuration testConfig;
@@ -102,21 +91,21 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
     void testPureChecksThrowsExceptionWhenFileIdIsNull() {
         NodeDeleteTransactionBody transactionBody = mock(NodeDeleteTransactionBody.class);
         TransactionBody transaction = mock(TransactionBody.class);
-        given(handleContext.body()).willReturn(transaction);
+        given(pureChecksContext.body()).willReturn(transaction);
         given(transaction.nodeDeleteOrThrow()).willReturn(transactionBody);
         given(transactionBody.nodeId()).willReturn(-1L);
 
-        assertThatThrownBy(() -> subject.pureChecks(handleContext.body())).isInstanceOf(PreCheckException.class);
-        var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(handleContext.body()));
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext)).isInstanceOf(PreCheckException.class);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_NODE_ID);
     }
 
     @Test
     @DisplayName("pureChecks does not throw exception when node id is not null")
     void testPureChecksDoesNotThrowExceptionWhenNodeIdIsNotNull() {
-        given(handleContext.body()).willReturn(newDeleteTxn());
+        given(pureChecksContext.body()).willReturn(newDeleteTxn());
 
-        assertThatCode(() -> subject.pureChecks(handleContext.body())).doesNotThrowAnyException();
+        assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
     }
 
     @Test

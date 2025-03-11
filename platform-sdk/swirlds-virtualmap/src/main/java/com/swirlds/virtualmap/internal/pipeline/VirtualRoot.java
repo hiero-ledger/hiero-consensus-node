@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.pipeline;
 
 import com.swirlds.common.merkle.MerkleNode;
@@ -48,10 +33,8 @@ public interface VirtualRoot<K extends VirtualKey, V extends VirtualValue> exten
      * returning true are guaranteed to be flushed, but other copies may be flushed, too.
      *
      * <p>This method can be expensive and may block for a long time before returning.
-     *
-     * @return if the copy has been flushed
      */
-    boolean flush();
+    void flush();
 
     /**
      * Check if this copy has already been flushed.

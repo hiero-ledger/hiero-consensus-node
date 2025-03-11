@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl;
 
 import static com.hedera.node.app.service.schedule.impl.handlers.AbstractScheduleHandler.simpleKeyVerifierFrom;
@@ -30,7 +15,9 @@ import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema;
 import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.RpcService;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -38,15 +25,28 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.NoSuchElementException;
+import java.util.function.Supplier;
 
 /**
  * Standard implementation of the {@link ScheduleService} {@link RpcService}.
  */
 public final class ScheduleServiceImpl implements ScheduleService {
+    private final Supplier<FeeCharging> appFeeCharging;
+
+    public ScheduleServiceImpl(@NonNull final AppContext appContext) {
+        requireNonNull(appContext);
+        this.appFeeCharging = appContext.feeChargingSupplier();
+    }
+
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         registry.register(new V0490ScheduleSchema());
         registry.register(new V0570ScheduleSchema());
+    }
+
+    @Override
+    public FeeCharging baseFeeCharging() {
+        return appFeeCharging.get();
     }
 
     @Override

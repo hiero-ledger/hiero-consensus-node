@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -69,8 +54,7 @@ import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.config.api.Configuration;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.swirlds.state.spi.WritableStates;
 import java.util.List;
 import java.util.Map;
@@ -108,14 +92,14 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     @Mock
     private WritableEntityCounters entityCounters;
 
-    private Configuration configuration;
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     private CryptoDeleteHandler subject = new CryptoDeleteHandler();
 
     @BeforeEach
     public void setUp() {
         super.setUp();
-        configuration = HederaTestConfigBuilder.createConfig();
         updateReadableStore(
                 Map.of(accountNum, account, deleteAccountNum, deleteAccount, transferAccountNum, transferAccount));
         updateWritableStore(
@@ -237,10 +221,9 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     @Test
     void pureChecksFailWhenTargetSameAsBeneficiary() throws PreCheckException {
         final var txn = deleteAccountTransaction(deleteAccountId, deleteAccountId);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        final var context = new FakePreHandleContext(readableStore, txn);
-
-        assertThatThrownBy(() -> subject.preHandle(context))
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(TRANSFER_ACCOUNT_SAME_AS_DELETE_ACCOUNT));
     }
@@ -248,8 +231,9 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     @Test
     void pureChecksPassForValidTxn() {
         final var txn = deleteAccountTransaction(deleteAccountId, transferAccountId);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        assertThatNoException().isThrownBy(() -> subject.pureChecks(txn));
+        assertThatNoException().isThrownBy(() -> subject.pureChecks(pureChecksContext));
     }
 
     @Test
@@ -374,20 +358,20 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     @Test
     void failsIfEitherDeleteOrTransferAccountDoesntExist() throws PreCheckException {
         var txn = deleteAccountTransaction(null, transferAccountId);
-        final var context = new FakePreHandleContext(readableStore, txn);
-        assertThatThrownBy(() -> subject.preHandle(context))
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ACCOUNT_ID_DOES_NOT_EXIST));
 
         txn = deleteAccountTransaction(deleteAccountId, null);
-        final var context1 = new FakePreHandleContext(readableStore, txn);
-        assertThatThrownBy(() -> subject.preHandle(context1))
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ACCOUNT_ID_DOES_NOT_EXIST));
 
         txn = deleteAccountTransaction(null, null);
-        final var context2 = new FakePreHandleContext(readableStore, txn);
-        assertThatThrownBy(() -> subject.preHandle(context2))
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(ACCOUNT_ID_DOES_NOT_EXIST));
     }
@@ -403,6 +387,34 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         given(feeCalc.legacyCalculate(any())).willReturn(new Fees(1, 0, 0));
 
         Assertions.assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
+    }
+
+    @Test
+    void happyPathWithEcdsaKeyWorks() {
+        writableAliases = writableAliasesStateWithEcdsaKey();
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
+
+        deleteAccount =
+                deleteAccount.copyBuilder().alias(ecdsaAlias.aliasOrThrow()).build();
+        writableAccounts = emptyWritableAccountStateBuilder()
+                .value(idFactory.newAccountId(accountNum), account)
+                .value(idFactory.newAccountId(deleteAccountNum), deleteAccount)
+                .value(idFactory.newAccountId(transferAccountNum), transferAccount)
+                .build();
+        given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
+        writableStore = new WritableAccountStore(writableStates, entityCounters);
+
+        givenTxnWith(deleteAccountId, transferAccountId);
+        given(expiryValidator.isDetached(eq(EntityType.ACCOUNT), anyBoolean(), anyLong()))
+                .willReturn(false);
+        given(stack.getBaseBuilder(CryptoDeleteStreamBuilder.class)).willReturn(recordBuilder);
+
+        subject.handle(handleContext);
+
+        assertThat(writableStore.get(deleteAccountId).deleted()).isTrue();
+        assertThat(writableAliases.get(ecdsaKeyAlias)).isNull();
+        assertThat(writableAliases.get(new ProtoBytes(aliasEvmAddress))).isNull();
+        verify(recordBuilder).addBeneficiaryForDeletedAccount(deleteAccountId, transferAccountId);
     }
 
     private TransactionBody deleteAccountTransaction(
@@ -421,7 +433,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     private void updateReadableStore(Map<Long, Account> accountsToAdd) {
         final var emptyStateBuilder = emptyReadableAccountStateBuilder();
         for (final var entry : accountsToAdd.entrySet()) {
-            emptyStateBuilder.value(accountID(entry.getKey()), entry.getValue());
+            emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         readableAccounts = emptyStateBuilder.build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
@@ -431,7 +443,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     private void updateWritableStore(Map<Long, Account> accountsToAdd) {
         final var emptyStateBuilder = emptyWritableAccountStateBuilder();
         for (final var entry : accountsToAdd.entrySet()) {
-            emptyStateBuilder.value(accountID(entry.getKey()), entry.getValue());
+            emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         writableAccounts = emptyStateBuilder.build();
         given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);

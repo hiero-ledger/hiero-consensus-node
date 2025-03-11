@@ -1,29 +1,14 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.editor;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.platform.state.editor.StateEditorUtils.formatFile;
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadata.NO_NODE_ID;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateFilesToDirectory;
 
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.logging.legacy.LogMarker;
@@ -56,10 +41,14 @@ public class StateEditorSave extends StateEditorOperation {
     @Override
     public void run() {
         try (final ReservedSignedState reservedSignedState = getStateEditor().getState("StateEditorSave.run()")) {
+            final Configuration configuration =
+                    DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
+            final PlatformContext platformContext = PlatformContext.create(configuration);
 
             logger.info(LogMarker.CLI.getMarker(), "Hashing state");
-            MerkleCryptoFactory.getInstance()
-                    .digestTreeAsync(reservedSignedState.get().getState())
+            platformContext
+                    .getMerkleCryptography()
+                    .digestTreeAsync(reservedSignedState.get().getState().getRoot())
                     .get();
 
             if (logger.isInfoEnabled(LogMarker.CLI.getMarker())) {
@@ -70,13 +59,9 @@ public class StateEditorSave extends StateEditorOperation {
                 Files.createDirectories(directory);
             }
 
-            final Configuration configuration =
-                    DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
-
-            final PlatformContext platformContext = PlatformContext.create(configuration);
-
             try (final ReservedSignedState signedState = getStateEditor().getSignedStateCopy()) {
-                writeSignedStateFilesToDirectory(platformContext, NO_NODE_ID, directory, signedState.get());
+                writeSignedStateFilesToDirectory(
+                        platformContext, NO_NODE_ID, directory, signedState.get(), DEFAULT_PLATFORM_STATE_FACADE);
             }
 
         } catch (final IOException e) {

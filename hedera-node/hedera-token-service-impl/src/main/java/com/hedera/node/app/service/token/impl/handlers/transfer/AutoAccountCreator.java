@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
@@ -24,6 +9,7 @@ import static com.hedera.node.app.service.token.impl.TokenServiceImpl.THREE_MONT
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.UNLIMITED_AUTOMATIC_ASSOCIATIONS;
 import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -35,9 +21,11 @@ import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -90,15 +78,22 @@ public class AutoAccountCreator {
 
         // Dispatch the auto-creation record as a preceding record; note we pass null for the
         // "verification assistant" since we have no non-payer signatures to verify here
-        final var streamBuilder = handleContext.dispatch(
-                setupDispatch(handleContext.payer(), syntheticCreation.build(), CryptoCreateStreamBuilder.class));
+        final var streamBuilder = handleContext.dispatch(setupDispatch(
+                handleContext.payer(),
+                syntheticCreation.build(),
+                CryptoCreateStreamBuilder.class,
+                handleContext
+                        .dispatchMetadata()
+                        .getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class)
+                        .orElse(null)));
         // If the child transaction failed, we should fail the parent transaction as well and propagate the failure.
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
 
+        final var config = handleContext.configuration().getConfigData(HederaConfig.class);
         // Since we succeeded, we can now look up the account ID of the created account. This really should always
         // work, since the child transaction succeeded. If it did not work for some reason, we have a bug in our
         // code (rather than a bad transaction), so we will fail with FAIL_INVALID.
-        final var createdAccountId = accountStore.getAccountIDByAlias(alias);
+        final var createdAccountId = accountStore.getAccountIDByAlias(config.shard(), config.realm(), alias);
         validateTrue(createdAccountId != null, FAIL_INVALID);
         return createdAccountId;
     }

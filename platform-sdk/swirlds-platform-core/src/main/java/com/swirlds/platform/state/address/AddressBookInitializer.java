@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.address;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -24,7 +9,8 @@ import static com.swirlds.platform.roster.RosterUtils.buildAddressBook;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.config.AddressBookConfig;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.Address;
@@ -78,7 +64,7 @@ public class AddressBookInitializer {
     private final PlatformContext platformContext;
 
     @NonNull
-    private final StateLifecycles stateLifecycles;
+    private final ConsensusStateEventHandler consensusStateEventHandler;
     /** The current version of the application from config.txt. */
     @NonNull
     private final SoftwareVersion currentVersion;
@@ -127,18 +113,19 @@ public class AddressBookInitializer {
             @NonNull final SignedState initialState,
             @NonNull final AddressBook configAddressBook,
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycles stateLifecycles) {
+            @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         this.selfId = Objects.requireNonNull(selfId, "The selfId must not be null.");
         this.currentVersion = Objects.requireNonNull(currentVersion, "The currentVersion must not be null.");
         this.softwareUpgrade = softwareUpgrade;
         this.configAddressBook = Objects.requireNonNull(configAddressBook, "The configAddressBook must not be null.");
         this.platformContext = Objects.requireNonNull(platformContext, "The platformContext must not be null.");
-        this.stateLifecycles = stateLifecycles;
+        this.consensusStateEventHandler = consensusStateEventHandler;
         final AddressBookConfig addressBookConfig =
                 platformContext.getConfiguration().getConfigData(AddressBookConfig.class);
         this.initialState = Objects.requireNonNull(initialState, "The initialState must not be null.");
 
-        final var book = buildAddressBook(retrieveActiveOrGenesisRoster(initialState.getState()));
+        final var book = buildAddressBook(retrieveActiveOrGenesisRoster(initialState.getState(), platformStateFacade));
         this.stateAddressBook = (book == null || book.getSize() == 0) ? null : book;
         if (stateAddressBook == null && !initialState.isGenesisState()) {
             throw new IllegalStateException("Only genesis states can have null address books.");
@@ -237,7 +224,7 @@ public class AddressBookInitializer {
                     "The address book weight may be updated by the application using data from the state snapshot.");
 
             AddressBook configAddressBookCopy = configAddressBook.copy();
-            stateLifecycles.onUpdateWeight(initialState.getState(), configAddressBookCopy, platformContext);
+            consensusStateEventHandler.onUpdateWeight(initialState.getState(), configAddressBookCopy, platformContext);
             candidateAddressBook = configAddressBookCopy;
             candidateAddressBook = checkCandidateAddressBookValidity(candidateAddressBook);
             previousAddressBook = stateAddressBook;

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl.producers.formats.v6;
 
 import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.BLOCK_NUMBER;
@@ -309,19 +294,9 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
             // Write the record file version int first to start of file
             outputStream.writeInt(VERSION_6);
             // [1] - hapi_proto_version
-            writeMessage(
-                    outputStream,
-                    HAPI_PROTO_VERSION,
-                    hapiProtoVersion,
-                    SemanticVersion.PROTOBUF::write,
-                    SemanticVersion.PROTOBUF::measureRecord);
+            writeMessage(outputStream, HAPI_PROTO_VERSION, hapiProtoVersion, SemanticVersion.PROTOBUF);
             // [2] - start_object_running_hash
-            writeMessage(
-                    outputStream,
-                    START_OBJECT_RUNNING_HASH,
-                    startObjectRunningHash,
-                    HashObject.PROTOBUF::write,
-                    HashObject.PROTOBUF::measureRecord);
+            writeMessage(outputStream, START_OBJECT_RUNNING_HASH, startObjectRunningHash, HashObject.PROTOBUF);
         } catch (final IOException e) {
             logger.warn("Error writing header to record file {}", recordFilePath, e);
             throw new UncheckedIOException(e);
@@ -336,12 +311,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     private void writeFooter(@NonNull final HashObject endRunningHash) throws UncheckedIOException {
         try {
             // [4] - end_object_running_hash
-            writeMessage(
-                    outputStream,
-                    END_OBJECT_RUNNING_HASH,
-                    endRunningHash,
-                    HashObject.PROTOBUF::write,
-                    HashObject.PROTOBUF::measureRecord);
+            writeMessage(outputStream, END_OBJECT_RUNNING_HASH, endRunningHash, HashObject.PROTOBUF);
             // [5] - block_number
             writeLong(outputStream, BLOCK_NUMBER, blockNumber);
             // [6] - sidecars
@@ -349,8 +319,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
                     outputStream,
                     SIDECARS,
                     sidecarMetadata == null ? Collections.emptyList() : sidecarMetadata,
-                    SidecarMetadata.PROTOBUF::write,
-                    SidecarMetadata.PROTOBUF::measureRecord);
+                    SidecarMetadata.PROTOBUF);
         } catch (IOException e) {
             logger.warn("Error writing footer to record file {}", recordFilePath, e);
             throw new UncheckedIOException(e);

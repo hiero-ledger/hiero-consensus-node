@@ -1,22 +1,8 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
@@ -36,12 +22,11 @@ import java.util.concurrent.CompletableFuture;
 
 public class FakeHintsService implements HintsService {
     private final HintsService delegate;
-    private final HintsLibraryImpl operations = new HintsLibraryImpl();
     private final Queue<Runnable> pendingHintsSubmissions = new ArrayDeque<>();
 
     public FakeHintsService(@NonNull final AppContext appContext, @NonNull final Configuration bootstrapConfig) {
         delegate = new HintsServiceImpl(
-                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, operations, bootstrapConfig);
+                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, new HintsLibraryImpl(), bootstrapConfig);
     }
 
     @Override
@@ -60,17 +45,34 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
+    public HintsHandlers handlers() {
+        return delegate.handlers();
+    }
+
+    @Override
+    public void stop() {
+        delegate.stop();
+    }
+
+    @Override
     public void reconcile(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
-        delegate.reconcile(activeRosters, hintsStore, now, tssConfig);
+            @NonNull final TssConfig tssConfig,
+            final boolean currentPlatformStatus) {
+        delegate.reconcile(activeRosters, hintsStore, now, tssConfig, currentPlatformStatus);
     }
 
     @Override
-    public HintsHandlers handlers() {
-        return delegate.handlers();
+    public void executeCrsWork(
+            @NonNull final WritableHintsStore hintsStore, @NonNull final Instant now, final boolean isActive) {
+        delegate.executeCrsWork(hintsStore, now, isActive);
+    }
+
+    @Override
+    public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
+        delegate.initSigningForNextScheme(hintsStore);
     }
 
     @Override

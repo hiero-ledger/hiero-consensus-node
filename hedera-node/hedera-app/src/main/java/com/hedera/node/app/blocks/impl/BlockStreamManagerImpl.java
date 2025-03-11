@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
@@ -28,7 +13,6 @@ import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_ST
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
-import static com.swirlds.platform.state.SwirldStateManagerUtils.isInFreezePeriod;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -39,7 +23,6 @@ import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
-import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -60,8 +43,7 @@ import com.hedera.node.config.types.DiskNetworkExport;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
@@ -71,6 +53,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -82,6 +65,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -92,7 +77,10 @@ import org.apache.logging.log4j.Logger;
 public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
 
+    private static final String FATAL_SHUTDOWN_BASE_MSG = "Waiting for fatal shutdown of block stream to complete";
+
     private final int roundsPerBlock;
+    private final Duration blockPeriod;
     private final BlockStreamWriterMode streamWriterType;
     private final int hashCombineBatchSize;
     private final BlockHashSigner blockHashSigner;
@@ -103,6 +91,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final DiskNetworkExport diskNetworkExport;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
+    private final PlatformStateFacade platformStateFacade;
 
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
@@ -121,6 +110,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private long lastNonEmptyRoundNumber;
     private Bytes lastBlockHash;
     private Instant blockTimestamp;
+    private Instant consensusTimeLastRound;
     private BlockItemWriter writer;
     private StreamingTreeHasher inputTreeHasher;
     private StreamingTreeHasher outputTreeHasher;
@@ -128,8 +118,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     // If not null, the part of the block preceding a possible first user transaction
     @Nullable
     private PreUserItems preUserItems;
-    // Whether the block signer was ready at the start of the current block
-    private boolean signerReady;
 
     /**
      * Represents the part of a block preceding a possible first user transaction; we defer writing this part until
@@ -168,6 +156,29 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private final Map<Long, CompletableFuture<Bytes>> endRoundStateHashes = new ConcurrentHashMap<>();
 
+    /**
+     * Represents the status of a fatal shutdown of the block stream.
+     */
+    private enum FatalShutdownStatus {
+        // Indicates the block stream is operating normally
+        NOT_INITIATED,
+        // Indicates the block stream is in the process of fatally shutting down
+        INITIATED,
+        // Indicates the block stream has completed its fatal shutdown logic
+        COMPLETE;
+
+        boolean hasBeenInitiated() {
+            return this != NOT_INITIATED;
+        }
+
+        boolean isComplete() {
+            return this == COMPLETE;
+        }
+    }
+
+    private final AtomicReference<FatalShutdownStatus> fatalShutdownStatus =
+            new AtomicReference<>(FatalShutdownStatus.NOT_INITIATED);
+
     @Inject
     public BlockStreamManagerImpl(
             @NonNull final BlockHashSigner blockHashSigner,
@@ -176,17 +187,20 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final ConfigProvider configProvider,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final InitialStateHash initialStateHash,
-            @NonNull final SemanticVersion version) {
+            @NonNull final SemanticVersion version,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
+        this.platformStateFacade = platformStateFacade;
         requireNonNull(configProvider);
         final var config = configProvider.getConfiguration();
         this.hapiVersion = hapiVersionFrom(config);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
+        this.blockPeriod = blockStreamConfig.blockPeriod();
         this.streamWriterType = blockStreamConfig.writerMode();
         this.hashCombineBatchSize = blockStreamConfig.hashCombineBatchSize();
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
@@ -196,7 +210,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.runningHashManager = new RunningHashManager();
         this.lastNonEmptyRoundNumber = initialStateHash.roundNum();
         final var hashFuture = initialStateHash.hashFuture();
-        signerReady = blockHashSigner.isReady();
         endRoundStateHashes.put(lastNonEmptyRoundNumber, hashFuture);
         log.info(
                 "Initialized BlockStreamManager from round {} with end-of-round hash {}",
@@ -206,7 +219,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean hasLedgerId() {
-        return signerReady;
+        return blockHashSigner.isReady();
     }
 
     @Override
@@ -219,20 +232,24 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         if (lastBlockHash == null) {
             throw new IllegalStateException("Last block hash must be initialized before starting a round");
         }
+        if (fatalShutdownStatus.get().hasBeenInitiated()) {
+            log.fatal("Ignoring start of round {} after fatal shutdown initiated", round.getRoundNum());
+            return;
+        }
+
         // If the platform handled this round, it must eventually hash its end state
         endRoundStateHashes.put(round.getRoundNum(), new CompletableFuture<>());
 
-        final var platformState = state.getReadableStates(PlatformStateService.NAME)
-                .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY)
-                .get();
-        requireNonNull(platformState);
-        if (isFreezeRound(platformState, round)) {
+        if (platformStateFacade.isFreezeRound(state, round)) {
             // Track freeze round numbers because they always end a block
             freezeRoundNumber = round.getRoundNum();
         }
+
+        // Writer will be null when beginning a new block
         if (writer == null) {
             writer = writerSupplier.get();
-            blockTimestamp = round.getConsensusTimestamp();
+            // This iterator is never empty; c.f. DefaultTransactionHandler#handleConsensusRound()
+            blockTimestamp = round.iterator().next().getConsensusTimestamp();
             boundaryStateChangeListener.setBoundaryTimestamp(blockTimestamp);
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
@@ -249,12 +266,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             worker = new BlockStreamManagerTask();
             final var header = BlockHeader.newBuilder()
                     .number(blockNumber)
-                    .previousBlockHash(lastBlockHash)
                     .hashAlgorithm(SHA2_384)
-                    .softwareVersion(platformState.creationSoftwareVersionOrThrow())
+                    .softwareVersion(platformStateFacade.creationSemanticVersionOf(state))
                     .hapiProtoVersion(hapiVersion);
-            signerReady = blockHashSigner.isReady();
-            if (signerReady) {
+            if (blockHashSigner.isReady()) {
                 preUserItems = new PreUserItems(header, new ArrayList<>());
             } else {
                 // If the signer is not ready, we will not be accepting any user transactions
@@ -263,6 +278,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
             }
         }
+        consensusTimeLastRound = round.getConsensusTimestamp();
     }
 
     @Override
@@ -307,7 +323,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void endRound(@NonNull final State state, final long roundNum) {
+    public boolean endRound(@NonNull final State state, final long roundNum) {
         if (shouldCloseBlock(roundNum, roundsPerBlock)) {
             // If there were no user transactions in the block, this writes all the accumulated
             // items starting from the header, sacrificing the benefits of concurrency; but
@@ -386,9 +402,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         "Writing network info to disk @ {} (REASON = {})",
                         exportPath.toAbsolutePath(),
                         diskNetworkExport);
-                DiskStartupNetworks.writeNetworkInfo(state, exportPath, EnumSet.allOf(InfoType.class));
+                DiskStartupNetworks.writeNetworkInfo(
+                        state, exportPath, EnumSet.allOf(InfoType.class), platformStateFacade);
             }
+            return true;
         }
+        return false;
     }
 
     @Override
@@ -462,7 +481,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             block.writer().writePbjItem(BlockItem.PROTOBUF.toBytes(proofItem));
-            if (streamWriterType == BlockStreamWriterMode.FILE) {
+            if (streamWriterType == BlockStreamWriterMode.FILE
+                    || streamWriterType == BlockStreamWriterMode.GRPC
+                    || streamWriterType == BlockStreamWriterMode.FILE_AND_GRPC) {
                 block.writer().closeBlock();
             }
             if (block.number() != blockNumber) {
@@ -519,17 +540,27 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private boolean shouldCloseBlock(final long roundNumber, final int roundsPerBlock) {
+        if (fatalShutdownStatus.get().hasBeenInitiated()) {
+            return true;
+        }
+        // We need the signer to be ready
         if (!blockHashSigner.isReady()) {
             return false;
         }
-        return roundNumber % roundsPerBlock == 0 || roundNumber == freezeRoundNumber;
-    }
 
-    private boolean isFreezeRound(@NonNull final PlatformState platformState, @NonNull final Round round) {
-        return isInFreezePeriod(
-                round.getConsensusTimestamp(),
-                platformState.freezeTime() == null ? null : asInstant(platformState.freezeTime()),
-                platformState.lastFrozenTime() == null ? null : asInstant(platformState.lastFrozenTime()));
+        // During freeze round, we should close the block regardless of other conditions
+        if (roundNumber == freezeRoundNumber) {
+            return true;
+        }
+
+        // If blockPeriod is 0, use roundsPerBlock
+        if (blockPeriod.isZero()) {
+            return roundNumber % roundsPerBlock == 0;
+        }
+
+        // For time-based blocks, check if enough consensus time has elapsed
+        final var elapsed = Duration.between(blockTimestamp, consensusTimeLastRound);
+        return elapsed.compareTo(blockPeriod) >= 0;
     }
 
     class BlockStreamManagerTask {
@@ -570,7 +601,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
 
         @Override
-        protected boolean exec() {
+        protected boolean onExecute() {
             Bytes bytes = BlockItem.PROTOBUF.toBytes(item);
 
             final var kind = item.item().kind();
@@ -605,7 +636,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
 
         @Override
-        protected boolean exec() {
+        protected boolean onExecute() {
             final var kind = item.item().kind();
             switch (kind) {
                 case EVENT_HEADER, EVENT_TRANSACTION, ROUND_HEADER -> inputTreeHasher.addLeaf(hash);
@@ -750,5 +781,71 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         endRoundStateHashes
                 .get(notification.round())
                 .complete(notification.hash().getBytes());
+    }
+
+    @Override
+    public void notifyFatalEvent() {
+        if (fatalShutdownStatus.get().hasBeenInitiated()) {
+            // If `fatalShutdown` is true then this method MUST have been invoked previously–-there's nothing more to do
+            return;
+        }
+
+        log.fatal("Initiating fatal shutdown of block stream");
+        fatalShutdownStatus.set(FatalShutdownStatus.INITIATED);
+
+        pendingBlocks.forEach(block -> log.fatal("Skipping incomplete block proof for block {}", block.number()));
+
+        // Close the current block (if possible)
+        if (writer != null) {
+            maybeFlushStateChanges();
+            log.fatal("Final block {} written", blockNumber);
+
+            // Finally, close the writer
+            writer.closeBlock();
+            writer = null;
+        } else {
+            log.info("Current block {} was closed before fatal shutdown", blockNumber);
+        }
+
+        fatalShutdownStatus.set(FatalShutdownStatus.COMPLETE);
+        log.fatal("Fatal block stream shutdown cleanup complete");
+    }
+
+    @Override
+    public void awaitFatalShutdown(@Nullable final java.time.Duration timeout) {
+        Function<Integer, Boolean> timeRemains = (Integer ignore) -> false;
+        Function<Integer, String> timeoutMessage = (Integer ignore) -> FATAL_SHUTDOWN_BASE_MSG;
+
+        // Assign the behavior of the timeout (if given)
+        if (timeout != null) {
+            final var secondsTimeout = timeout.getSeconds();
+            timeRemains = (Integer secondsCounter) -> secondsCounter < secondsTimeout;
+            timeoutMessage = (Integer secondsCounter) ->
+                    FATAL_SHUTDOWN_BASE_MSG + " (" + secondsCounter + " of ~" + secondsTimeout + "s)";
+        }
+
+        // Wait for the fatal shutdown to complete
+        int secondsCounter = 0;
+        while (!fatalShutdownStatus.get().isComplete() && timeRemains.apply(secondsCounter)) {
+            log.fatal(timeoutMessage.apply(secondsCounter));
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                log.fatal("Interrupted while waiting for block stream fatal shutdown to complete");
+                return;
+            }
+        }
+
+        log.fatal("Block stream fatal shutdown complete");
+    }
+
+    private void maybeFlushStateChanges() {
+        log.fatal("Flushing final outstanding state changes for block {} (if any)", blockNumber);
+        final BlockItem finalChanges = boundaryStateChangeListener.flushChanges();
+        if (finalChanges != null && finalChanges.hasStateChanges()) {
+            log.fatal("Writing final state changes for block {}", blockNumber);
+            writer.writePbjItem(BlockItem.PROTOBUF.toBytes(finalChanges));
+        }
+        log.fatal("Final state changes written (if any)");
     }
 }

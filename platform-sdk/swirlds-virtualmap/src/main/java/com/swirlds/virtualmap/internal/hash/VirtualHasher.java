@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.hash;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -23,7 +8,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashBuilder;
 import com.swirlds.virtualmap.VirtualKey;
@@ -90,7 +75,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
      * the {@link #hash(LongFunction, Iterator, long, long, VirtualMapConfig)} method and used by all hashing
      * tasks.
      */
-    private Cryptography cryptography;
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     /**
      * Tracks if this virtual hasher has been shut down. If true (indicating that the hasher
@@ -147,7 +132,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         }
 
         @Override
-        protected boolean exec() {
+        protected boolean onExecute() {
             return true;
         }
 
@@ -191,53 +176,47 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         }
 
         @Override
-        public void completeExceptionally(Throwable ex) {
+        public void onException(Throwable ex) {
             if (out != null) {
                 out.completeExceptionally(ex);
             }
-            super.completeExceptionally(ex);
         }
 
         @Override
-        protected boolean exec() {
-            try {
-                final Hash hash;
-                if (leaf != null) {
-                    hash = cryptography.digestSync(leaf);
-                    listener.onLeafHashed(leaf);
-                    listener.onNodeHashed(path, hash);
-                } else {
-                    int len = 1 << height;
-                    long rankPath = Path.getLeftGrandChildPath(path, height);
-                    while (len > 1) {
-                        for (int i = 0; i < len / 2; i++) {
-                            final long hashedPath = Path.getParentPath(rankPath + i * 2);
-                            Hash left = ins[i * 2];
-                            Hash right = ins[i * 2 + 1];
-                            if ((left == null) && (right == null)) {
-                                ins[i] = null;
-                            } else {
-                                if (left == null) {
-                                    left = hashReader.apply(rankPath + i * 2);
-                                }
-                                if (right == null) {
-                                    right = hashReader.apply(rankPath + i * 2 + 1);
-                                }
-                                ins[i] = hash(hashedPath, left, right);
-                                listener.onNodeHashed(hashedPath, ins[i]);
+        protected boolean onExecute() {
+            final Hash hash;
+            if (leaf != null) {
+                hash = CRYPTOGRAPHY.digestSync(leaf);
+                listener.onLeafHashed(leaf);
+                listener.onNodeHashed(path, hash);
+            } else {
+                int len = 1 << height;
+                long rankPath = Path.getLeftGrandChildPath(path, height);
+                while (len > 1) {
+                    for (int i = 0; i < len / 2; i++) {
+                        final long hashedPath = Path.getParentPath(rankPath + i * 2);
+                        Hash left = ins[i * 2];
+                        Hash right = ins[i * 2 + 1];
+                        if ((left == null) && (right == null)) {
+                            ins[i] = null;
+                        } else {
+                            if (left == null) {
+                                left = hashReader.apply(rankPath + i * 2);
                             }
+                            if (right == null) {
+                                right = hashReader.apply(rankPath + i * 2 + 1);
+                            }
+                            ins[i] = hash(hashedPath, left, right);
+                            listener.onNodeHashed(hashedPath, ins[i]);
                         }
-                        rankPath = Path.getParentPath(rankPath);
-                        len = len >> 1;
                     }
-                    hash = ins[0];
+                    rankPath = Path.getParentPath(rankPath);
+                    len = len >> 1;
                 }
-                out.setHash(getIndexInOut(), hash);
-                return true;
-            } catch (final Throwable e) {
-                completeExceptionally(e);
-                throw e;
+                hash = ins[0];
             }
+            out.setHash(getIndexInOut(), hash);
+            return true;
         }
 
         static Hash hash(final long path, final Hash left, final Hash right) {
@@ -312,8 +291,6 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
 
         this.hashReader = hashReader;
         this.listener = listener;
-        this.cryptography = CryptographyHolder.get();
-        final Hash NULL_HASH = cryptography.getNullHash();
 
         // Algo v6. This version is task based, where every task is responsible for hashing a small
         // chunk of the tree. Tasks are running in a fork-join pool, which is shared across all
@@ -463,7 +440,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
                     if (siblingPath > lastLeafPath) {
                         // Special case for a tree with one leaf at path 1
                         assert siblingPath == 2;
-                        parentTask.setHash((int) (siblingPath - firstSiblingPath), NULL_HASH);
+                        parentTask.setHash((int) (siblingPath - firstSiblingPath), Cryptography.NULL_HASH);
                     } else if ((siblingPath < curPath) && !firstLeaf) {
                         // Mark the sibling as clean, reducing the number of dependencies
                         parentTask.send();
@@ -522,7 +499,6 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
     }
 
     public Hash emptyRootHash() {
-        final Hash NULL_HASH = CryptographyHolder.get().getNullHash();
-        return ChunkHashTask.hash(ROOT_PATH, NULL_HASH, NULL_HASH);
+        return ChunkHashTask.hash(ROOT_PATH, Cryptography.NULL_HASH, Cryptography.NULL_HASH);
     }
 }

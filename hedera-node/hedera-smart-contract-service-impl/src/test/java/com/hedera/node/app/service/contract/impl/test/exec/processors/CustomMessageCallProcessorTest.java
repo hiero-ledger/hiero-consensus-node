@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.processors;
 
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
@@ -22,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Prn
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REMAINING_GAS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.isSameResult;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -135,8 +121,10 @@ class CustomMessageCallProcessorTest {
     void callPrngSystemContractHappyPath() {
         givenPrngCall(ZERO_GAS_REQUIREMENT);
         given(frame.getValue()).willReturn(Wei.ZERO);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(result.getOutput()).willReturn(OUTPUT_DATA);
         given(result.getState()).willReturn(MessageFrame.State.CODE_SUCCESS);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.start(frame, operationTracer);
 
@@ -153,6 +141,8 @@ class CustomMessageCallProcessorTest {
     void callPrngSystemContractInsufficientGas() {
         givenPrngCall(GAS_REQUIREMENT);
         given(frame.getValue()).willReturn(Wei.ZERO);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.start(frame, operationTracer);
 

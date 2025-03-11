@@ -1,25 +1,10 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.communication.states;
 
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.communication.NegotiationException;
-import com.swirlds.platform.network.protocol.Protocol;
+import com.swirlds.platform.network.protocol.PeerProtocol;
 import java.io.IOException;
 
 /**
@@ -27,7 +12,7 @@ import java.io.IOException;
  */
 public class ProtocolNegotiated extends NegotiationStateWithDescription {
     private final Connection connection;
-    private Protocol protocol;
+    private PeerProtocol peerProtocol;
 
     /**
      * @param connection
@@ -40,12 +25,12 @@ public class ProtocolNegotiated extends NegotiationStateWithDescription {
     /**
      * Set the protocol to run on the next transition
      *
-     * @param protocol
+     * @param peerProtocol
      * 		the protocol to run
      * @return this state
      */
-    public NegotiationState runProtocol(final Protocol protocol) {
-        this.protocol = protocol;
+    public NegotiationState runProtocol(final PeerProtocol peerProtocol) {
+        this.peerProtocol = peerProtocol;
         return this;
     }
 
@@ -55,14 +40,14 @@ public class ProtocolNegotiated extends NegotiationStateWithDescription {
     @Override
     public NegotiationState transition()
             throws NegotiationException, NetworkProtocolException, IOException, InterruptedException {
-        if (protocol == null) {
+        if (peerProtocol == null) {
             throw new IllegalStateException("Cannot run a protocol because it is null");
         }
         try {
-            protocol.runProtocol(connection);
+            peerProtocol.runProtocol(connection);
         } finally {
-            setDescription("ran protocol " + protocol.getProtocolName());
-            protocol = null;
+            setDescription("ran protocol " + peerProtocol.getProtocolName());
+            peerProtocol = null;
         }
         return null; // back to initial state
     }

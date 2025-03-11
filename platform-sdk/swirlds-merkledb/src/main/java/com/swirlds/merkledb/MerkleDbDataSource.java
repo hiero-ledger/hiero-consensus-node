@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
@@ -37,6 +22,7 @@ import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.collections.HashListByteBuffer;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListDisk;
@@ -196,7 +182,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         this.tableConfig = tableConfig;
         this.preferDiskBasedIndices = preferDiskBasedIndices;
 
-        final MerkleDbConfig merkleDbConfig = database.getConfiguration().getConfigData(MerkleDbConfig.class);
+        final Configuration config = database.getConfiguration();
+        final MerkleDbConfig merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
 
         // create thread group with label
         final ThreadGroup threadGroup = new ThreadGroup("MerkleDb-" + tableName);
@@ -246,34 +233,45 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
         saveMetadata(dbPaths);
 
-        // create path to disk location index
+        // Max number of entities that can be stored
+        final long virtualSize = tableConfig.getMaxNumberOfKeys();
+        // Path to hash and path to KV index capacity. Last leaf path is 2*virtualSize - 2,
+        // so capacity should be 2*virtualSize - 1, but only if virtualSize is greater than 1.
+        // To support virtual sizes 0 and 1, let's set capacity to 2*virtualSize
+        final long pathIndexCapacity = virtualSize * 2;
+
         final boolean forceIndexRebuilding = merkleDbConfig.indexRebuildingEnforced();
-        if (preferDiskBasedIndices) {
-            pathToDiskLocationInternalNodes =
-                    new LongListDisk(dbPaths.pathToDiskLocationInternalNodesFile, database.getConfiguration());
-        } else if (Files.exists(dbPaths.pathToDiskLocationInternalNodesFile) && !forceIndexRebuilding) {
-            pathToDiskLocationInternalNodes =
-                    new LongListOffHeap(dbPaths.pathToDiskLocationInternalNodesFile, database.getConfiguration());
+        // path to disk location index, hashes
+        final Path pathToHashLocationFile = dbPaths.pathToDiskLocationInternalNodesFile;
+        if (Files.exists(pathToHashLocationFile) && !forceIndexRebuilding) {
+            pathToDiskLocationInternalNodes = preferDiskBasedIndices
+                    ? new LongListDisk(pathToHashLocationFile, pathIndexCapacity, config)
+                    : new LongListOffHeap(pathToHashLocationFile, pathIndexCapacity, config);
         } else {
-            pathToDiskLocationInternalNodes = new LongListOffHeap();
+            pathToDiskLocationInternalNodes = preferDiskBasedIndices
+                    ? new LongListDisk(pathIndexCapacity, config)
+                    : new LongListOffHeap(pathIndexCapacity, config);
         }
         // path to disk location index, leaf nodes
-        if (preferDiskBasedIndices) {
-            pathToDiskLocationLeafNodes =
-                    new LongListDisk(dbPaths.pathToDiskLocationLeafNodesFile, database.getConfiguration());
-        } else if (Files.exists(dbPaths.pathToDiskLocationLeafNodesFile) && !forceIndexRebuilding) {
-            pathToDiskLocationLeafNodes =
-                    new LongListOffHeap(dbPaths.pathToDiskLocationLeafNodesFile, database.getConfiguration());
+        final Path pathToLeafLocationFile = dbPaths.pathToDiskLocationLeafNodesFile;
+        if (Files.exists(pathToLeafLocationFile) && !forceIndexRebuilding) {
+            pathToDiskLocationLeafNodes = preferDiskBasedIndices
+                    ? new LongListDisk(pathToLeafLocationFile, pathIndexCapacity, config)
+                    : new LongListOffHeap(pathToLeafLocationFile, pathIndexCapacity, config);
         } else {
-            pathToDiskLocationLeafNodes = new LongListOffHeap(merkleDbConfig.reservedBufferLengthForLeafList());
+            pathToDiskLocationLeafNodes = preferDiskBasedIndices
+                    ? new LongListDisk(pathIndexCapacity, config)
+                    : new LongListOffHeap(pathIndexCapacity, config);
         }
 
         // internal node hashes store, RAM
-        if (tableConfig.getHashesRamToDiskThreshold() > 0) {
+        final long hashesRamToDiskThreshold = tableConfig.getHashesRamToDiskThreshold();
+        if (hashesRamToDiskThreshold > 0) {
             if (Files.exists(dbPaths.hashStoreRamFile)) {
-                hashStoreRam = new HashListByteBuffer(dbPaths.hashStoreRamFile);
+                hashStoreRam = new HashListByteBuffer(dbPaths.hashStoreRamFile, hashesRamToDiskThreshold);
             } else {
-                hashStoreRam = new HashListByteBuffer();
+                final int hashesPerBuffer = merkleDbConfig.hashStoreRamBufferSize();
+                hashStoreRam = new HashListByteBuffer(hashesPerBuffer, hashesRamToDiskThreshold, true);
             }
         } else {
             hashStoreRam = null;
@@ -1081,6 +1079,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                             (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
                     return true; // turns this into a callable, so it can throw checked
                     // exceptions
+                } catch (final Throwable t) {
+                    // log and rethrow
+                    logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, t);
+                    throw t;
                 } finally {
                     countDownLatch.countDown();
                 }

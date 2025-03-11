@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.standalone.impl;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
@@ -55,6 +40,7 @@ import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
 import com.hedera.node.app.throttle.AppThrottleAdviser;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
@@ -101,6 +87,7 @@ public class StandaloneDispatchFactory {
     private final TransactionDispatcher transactionDispatcher;
     private final NetworkUtilizationManager networkUtilizationManager;
     private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final TransactionChecker transactionChecker;
 
     @Inject
     public StandaloneDispatchFactory(
@@ -116,7 +103,8 @@ public class StandaloneDispatchFactory {
             @NonNull final ChildDispatchFactory childDispatchFactory,
             @NonNull final TransactionDispatcher transactionDispatcher,
             @NonNull final NetworkUtilizationManager networkUtilizationManager,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
+            @NonNull final TransactionChecker transactionChecker) {
         this.feeManager = requireNonNull(feeManager);
         this.authorizer = requireNonNull(authorizer);
         this.networkInfo = requireNonNull(networkInfo);
@@ -130,6 +118,7 @@ public class StandaloneDispatchFactory {
         this.storeMetricsService = requireNonNull(storeMetricsService);
         this.networkUtilizationManager = requireNonNull(networkUtilizationManager);
         this.softwareVersionFactory = softwareVersionFactory;
+        this.transactionChecker = requireNonNull(transactionChecker);
     }
 
     /**
@@ -160,8 +149,8 @@ public class StandaloneDispatchFactory {
         final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
         final var consensusTransaction = consensusTransactionFor(transactionBody);
         final var creatorInfo = creatorInfoFor(transactionBody);
-        final var preHandleResult =
-                preHandleWorkflow.getCurrentPreHandleResult(creatorInfo, consensusTransaction, readableStoreFactory);
+        final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
+                creatorInfo, consensusTransaction, readableStoreFactory, ignore -> {});
         final var tokenContext =
                 new TokenContextImpl(config, stack, consensusNow, entityIdStore, softwareVersionFactory);
         final var txnInfo = requireNonNull(preHandleResult.txInfo());
@@ -201,7 +190,9 @@ public class StandaloneDispatchFactory {
                 dispatchProcessor,
                 throttleAdvisor,
                 feeAccumulator,
-                EMPTY_METADATA);
+                EMPTY_METADATA,
+                transactionChecker,
+                preHandleResult.innerResults());
         final var fees = transactionDispatcher.dispatchComputeFees(dispatchHandleContext);
         return new RecordDispatch(
                 baseBuilder,
@@ -221,7 +212,8 @@ public class StandaloneDispatchFactory {
                 getTxnCategory(preHandleResult),
                 tokenContext,
                 preHandleResult,
-                HandleContext.ConsensusThrottling.ON);
+                HandleContext.ConsensusThrottling.ON,
+                null);
     }
 
     public static HandleContext.TransactionCategory getTxnCategory(final PreHandleResult preHandleResult) {

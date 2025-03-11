@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
 import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
@@ -33,7 +18,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.address.AddressBook;
 import org.junit.jupiter.api.AfterAll;
@@ -58,7 +43,7 @@ final class ServicesMainTest {
     private Hedera hedera;
 
     @Mock
-    private PlatformMerkleStateRoot merkleStateRoot;
+    private MerkleNodeState state;
 
     private final ServicesMain subject = new ServicesMain();
 
@@ -102,10 +87,10 @@ final class ServicesMainTest {
     }
 
     @Test
-    void createsNewMerkleStateRoot() {
+    void createsNewStateRoot() {
         ServicesMain.initGlobal(hedera, metrics);
-        given(hedera.newMerkleStateRoot()).willReturn(merkleStateRoot);
-        assertSame(merkleStateRoot, subject.newMerkleStateRoot());
+        given(hedera.newStateRoot()).willReturn(state);
+        assertSame(state, subject.newStateRoot());
     }
 
     private void withBadCommandLineArgs() {

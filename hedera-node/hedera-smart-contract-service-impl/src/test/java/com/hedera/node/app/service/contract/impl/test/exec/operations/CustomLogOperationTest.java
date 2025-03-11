@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.operations.CustomizedOpcodes.*;
@@ -122,13 +107,15 @@ class CustomLogOperationTest {
         given(frame.getRecipientAddress()).willReturn(EIP_1014_ADDRESS);
         given(frame.getWorldUpdater()).willReturn(worldUpdater);
         given(worldUpdater.getHederaContractId(EIP_1014_ADDRESS)).willReturn(TestHelpers.CALLED_CONTRACT_ID);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var captor = ArgumentCaptor.forClass(Log.class);
 
         final ImmutableList.Builder<LogTopic> builder = ImmutableList.builderWithExpectedSize(3);
         for (int i = 0; i < 3; i++) {
             builder.add(LogTopic.create(leftPad(TOPICS[i])));
         }
-        final var mirrorAddress = ConversionUtils.asLongZeroAddress(CALLED_CONTRACT_ID.contractNumOrThrow());
+        final var mirrorAddress =
+                ConversionUtils.asLongZeroAddress(entityIdFactory, CALLED_CONTRACT_ID.contractNumOrThrow());
         final var expectedLog = new Log(mirrorAddress, pbjToTuweniBytes(TestHelpers.LOG_DATA), builder.build());
 
         final var subject = new CustomLogOperation(3, gasCalculator);
@@ -143,6 +130,8 @@ class CustomLogOperationTest {
     void addsExpectedLogWithAlreadyLongZeroAddress() {
         givenHappyPathFrame(2);
         given(frame.getRecipientAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var captor = ArgumentCaptor.forClass(Log.class);
 
         final ImmutableList.Builder<LogTopic> builder = ImmutableList.builderWithExpectedSize(2);

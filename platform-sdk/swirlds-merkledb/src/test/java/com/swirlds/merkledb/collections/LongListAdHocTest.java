@@ -1,25 +1,9 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.collections.AbstractLongListTest.SAMPLE_SIZE;
 import static com.swirlds.merkledb.collections.AbstractLongListTest.checkData;
 import static com.swirlds.merkledb.collections.AbstractLongListTest.populateList;
-import static com.swirlds.merkledb.collections.LongListOffHeap.DEFAULT_RESERVED_BUFFER_LENGTH;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -42,9 +26,9 @@ class LongListAdHocTest {
     @ParameterizedTest
     @MethodSource("provideLongLists")
     void test4089(final AbstractLongList<?> list) {
-        list.updateValidRange(0, list.maxLongs - 1);
+        list.updateValidRange(0, list.capacity() - 1);
         // Issue #4089: ArrayIndexOutOfBoundsException from VirtualMap.put()
-        final long maxLongs = list.maxLongs;
+        final long maxLongs = list.capacity();
         final int defaultValue = -1;
         final AtomicBoolean done = new AtomicBoolean();
 
@@ -63,11 +47,11 @@ class LongListAdHocTest {
     }
 
     static Stream<LongList> provideLongLists() {
-        final int numLongsPerChunk = 32;
-        final int maxLongs = numLongsPerChunk * 4096;
+        final int longsPerChunk = 32;
+        final int capacity = longsPerChunk * 4096;
         return Stream.of(
-                new LongListHeap(numLongsPerChunk, maxLongs, 0),
-                new LongListOffHeap(numLongsPerChunk, maxLongs, DEFAULT_RESERVED_BUFFER_LENGTH));
+                new LongListHeap(longsPerChunk, capacity, 0),
+                new LongListOffHeap(longsPerChunk, capacity, longsPerChunk / 4));
     }
 
     // Tests https://github.com/hashgraph/hedera-services/issues/16860

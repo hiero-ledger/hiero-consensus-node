@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.hashing;
 
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -53,9 +37,7 @@ public class PbjStreamHasher implements EventHasher, UnsignedEventHasher {
     @NonNull
     public PlatformEvent hashEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
-        final List<Bytes> transactions = event.getGossipEvent().transactions();
-        final boolean isNewFormat = !transactions.isEmpty();
-        final Hash hash = hashEvent(event.getEventCore(), event.getTransactions(), isNewFormat);
+        final Hash hash = hashEvent(event.getEventCore(), event.getTransactions());
         event.setHash(hash);
         return event;
     }
@@ -66,7 +48,7 @@ public class PbjStreamHasher implements EventHasher, UnsignedEventHasher {
      * @param event the event to hash
      */
     public void hashUnsignedEvent(@NonNull final UnsignedEvent event) {
-        final Hash hash = hashEvent(event.getEventCore(), event.getTransactions(), true);
+        final Hash hash = hashEvent(event.getEventCore(), event.getTransactions());
         event.setHash(hash);
     }
 
@@ -78,19 +60,11 @@ public class PbjStreamHasher implements EventHasher, UnsignedEventHasher {
      * @return the hash of the event
      */
     @NonNull
-    private Hash hashEvent(
-            @NonNull final EventCore eventCore,
-            @NonNull final List<TransactionWrapper> transactions,
-            final boolean isNewFormat) {
+    private Hash hashEvent(@NonNull final EventCore eventCore, @NonNull final List<TransactionWrapper> transactions) {
         try {
             EventCore.PROTOBUF.write(eventCore, eventStream);
             for (final TransactionWrapper transaction : transactions) {
-                if (isNewFormat) {
-                    transactionStream.writeBytes(Objects.requireNonNull(transaction.getApplicationTransaction()));
-                } else {
-                    EventTransaction.PROTOBUF.write(transaction.getTransaction(), transactionStream);
-                }
-
+                transactionStream.writeBytes(Objects.requireNonNull(transaction.getApplicationTransaction()));
                 processTransactionHash(transaction);
             }
         } catch (final IOException e) {

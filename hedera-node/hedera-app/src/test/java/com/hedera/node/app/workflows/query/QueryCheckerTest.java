@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.query;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
@@ -60,9 +45,11 @@ import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -95,31 +82,73 @@ class QueryCheckerTest extends AppTestBase {
     @Mock
     private TransactionDispatcher dispatcher;
 
+    @Mock
+    private TransactionChecker transactionChecker;
+
+    @Mock
+    private Configuration configuration;
+
     private QueryChecker checker;
 
     @BeforeEach
     void setup() {
         checker = new QueryChecker(
-                authorizer, cryptoTransferHandler, solvencyPreCheck, expiryValidation, feeManager, dispatcher);
+                authorizer,
+                cryptoTransferHandler,
+                solvencyPreCheck,
+                expiryValidation,
+                feeManager,
+                dispatcher,
+                transactionChecker);
     }
 
     @SuppressWarnings("ConstantConditions")
     @Test
     void testConstructorWithIllegalArguments() {
         assertThatThrownBy(() -> new QueryChecker(
-                        null, cryptoTransferHandler, solvencyPreCheck, expiryValidation, feeManager, dispatcher))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() ->
-                        new QueryChecker(authorizer, null, solvencyPreCheck, expiryValidation, feeManager, dispatcher))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new QueryChecker(
-                        authorizer, cryptoTransferHandler, null, expiryValidation, feeManager, dispatcher))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new QueryChecker(
-                        authorizer, cryptoTransferHandler, solvencyPreCheck, null, feeManager, dispatcher))
+                        null,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        transactionChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                        authorizer, cryptoTransferHandler, solvencyPreCheck, expiryValidation, null, dispatcher))
+                        authorizer,
+                        null,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        transactionChecker))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryChecker(
+                        authorizer,
+                        cryptoTransferHandler,
+                        null,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        transactionChecker))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryChecker(
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        null,
+                        feeManager,
+                        dispatcher,
+                        transactionChecker))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryChecker(
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        null,
+                        dispatcher,
+                        transactionChecker))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -176,7 +205,7 @@ class QueryCheckerTest extends AppTestBase {
                 transaction, txBody, signatureMap, transaction.signedTransactionBytes(), CRYPTO_TRANSFER, null);
         doThrow(new PreCheckException(INVALID_ACCOUNT_AMOUNTS))
                 .when(cryptoTransferHandler)
-                .pureChecks(txBody);
+                .pureChecks(any());
 
         // then
         assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo))

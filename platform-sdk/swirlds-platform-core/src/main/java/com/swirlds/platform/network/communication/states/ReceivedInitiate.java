@@ -1,26 +1,11 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.communication.states;
 
 import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.communication.NegotiationException;
 import com.swirlds.platform.network.communication.NegotiationProtocols;
 import com.swirlds.platform.network.communication.NegotiatorBytes;
-import com.swirlds.platform.network.protocol.Protocol;
+import com.swirlds.platform.network.protocol.PeerProtocol;
 import java.io.IOException;
 import java.io.OutputStream;
 
@@ -75,24 +60,24 @@ public class ReceivedInitiate extends NegotiationStateWithDescription {
     @Override
     public NegotiationState transition()
             throws NegotiationException, NetworkProtocolException, InterruptedException, IOException {
-        final Protocol protocol = protocols.getProtocol(protocolInitiated);
-        if (protocol.shouldAccept()) {
+        final PeerProtocol peerProtocol = protocols.getProtocol(protocolInitiated);
+        if (peerProtocol.shouldAccept()) {
             try {
                 byteOutput.write(NegotiatorBytes.ACCEPT);
                 byteOutput.flush();
             } catch (final IOException ex) {
-                protocol.acceptFailed();
+                peerProtocol.acceptFailed();
                 throw ex;
             }
-            stateNegotiated.runProtocol(protocol);
+            stateNegotiated.runProtocol(peerProtocol);
             protocolInitiated = NegotiatorBytes.UNINITIALIZED;
-            setDescription("accepted protocol initiated by peer - " + protocol.getProtocolName());
+            setDescription("accepted protocol initiated by peer - " + peerProtocol.getProtocolName());
             return stateNegotiated;
         } else {
             byteOutput.write(NegotiatorBytes.REJECT);
             byteOutput.flush();
             protocolInitiated = NegotiatorBytes.UNINITIALIZED;
-            setDescription("rejected protocol initiated by peer - " + protocol.getProtocolName());
+            setDescription("rejected protocol initiated by peer - " + peerProtocol.getProtocolName());
             return sleep;
         }
     }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.node.app.info.DiskStartupNetworks.tryToExport;
@@ -21,6 +6,8 @@ import static com.hedera.node.app.info.DiskStartupNetworks.tryToExport;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
+import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.service.addressbook.impl.handlers.AddressBookHandlers;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusHandlers;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
@@ -31,6 +18,7 @@ import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkAdminHandle
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleHandlers;
 import com.hedera.node.app.service.token.impl.handlers.TokenHandlers;
 import com.hedera.node.app.service.util.impl.handlers.UtilHandlers;
+import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.workflows.dispatcher.TransactionHandlers;
 import com.hedera.node.config.ConfigProvider;
@@ -39,6 +27,7 @@ import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -54,6 +43,12 @@ import javax.inject.Singleton;
 public interface HandleWorkflowModule {
     @Provides
     @Singleton
+    static EntityIdFactory provideEntityIdFactory(@NonNull final AppContext appContext) {
+        return appContext.idFactory();
+    }
+
+    @Provides
+    @Singleton
     static Supplier<ContractHandlers> provideContractHandlers(@NonNull final ContractServiceImpl contractService) {
         return contractService::handlers;
     }
@@ -62,6 +57,12 @@ public interface HandleWorkflowModule {
     @Singleton
     static HintsHandlers provideHintsHandlers(@NonNull final HintsService hintsService) {
         return hintsService.handlers();
+    }
+
+    @Provides
+    @Singleton
+    static HistoryHandlers provideHistoryHandlers(@NonNull final HistoryService historyService) {
+        return historyService.handlers();
     }
 
     @Provides
@@ -118,7 +119,8 @@ public interface HandleWorkflowModule {
             @NonNull final TokenHandlers tokenHandlers,
             @NonNull final UtilHandlers utilHandlers,
             @NonNull final AddressBookHandlers addressBookHandlers,
-            @NonNull final HintsHandlers hintsHandlers) {
+            @NonNull final HintsHandlers hintsHandlers,
+            @NonNull final HistoryHandlers historyHandlers) {
         return new TransactionHandlers(
                 consensusHandlers.consensusCreateTopicHandler(),
                 consensusHandlers.consensusUpdateTopicHandler(),
@@ -173,6 +175,13 @@ public interface HandleWorkflowModule {
                 addressBookHandlers.nodeUpdateHandler(),
                 addressBookHandlers.nodeDeleteHandler(),
                 tokenHandlers.tokenClaimAirdropHandler(),
-                utilHandlers.prngHandler());
+                hintsHandlers.keyPublicationHandler(),
+                hintsHandlers.preprocessingVoteHandler(),
+                hintsHandlers.partialSignatureHandler(),
+                utilHandlers.prngHandler(),
+                utilHandlers.atomicBatchHandler(),
+                historyHandlers.historyProofKeyPublicationHandler(),
+                historyHandlers.historyProofSignatureHandler(),
+                historyHandlers.historyProofVoteHandler());
     }
 }

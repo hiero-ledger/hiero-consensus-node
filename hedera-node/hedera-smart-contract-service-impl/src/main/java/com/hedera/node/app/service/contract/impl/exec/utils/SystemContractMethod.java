@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.utils;
 
 import static java.util.Objects.requireNonNull;
@@ -53,6 +38,9 @@ public record SystemContractMethod(
         @NonNull EnumSet<Variant> variants,
         @NonNull Set<ContractID> supportedAddresses) {
 
+    // Denote all supported addresses by ContractID.DEFAULT
+    public static final ContractID ALL_CONTRACT_ID = ContractID.DEFAULT;
+
     public SystemContractMethod {
         requireNonNull(function);
         requireNonNull(systemContract);
@@ -78,7 +66,7 @@ public record SystemContractMethod(
                 EnumSet.noneOf(Category.class),
                 Optional.empty(),
                 EnumSet.noneOf(Variant.class),
-                Set.of(ContractID.DEFAULT));
+                Set.of(ALL_CONTRACT_ID));
     }
 
     /**
@@ -96,7 +84,7 @@ public record SystemContractMethod(
                 EnumSet.noneOf(Category.class),
                 Optional.empty(),
                 EnumSet.noneOf(Variant.class),
-                Set.of(ContractID.DEFAULT));
+                Set.of(ALL_CONTRACT_ID));
     }
 
     /**
@@ -274,7 +262,7 @@ public record SystemContractMethod(
         // be overridden
         if (supportedAddresses.length == 0) {
             return new SystemContractMethod(
-                    function, systemContract, via, categories, modifier, variants, Set.of(ContractID.DEFAULT));
+                    function, systemContract, via, categories, modifier, variants, Set.of(ALL_CONTRACT_ID));
         }
         final var sa = new java.util.HashSet<ContractID>();
         sa.addAll(Arrays.asList(supportedAddresses));

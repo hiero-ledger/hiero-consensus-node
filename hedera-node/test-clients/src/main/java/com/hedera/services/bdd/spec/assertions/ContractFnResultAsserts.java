@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.assertions;
 
+import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_NONE;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -208,15 +194,23 @@ public class ContractFnResultAsserts extends BaseErroringAssertsProvider<Contrac
         return this;
     }
 
+    public ContractFnResultAsserts resultViaFunctionName(
+            final String functionName,
+            final String contractName,
+            final Function<HapiSpec, Function<Object[], Optional<Throwable>>> provider) {
+        return resultViaFunctionName(Optional.empty(), functionName, contractName, provider);
+    }
+
     /*  Note:
      This method utilizes algorithmic extraction of a function ABI by the name of the function and the contract
      and should replace the "resultThruAbi" method, which depends on function ABI, passed as String literal.
     */
     public ContractFnResultAsserts resultViaFunctionName(
+            final Optional<String> variant,
             final String functionName,
             final String contractName,
             final Function<HapiSpec, Function<Object[], Optional<Throwable>>> provider) {
-        final var abi = Utils.getABIFor(FUNCTION, functionName, contractName);
+        final var abi = Utils.getABIFor(variant.orElse(VARIANT_NONE), FUNCTION, functionName, contractName);
         registerProvider((spec, o) -> {
             Object[] actualObjs = viaAbi(
                     abi, ((ContractFunctionResult) o).getContractCallResult().toByteArray());

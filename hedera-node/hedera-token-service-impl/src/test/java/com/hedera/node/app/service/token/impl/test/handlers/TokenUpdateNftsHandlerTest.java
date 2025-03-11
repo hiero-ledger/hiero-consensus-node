@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NFT_ID;
@@ -65,6 +50,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -119,9 +105,12 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
     @Mock
     private Key supplyKey;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     private TokenUpdateNftsHandler subject;
     private TransactionBody txn;
-    private static final AccountID ACCOUNT_1339 = BaseCryptoHandler.asAccount(1339);
+    private static final AccountID ACCOUNT_1339 = BaseCryptoHandler.asAccount(0L, 0L, 1339);
     private static final TokenID TOKEN_123 = BaseTokenHandler.asToken(123);
 
     @BeforeEach
@@ -238,9 +227,9 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
                 .build());
         final var txn = new TokenUpdateNftBuilder()
                 .newNftUpdateTransactionBody(TOKEN_123, Bytes.EMPTY, serialNumbers.toArray(new Long[0]));
-        final var context = keyMockContext(txn);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        assertThatCode(() -> subject.pureChecks(context.body())).doesNotThrowAnyException();
+        assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
     }
 
     @Test

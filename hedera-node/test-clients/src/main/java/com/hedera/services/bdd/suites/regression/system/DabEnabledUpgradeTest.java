@@ -48,6 +48,7 @@ import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -90,6 +91,13 @@ import org.junit.jupiter.api.TestMethodOrder;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class DabEnabledUpgradeTest implements LifecycleTest {
+    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
+    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
+
+    // To test BirthRoundStateMigration, use,
+    //    Map.of("event.useBirthRoundAncientThreshold", "true")
+    private static final Map<String, String> ENV_OVERRIDES = Map.of();
+
     @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 0)
     static SpecAccount NODE0_STAKER;
 
@@ -131,7 +139,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 validateCandidateRoster(
                         addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 2L, 3L)),
-                upgradeToNextConfigVersion(FakeNmt.removeNode(byNodeId(1))),
+                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(1))),
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 touchBalanceOf(NODE0_STAKER, NODE2_STAKER, NODE3_STAKER).andAssertStakingRewardCount(3),
                 touchBalanceOf(NODE1_STAKER).andAssertStakingRewardCount(0));
@@ -156,7 +164,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 validateCandidateRoster(
                         addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 2L)),
-                upgradeToNextConfigVersion(FakeNmt.removeNode(byNodeId(3))),
+                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(3))),
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 touchBalanceOf(NODE0_STAKER, NODE2_STAKER).andAssertStakingRewardCount(2),
                 touchBalanceOf(NODE3_STAKER).andAssertStakingRewardCount(0));
@@ -178,7 +186,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 // node4 was not active before this the upgrade, so it could not have written a config.txt
                 validateCandidateRoster(exceptNodeIds(4L), addressBook -> assertThat(nodeIdsFrom(addressBook))
                         .contains(4L)),
-                upgradeToNextConfigVersion(FakeNmt.addNode(4L)));
+                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.addNode(4L)));
     }
 
     @Nested
@@ -243,7 +251,8 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     nodeDelete("2"),
                     validateCandidateRoster(
                             NodeSelector.allNodes(), DabEnabledUpgradeTest::validateNodeId5MultipartEdits),
-                    upgradeToNextConfigVersion(FakeNmt.removeNode(NodeSelector.byNodeId(4L)), FakeNmt.addNode(5L)),
+                    upgradeToNextConfigVersion(
+                            ENV_OVERRIDES, FakeNmt.removeNode(NodeSelector.byNodeId(4L)), FakeNmt.addNode(5L)),
                     // Validate that nodeId2 and nodeId5 have their new fee collector account IDs,
                     // since those were updated before the prepare upgrade
                     cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L))
@@ -280,6 +289,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     private static String classicFeeCollectorIdLiteralFor(final long nodeId) {
-        return "0.0." + (nodeId + 3L);
+        return String.format("%s.%s.%d", SHARD, REALM, (nodeId + 3L));
     }
 }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test.map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,7 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.utility.SerializableLong;
@@ -79,6 +65,7 @@ class MerkleMapEntryKeyTests {
     @Tag(TestComponentTags.MMAP)
     @DisplayName("Equals and Hash Test")
     void equalsAndHashTest() {
+        final Cryptography cryptography = CryptographyFactory.create();
         final MerkleMapEntryKey<SerializableLong> key1 = new MerkleMapEntryKey<>(new SerializableLong(1));
         final MerkleMapEntryKey<SerializableLong> key2 = new MerkleMapEntryKey<>(new SerializableLong(1));
         final MerkleMapEntryKey<SerializableLong> key3 = new MerkleMapEntryKey<>(new SerializableLong(2));
@@ -101,9 +88,9 @@ class MerkleMapEntryKeyTests {
         final String hashEquals = "expected hash to be equal";
         final String hashNotEquals = "expected hash to not be equal";
 
-        CryptographyHolder.get().digestSync(key1);
-        CryptographyHolder.get().digestSync(key2);
-        CryptographyHolder.get().digestSync(key3);
+        cryptography.digestSync(key1);
+        cryptography.digestSync(key2);
+        cryptography.digestSync(key3);
 
         assertEquals(key1.getHash(), key1.getHash(), hashEquals);
         assertEquals(key1.getHash(), key2.getHash(), hashEquals);

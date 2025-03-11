@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
@@ -138,7 +123,7 @@ class DataFileCollectionTest {
 
         fileCollectionMap.put(testType, fileCollection);
         // create stored offsets list
-        final LongListHeap storedOffsets = new LongListHeap(5000);
+        final LongListHeap storedOffsets = new LongListHeap(5000, Integer.MAX_VALUE, 0);
         storedOffsets.updateValidRange(0, 1100);
         storedOffsetsMap.put(testType, storedOffsets);
         // create 10x 100 item files
@@ -646,7 +631,7 @@ class DataFileCollectionTest {
         assertSame(0, fileCollection.getAllCompletedFiles().size(), "Should be no files");
         fileCollectionMap.put(testType, fileCollection);
         // create stored offsets list
-        final LongListHeap storedOffsets = new LongListHeap(5000);
+        final LongListHeap storedOffsets = new LongListHeap(5000, Integer.MAX_VALUE, 0);
         storedOffsets.updateValidRange(0, 1100);
         storedOffsetsMap.put(testType, storedOffsets);
         // create 10x 100 item files
@@ -734,7 +719,7 @@ class DataFileCollectionTest {
 
         // init file collection with some content to compact
         final DataFileCollection fileCollection = new DataFileCollection(MERKLE_DB_CONFIG, dbDir, storeName, null);
-        final LongListHeap storedOffsets = new LongListHeap(5000);
+        final LongListHeap storedOffsets = new LongListHeap(5000, Integer.MAX_VALUE, 0);
         storedOffsets.updateValidRange(0, 1100);
         final DataFileCompactor compactor = new DataFileCompactor(
                 MERKLE_DB_CONFIG, storeName, fileCollection, storedOffsets, null, null, null, null);

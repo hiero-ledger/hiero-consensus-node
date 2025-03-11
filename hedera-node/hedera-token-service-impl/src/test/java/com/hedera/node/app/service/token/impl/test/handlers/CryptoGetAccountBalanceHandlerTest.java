@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
@@ -37,7 +22,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseHeader;
@@ -61,8 +45,11 @@ import com.hedera.node.app.service.token.impl.handlers.CryptoGetAccountBalanceHa
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.metrics.SpeedometerMetric;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -94,13 +81,22 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
     @Mock
     private ReadableStates readableStates1, readableStates2, readableStates3;
 
+    @Mock
+    private ConfigProvider configProvider;
+
+    @Mock
+    private Configuration configuration;
+
     private CryptoGetAccountBalanceHandler subject;
 
     @BeforeEach
     public void setUp() {
         super.setUp();
+        final var config = HederaTestConfigBuilder.createConfig();
+        final var versionedConfig = new VersionedConfigImpl(config, 1);
+        when(configProvider.getConfiguration()).thenReturn(versionedConfig);
         given(metrics.getOrCreate(any())).willReturn(balanceSpeedometer);
-        subject = new CryptoGetAccountBalanceHandler(metrics);
+        subject = new CryptoGetAccountBalanceHandler(metrics, configProvider);
     }
 
     @Test
@@ -202,7 +198,6 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
                 MapReadableKVState.<AccountID, Account>builder(ACCOUNTS).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(state);
         final var store = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
-        ;
         final AccountID invalidRealmAccountId =
                 AccountID.newBuilder().accountNum(5).realmNum(-1L).build();
 
@@ -242,8 +237,6 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
                 .build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
         readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
-        ;
-
         final var query = createGetAccountBalanceQuery(deleteAccountNum);
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableAccountStore.class)).thenReturn(readableStore);
@@ -263,7 +256,6 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
                 .build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
         readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
-        ;
 
         final var query = createGetAccountBalanceQueryWithContract(deleteAccountNum);
         when(context.query()).thenReturn(query);
@@ -506,7 +498,7 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
 
     private Query createGetAccountBalanceQuery(final long accountId) {
         final var data = CryptoGetAccountBalanceQuery.newBuilder()
-                .accountID(AccountID.newBuilder().accountNum(accountId).build())
+                .accountID(idFactory.newAccountId(accountId))
                 .header(QueryHeader.newBuilder().build())
                 .build();
 
@@ -524,7 +516,7 @@ class CryptoGetAccountBalanceHandlerTest extends CryptoHandlerTestBase {
 
     private Query createGetAccountBalanceQueryWithContract(final long contractId) {
         final var data = CryptoGetAccountBalanceQuery.newBuilder()
-                .contractID(ContractID.newBuilder().contractNum(contractId).build())
+                .contractID(idFactory.newContractId(contractId))
                 .header(QueryHeader.newBuilder().build())
                 .build();
 

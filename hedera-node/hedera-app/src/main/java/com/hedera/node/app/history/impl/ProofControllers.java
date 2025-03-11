@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
 import static java.util.Objects.requireNonNull;
@@ -40,7 +25,6 @@ public class ProofControllers {
     private final Executor executor;
     private final ProofKeysAccessor keyAccessor;
     private final HistoryLibrary library;
-    private final HistoryLibraryCodec codec;
     private final HistorySubmissions submissions;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
     private final Consumer<HistoryProof> proofConsumer;
@@ -57,14 +41,12 @@ public class ProofControllers {
             @NonNull final Executor executor,
             @NonNull final ProofKeysAccessor keyAccessor,
             @NonNull final HistoryLibrary library,
-            @NonNull final HistoryLibraryCodec codec,
             @NonNull final HistorySubmissions submissions,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
             @NonNull final Consumer<HistoryProof> proofConsumer) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
         this.library = requireNonNull(library);
-        this.codec = requireNonNull(codec);
         this.submissions = requireNonNull(submissions);
         this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
         this.proofConsumer = requireNonNull(proofConsumer);
@@ -130,11 +112,12 @@ public class ProofControllers {
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
         } else {
-            final var selfId = selfNodeInfoSupplier.get().nodeId();
-            final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             final var keyPublications = historyStore.getProofKeyPublications(weights.targetNodeIds());
             final var signaturePublications =
                     historyStore.getSignaturePublications(construction.constructionId(), weights.targetNodeIds());
+            final var votes = historyStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
+            final var selfId = selfNodeInfoSupplier.get().nodeId();
+            final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,
@@ -143,10 +126,10 @@ public class ProofControllers {
                     weights,
                     executor,
                     library,
-                    codec,
                     submissions,
                     keyPublications,
                     signaturePublications,
+                    votes,
                     proofConsumer);
         }
     }

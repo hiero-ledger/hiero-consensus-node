@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXPIRED_AND_PENDING_REMOVAL;
@@ -42,7 +27,6 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBuilder;
@@ -56,12 +40,14 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
@@ -74,6 +60,7 @@ import javax.inject.Singleton;
 @Singleton
 public class ContractUpdateHandler implements TransactionHandler {
     private final SmartContractFeeBuilder usageEstimator = new SmartContractFeeBuilder();
+    private final EntityIdFactory entityIdFactory;
 
     /**
      * The value for unlimited automatic associations
@@ -84,7 +71,9 @@ public class ContractUpdateHandler implements TransactionHandler {
      * Default constructor for injection.
      */
     @Inject
-    public ContractUpdateHandler() {}
+    public ContractUpdateHandler(@NonNull final EntityIdFactory entityIdFactory) {
+        this.entityIdFactory = requireNonNull(entityIdFactory);
+    }
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
@@ -109,7 +98,9 @@ public class ContractUpdateHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         final var op = txn.contractUpdateInstanceOrThrow();
         mustExist(op.contractID(), INVALID_CONTRACT_ID);
 
@@ -145,9 +136,8 @@ public class ContractUpdateHandler implements TransactionHandler {
         context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(changed);
         context.savepointStack()
                 .getBaseBuilder(ContractUpdateStreamBuilder.class)
-                .contractID(ContractID.newBuilder()
-                        .contractNum(toBeUpdated.accountIdOrThrow().accountNumOrThrow())
-                        .build());
+                .contractID(entityIdFactory.newContractId(
+                        toBeUpdated.accountIdOrThrow().accountNumOrThrow()));
     }
 
     private void validateSemantics(

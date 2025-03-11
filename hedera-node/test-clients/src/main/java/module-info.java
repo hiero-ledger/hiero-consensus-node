@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.spec.dsl;
     exports com.hedera.services.bdd.spec.dsl.contracts;
@@ -63,7 +64,6 @@ module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.utils;
     exports com.hedera.services.bdd.junit.restart;
 
-    requires com.hedera.cryptography.tss;
     requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook.impl;
@@ -87,7 +87,6 @@ module com.hedera.node.test.clients {
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
-    requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires com.esaulpaugh.headlong;
     requires com.fasterxml.jackson.annotation;

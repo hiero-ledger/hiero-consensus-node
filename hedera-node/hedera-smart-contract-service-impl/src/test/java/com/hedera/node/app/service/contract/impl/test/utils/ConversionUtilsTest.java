@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.utils;
 
 import static com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations.ZERO_ENTROPY;
@@ -30,12 +15,14 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOMEBOD
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_STORAGE_ACCESSES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.TOPIC;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumberForEvmReference;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asExactLongValueOrZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedAccountId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
@@ -43,12 +30,16 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pb
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractLoginfo;
@@ -57,6 +48,8 @@ import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
@@ -75,6 +68,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ConversionUtilsTest {
     @Mock
     private HederaNativeOperations nativeOperations;
+
+    private static final Configuration configuration = HederaTestConfigBuilder.createConfig();
 
     @Test
     void outOfRangeBiValuesAreZero() {
@@ -97,8 +92,7 @@ class ConversionUtilsTest {
 
     @Test
     void numberedIdsRequireLongZeroAddress() {
-        assertThrows(IllegalArgumentException.class, () -> asNumberedContractId(EIP_1014_ADDRESS));
-        assertThrows(IllegalArgumentException.class, () -> asNumberedAccountId(EIP_1014_ADDRESS));
+        assertThrows(IllegalArgumentException.class, () -> asNumberedContractId(entityIdFactory, EIP_1014_ADDRESS));
     }
 
     @Test
@@ -110,12 +104,13 @@ class ConversionUtilsTest {
     void convertsNumberToLongZeroAddress() {
         final var number = 0x1234L;
         final var expected = Address.fromHexString("0x1234");
-        final var actual = ConversionUtils.asLongZeroAddress(number);
+        final var actual = ConversionUtils.asLongZeroAddress(entityIdFactory, number);
         assertEquals(expected, actual);
     }
 
     @Test
     void justReturnsNumberFromSmallLongZeroAddress() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var smallNumber = 0x1234L;
         final var address = Address.fromHexString("0x1234");
         final var actual = ConversionUtils.maybeMissingNumberOf(address, nativeOperations);
@@ -124,6 +119,7 @@ class ConversionUtilsTest {
 
     @Test
     void returnsMissingIfSmallLongZeroAddressIsMissing() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address = asHeadlongAddress(Address.fromHexString("0x1234").toArray());
         final var actual = accountNumberForEvmReference(address, nativeOperations);
         assertEquals(MISSING_ENTITY_NUMBER, actual);
@@ -133,7 +129,8 @@ class ConversionUtilsTest {
     void returnsNumberIfSmallLongZeroAddressIsPresent() {
         final long number = A_NEW_ACCOUNT_ID.accountNumOrThrow();
         given(nativeOperations.getAccount(number)).willReturn(SOMEBODY);
-        final var address = asHeadlongAddress(asEvmAddress(number));
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        final var address = asHeadlongAddress(asEvmAddress(shard, realm, number));
         final var actual = accountNumberForEvmReference(address, nativeOperations);
         assertEquals(number, actual);
     }
@@ -142,12 +139,14 @@ class ConversionUtilsTest {
     void returnsNonCanonicalRefIfSmallLongZeroAddressRefersToAliasedAccount() {
         final var address = asHeadlongAddress(Address.fromHexString("0x1234").toArray());
         given(nativeOperations.getAccount(0x1234)).willReturn(ALIASED_SOMEBODY);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var actual = accountNumberForEvmReference(address, nativeOperations);
         assertEquals(NON_CANONICAL_REFERENCE_NUMBER, actual);
     }
 
     @Test
     void justReturnsNumberFromLargeLongZeroAddress() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var largeNumber = 0x7fffffffffffffffL;
         final var address = Address.fromHexString("0x7fffffffffffffff");
         final var actual = ConversionUtils.maybeMissingNumberOf(address, nativeOperations);
@@ -156,24 +155,30 @@ class ConversionUtilsTest {
 
     @Test
     void returnsMissingOnAbsentAlias() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(configuration);
         final var address = Address.fromHexString("0x010000000000000000");
-        given(nativeOperations.resolveAlias(any())).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(MISSING_ENTITY_NUMBER);
         final var actual = ConversionUtils.maybeMissingNumberOf(address, nativeOperations);
         assertEquals(-1L, actual);
     }
 
     @Test
     void returnsMissingOnAbsentAliasReference() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(configuration);
         final var address =
                 asHeadlongAddress(Address.fromHexString("0x010000000000000000").toArray());
-        given(nativeOperations.resolveAlias(any())).willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(MISSING_ENTITY_NUMBER);
         final var actual = ConversionUtils.accountNumberForEvmReference(address, nativeOperations);
         assertEquals(-1L, actual);
     }
 
     @Test
     void returnsGivenIfPresentAlias() {
-        given(nativeOperations.resolveAlias(any())).willReturn(0x1234L);
+        given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(0x1234L);
+        given(nativeOperations.configuration()).willReturn(configuration);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address = Address.fromHexString("0x010000000000000000");
         final var actual = ConversionUtils.maybeMissingNumberOf(address, nativeOperations);
         assertEquals(0x1234L, actual);
@@ -189,7 +194,7 @@ class ConversionUtilsTest {
                 .topic(List.of(TOPIC))
                 .build();
 
-        final var actual = pbjLogFrom(BESU_LOG);
+        final var actual = pbjLogFrom(entityIdFactory, BESU_LOG);
 
         assertEquals(expected, actual);
     }
@@ -204,7 +209,7 @@ class ConversionUtilsTest {
                 .topic(List.of(TOPIC))
                 .build();
 
-        final var actual = pbjLogsFrom(List.of(BESU_LOG));
+        final var actual = pbjLogsFrom(entityIdFactory, List.of(BESU_LOG));
 
         assertEquals(List.of(expected), actual);
     }
@@ -240,7 +245,7 @@ class ConversionUtilsTest {
     @Test
     void convertContractIdToBesuAddressTest() {
         final var actual = ConversionUtils.contractIDToBesuAddress(CALLED_CONTRACT_ID);
-        assertEquals(actual, asLongZeroAddress(CALLED_CONTRACT_ID.contractNum()));
+        assertEquals(actual, asLongZeroAddress(entityIdFactory, CALLED_CONTRACT_ID.contractNum()));
 
         final var actual2 = ConversionUtils.contractIDToBesuAddress(VALID_CONTRACT_ADDRESS);
         assertEquals(actual2, pbjToBesuAddress(VALID_CONTRACT_ADDRESS.evmAddress()));
@@ -250,11 +255,27 @@ class ConversionUtilsTest {
     void selfManagedCustomizedCreationTest() {
         final var op = ContractCreateTransactionBody.DEFAULT;
         final long newContractNum = 1005L;
-        final var actual = ConversionUtils.selfManagedCustomizedCreation(op, newContractNum);
+        final var actual = ConversionUtils.selfManagedCustomizedCreation(
+                op, ContractID.newBuilder().contractNum(newContractNum).build());
         assertTrue(actual.adminKey().hasContractID());
         assertEquals(
                 newContractNum,
                 actual.adminKey().contractIDOrElse(ContractID.DEFAULT).contractNum());
+    }
+
+    @Test
+    void evmAddressConversionTest() {
+        final long shard = 1L;
+        final long realm = 2L;
+        final long num = 3L;
+        final byte[] expected = new byte[20];
+        System.arraycopy(Ints.toByteArray((int) shard), 0, expected, 0, 4);
+        System.arraycopy(Longs.toByteArray(realm), 0, expected, 4, 8);
+        System.arraycopy(Longs.toByteArray(num), 0, expected, 12, 8);
+
+        final byte[] actual = asEvmAddress(shard, realm, num);
+
+        assertArrayEquals(expected, actual, "EVM address is not as expected");
     }
 
     private byte[] bloomFor(@NonNull final Log log) {

@@ -1,24 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.crypto;
 
 import static com.swirlds.common.crypto.SignatureType.ECDSA_SECP256K1;
+import static com.swirlds.common.utility.CommonUtils.unhex;
 
-import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
@@ -40,7 +25,8 @@ public final class EcdsaUtils {
     public static final int SIGNATURE_LENGTH = 64;
     public static final int BIG_ENDIAN_SIZE = 32;
     /* A digest value re-used in several tests. */
-    public static final String WELL_KNOWN_DIGEST = "744c77a7af70b3a522009f0a963384eccfa77662a594d6e0247dfba095eb48d5";
+    public static final byte[] WELL_KNOWN_DIGEST =
+            unhex("744c77a7af70b3a522009f0a963384eccfa77662a594d6e0247dfba095eb48d5");
 
     private EcdsaUtils() {}
 
@@ -68,7 +54,7 @@ public final class EcdsaUtils {
      * @return the raw signature of the well-known digest
      */
     public static byte[] signWellKnownDigestWithEcdsaSecp256k1(final PrivateKey privateKey) {
-        return signDigestWithEcdsaSecp256k1(privateKey, WELL_KNOWN_DIGEST.getBytes(StandardCharsets.UTF_8));
+        return signDigestWithEcdsaSecp256k1(privateKey, WELL_KNOWN_DIGEST);
     }
 
     /**

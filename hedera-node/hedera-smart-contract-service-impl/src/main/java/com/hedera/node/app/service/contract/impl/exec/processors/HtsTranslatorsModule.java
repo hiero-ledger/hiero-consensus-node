@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.processors;
 
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
@@ -25,7 +10,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.balanc
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.cancelairdrops.TokenCancelAirdropTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.claimairdrops.TokenClaimAirdropTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.customfees.TokenCustomFeesTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.decimals.DecimalsTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.defaultfreezestatus.DefaultFreezeStatusTranslator;
@@ -52,16 +36,12 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.symbol
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenexpiry.TokenExpiryTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.TokenInfoTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokentype.TokenTypeTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenuri.TokenUriTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.totalsupply.TotalSupplyTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc721TransferFromTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateKeysTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateNFTsMetadataTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updatetokencustomfees.UpdateTokenCustomFeesTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.wipe.WipeTranslator;
 import dagger.Module;
@@ -76,7 +56,7 @@ import javax.inject.Singleton;
 /**
  * Provides the {@link CallTranslator} implementations for the HTS system contract.
  */
-@Module
+@Module(includes = {Hts0x16cTranslatorsModule.class, Hts0x167TranslatorsModule.class})
 public interface HtsTranslatorsModule {
     @Provides
     @Singleton
@@ -144,14 +124,6 @@ public interface HtsTranslatorsModule {
     @IntoSet
     @Named("HtsTranslators")
     static CallTranslator<HtsCallAttempt> provideBurnTranslator(@NonNull final BurnTranslator translator) {
-        return translator;
-    }
-
-    @Provides
-    @Singleton
-    @IntoSet
-    @Named("HtsTranslators")
-    static CallTranslator<HtsCallAttempt> provideCreateTranslator(@NonNull final CreateTranslator translator) {
         return translator;
     }
 
@@ -309,14 +281,6 @@ public interface HtsTranslatorsModule {
     @Singleton
     @IntoSet
     @Named("HtsTranslators")
-    static CallTranslator<HtsCallAttempt> provideTokenTypeTranslator(@NonNull final TokenTypeTranslator translator) {
-        return translator;
-    }
-
-    @Provides
-    @Singleton
-    @IntoSet
-    @Named("HtsTranslators")
     static CallTranslator<HtsCallAttempt> provideDefaultFreezeStatusTranslator(
             @NonNull final DefaultFreezeStatusTranslator translator) {
         return translator;
@@ -369,14 +333,6 @@ public interface HtsTranslatorsModule {
     @Singleton
     @IntoSet
     @Named("HtsTranslators")
-    static CallTranslator<HtsCallAttempt> provideUpdateTranslator(@NonNull final UpdateTranslator translator) {
-        return translator;
-    }
-
-    @Provides
-    @Singleton
-    @IntoSet
-    @Named("HtsTranslators")
     static CallTranslator<HtsCallAttempt> provideTokenCustomFeesTranslator(
             @NonNull final TokenCustomFeesTranslator translator) {
         return translator;
@@ -421,25 +377,8 @@ public interface HtsTranslatorsModule {
     @Singleton
     @IntoSet
     @Named("HtsTranslators")
-    static CallTranslator<HtsCallAttempt> provideUpdateKeysTranslator(@NonNull final UpdateKeysTranslator translator) {
-        return translator;
-    }
-
-    @Provides
-    @Singleton
-    @IntoSet
-    @Named("HtsTranslators")
     static CallTranslator<HtsCallAttempt> provideUpdateTokenCustomFeesTranslator(
             @NonNull final UpdateTokenCustomFeesTranslator translator) {
-        return translator;
-    }
-
-    @Provides
-    @Singleton
-    @IntoSet
-    @Named("HtsTranslators")
-    static CallTranslator<HtsCallAttempt> provideUpdateNFTsMetadataTranslator(
-            @NonNull final UpdateNFTsMetadataTranslator translator) {
         return translator;
     }
 

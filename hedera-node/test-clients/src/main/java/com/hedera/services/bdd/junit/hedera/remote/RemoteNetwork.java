@@ -75,6 +75,8 @@ public class RemoteNetwork extends AbstractGrpcNetwork implements HederaNetwork 
                 nodeId,
                 "node" + nodeId,
                 AccountID.newBuilder()
+                        .shardNum(connectInfo.getAccount().getShardNum())
+                        .realmNum(connectInfo.getAccount().getRealmNum())
                         .accountNum(connectInfo.getAccount().getAccountNum())
                         .build(),
                 connectInfo.getHost(),

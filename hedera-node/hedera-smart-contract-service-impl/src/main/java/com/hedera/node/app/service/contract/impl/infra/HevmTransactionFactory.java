@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.infra;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_BYTECODE_EMPTY;
@@ -48,7 +33,6 @@ import static org.apache.tuweni.bytes.Bytes.EMPTY;
 
 import com.esaulpaugh.headlong.util.Integers;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -78,6 +62,7 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -103,6 +88,7 @@ public class HevmTransactionFactory {
     private final HydratedEthTxData hydratedEthTxData;
     private final EthTxSigsCache ethereumSignatures;
     private final HederaEvmContext hederaEvmContext;
+    private final EntityIdFactory entityIdFactory;
 
     @Inject
     public HevmTransactionFactory(
@@ -121,7 +107,8 @@ public class HevmTransactionFactory {
             @NonNull final AttributeValidator attributeValidator,
             @NonNull @InitialState final TokenServiceApi tokenServiceApi,
             @NonNull final EthTxSigsCache ethereumSignatures,
-            @NonNull final HederaEvmContext hederaEvmContext) {
+            @NonNull final HederaEvmContext hederaEvmContext,
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.featureFlags = featureFlags;
         this.hydratedEthTxData = hydratedEthTxData;
         this.gasCalculator = requireNonNull(gasCalculator);
@@ -138,6 +125,7 @@ public class HevmTransactionFactory {
         this.attributeValidator = requireNonNull(attributeValidator);
         this.ethereumSignatures = requireNonNull(ethereumSignatures);
         this.hederaEvmContext = requireNonNull(hederaEvmContext);
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     /**
@@ -214,11 +202,7 @@ public class HevmTransactionFactory {
         return new HederaEvmTransaction(
                 senderId,
                 relayerId,
-                asPriorityId(
-                        ContractID.newBuilder()
-                                .evmAddress(Bytes.wrap(ethTxData.to()))
-                                .build(),
-                        accountStore),
+                asPriorityId(entityIdFactory.newContractIdWithEvmAddress(Bytes.wrap(ethTxData.to())), accountStore),
                 ethTxData.nonce(),
                 ethTxData.hasCallData() ? Bytes.wrap(ethTxData.callData()) : Bytes.EMPTY,
                 Bytes.wrap(ethTxData.chainId()),

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
@@ -23,7 +8,6 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
@@ -33,11 +17,11 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * A test implementation of {@link PlatformMerkleStateRoot} state for SignedStateManager unit tests.
- * Node that some of the {@link PlatformMerkleStateRoot} methods are intentionally not implemented. If a test needs these methods,
+ * A test implementation of {@link MerkleStateRoot} state for SignedStateManager unit tests.
+ * Node that some of the {@link MerkleStateRoot} methods are intentionally not implemented. If a test needs these methods,
  * {@link MerkleStateRoot} should be used instead.
  */
-public class BlockingState extends PlatformMerkleStateRoot {
+public class BlockingState extends TestMerkleStateRoot {
 
     static {
         try {
@@ -57,12 +41,20 @@ public class BlockingState extends PlatformMerkleStateRoot {
     private static final long CLASS_ID = 0xa7d6e4b5feda7ce5L;
 
     private final BlockingStringLeaf value;
+    private TestPlatformStateFacade platformStateFacade;
 
     /**
      * Constructs a new instance of {@link BlockingState}.
      */
     public BlockingState() {
-        super(version -> new BasicSoftwareVersion(version.major()));
+        this(new TestPlatformStateFacade(v -> new BasicSoftwareVersion(v.major())));
+    }
+
+    /**
+     * Constructs a new instance of {@link BlockingState}.
+     */
+    public BlockingState(TestPlatformStateFacade platformStateFacade) {
+        this.platformStateFacade = platformStateFacade;
         value = new BlockingStringLeaf();
         setChild(1, value);
     }
@@ -95,7 +87,7 @@ public class BlockingState extends PlatformMerkleStateRoot {
         if (!(obj instanceof final BlockingState that)) {
             return false;
         }
-        return Objects.equals(this.getReadablePlatformState(), that.getReadablePlatformState());
+        return Objects.equals(platformStateFacade.platformStateOf(this), platformStateFacade.platformStateOf(that));
     }
 
     /**

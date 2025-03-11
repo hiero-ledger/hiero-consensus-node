@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -28,7 +13,6 @@ import com.swirlds.platform.event.creation.EventCreationManager;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
-import com.swirlds.platform.event.preconsensus.durability.RoundDurabilityBuffer;
 import com.swirlds.platform.event.stale.StaleEventDetector;
 import com.swirlds.platform.event.stale.StaleEventDetectorOutput;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
@@ -72,7 +56,6 @@ public class PlatformCoordinator {
             applicationTransactionPrehandlerWiring;
     private final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring;
     private final ComponentWiring<TransactionHandler, StateAndRound> transactionHandlerWiring;
-    private final ComponentWiring<RoundDurabilityBuffer, List<ConsensusRound>> roundDurabilityBufferWiring;
     private final ComponentWiring<StateHasher, StateAndRound> stateHasherWiring;
     private final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
             staleEventDetectorWiring;
@@ -96,7 +79,6 @@ public class PlatformCoordinator {
      * @param applicationTransactionPrehandlerWiring the application transaction prehandler wiring
      * @param stateSignatureCollectorWiring          the system transaction prehandler wiring
      * @param transactionHandlerWiring               the transaction handler wiring
-     * @param roundDurabilityBufferWiring            the round durability buffer wiring
      * @param stateHasherWiring                      the state hasher wiring
      * @param staleEventDetectorWiring               the stale event detector wiring
      * @param transactionPoolWiring                  the transaction pool wiring
@@ -122,7 +104,6 @@ public class PlatformCoordinator {
                     final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>>
                             stateSignatureCollectorWiring,
             @NonNull final ComponentWiring<TransactionHandler, StateAndRound> transactionHandlerWiring,
-            @Nullable final ComponentWiring<RoundDurabilityBuffer, List<ConsensusRound>> roundDurabilityBufferWiring,
             @NonNull final ComponentWiring<StateHasher, StateAndRound> stateHasherWiring,
             @NonNull
                     final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
@@ -144,7 +125,6 @@ public class PlatformCoordinator {
         this.applicationTransactionPrehandlerWiring = Objects.requireNonNull(applicationTransactionPrehandlerWiring);
         this.stateSignatureCollectorWiring = Objects.requireNonNull(stateSignatureCollectorWiring);
         this.transactionHandlerWiring = Objects.requireNonNull(transactionHandlerWiring);
-        this.roundDurabilityBufferWiring = roundDurabilityBufferWiring;
         this.stateHasherWiring = Objects.requireNonNull(stateHasherWiring);
         this.staleEventDetectorWiring = Objects.requireNonNull(staleEventDetectorWiring);
         this.transactionPoolWiring = Objects.requireNonNull(transactionPoolWiring);
@@ -213,9 +193,6 @@ public class PlatformCoordinator {
         flushIntakePipeline();
         stateHasherWiring.flush();
         stateSignatureCollectorWiring.flush();
-        if (roundDurabilityBufferWiring != null) {
-            roundDurabilityBufferWiring.flush();
-        }
         transactionHandlerWiring.flush();
         staleEventDetectorWiring.flush();
         branchDetectorWiring.flush();
@@ -237,11 +214,6 @@ public class PlatformCoordinator {
                 .getInputWire(StateSignatureCollector::clear)
                 .inject(NoInput.getInstance());
         eventCreationManagerWiring.getInputWire(EventCreationManager::clear).inject(NoInput.getInstance());
-        if (roundDurabilityBufferWiring != null) {
-            roundDurabilityBufferWiring
-                    .getInputWire(RoundDurabilityBuffer::clear)
-                    .inject(NoInput.getInstance());
-        }
         staleEventDetectorWiring.getInputWire(StaleEventDetector::clear).inject(NoInput.getInstance());
         transactionPoolWiring.getInputWire(TransactionPool::clear).inject(NoInput.getInstance());
         branchDetectorWiring.getInputWire(BranchDetector::clear).inject(NoInput.getInstance());

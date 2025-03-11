@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.fcqueue;
 
 import static com.swirlds.common.utility.ByteUtils.byteArrayToLong;
@@ -22,7 +7,7 @@ import static com.swirlds.fcqueue.internal.FCQHashAlgorithm.HASH_RADIX;
 
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.SerializableHashable;
@@ -55,6 +40,7 @@ import java.util.function.Supplier;
  * a write to that queue, but it is unaffected by writes to other queues in that queue group.
  */
 public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> extends FCQueue<E> {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private static final long CLASS_ID = 0x69c284363f531bccL;
 
@@ -460,10 +446,9 @@ public class SlowMockFCQueue<E extends FastCopyable & SerializableHashable> exte
         if (element == null) {
             return getNullHash();
         }
-        Cryptography crypto = CryptographyHolder.get();
         // return a hash of a hash, in order to make state proofs smaller in the future
-        crypto.digestSync(element);
-        return crypto.digestSync(element.getHash()).copyToByteArray();
+        CRYPTOGRAPHY.digestSync(element);
+        return CRYPTOGRAPHY.digestSync(element.getHash()).copyToByteArray();
     }
 
     protected static byte[] getNullHash() {

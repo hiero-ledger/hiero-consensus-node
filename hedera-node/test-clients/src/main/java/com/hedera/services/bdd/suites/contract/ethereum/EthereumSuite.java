@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.ethereum;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
@@ -709,14 +694,18 @@ public class EthereumSuite {
                     final var expectedSecondChildContractAddress = contractAddress(expectedParentContractAddress, 2);
                     final var expectedThirdChildContractAddress = contractAddress(expectedParentContractAddress, 3);
 
-                    final var parentContractId =
-                            CommonUtils.hex(asEvmAddress(createdIds.get(0).getContractNum()));
-                    final var firstChildContractId =
-                            CommonUtils.hex(asEvmAddress(createdIds.get(1).getContractNum()));
-                    final var secondChildContractId =
-                            CommonUtils.hex(asEvmAddress(createdIds.get(2).getContractNum()));
-                    final var thirdChildContractId =
-                            CommonUtils.hex(asEvmAddress(createdIds.get(3).getContractNum()));
+                    final var parentId = createdIds.get(0);
+                    final var parentContractId = CommonUtils.hex(
+                            asEvmAddress(parentId.getShardNum(), parentId.getRealmNum(), parentId.getContractNum()));
+                    final var firstChildId = createdIds.get(1);
+                    final var firstChildContractId = CommonUtils.hex(asEvmAddress(
+                            firstChildId.getShardNum(), firstChildId.getRealmNum(), firstChildId.getContractNum()));
+                    final var secondChildId = createdIds.get(2);
+                    final var secondChildContractId = CommonUtils.hex(asEvmAddress(
+                            secondChildId.getShardNum(), secondChildId.getRealmNum(), secondChildId.getContractNum()));
+                    final var thirdChildId = createdIds.get(3);
+                    final var thirdChildContractId = CommonUtils.hex(asEvmAddress(
+                            thirdChildId.getShardNum(), thirdChildId.getRealmNum(), thirdChildId.getContractNum()));
 
                     final var parentContractInfo = getContractInfo(parentContractId)
                             .has(contractWith().addressOrAlias(expectedParentContractAddress.toUnprefixedHexString()));

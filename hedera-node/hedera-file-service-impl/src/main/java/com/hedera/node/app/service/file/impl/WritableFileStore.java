@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl;
 
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
@@ -81,17 +66,6 @@ public class WritableFileStore extends ReadableFileStoreImpl {
      */
     public @NonNull Optional<File> get(final FileID fileId) {
         final var file = filesState.get(fileId);
-        return Optional.ofNullable(file);
-    }
-
-    /**
-     * Returns the {@link File} with the given number using {@link WritableKVState}. If no such file
-     * exists, returns {@code Optional.empty()}
-     *
-     * @param fileId - the id of the file to be retrieved.
-     */
-    public @NonNull Optional<File> getForModify(final FileID fileId) {
-        final var file = filesState.getForModify(fileId);
         return Optional.ofNullable(file);
     }
 

@@ -1,0 +1,57 @@
+/**
+ * # Primitives
+ * Primitive value wrapper messages.
+ *
+ * These SHALL be used only for situations where the entire value to be stored
+ * in state is a single primitive. These MUST NOT ever be used as components of
+ * another message; use the protobuf type instead.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in [RFC2119](https://www.ietf.org/rfc/rfc2119)
+ * and clarified in [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.primitives">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A single 64-bit number with no particular meaning.
+ */
+message ProtoLong {
+    int64 value = 1;
+}
+
+/**
+ * A single 32-bit number with no particular meaning.
+ */
+message ProtoInteger {
+    int32 value = 1;
+}
+
+/**
+ * A single boolean with no particular meaning.
+ */
+message ProtoBoolean {
+    bool value = 1;
+}
+
+/**
+ * A single string with no particular meaning.
+ */
+message ProtoString {
+    string value = 1;
+}
+
+/**
+ * A single byte array with no particular meaning.
+ */
+message ProtoBytes {
+    bytes value = 1;
+}
