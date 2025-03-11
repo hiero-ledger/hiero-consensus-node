@@ -19,7 +19,7 @@ public class ConsensusRoundsListContainer implements ConsensusRoundsHolder {
     }
 
     @Override
-    public void clear(@NonNull final Object ignored) {
+    public void clear() {
         collectedRounds.clear();
     }
 

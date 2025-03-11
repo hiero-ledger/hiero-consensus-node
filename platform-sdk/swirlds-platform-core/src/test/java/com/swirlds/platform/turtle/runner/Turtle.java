@@ -129,31 +129,8 @@ public class Turtle {
         }
     }
 
-    public void validate() {
-        try {
-            final Validations validations = Validations.newInstance().consensusRoundValidations();
-
-            final TurtleNode node1 = nodes.getFirst();
-            final List<ConsensusRound> consensusRoundsForNode1 =
-                    node1.getConsensusRoundsHolder().getCollectedRounds();
-
-            for (int i = 1; i < nodes.size(); i++) {
-                final TurtleNode otherNode = nodes.get(i);
-                final List<ConsensusRound> consensusRoundsForNode2 =
-                        otherNode.getConsensusRoundsHolder().getCollectedRounds();
-
-                for (final ConsensusRoundValidation validator :
-                        validations.getConsensusValidator().getRoundValidations()) {
-                    validator.validate(consensusRoundsForNode1, consensusRoundsForNode2);
-                }
-            }
-        } catch (final AssertionFailedError | IndexOutOfBoundsException e) {
-            log.error("Validation failed: {}", e.getMessage());
-        }
-    }
-
     /**
-     * Simulate the network for a period of time.
+     * Simulate the network for a period of time. Validate the correctness of collected items at a regular interval.
      *
      * @param duration the duration to simulate
      */
@@ -173,6 +150,39 @@ public class Turtle {
                 validate();
                 nextValidationTime = time.now().plus(validationInterval);
             }
+        }
+    }
+
+    /**
+     * Validate all collected items during Turtle execution using the suitable validator types.
+     * Each different type of collected item has its own container and set of validation rules.
+     *
+     * At the end of the validation, all collected items are cleared to keep memory usage low.
+     */
+    public void validate() {
+        try {
+            final Validations validations = Validations.newInstance().consensusRoundValidations();
+
+            final TurtleNode node1 = nodes.getFirst();
+            final List<ConsensusRound> consensusRoundsForNode1 =
+                    node1.getConsensusRoundsHolder().getCollectedRounds();
+
+            for (int i = 1; i < nodes.size(); i++) {
+                final TurtleNode otherNode = nodes.get(i);
+                final List<ConsensusRound> consensusRoundsForOtherNode =
+                        otherNode.getConsensusRoundsHolder().getCollectedRounds();
+
+                for (final ConsensusRoundValidation validator :
+                        validations.getConsensusValidator().getRoundValidations()) {
+                    validator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
+                }
+
+                otherNode.getConsensusRoundsHolder().clear();
+            }
+
+            node1.getConsensusRoundsHolder().clear();
+        } catch (final AssertionFailedError | IndexOutOfBoundsException e) {
+            log.error("Validation failed: {}", e.getMessage());
         }
     }
 

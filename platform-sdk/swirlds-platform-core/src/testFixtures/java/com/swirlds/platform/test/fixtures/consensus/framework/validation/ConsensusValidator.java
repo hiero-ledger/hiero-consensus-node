@@ -20,11 +20,10 @@ import java.util.Map;
  *
  * Each custom validation should be defined with an enum value and be added in the suitable map structure holding
  * entries of common validations.
- *
  */
 public class ConsensusValidator {
 
-    /***;
+    /**
      * Enum defining different validation checks for consensus related data - output, rounds, events.
      * The validation can be configured to use specific types of validations.
      */
