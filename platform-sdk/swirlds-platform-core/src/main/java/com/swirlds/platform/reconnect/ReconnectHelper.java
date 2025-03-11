@@ -1,35 +1,22 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.utility.Clearable;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectLoadFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
+import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -53,7 +40,7 @@ public class ReconnectHelper {
     /** clears all data that is no longer needed since we fell behind */
     private final Clearable clearAll;
     /** supplier of the initial signed state against which to perform a delta based reconnect */
-    private final Supplier<PlatformMerkleStateRoot> workingStateSupplier;
+    private final Supplier<MerkleNodeState> workingStateSupplier;
     /** provides the latest signed state round for which we have a supermajority of signatures */
     private final LongSupplier lastCompleteRoundSupplier;
     /** throttles reconnect learner attempts */
@@ -68,16 +55,20 @@ public class ReconnectHelper {
     /** provides access to the platform state */
     private final PlatformStateFacade platformStateFacade;
 
+    /** Merkle cryptography */
+    private final MerkleCryptography merkleCryptography;
+
     public ReconnectHelper(
             @NonNull final Runnable pauseGossip,
             @NonNull final Clearable clearAll,
-            @NonNull final Supplier<PlatformMerkleStateRoot> workingStateSupplier,
+            @NonNull final Supplier<MerkleNodeState> workingStateSupplier,
             @NonNull final LongSupplier lastCompleteRoundSupplier,
             @NonNull final ReconnectLearnerThrottle reconnectLearnerThrottle,
             @NonNull final Consumer<SignedState> loadSignedState,
             @NonNull final ReconnectLearnerFactory reconnectLearnerFactory,
             @NonNull final StateConfig stateConfig,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final MerkleCryptography merkleCryptography) {
         this.pauseGossip = pauseGossip;
         this.clearAll = clearAll;
         this.workingStateSupplier = workingStateSupplier;
@@ -87,6 +78,7 @@ public class ReconnectHelper {
         this.reconnectLearnerFactory = reconnectLearnerFactory;
         this.stateConfig = stateConfig;
         this.platformStateFacade = platformStateFacade;
+        this.merkleCryptography = merkleCryptography;
     }
 
     /**
@@ -100,7 +92,7 @@ public class ReconnectHelper {
         clearAll.clear();
         logger.info(RECONNECT.getMarker(), "Queues have been cleared");
         // Hash the state if it has not yet been hashed
-        ReconnectUtils.hashStateForReconnect(workingStateSupplier.get());
+        ReconnectUtils.hashStateForReconnect(merkleCryptography, workingStateSupplier.get());
     }
 
     /**
@@ -140,6 +132,7 @@ public class ReconnectHelper {
         final ReservedSignedState reservedState = reconnect.execute(validator);
 
         final long lastRoundReceived = reservedState.get().getRound();
+        SignedStateFileReader.registerServiceStates(reservedState.get());
 
         logger.info(RECONNECT.getMarker(), () -> new ReconnectFinishPayload(
                         "Finished reconnect in the role of the receiver.",

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
@@ -165,12 +150,12 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         if (account == null) {
             // Also return ids for pending creations
             if (pendingCreation != null && pendingCreation.address().equals(address)) {
-                return ContractID.newBuilder()
-                        .contractNum(pendingCreation.number())
-                        .build();
+                return entityIdFactory().newContractId(pendingCreation.number());
             } else {
                 if (!contractMustBePresent) {
-                    return isLongZero(address) ? asNumberedContractId(address) : asEvmContractId(address);
+                    return isLongZero(entityIdFactory(), address)
+                            ? asNumberedContractId(entityIdFactory(), address)
+                            : asEvmContractId(entityIdFactory(), address);
                 }
                 throw new IllegalArgumentException("No contract pending or extant at " + address);
             }
@@ -350,11 +335,16 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             enhancement
                     .operations()
                     .createContract(
-                            number, requireNonNull(pendingCreation.body()), pendingCreation.aliasIfApplicable());
+                            number,
+                            requireNonNull(pendingCreation.body()),
+                            pendingCreation.aliasIfApplicable(entityIdFactory()));
         } else {
             enhancement
                     .operations()
-                    .createContract(number, pendingCreation.parentNumber(), pendingCreation.aliasIfApplicable());
+                    .createContract(
+                            number,
+                            pendingCreation.parentNumber(),
+                            pendingCreation.aliasIfApplicable(entityIdFactory()));
         }
         return evmFrameState.getMutableAccount(pendingCreation.address());
     }
@@ -364,7 +354,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      */
     @Override
     public void deleteAccount(@NonNull final Address address) {
-        if (isLongZero(address)) {
+        if (isLongZero(entityIdFactory(), address)) {
             enhancement.operations().deleteUnaliasedContract(numberOfLongZero(address));
         } else {
             enhancement.operations().deleteAliasedContract(aliasFrom(address));
@@ -501,7 +491,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             @Nullable final Address alias) {
         final var number = enhancement.operations().peekNextEntityNumber();
         pendingCreation = new PendingCreation(
-                alias == null ? asLongZeroAddress(number) : alias,
+                alias == null ? asLongZeroAddress(entityIdFactory(), number) : alias,
                 number,
                 origin != null ? evmFrameState.getIdNumber(origin) : MISSING_ENTITY_NUMBER,
                 body);

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.util;
 
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
@@ -94,18 +79,19 @@ import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fixtures.ids.EntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
@@ -135,8 +121,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
-    protected static final int SHARD = 1;
-    protected static final long REALM = 2;
     protected static final Instant originalInstant = Instant.ofEpochSecond(12345678910L);
     protected static final long stakePeriodStart =
             LocalDate.ofInstant(originalInstant, ZONE_UTC).toEpochDay() - 1;
@@ -158,28 +142,28 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
     protected final Key EMPTY_KEYLIST =
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
     protected final Key metadataKey = A_COMPLEX_KEY;
+    /* ---------- Ids ---------- */
+    protected static final Configuration configuration = HederaTestConfigBuilder.createConfig();
+    protected static final long SHARD =
+            configuration.getConfigData(HederaConfig.class).shard();
+    protected static final long REALM =
+            configuration.getConfigData(HederaConfig.class).realm();
+    protected static EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
     /* ---------- Node IDs */
     protected final EntityNumber node0Id = EntityNumber.newBuilder().number(0L).build();
     protected final EntityNumber node1Id = EntityNumber.newBuilder().number(1L).build();
 
     /* ---------- Account IDs */
-    protected final AccountID payerId = AccountID.newBuilder().accountNum(3).build();
-    protected final AccountID deleteAccountId =
-            AccountID.newBuilder().accountNum(3213).build();
-    protected final AccountID transferAccountId =
-            AccountID.newBuilder().accountNum(32134).build();
-    protected final AccountID delegatingSpenderId =
-            AccountID.newBuilder().accountNum(1234567).build();
-    protected final AccountID ownerId =
-            AccountID.newBuilder().accountNum(123456).build();
-    protected final AccountID treasuryId =
-            AccountID.newBuilder().accountNum(1000000).build();
-    protected final AccountID autoRenewId = AccountID.newBuilder().accountNum(4).build();
-    protected final AccountID spenderId =
-            AccountID.newBuilder().accountNum(12345).build();
+    protected final AccountID payerId = idFactory.newAccountId(3);
+    protected final AccountID deleteAccountId = idFactory.newAccountId(3213);
+    protected final AccountID transferAccountId = idFactory.newAccountId(32134);
+    protected final AccountID delegatingSpenderId = idFactory.newAccountId(1234567);
+    protected final AccountID ownerId = idFactory.newAccountId(123456);
+    protected final AccountID treasuryId = idFactory.newAccountId(1000000);
+    protected final AccountID autoRenewId = idFactory.newAccountId(4);
+    protected final AccountID spenderId = idFactory.newAccountId(12345);
     protected final AccountID feeCollectorId = transferAccountId;
-    protected final AccountID stakingRewardId =
-            AccountID.newBuilder().accountNum(800).build();
+    protected final AccountID stakingRewardId = idFactory.newAccountId(800);
     protected final AccountID zeroAccountId =
             AccountID.newBuilder().accountNum(0).build();
 
@@ -408,9 +392,6 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
     protected Account hbarReceiverAccount;
     protected Account zeroAccount;
 
-    /* ---------- Ids ---------- */
-    protected EntityIdFactory idFactory = new EntityIdFactoryImpl(SHARD, REALM);
-
     /* ---------- Maps for updating both readable and writable stores ---------- */
     private Map<AccountID, Account> accountsMap;
     private Map<ProtoBytes, AccountID> aliasesMap;
@@ -431,7 +412,6 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
     protected ReadableEntityIdStore readableEntityCounters;
     protected WritableEntityIdStore writableEntityCounters;
 
-    protected Configuration configuration;
     protected VersionedConfigImpl versionedConfig;
     /**
      * Sets up the test environment.
@@ -442,7 +422,6 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
     }
 
     protected void handlerTestBaseInternalSetUp(final boolean prepopulateReceiverIds) {
-        configuration = HederaTestConfigBuilder.create().getOrCreateConfig();
         versionedConfig = new VersionedConfigImpl(configuration, 1);
         givenValidAccounts();
         givenValidTokens();
@@ -479,7 +458,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
 
         aliasesMap = new HashMap<>();
         aliasesMap.put(new ProtoBytes(alias.alias()), payerId);
-        aliasesMap.put(new ProtoBytes(contractAlias.evmAddress()), asAccount(contract.contractNum()));
+        aliasesMap.put(new ProtoBytes(contractAlias.evmAddress()), asAccount(0L, 0L, contract.contractNum()));
 
         tokenRelsMap = new HashMap<>();
         tokenRelsMap.put(fungiblePair, fungibleTokenRelation);
@@ -1193,7 +1172,6 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
     }
 
     protected void givenStoresAndConfig(final HandleContext context) {
-        configuration = HederaTestConfigBuilder.createConfig();
         given(context.configuration()).willReturn(configuration);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
@@ -1237,7 +1215,6 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
     }
 
     protected void givenStoresAndConfig(final FinalizeContext context) {
-        configuration = HederaTestConfigBuilder.createConfig();
         given(context.configuration()).willReturn(configuration);
         given(context.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
         given(context.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);

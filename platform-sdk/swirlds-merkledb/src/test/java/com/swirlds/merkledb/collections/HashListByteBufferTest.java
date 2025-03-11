@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
@@ -54,8 +39,8 @@ class HashListByteBufferTest {
         return new HashListByteBuffer(numHashesPerBuffer, maxHashes, offHeap);
     }
 
-    public HashList createHashList(final Path file) throws IOException {
-        return new HashListByteBuffer(file);
+    public HashList createHashList(final Path file, final long expectedMaxHashes) throws IOException {
+        return new HashListByteBuffer(file, expectedMaxHashes);
     }
 
     /**
@@ -255,7 +240,7 @@ class HashListByteBufferTest {
         assertTrue(Files.exists(file), "file should exist");
         assertTrue(Files.size(file) > (48 * 95), "file should contain some data");
         // now try and construct a new HashList reading from the file
-        HashList hashList2 = createHashList(file);
+        HashList hashList2 = createHashList(file, hashList.maxHashes());
         // now check data and other attributes
         assertEquals(hashList.capacity(), hashList2.capacity(), "Unexpected value for hashList2.capacity()");
         assertEquals(hashList.maxHashes(), hashList2.maxHashes(), "Unexpected value for hashList2.maxHashes()");

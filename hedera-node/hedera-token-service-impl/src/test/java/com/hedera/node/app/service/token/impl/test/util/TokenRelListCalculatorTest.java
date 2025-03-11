@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.util;
 
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
@@ -120,7 +105,7 @@ class TokenRelListCalculatorTest {
     @Test
     void removeTokenRels_tokenRelsFromDifferentAccountPresent() {
         final var tokenRelFromDifferentAccount = TokenRelation.newBuilder()
-                .accountId(asAccount(2301L))
+                .accountId(asAccount(0L, 0L, 2301L))
                 .tokenId(TOKEN_ID_1)
                 .build();
         final var tokenRelsToRemove = List.of(LOCAL_TOKEN_REL_1, LOCAL_TOKEN_REL_2, tokenRelFromDifferentAccount);

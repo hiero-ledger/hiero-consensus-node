@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test;
 
 import static com.swirlds.common.merkle.copy.MerklePathReplacement.replacePath;
@@ -35,10 +20,10 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleNode;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -103,7 +88,7 @@ class MerklePathReplacementTests {
      * Hash the tree, but make sure the path down to and including the root of the path to replace has a null hash.
      */
     private void hashTreeForReplacement(final MerkleNode treeRoot, final MerkleNode pathRoot) {
-        MerkleCryptoFactory.getInstance().digestTreeSync(treeRoot);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(treeRoot);
 
         final MerkleRoute pathRootRoute = pathRoot.getRoute();
         final Iterator<MerkleNode> iterator = new MerkleRouteIterator(treeRoot, pathRootRoute);
@@ -404,7 +389,7 @@ class MerklePathReplacementTests {
 
         // This tree has been fully hashed
         final MerkleNode root = buildLessSimpleTreeExtended();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         final MerkleNode root2 = buildLessSimpleTreeExtended();
 

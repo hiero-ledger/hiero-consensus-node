@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.transfer;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -99,10 +84,7 @@ public final class AccountAmountUtils {
      * @param amount the amount
      * @return the {@link AccountAmount} object
      */
-    public static AccountAmount aaAlias(final Bytes alias, final long amount) {
-        return AccountAmount.newBuilder()
-                .amount(amount)
-                .accountID(AccountID.newBuilder().alias(alias).build())
-                .build();
+    public static AccountAmount aaAlias(final AccountID alias, final long amount) {
+        return AccountAmount.newBuilder().amount(amount).accountID(alias).build();
     }
 }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.protocol;
 
 import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_UNDEFINED;
@@ -30,7 +15,13 @@ import com.swirlds.platform.gossip.modular.GossipController;
 import com.swirlds.platform.gossip.modular.SyncGossipSharedProtocolState;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.reconnect.*;
+import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
+import com.swirlds.platform.reconnect.ReconnectController;
+import com.swirlds.platform.reconnect.ReconnectHelper;
+import com.swirlds.platform.reconnect.ReconnectLearnerFactory;
+import com.swirlds.platform.reconnect.ReconnectLearnerThrottle;
+import com.swirlds.platform.reconnect.ReconnectPeerProtocol;
+import com.swirlds.platform.reconnect.ReconnectThrottle;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -82,7 +73,6 @@ public class ReconnectProtocol implements Protocol {
             @NonNull final SignedStateValidator validator,
             @NonNull final FallenBehindManager fallenBehindManager,
             final Supplier<PlatformStatus> platformStatusSupplier,
-            @NonNull final Configuration configuration,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
@@ -96,7 +86,7 @@ public class ReconnectProtocol implements Protocol {
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
         this.platformStateFacade = platformStateFacade;
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
-        this.configuration = Objects.requireNonNull(configuration);
+        this.configuration = Objects.requireNonNull(platformContext.getConfiguration());
         this.time = Objects.requireNonNull(platformContext.getTime());
     }
 
@@ -168,7 +158,8 @@ public class ReconnectProtocol implements Protocol {
                         reconnectMetrics,
                         platformStateFacade),
                 stateConfig,
-                platformStateFacade);
+                platformStateFacade,
+                platformContext.getMerkleCryptography());
         final ReconnectController reconnectController =
                 new ReconnectController(reconnectConfig, threadManager, reconnectHelper, gossipController::resume);
 
@@ -185,7 +176,6 @@ public class ReconnectProtocol implements Protocol {
                 new DefaultSignedStateValidator(platformContext, platformStateFacade),
                 sharedState.syncManager(),
                 sharedState.currentPlatformStatus()::get,
-                platformContext.getConfiguration(),
                 platformStateFacade);
     }
 
@@ -207,7 +197,6 @@ public class ReconnectProtocol implements Protocol {
                 validator,
                 fallenBehindManager,
                 platformStatusSupplier,
-                configuration,
                 time,
                 platformStateFacade);
     }

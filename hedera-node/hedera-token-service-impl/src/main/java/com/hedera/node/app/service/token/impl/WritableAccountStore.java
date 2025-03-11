@@ -1,23 +1,11 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
 import static com.hedera.hapi.node.base.AccountID.AccountOneOfType.ACCOUNT_NUM;
+import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAlias;
+import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.isAlias;
+import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -137,6 +125,14 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
         // We really shouldn't ever see an empty alias. But, if we do, we don't want to do any additional work.
         // FUTURE: It might be worth adding a log statement here if we see an empty alias, but maybe not.
         if (alias.length() > 0) {
+            if (!isOfEvmAddressSize(alias)) {
+                final var key = asKeyFromAlias(alias);
+                final var evmAddress = extractEvmAddress(key);
+                if (evmAddress != null) {
+                    aliases().remove(new ProtoBytes(evmAddress));
+                    entityCounters.decrementEntityTypeCounter(EntityType.ALIAS);
+                }
+            }
             aliases().remove(new ProtoBytes(alias));
             entityCounters.decrementEntityTypeCounter(EntityType.ALIAS);
         }
@@ -196,6 +192,8 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
                         || !oldAccount.smartContract()
                         || oldAccount.ethereumNonce() != newAccount.ethereumNonce()) {
                     final var contractId = ContractID.newBuilder()
+                            .shardNum(accountId.shardNum())
+                            .realmNum(accountId.realmNum())
                             .contractNum(accountId.accountNumOrThrow())
                             .build();
                     // exclude nonce info if contract was destructed

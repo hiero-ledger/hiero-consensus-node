@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -36,6 +21,7 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
@@ -71,6 +57,9 @@ class ContextQueryProcessorTest {
     @Mock
     private Map<HederaEvmVersion, TransactionProcessor> processors;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     @Test
     void callsComponentInfraAsExpectedForValidQuery() {
         final var processors = processorsForAllCurrentEvmVersions(processor);
@@ -90,7 +79,8 @@ class ContextQueryProcessorTest {
         given(processor.processTransaction(
                         HEVM_CREATION, proxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
                 .willReturn(SUCCESS_RESULT);
-        final var protoResult = SUCCESS_RESULT.asQueryResult();
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        final var protoResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
         final var expectedResult = new CallOutcome(
                 protoResult, SUCCESS, HEVM_CREATION.contractId(), SUCCESS_RESULT.gasPrice(), null, null);
         assertEquals(expectedResult, subject.call());

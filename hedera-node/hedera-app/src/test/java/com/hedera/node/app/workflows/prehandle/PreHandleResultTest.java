@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
@@ -35,6 +20,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.TransactionScenarioBuilder;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
@@ -131,7 +117,7 @@ final class PreHandleResultTest implements Scenarios {
                             Set.of(),
                             Set.of(),
                             DEFAULT_VERIFICATION_RESULTS,
-                            innerResult,
+                            List.of(innerResult),
                             DEFAULT_CONFIG_VERSION))
                     .isInstanceOf(NullPointerException.class);
         }
@@ -154,7 +140,7 @@ final class PreHandleResultTest implements Scenarios {
                             Set.of(),
                             Set.of(),
                             DEFAULT_VERIFICATION_RESULTS,
-                            innerResult,
+                            List.of(innerResult),
                             DEFAULT_CONFIG_VERSION))
                     .isInstanceOf(NullPointerException.class);
         }
@@ -166,7 +152,7 @@ final class PreHandleResultTest implements Scenarios {
 
             assertThat(result.status()).isEqualTo(UNKNOWN_FAILURE);
             assertThat(result.responseCode()).isEqualTo(UNKNOWN);
-            assertThat(result.innerResult()).isNull();
+            assertThat(result.innerResults()).isNull();
             assertThat(result.payer()).isNull();
             assertThat(result.txInfo()).isNull();
             assertThat(result.requiredKeys()).isNull();
@@ -185,7 +171,7 @@ final class PreHandleResultTest implements Scenarios {
 
             assertThat(result.status()).isEqualTo(NODE_DUE_DILIGENCE_FAILURE);
             assertThat(result.responseCode()).isEqualTo(status);
-            assertThat(result.innerResult()).isNull();
+            assertThat(result.innerResults()).isNull();
             assertThat(result.payer()).isEqualTo(nodeAccountId);
             assertThat(result.txInfo()).isSameAs(txInfo);
             assertThat(result.requiredKeys()).isNull();
@@ -202,7 +188,7 @@ final class PreHandleResultTest implements Scenarios {
 
             assertThat(result.status()).isEqualTo(PRE_HANDLE_FAILURE);
             assertThat(result.responseCode()).isEqualTo(responseCode);
-            assertThat(result.innerResult()).isNull();
+            assertThat(result.innerResults()).isNull();
             assertThat(result.payer()).isEqualTo(payer);
             assertThat(result.txInfo()).isSameAs(txInfo);
             assertThat(result.requiredKeys()).isNull();

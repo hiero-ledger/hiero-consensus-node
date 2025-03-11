@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 /**
  * The Swirlds public API module used by platform applications.
  */
@@ -78,13 +63,15 @@ module com.swirlds.platform.core {
             com.swirlds.platform.test,
             com.swirlds.platform.core.test.fixtures,
             com.fasterxml.jackson.core,
-            com.fasterxml.jackson.databind;
+            com.fasterxml.jackson.databind,
+            com.swirlds.platform.test.gui;
     exports com.swirlds.platform.swirldapp to
             com.swirlds.platform.test;
     exports com.swirlds.platform.consensus to
             com.swirlds.platform.test,
             com.swirlds.platform.core.test.fixtures,
-            com.hedera.node.app;
+            com.hedera.node.app,
+            com.swirlds.platform.test.gui;
     exports com.swirlds.platform.crypto to
             com.swirlds.platform.test,
             com.hedera.node.test.clients,
@@ -110,6 +97,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.gossip.sync.config to
             com.swirlds.config.impl,
             com.swirlds.common,
+            com.swirlds.platform.core.test.fixtures,
             com.hedera.node.test.clients;
 
     opens com.swirlds.platform.cli to
@@ -152,7 +140,6 @@ module com.swirlds.platform.core {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
-    requires transitive com.swirlds.state.impl;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.event.creator;
     requires transitive com.fasterxml.jackson.annotation;
@@ -161,6 +148,7 @@ module com.swirlds.platform.core {
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
+    requires com.swirlds.merkle;
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
     requires org.hiero.event.creator.impl;

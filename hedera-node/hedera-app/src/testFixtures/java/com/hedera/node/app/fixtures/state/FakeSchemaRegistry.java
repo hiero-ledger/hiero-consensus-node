@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fixtures.state;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
@@ -25,8 +10,10 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.state.merkle.SchemaApplications;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -140,7 +127,8 @@ public class FakeSchemaRegistry implements SchemaRegistry {
                     networkInfo,
                     nextEntityNum,
                     sharedValues,
-                    startupNetworks);
+                    startupNetworks,
+                    new AppEntityIdFactory(appConfig));
             if (applications.contains(MIGRATION)) {
                 schema.migrate(context);
             }
@@ -199,7 +187,8 @@ public class FakeSchemaRegistry implements SchemaRegistry {
             @NonNull final NetworkInfo networkInfo,
             @NonNull final AtomicLong nextEntityNum,
             @NonNull final Map<String, Object> sharedValues,
-            @NonNull final StartupNetworks startupNetworks) {
+            @NonNull final StartupNetworks startupNetworks,
+            @NonNull final EntityIdFactory entityIdFactory) {
         return new MigrationContext() {
             @Override
             public void copyAndReleaseOnDiskState(String stateKey) {
@@ -249,6 +238,12 @@ public class FakeSchemaRegistry implements SchemaRegistry {
             @Override
             public NetworkInfo genesisNetworkInfo() {
                 return networkInfo;
+            }
+
+            @NonNull
+            @Override
+            public EntityIdFactory entityIdFactory() {
+                return entityIdFactory;
             }
 
             @Override

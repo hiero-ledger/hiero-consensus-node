@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -34,6 +19,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_ACCO
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXPIRATION_REDUCTION_NOT_ALLOWED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
@@ -99,6 +85,62 @@ public class TopicUpdateSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> updatingAutoRenewAccountWithoutAdminFails() {
+        return hapiTest(
+                cryptoCreate("autoRenewAccount"),
+                cryptoCreate("payer"),
+                createTopic("testTopic").autoRenewAccountId("autoRenewAccount").payingWith("payer"),
+                updateTopic("testTopic").autoRenewAccountId("payer").hasKnownStatus(UNAUTHORIZED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updatingAutoRenewAccountWithAdminWorks() {
+        return hapiTest(
+                cryptoCreate("autoRenewAccount"),
+                cryptoCreate("newAutoRenewAccount"),
+                cryptoCreate("payer"),
+                newKeyNamed("adminKey"),
+                createTopic("testTopic")
+                        .adminKeyName("adminKey")
+                        .autoRenewAccountId("autoRenewAccount")
+                        .payingWith("payer"),
+                updateTopic("testTopic")
+                        .payingWith("payer")
+                        .autoRenewAccountId("newAutoRenewAccount")
+                        .signedBy("payer", "adminKey", "newAutoRenewAccount"));
+    }
+
+    // TOPIC_RENEW_7
+    @HapiTest
+    final Stream<DynamicTest> updateTopicWithAdminKeyWithoutAutoRenewAccountWithNewAdminKey() {
+        return hapiTest(
+                cryptoCreate("payer"),
+                newKeyNamed("adminKey"),
+                newKeyNamed("newAdminKey"),
+                createTopic("testTopic").adminKeyName("adminKey").payingWith("payer"),
+                updateTopic("testTopic")
+                        .payingWith("payer")
+                        .adminKey("newAdminKey")
+                        .signedBy("payer", "adminKey", "newAdminKey"),
+                getTopicInfo("testTopic").logged().hasAdminKey("newAdminKey"));
+    }
+
+    // TOPIC_RENEW_8
+    @HapiTest
+    final Stream<DynamicTest> updateTopicWithoutAutoRenewAccountWithNewAutoRenewAccountAdded() {
+        return hapiTest(
+                cryptoCreate("autoRenewAccount"),
+                cryptoCreate("payer"),
+                newKeyNamed("adminKey"),
+                createTopic("testTopic").adminKeyName("adminKey").payingWith("payer"),
+                updateTopic("testTopic")
+                        .payingWith("payer")
+                        .autoRenewAccountId("autoRenewAccount")
+                        .signedBy("payer", "adminKey", "autoRenewAccount"),
+                getTopicInfo("testTopic").logged().hasAdminKey("adminKey").hasAutoRenewAccount("autoRenewAccount"));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> topicUpdateSigReqsEnforcedAtConsensus() {
         long PAYER_BALANCE = 199_999_999_999L;
         Function<String[], HapiTopicUpdate> updateTopicSignedBy = (signers) -> updateTopic("testTopic")
@@ -131,6 +173,23 @@ public class TopicUpdateSuite {
                         .logged()
                         .hasAdminKey("newAdminKey")
                         .hasAutoRenewAccount("newAutoRenewAccount"));
+    }
+
+    // TOPIC_RENEW_10
+    @HapiTest
+    final Stream<DynamicTest> updateTopicWithoutAutoRenewAccountWithNewAutoRenewAccountAddedAndNewAdminKey() {
+        return hapiTest(
+                cryptoCreate("autoRenewAccount"),
+                cryptoCreate("payer"),
+                newKeyNamed("adminKey"),
+                newKeyNamed("newAdminKey"),
+                createTopic("testTopic").adminKeyName("adminKey").payingWith("payer"),
+                updateTopic("testTopic")
+                        .payingWith("payer")
+                        .adminKey("newAdminKey")
+                        .autoRenewAccountId("autoRenewAccount")
+                        .signedBy("payer", "adminKey", "newAdminKey", "autoRenewAccount"),
+                getTopicInfo("testTopic").logged().hasAdminKey("newAdminKey").hasAutoRenewAccount("autoRenewAccount"));
     }
 
     @HapiTest
@@ -240,6 +299,22 @@ public class TopicUpdateSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> updateExpiryOnTopicWithAutoRenewAccountNoAdminKey() {
+        return hapiTest(
+                cryptoCreate("autoRenewAccount"),
+                createTopic("testTopic").autoRenewAccountId("autoRenewAccount"),
+                doSeveralWithStartupConfigNow("entities.maxLifetime", (value, now) -> {
+                    final var maxLifetime = Long.parseLong(value);
+                    final var newExpiry = now.getEpochSecond() + maxLifetime - 12_345L;
+                    final var excessiveExpiry = now.getEpochSecond() + maxLifetime + 12_345L;
+                    return specOps(
+                            updateTopic("testTopic").expiry(excessiveExpiry).hasKnownStatus(INVALID_EXPIRATION_TIME),
+                            updateTopic("testTopic").expiry(newExpiry),
+                            getTopicInfo("testTopic").hasExpiry(newExpiry));
+                }));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> clearingAdminKeyWhenAutoRenewAccountPresent() {
         return hapiTest(
                 newKeyNamed("adminKey"),
@@ -256,5 +331,39 @@ public class TopicUpdateSuite {
                 newKeyNamed("submitKey"),
                 createTopic("testTopic"),
                 updateTopic("testTopic").submitKey("submitKey").hasKnownStatus(UNAUTHORIZED));
+    }
+
+    // TOPIC_RENEW_18
+    @HapiTest
+    final Stream<DynamicTest> updateTopicWithoutAutoRenewAccountWithNewInvalidAutoRenewAccountAdded() {
+        return hapiTest(
+                cryptoCreate("payer"),
+                newKeyNamed("adminKey"),
+                createTopic("testTopic").adminKeyName("adminKey").payingWith("payer"),
+                updateTopic("testTopic")
+                        .payingWith("payer")
+                        .adminKey("adminKey")
+                        .autoRenewAccountId("1.2.3")
+                        .signedBy("payer", "adminKey")
+                        .hasKnownStatus(INVALID_AUTORENEW_ACCOUNT));
+    }
+
+    // TOPIC_RENEW_19
+    @HapiTest
+    final Stream<DynamicTest> updateImmutableTopicWithAutoRenewAccountWithNewExpirationTime() {
+        return hapiTest(
+                cryptoCreate("payer"),
+                cryptoCreate("autoRenewAccount"),
+                createTopic("testTopic")
+                        .payingWith("payer")
+                        .autoRenewAccountId("autoRenewAccount")
+                        .signedBy("payer", "autoRenewAccount"),
+                doSeveralWithStartupConfigNow("entities.maxLifetime", (value, now) -> {
+                    final var maxLifetime = Long.parseLong(value);
+                    final var newExpiry = now.getEpochSecond() + maxLifetime - 12_345L;
+                    return specOps(
+                            updateTopic("testTopic").expiry(newExpiry),
+                            getTopicInfo("testTopic").hasExpiry(newExpiry));
+                }));
     }
 }

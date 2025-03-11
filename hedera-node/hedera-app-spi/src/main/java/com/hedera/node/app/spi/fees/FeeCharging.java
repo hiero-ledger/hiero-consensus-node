@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
 import static java.util.Objects.requireNonNull;
@@ -26,6 +11,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.ObjLongConsumer;
 
 /**
  * A strategy for validating and charging fees for a transaction.
@@ -82,19 +68,27 @@ public interface FeeCharging {
         /**
          * Charges the given amount to the given account, not disbursing any portion of the
          * collected fees to a node account.
+         *
          * @param payerId the account to be charged
          * @param fees the fees to be charged
+         * @param cb if not null, a callback to accept fee disbursements
          */
-        void charge(@NonNull AccountID payerId, @NonNull Fees fees);
+        void charge(@NonNull AccountID payerId, @NonNull Fees fees, @Nullable ObjLongConsumer<AccountID> cb);
 
         /**
          * Charges the given amount to the given account, disbursing the currently configured
          * fraction of collected fees to the given node account.
+         *
          * @param payerId the account to be charged
          * @param fees the fees to be charged
          * @param nodeAccountId the account to which a portion of the fees will be disbursed
+         * @param cb if not null, a callback to accept fee disbursements
          */
-        void charge(@NonNull AccountID payerId, @NonNull Fees fees, @NonNull AccountID nodeAccountId);
+        void charge(
+                @NonNull AccountID payerId,
+                @NonNull Fees fees,
+                @NonNull AccountID nodeAccountId,
+                @Nullable ObjLongConsumer<AccountID> cb);
 
         /**
          * The category of the transaction in the charging scenario.

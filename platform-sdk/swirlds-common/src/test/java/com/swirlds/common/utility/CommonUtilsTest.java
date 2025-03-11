@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.utility;
 
 import static com.swirlds.common.utility.CommonUtils.byteCountToDisplaySize;
@@ -41,7 +26,7 @@ class CommonUtilsTest {
 
     @Test
     void hexTest() {
-        assertTrue(hex(null).contains("null"), "the output of a null input should indicate its null");
+        assertTrue(hex((byte[]) null).contains("null"), "the output of a null input should indicate its null");
         assertEquals("", hex(new byte[0]), "for an empty array we should get an empty string");
 
         assertEquals(HEX_STRING, hex(HEX_BYTES), "hex value should match");

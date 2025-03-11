@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.MIGRATION;
@@ -27,6 +12,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.services.MigrationStateChanges;
@@ -38,18 +24,17 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.merkle.MerkleStateRoot;
-import com.swirlds.state.merkle.StateMetadata;
-import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.merkle.MerkleStateRoot.MerkleWritableStates;
 import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
 import com.swirlds.state.merkle.disk.OnDiskValueSerializer;
 import com.swirlds.state.merkle.queue.QueueNode;
@@ -77,9 +62,9 @@ import org.apache.logging.log4j.Logger;
  * then registers each and every {@link Schema} that it has. Each {@link Schema} is associated with
  * a {@link SemanticVersion}.
  *
- * <p>The Hedera application then calls {@code com.hedera.node.app.Hedera#onMigrate(MerkleStateRoot, InitTrigger, Metrics)} on each {@link MerkleSchemaRegistry} instance, supplying it the
+ * <p>The Hedera application then calls {@code com.hedera.node.app.Hedera#onMigrate(MerkleNodeState, InitTrigger, Metrics)} on each {@link MerkleSchemaRegistry} instance, supplying it the
  * application version number and the newly created (or deserialized) but not yet hashed copy of the {@link
- * MerkleStateRoot}. The registry determines which {@link Schema}s to apply, possibly taking multiple migration steps,
+ * MerkleNodeState}. The registry determines which {@link Schema}s to apply, possibly taking multiple migration steps,
  * to transition the merkle tree from its current version to the final version.
  */
 public class MerkleSchemaRegistry implements SchemaRegistry {
@@ -123,7 +108,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final Configuration bootstrapConfig,
             @NonNull final SchemaApplications schemaApplications) {
         this.constructableRegistry = requireNonNull(constructableRegistry);
-        this.serviceName = StateUtils.validateStateKey(requireNonNull(serviceName));
+        this.serviceName = StateMetadata.validateStateKey(requireNonNull(serviceName));
         this.bootstrapConfig = requireNonNull(bootstrapConfig);
         this.schemaApplications = requireNonNull(schemaApplications);
     }
@@ -170,7 +155,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
      * to perform any necessary logic on restart. Most services have nothing to do, but some may need
      * to read files from disk, and could potentially change their state as a result.
      *
-     * @param state the state for this registry to use.
+     * @param stateRoot the state for this registry to use.
      * @param previousVersion The version of state loaded from disk. Possibly null.
      * @param currentVersion The current version. Never null. Must be newer than {@code
      * previousVersion}.
@@ -182,12 +167,12 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
      * @param startupNetworks The startup networks to use for the migrations
      * @param platformStateFacade The platform state facade to use for the migrations
      * @throws IllegalArgumentException if the {@code currentVersion} is not at least the
-     * {@code previousVersion} or if the {@code state} is not an instance of {@link MerkleStateRoot}
+     * {@code previousVersion} or if the {@code state} is not an instance of {@link MerkleNodeState}
      */
     // too many parameters, commented out code
     @SuppressWarnings({"java:S107", "java:S125"})
     public void migrate(
-            @NonNull final State state,
+            @NonNull final MerkleNodeState stateRoot,
             @Nullable final SemanticVersion previousVersion,
             @NonNull final SemanticVersion currentVersion,
             @NonNull final Configuration appConfig,
@@ -199,7 +184,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final MigrationStateChanges migrationStateChanges,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final PlatformStateFacade platformStateFacade) {
-        requireNonNull(state);
+        requireNonNull(stateRoot);
         requireNonNull(currentVersion);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
@@ -208,9 +193,6 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
         requireNonNull(migrationStateChanges);
         if (isSoOrdered(currentVersion, previousVersion)) {
             throw new IllegalArgumentException("The currentVersion must be at least the previousVersion");
-        }
-        if (!(state instanceof MerkleStateRoot stateRoot)) {
-            throw new IllegalArgumentException("The state must be an instance of " + MerkleStateRoot.class.getName());
         }
         final long roundNumber = platformStateFacade.roundOf(stateRoot);
         if (schemas.isEmpty()) {
@@ -270,7 +252,8 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                     previousVersion,
                     roundNumber,
                     sharedValues,
-                    startupNetworks);
+                    startupNetworks,
+                    new AppEntityIdFactory(appConfig));
             if (applications.contains(MIGRATION)) {
                 schema.migrate(migrationContext);
             }
@@ -278,7 +261,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                 schema.restart(migrationContext);
             }
             // Now commit all the service-specific changes made during this service's update or migration
-            if (writableStates instanceof MerkleStateRoot.MerkleWritableStates mws) {
+            if (writableStates instanceof MerkleWritableStates mws) {
                 mws.commit();
                 migrationStateChanges.trackCommit();
             }
@@ -293,7 +276,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final Configuration nodeConfiguration,
             @NonNull final Configuration platformConfiguration,
             @NonNull final Metrics metrics,
-            @NonNull final MerkleStateRoot<?> stateRoot) {
+            @NonNull final MerkleNodeState stateRoot) {
         // Create the new states (based on the schema) which, thanks to the above, does not
         // expand the set of states that the migration code will see
         schema.statesToCreate(nodeConfiguration).stream()
@@ -330,7 +313,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                     } else if (!def.onDisk()) {
                         stateRoot.putServiceStateIfAbsent(md, () -> {
                             final var map = new MerkleMap<>();
-                            map.setLabel(StateUtils.computeLabel(serviceName, stateKey));
+                            map.setLabel(StateMetadata.computeLabel(serviceName, stateKey));
                             return map;
                         });
                     } else {
@@ -352,9 +335,11 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                                     final var tableConfig = new MerkleDbTableConfig(
                                             (short) 1,
                                             DigestType.SHA_384,
+                                            // Future work: drop StateDefinition.maxKeysHint and load VM size
+                                            // from VirtualMapConfig.size instead
                                             def.maxKeysHint(),
                                             merkleDbConfig.hashesRamToDiskThreshold());
-                                    final var label = StateUtils.computeLabel(serviceName, stateKey);
+                                    final var label = StateMetadata.computeLabel(serviceName, stateKey);
                                     final var dsBuilder =
                                             new MerkleDbDataSourceBuilder(tableConfig, platformConfiguration);
                                     final var virtualMap = new VirtualMap<>(

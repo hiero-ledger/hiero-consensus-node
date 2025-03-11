@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.extensions;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
@@ -40,12 +25,15 @@ import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
+import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode;
 import com.hedera.services.bdd.junit.restart.RestartHapiTest;
 import com.hedera.services.bdd.junit.restart.SavedStateSpec;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.TargetNetworkType;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -131,6 +119,14 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
 
     @Override
     public void afterEach(@NonNull final ExtensionContext extensionContext) {
+        Optional.ofNullable(HapiSpec.TARGET_NETWORK.get()).ifPresent(network -> {
+            if (network.type() == TargetNetworkType.SUBPROCESS_NETWORK) {
+                // Revert the change(s) made to cause the ISS (if any). Note that this call will only make changes if
+                // the node's `isIssScenario` property is true
+                network.nodesFor(NodeSelector.allNodes()).forEach(SubProcessNode::revertIssScenario);
+            }
+        });
+
         HapiSpec.TARGET_NETWORK.remove();
         HapiSpec.FEES_OVERRIDE.remove();
         HapiSpec.THROTTLES_OVERRIDE.remove();

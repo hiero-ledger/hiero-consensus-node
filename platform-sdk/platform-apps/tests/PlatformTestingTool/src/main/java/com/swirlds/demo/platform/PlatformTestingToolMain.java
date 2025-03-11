@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform;
 /*
  * This file is public domain.
@@ -37,7 +22,7 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHand
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.serialize;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_6_2;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_9_6;
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static java.lang.System.exit;
 
 import com.fasterxml.jackson.core.JsonParser;
@@ -67,7 +52,6 @@ import com.swirlds.demo.platform.fs.stresstest.proto.ControlType;
 import com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction;
 import com.swirlds.demo.platform.fs.stresstest.proto.TestTransactionWrapper;
 import com.swirlds.demo.platform.nft.NftQueryController;
-import com.swirlds.demo.platform.stream.AccountBalanceExport;
 import com.swirlds.demo.virtualmerkle.config.VirtualMerkleConfig;
 import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapKey;
 import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapValue;
@@ -91,7 +75,8 @@ import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -99,7 +84,7 @@ import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
 import com.swirlds.platform.system.status.PlatformStatus;
-import com.swirlds.platform.test.fixtures.state.FakeStateLifecycles;
+import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
@@ -165,7 +150,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                             .getConstructor(PlatformTestingToolState.CLASS_ID)
                             .get()
                             .getClassId());
-            FakeStateLifecycles.registerMerkleStateRootClassIds();
+            FakeConsensusStateEventHandler.registerMerkleStateRootClassIds();
         } catch (final ConstructableRegistryException e) {
             logger.error(STARTUP.getMarker(), "Failed to register PlatformTestingToolState", e);
             throw new RuntimeException(e);
@@ -319,12 +304,13 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
     private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
 
-    final PlatformTestingToolStateLifecycles stateLifecycles;
+    final PlatformTestingToolConsensusStateEventHandler consensusStateEventHandler;
 
     public PlatformTestingToolMain() {
         // the config needs to be loaded before the init() method
         config = PlatformConfig.getDefault();
-        stateLifecycles = new PlatformTestingToolStateLifecycles();
+        consensusStateEventHandler = new PlatformTestingToolConsensusStateEventHandler(
+                new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major())));
     }
 
     /**
@@ -448,7 +434,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         FCQueueStatistics.register(metrics);
 
         // Register PTT statistics
-        PlatformTestingToolStateLifecycles.initStatistics(platform);
+        PlatformTestingToolConsensusStateEventHandler.initStatistics(platform);
 
         final int SAMPLING_PERIOD = 5000; /* millisecond */
         final Timer statTimer = new Timer("stat timer" + selfId, true);
@@ -581,7 +567,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                 UnsafeMutablePTTStateAccessor.getInstance().getUnsafeMutableState(platform.getSelfId())) {
             final PlatformTestingToolState state = wrapper.get();
 
-            stateLifecycles.initControlStructures(this::handleMessageQuorum);
+            consensusStateEventHandler.initControlStructures(this::handleMessageQuorum);
 
             // FUTURE WORK implement mirrorNode
             final String myName =
@@ -643,7 +629,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
                     submitConfig = currentConfig.getSubmitConfig();
 
-                    submitter = new TransactionSubmitter(submitConfig, stateLifecycles.getControlQuorum());
+                    submitter = new TransactionSubmitter(submitConfig, consensusStateEventHandler.getControlQuorum());
 
                     if (currentConfig.getFcmConfig() != null) {
                         state.initChildren();
@@ -710,15 +696,13 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
         initAppStat();
 
-        registerAccountBalanceExportListener();
-
         if (waitForSaveStateDuringFreeze) {
             registerFinishAfterSaveStateDuringFreezeListener();
         }
 
         platform.getNotificationEngine().register(NewSignedStateListener.class, notification -> {
             if (timeToCheckBalances(notification.getConsensusTimestamp())) {
-                checkBalances(notification.getStateRoot());
+                checkBalances(notification.getState());
             }
         });
     }
@@ -761,7 +745,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         final SuperConfig clientConfig = objectMapper.readValue(new File(jsonFileName), SuperConfig.class);
         final String selfName = RosterUtils.formatNodeName(selfId.id());
         for (int k = 0; k < CLIENT_AMOUNT; k++) {
-            appClient[k] = new AppClient(this.platform, this.selfId, clientConfig, selfName, stateLifecycles);
+            appClient[k] =
+                    new AppClient(this.platform, this.selfId, clientConfig, selfName, consensusStateEventHandler);
             appClient[k].start();
         }
     }
@@ -874,10 +859,9 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
      */
     @Override
     @NonNull
-    public PlatformTestingToolState newMerkleStateRoot() {
-        final PlatformTestingToolState state =
-                new PlatformTestingToolState(version -> new BasicSoftwareVersion(softwareVersion.getSoftwareVersion()));
-        FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
+    public PlatformTestingToolState newStateRoot() {
+        final PlatformTestingToolState state = new PlatformTestingToolState();
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
         return state;
     }
 
@@ -886,8 +870,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
      */
     @Override
     @NonNull
-    public StateLifecycles<PlatformTestingToolState> newStateLifecycles() {
-        return stateLifecycles;
+    public ConsensusStateEventHandler<PlatformTestingToolState> newConsensusStateEvenHandler() {
+        return consensusStateEventHandler;
     }
 
     private void platformStatusChange(final PlatformStatusChangeNotification notification) {
@@ -1004,7 +988,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
             try (final AutoCloseableWrapper<PlatformTestingToolState> wrapper =
                     UnsafeMutablePTTStateAccessor.getInstance().getUnsafeMutableState(platform.getSelfId())) {
                 final PlatformTestingToolState state = wrapper.get();
-                stateLifecycles.initControlStructures(this::handleMessageQuorum);
+                consensusStateEventHandler.initControlStructures(this::handleMessageQuorum);
                 SyntheticBottleneckConfig.getActiveConfig()
                         .registerReconnect(platform.getSelfId().id());
             }
@@ -1064,26 +1048,6 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
             return Pair.of(maxAccountIdFromLoadedState.get(), maxSmartContractIdFromLoadedState.get());
         }
-    }
-
-    /**
-     * Register a {@link StateWriteToDiskCompleteListener} that writes an
-     * account balance export to the saved state folder.
-     */
-    private void registerAccountBalanceExportListener() {
-        platform.getNotificationEngine().register(StateWriteToDiskCompleteListener.class, notification -> {
-            if (!(notification.getState() instanceof PlatformTestingToolState)) {
-                return;
-            }
-
-            final PlatformTestingToolState state = (PlatformTestingToolState) notification.getState();
-
-            final AccountBalanceExport export = new AccountBalanceExport(0L);
-            final String balanceFile = export.exportAccountsBalanceCSVFormat(
-                    state, notification.getConsensusTimestamp(), notification.getFolder());
-
-            export.signAccountBalanceFile(platform, balanceFile);
-        });
     }
 
     /**

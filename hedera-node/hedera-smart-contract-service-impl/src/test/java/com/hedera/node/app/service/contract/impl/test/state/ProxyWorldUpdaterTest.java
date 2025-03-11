@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.state;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.FAILURE_DURING_LAZY_ACCOUNT_CREATION;
@@ -24,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OUTPUT_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PERMITTED_ADDRESS_CALLER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RELAYER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.aliasFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
@@ -78,8 +64,8 @@ class ProxyWorldUpdaterTest {
     private static final long NUMBER = 123L;
     static final long NEXT_NUMBER = 124L;
     private static final long NUMBER_OF_DELETED = 125L;
-    private static final Address LONG_ZERO_ADDRESS = asLongZeroAddress(NUMBER);
-    private static final Address NEXT_LONG_ZERO_ADDRESS = asLongZeroAddress(NEXT_NUMBER);
+    private static final Address LONG_ZERO_ADDRESS = asLongZeroAddress(entityIdFactory, NUMBER);
+    private static final Address NEXT_LONG_ZERO_ADDRESS = asLongZeroAddress(entityIdFactory, NEXT_NUMBER);
     static final Address SOME_EVM_ADDRESS = Address.fromHexString("0x1234123412341234123412341234123412341234");
     private static final Address OTHER_EVM_ADDRESS =
             Address.fromHexString("0x1239123912391239123912391239123912391239");
@@ -181,8 +167,8 @@ class ProxyWorldUpdaterTest {
     @Test
     void getsHederaAccountByAlias() {
         final var aliasId = AccountID.newBuilder()
-                .alias(tuweniToPbjBytes(
-                        asLongZeroAddress(ADDRESS_6.toBigInteger().longValueExact())))
+                .alias(tuweniToPbjBytes(asLongZeroAddress(
+                        entityIdFactory, ADDRESS_6.toBigInteger().longValueExact())))
                 .build();
         given(evmFrameState.getAccount(ADDRESS_6)).willReturn(proxyEvmContract);
         assertSame(proxyEvmContract, subject.getHederaAccount(aliasId));
@@ -191,8 +177,8 @@ class ProxyWorldUpdaterTest {
     @Test
     void getsHederaContractByAlias() {
         final var aliasId = ContractID.newBuilder()
-                .evmAddress(tuweniToPbjBytes(
-                        asLongZeroAddress(ADDRESS_6.toBigInteger().longValueExact())))
+                .evmAddress(tuweniToPbjBytes(asLongZeroAddress(
+                        entityIdFactory, ADDRESS_6.toBigInteger().longValueExact())))
                 .build();
         given(hederaOperations.shardAndRealmValidated(aliasId)).willReturn(aliasId);
         given(evmFrameState.getAccount(ADDRESS_6)).willReturn(proxyEvmContract);
@@ -252,6 +238,7 @@ class ProxyWorldUpdaterTest {
         given(hederaOperations.peekNextEntityNumber()).willReturn(NEXT_NUMBER);
         given(hederaOperations.contractCreationLimit()).willReturn(1234L);
         given(hederaOperations.accountCreationLimit()).willReturn(4321L);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.setupInternalCreate(ADDRESS_6);
 
@@ -261,6 +248,7 @@ class ProxyWorldUpdaterTest {
     @Test
     void cannotCreateUnlessLimitIsHighEnough() {
         given(hederaOperations.peekNextEntityNumber()).willReturn(NEXT_NUMBER);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.setupInternalCreate(ALTBN128_ADD);
 
@@ -278,6 +266,7 @@ class ProxyWorldUpdaterTest {
         given(hederaOperations.peekNextEntityNumber()).willReturn(NEXT_NUMBER).willReturn(NEXT_NUMBER + 1);
         given(hederaOperations.contractCreationLimit()).willReturn(1234L);
         given(hederaOperations.accountCreationLimit()).willReturn(1234L);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.setupInternalCreate(ADDRESS_6);
 
@@ -312,6 +301,7 @@ class ProxyWorldUpdaterTest {
                 .willReturn(ADDRESS_6.toBigInteger().longValueExact());
         given(hederaOperations.contractCreationLimit()).willReturn(1234L);
         given(hederaOperations.accountCreationLimit()).willReturn(1234L);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.setupInternalAliasedCreate(ADDRESS_6, SOME_EVM_ADDRESS);
         subject.createAccount(SOME_EVM_ADDRESS, 1, Wei.ZERO);
@@ -326,6 +316,7 @@ class ProxyWorldUpdaterTest {
         given(evmFrameState.getMutableAccount(SOME_EVM_ADDRESS)).willReturn(mutableAccount);
         given(hederaOperations.contractCreationLimit()).willReturn(1234L);
         given(hederaOperations.accountCreationLimit()).willReturn(1234L);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.setupAliasedTopLevelCreate(ContractCreateTransactionBody.DEFAULT, SOME_EVM_ADDRESS);
         subject.createAccount(SOME_EVM_ADDRESS, 1, Wei.ZERO);
@@ -349,6 +340,7 @@ class ProxyWorldUpdaterTest {
         given(hederaOperations.peekNextEntityNumber()).willReturn(NEXT_NUMBER);
         given(hederaOperations.contractCreationLimit()).willReturn(1234L);
         given(hederaOperations.accountCreationLimit()).willReturn(1234L);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         assertEquals(NEXT_LONG_ZERO_ADDRESS, subject.setupTopLevelCreate(ContractCreateTransactionBody.DEFAULT));
         subject.createAccount(NEXT_LONG_ZERO_ADDRESS, 1, Wei.ZERO);
@@ -359,6 +351,7 @@ class ProxyWorldUpdaterTest {
     @Test
     void canResolvePendingCreationHederaId() {
         given(hederaOperations.peekNextEntityNumber()).willReturn(NEXT_NUMBER);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.setupInternalAliasedCreate(ADDRESS_6, SOME_EVM_ADDRESS);
 
@@ -385,6 +378,7 @@ class ProxyWorldUpdaterTest {
 
     @Test
     void dispatchesDeletingLongZeroAddressByNumber() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject.deleteAccount(ADDRESS_6);
 
         verify(hederaOperations)
@@ -393,6 +387,7 @@ class ProxyWorldUpdaterTest {
 
     @Test
     void dispatchesDeletingEvmAddressByAddress() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject.deleteAccount(SOME_EVM_ADDRESS);
 
         verify(hederaOperations).deleteAliasedContract(aliasFrom(SOME_EVM_ADDRESS));
@@ -477,10 +472,11 @@ class ProxyWorldUpdaterTest {
     @Test
     void onlyReturnsNonDeletedAccountsAsTouched() {
         given(hederaOperations.getModifiedAccountNumbers()).willReturn(List.of(NUMBER, NEXT_NUMBER, NUMBER_OF_DELETED));
-        given(evmFrameState.getAddress(NUMBER)).willReturn(asLongZeroAddress(NUMBER));
+        given(evmFrameState.getAddress(NUMBER)).willReturn(asLongZeroAddress(entityIdFactory, NUMBER));
         given(evmFrameState.getAddress(NEXT_NUMBER)).willReturn(SOME_EVM_ADDRESS);
         given(evmFrameState.getAddress(NUMBER_OF_DELETED)).willReturn(null);
-        given(evmFrameState.getAccount(asLongZeroAddress(NUMBER))).willReturn(anImmutableAccount);
+        given(evmFrameState.getAccount(asLongZeroAddress(entityIdFactory, NUMBER)))
+                .willReturn(anImmutableAccount);
         given(evmFrameState.getAccount(SOME_EVM_ADDRESS)).willReturn(anotherImmutableAccount);
 
         final var touched = subject.getTouchedAccounts();

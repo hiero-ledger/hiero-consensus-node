@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
@@ -35,8 +20,8 @@ import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.route.MerkleRoute;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeVirtualValue;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeVirtualValueSerializer;
@@ -104,7 +89,7 @@ class VirtualMapSerializationTests {
                 LegacyTemporaryFileBuilder.buildTemporaryFile("merkledb-source", configuration);
         MerkleDb.setDefaultPath(defaultVirtualMapPath);
         final MerkleDbTableConfig tableConfig =
-                new MerkleDbTableConfig((short) 1, DigestType.SHA_384, 1234, Long.MAX_VALUE);
+                new MerkleDbTableConfig((short) 1, DigestType.SHA_384, 10_000, Long.MAX_VALUE);
         return new MerkleDbDataSourceBuilder(tableConfig, configuration);
     }
 
@@ -117,8 +102,8 @@ class VirtualMapSerializationTests {
 
         assertEquals(originalMap.size(), deserializedMap.size(), "size should match");
 
-        MerkleCryptoFactory.getInstance().digestTreeSync(originalMap);
-        MerkleCryptoFactory.getInstance().digestTreeSync(deserializedMap);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(originalMap);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(deserializedMap);
 
         final Map<MerkleRoute, Hash> hashes = new HashMap<>();
 
@@ -265,7 +250,7 @@ class VirtualMapSerializationTests {
         final MerkleDataOutputStream out = new MerkleDataOutputStream(byteOut);
 
         // Make sure the map is hashed
-        MerkleCryptoFactory.getInstance().digestTreeSync(map);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(map);
 
         out.writeMerkleTree(savedStateDirectory, map);
         out.flush();

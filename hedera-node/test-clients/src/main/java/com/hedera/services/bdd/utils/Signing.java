@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.utils;
 
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType.LEGACY_ETHEREUM;
@@ -33,7 +18,15 @@ import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
  */
 public final class Signing {
 
+    public static EthTxData signMessage(EthTxData ethTx, byte[] privateKey, boolean flipRecId) {
+        return signMessageInternal(ethTx, privateKey, flipRecId);
+    }
+
     public static EthTxData signMessage(EthTxData ethTx, byte[] privateKey) {
+        return signMessageInternal(ethTx, privateKey, false);
+    }
+
+    private static EthTxData signMessageInternal(EthTxData ethTx, byte[] privateKey, boolean flipRecId) {
         byte[] signableMessage = EthTxSigs.calculateSignableMessage(ethTx);
         final LibSecp256k1.secp256k1_ecdsa_recoverable_signature signature =
                 new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
@@ -79,7 +72,7 @@ public final class Signing {
                 ethTx.value(),
                 ethTx.callData(),
                 ethTx.accessList(),
-                (byte) recId.getValue(),
+                flipRecId ? ((byte) recId.getValue()) ^ 1 : (byte) recId.getValue(),
                 val == null ? null : val.toByteArray(),
                 r,
                 s);

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -337,8 +322,9 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
 
         // If there is an alias, then we need to make sure no other account or contract account is using that alias.
         if (hasAlias) {
+            final var config = context.configuration().getConfigData(HederaConfig.class);
             // find account by alias and check if it was deleted
-            var accountId = accountStore.getAccountIDByAlias(alias);
+            var accountId = accountStore.getAccountIDByAlias(config.shard(), config.realm(), alias);
             var account = accountId != null ? accountStore.getAccountById(accountId) : null;
             var isDeleted = account == null || account.deleted();
             validateTrue(accountId == null || isDeleted, ALIAS_ALREADY_ASSIGNED);

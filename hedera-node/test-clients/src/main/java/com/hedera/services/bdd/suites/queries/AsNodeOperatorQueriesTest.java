@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.queries;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.lessThan;
@@ -79,6 +65,7 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -115,7 +102,8 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase implement
 
     @HapiTest
     final Stream<DynamicTest> nodeOperatorQueryVerifyPayerBalanceForAccountBalance() {
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
                 cryptoCreate(NODE_OPERATOR).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 // perform getAccountBalance() query, pay for the query with payer account
@@ -132,21 +120,23 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase implement
 
     @HapiTest
     final Stream<DynamicTest> nodeOperatorQueryVerifyPayerBalanceForAccountInfo() {
-        return hapiTest(flattened(
-                nodeOperatorAccount(),
-                payerAccount(),
-                balanceSnapshot("payerInitialBalance", PAYER),
-                // perform getAccountInfo() query, pay for the query with payer account
-                // the grpc client performs the query to different ports
-                getAccountInfo(NODE_OPERATOR).payingWith(PAYER),
-                sleepFor(3_000),
-                // assert payer is charged
-                getAccountBalance(PAYER).hasTinyBars(changeFromSnapshot("payerInitialBalance", -QUERY_COST)),
-                // perform free query to local port with asNodeOperator() method
-                getAccountInfo(NODE_OPERATOR).payingWith(PAYER).asNodeOperator(),
-                sleepFor(3_000),
-                // assert payer is not charged as the query is performed as node operator
-                getAccountBalance(PAYER).hasTinyBars(changeFromSnapshot("payerInitialBalance", -QUERY_COST))));
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
+                flattened(
+                        nodeOperatorAccount(),
+                        payerAccount(),
+                        balanceSnapshot("payerInitialBalance", PAYER),
+                        // perform getAccountInfo() query, pay for the query with payer account
+                        // the grpc client performs the query to different ports
+                        getAccountInfo(NODE_OPERATOR).payingWith(PAYER),
+                        sleepFor(3_000),
+                        // assert payer is charged
+                        getAccountBalance(PAYER).hasTinyBars(changeFromSnapshot("payerInitialBalance", -QUERY_COST)),
+                        // perform free query to local port with asNodeOperator() method
+                        getAccountInfo(NODE_OPERATOR).payingWith(PAYER).asNodeOperator(),
+                        sleepFor(3_000),
+                        // assert payer is not charged as the query is performed as node operator
+                        getAccountBalance(PAYER).hasTinyBars(changeFromSnapshot("payerInitialBalance", -QUERY_COST))));
     }
 
     /**

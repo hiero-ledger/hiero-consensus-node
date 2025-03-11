@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip991;
 
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -68,7 +53,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_VALID_MAX_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -1787,9 +1771,9 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                         final var record = getTxnRecord("submit")
                                 .andAllChildRecords()
                                 .hasAssessedCustomFeesSize(1)
+                                .hasNonStakingChildRecordCount(0)
                                 .logged();
                         allRunFor(spec, record);
-                        assertEquals(0, record.getChildRecords().size());
                     }),
                     // assert topic fee collector balance
                     getAccountBalance("collector").hasTinyBars(10)));
@@ -1817,9 +1801,9 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                         final var record = getTxnRecord("submit")
                                 .andAllChildRecords()
                                 .hasAssessedCustomFeesSize(2)
+                                .hasNonStakingChildRecordCount(0)
                                 .logged();
                         allRunFor(spec, record);
-                        assertEquals(0, record.getChildRecords().size());
                     }),
                     // assert topic fee collector balance
                     getAccountBalance("collector").hasTinyBars(10).hasTokenBalance("token", 1)));
@@ -1847,11 +1831,9 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                         final var submitTxnRecord = getTxnRecord("submit")
                                 .andAllChildRecords()
                                 .hasAssessedCustomFeesSize(3)
+                                .hasNonStakingChildRecordCount(0)
                                 .logged();
                         allRunFor(spec, submitTxnRecord);
-                        final var transactionRecordSize =
-                                submitTxnRecord.getChildRecords().size();
-                        assertEquals(0, transactionRecordSize);
                     }),
                     // assert topic fee collector balance
                     getAccountBalance(collector).hasTokenBalance(tokenName, 1),

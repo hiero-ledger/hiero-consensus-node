@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
 import static com.swirlds.common.io.utility.FileUtils.deleteDirectory;
@@ -43,13 +28,13 @@ import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteFactory;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Counter;
@@ -592,7 +577,7 @@ class VirtualMapTests extends VirtualTestBase {
 
         final VirtualMap<TestKey, TestValue> completed = fcm;
         fcm = fcm.copy();
-        MerkleCryptoFactory.getInstance().digestTreeSync(completed);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(completed);
 
         final Iterator<MerkleNode> breadthItr = completed.treeIterator().setOrder(BREADTH_FIRST);
         while (breadthItr.hasNext()) {
@@ -614,7 +599,7 @@ class VirtualMapTests extends VirtualTestBase {
         final VirtualMap<TestKey, TestValue> completed = fcm;
         fcm = fcm.copy();
 
-        final Hash firstHash = MerkleCryptoFactory.getInstance().digestTreeSync(completed);
+        final Hash firstHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(completed);
         final Iterator<MerkleNode> breadthItr = completed.treeIterator().setOrder(BREADTH_FIRST);
         while (breadthItr.hasNext()) {
             assertNotNull(breadthItr.next().getHash(), "Expected a value");
@@ -629,7 +614,7 @@ class VirtualMapTests extends VirtualTestBase {
 
         final VirtualMap second = fcm;
         fcm = copyAndRelease(fcm);
-        final Hash secondHash = MerkleCryptoFactory.getInstance().digestTreeSync(second);
+        final Hash secondHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(second);
         assertNotSame(firstHash, secondHash, "Wrong value");
 
         fcm.release();

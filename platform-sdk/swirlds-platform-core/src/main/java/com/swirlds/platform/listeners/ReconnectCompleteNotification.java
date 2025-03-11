@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.listeners;
 
 import com.swirlds.common.notification.AbstractNotification;
-import com.swirlds.platform.state.PlatformMerkleStateRoot;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.State;
 import java.time.Instant;
 
 /**
@@ -27,17 +13,17 @@ public class ReconnectCompleteNotification extends AbstractNotification {
 
     private long roundNumber;
     private Instant consensusTimestamp;
-    private PlatformMerkleStateRoot state;
+    private MerkleNodeState state;
 
     public ReconnectCompleteNotification(
-            final long roundNumber, final Instant consensusTimestamp, final PlatformMerkleStateRoot state) {
+            final long roundNumber, final Instant consensusTimestamp, final MerkleNodeState state) {
         this.roundNumber = roundNumber;
         this.consensusTimestamp = consensusTimestamp;
         this.state = state;
     }
 
     /**
-     * get round number from the {@link PlatformMerkleStateRoot}
+     * get round number from the {@link State}
      *
      * @return round number
      */
@@ -55,11 +41,11 @@ public class ReconnectCompleteNotification extends AbstractNotification {
     }
 
     /**
-     * get the {@link PlatformMerkleStateRoot} instance
+     * get the {@link State} instance
      *
-     * @return PlatformMerkleStateRoot
+     * @return State
      */
-    public PlatformMerkleStateRoot getState() {
+    public State getState() {
         return state;
     }
 }

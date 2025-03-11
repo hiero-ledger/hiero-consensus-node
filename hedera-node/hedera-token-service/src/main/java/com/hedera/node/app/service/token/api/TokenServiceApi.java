@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.api;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -29,6 +14,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.ObjLongConsumer;
 
 /**
  * Defines mutations that can't be expressed as a {@link com.hedera.hapi.node.transaction.TransactionBody} dispatch.
@@ -198,9 +184,14 @@ public interface TokenServiceApi {
      * @param payer the id of the account that should be charged
      * @param amount the amount to charge
      * @param recordBuilder the record builder to record the fees in
+     * @param cb if not null, a callback to receive the fee disbursements
      * @return true if the full amount was charged, false otherwise
      */
-    boolean chargeNetworkFee(@NonNull AccountID payer, long amount, @NonNull FeeStreamBuilder recordBuilder);
+    boolean chargeNetworkFee(
+            @NonNull AccountID payer,
+            long amount,
+            @NonNull FeeStreamBuilder recordBuilder,
+            @Nullable ObjLongConsumer<AccountID> cb);
 
     /**
      * Charges the payer the given fees, and records those fees in the given record builder.
@@ -209,12 +200,14 @@ public interface TokenServiceApi {
      * @param nodeAccount the id of the node that should receive the node fee, if present and payable
      * @param fees the fees to charge
      * @param recordBuilder the record builder to record the fees in
+     * @param cb if not null, a map to record the balance adjustments in
      */
     void chargeFees(
             @NonNull AccountID payer,
             AccountID nodeAccount,
             @NonNull Fees fees,
-            @NonNull FeeStreamBuilder recordBuilder);
+            @NonNull FeeStreamBuilder recordBuilder,
+            @Nullable ObjLongConsumer<AccountID> cb);
 
     /**
      * Refunds the given fees to the given receiver, and records those fees in the given record builder.

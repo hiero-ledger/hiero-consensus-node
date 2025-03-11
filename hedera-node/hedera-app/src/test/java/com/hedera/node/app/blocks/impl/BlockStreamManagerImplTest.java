@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -329,7 +314,7 @@ class BlockStreamManagerImplTest {
                         Bytes.EMPTY,
                         Bytes.EMPTY,
                         Bytes.fromHex(
-                                "cf1343eb8811fc4ccbd468b9703d60272894c91d1972efeb2d77d2e9d82598659feaf09b7c6bf0f1c3e0fcf4a4f08f48")),
+                                "dda122623c97d82bfad19873fedd61db98605b434fc8a36a71a7fe99aa017ab45238ceed20a4ae97dbaca7fb728980e3")),
                 Timestamp.DEFAULT,
                 true,
                 SemanticVersion.DEFAULT,
@@ -482,7 +467,7 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         // Assert the internal state of the subject has changed as expected and the writer has been closed
-        verify(blockHashSigner, times(3)).isReady();
+        verify(blockHashSigner, times(2)).isReady();
         verifyNoMoreInteractions(blockHashSigner);
     }
 
@@ -552,7 +537,7 @@ class BlockStreamManagerImplTest {
                         Bytes.EMPTY,
                         Bytes.EMPTY,
                         Bytes.fromHex(
-                                "cf1343eb8811fc4ccbd468b9703d60272894c91d1972efeb2d77d2e9d82598659feaf09b7c6bf0f1c3e0fcf4a4f08f48")),
+                                "dda122623c97d82bfad19873fedd61db98605b434fc8a36a71a7fe99aa017ab45238ceed20a4ae97dbaca7fb728980e3")),
                 Timestamp.DEFAULT,
                 false,
                 SemanticVersion.DEFAULT,
