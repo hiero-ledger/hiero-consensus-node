@@ -349,7 +349,7 @@ public class TestHelpers {
             .pauseKey(PAUSE_KEY)
             .build();
 
-    public static final Token FUNGIBLE_EVERYTHING_TOKEN_V2 = Token.newBuilder()
+    public static final Token FUNGIBLE_EVERYTHING_TOKEN_16C = Token.newBuilder()
             .tokenId(FUNGIBLE_TOKEN_ID)
             .name("Fungible Everything Token")
             .symbol("FET")
