@@ -47,8 +47,7 @@ public class NetworkPeerIdentifier {
 
         this.x501PrincipalsAndPeers = peers.stream()
                 .collect(Collectors.toMap(
-                        peer -> ((X509Certificate) peer.signingCertificate()).getSubjectX500Principal(),
-                        Function.identity()));
+                        peer -> peer.signingCertificate().getSubjectX500Principal(), Function.identity()));
     }
 
     /**

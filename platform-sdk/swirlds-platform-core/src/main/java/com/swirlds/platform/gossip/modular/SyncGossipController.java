@@ -2,7 +2,6 @@
 package com.swirlds.platform.gossip.modular;
 
 import com.swirlds.base.state.Startable;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.Stoppable;
 import com.swirlds.common.threading.framework.Stoppable.StopBehavior;
 import com.swirlds.platform.gossip.IntakeEventCounter;
@@ -25,9 +24,6 @@ public class SyncGossipController implements GossipController {
     private boolean started = false;
     private final List<Stoppable> startables = new ArrayList<>();
 
-    private final Map<Object, DedicatedStoppableThread<NodeId>> dedicatedThreads = new HashMap<>();
-    private final List<DedicatedStoppableThread<NodeId>> dedicatedThreadsToModify = new ArrayList<>();
-
     /**
      * Creates new gossip controller
      * @param intakeEventCounter    keeps track of how many events have been received from each peer
@@ -49,49 +45,7 @@ public class SyncGossipController implements GossipController {
     }
 
     /**
-     * Registers threads which should be started when {@link #start()} method is called and stopped on {@link #stop()}
-     * Order in which this method is called is important, so don't call it concurrently without external control.
-     * @param things thread to start
-     */
-    public void registerDedicatedThreads(final @NonNull Collection<DedicatedStoppableThread<NodeId>> things) {
-        Objects.requireNonNull(things);
-        dedicatedThreadsToModify.addAll(things);
-    }
-
-    /**
-     * Should be called after {@link #registerDedicatedThreads(Collection)} to actually start/stop threads; it is split into half
-     * because this method can be called only for running system, so during startup, dedicated threads will be registered a lot earlier
-     * than started
-     * Method can be called many times, it will be no-op if no dedicate thread changes were made in meantime
-     * Do NOT call this method concurrently; it is not protected against such access and can have undefined behaviour
-     */
-    void applyDedicatedThreadsToModify() {
-        if (!started) {
-            logger.warn("Cannot apply dedicated threads status when gossip is not started");
-            return;
-        }
-        for (DedicatedStoppableThread<NodeId> dst : dedicatedThreadsToModify) {
-            var newThread = dst.thread();
-            var oldThread = dedicatedThreads.remove(dst.key());
-            if (newThread == null) {
-                if (oldThread != null && oldThread.thread() != null) {
-                    oldThread.thread().interrupt();
-                } else {
-                    logger.warn("Dedicated thread {} was not found, but we were asked to stop it", dst.key());
-                }
-            } else {
-                if (oldThread != null && oldThread.thread() != null) {
-                    oldThread.thread().interrupt();
-                }
-                dedicatedThreads.put(dst.key(), dst);
-                newThread.start();
-            }
-        }
-        dedicatedThreadsToModify.clear();
-    }
-
-    /**
-     * Start gossiping. Spin up all the threads registered in {@link #registerDedicatedThreads(Collection)} and {@link #registerThingToStart(Stoppable)}
+     * Start gossiping. Spin up all the threads registered in {@link #registerThingToStart(Stoppable)}
      */
     void start() {
         if (started) {
@@ -99,14 +53,11 @@ public class SyncGossipController implements GossipController {
         }
         started = true;
         startables.forEach(Startable::start);
-
-        applyDedicatedThreadsToModify();
     }
 
     /**
      * Stop gossiping.
      * This method is not fully working. It stops some threads, but leaves others running
-     * (see {@link #registerDedicatedThreads(Collection)} and {@link #registerThingToStart(Stoppable)})
      * In particular, you cannot call {@link #start()} () after calling stop (use {@link #pause()}{@link #resume()} as needed)
      */
     void stop() {
@@ -121,11 +72,6 @@ public class SyncGossipController implements GossipController {
 
         for (Stoppable startable : startables) {
             startable.stop(StopBehavior.INTERRUPTABLE);
-        }
-
-        for (final DedicatedStoppableThread dst : dedicatedThreads.values()) {
-            dst.thread().interrupt(); // aggresive interrupt to avoid hanging for a long time
-            dst.thread().stop();
         }
     }
 

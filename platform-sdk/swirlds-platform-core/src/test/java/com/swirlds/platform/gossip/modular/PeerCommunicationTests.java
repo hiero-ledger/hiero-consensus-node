@@ -3,7 +3,6 @@ package com.swirlds.platform.gossip.modular;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.context.PlatformContext;
@@ -15,10 +14,7 @@ import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.crypto.PublicStores;
-import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.ProtocolConfig;
-import com.swirlds.platform.gossip.permits.SyncPermitProvider;
-import com.swirlds.platform.gossip.sync.SyncManagerImpl;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.handshake.VersionCompareHandshake;
 import com.swirlds.platform.network.protocol.HeartbeatProtocol;
@@ -30,7 +26,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,7 +41,6 @@ public class PeerCommunicationTests {
     private PlatformContext platformContext;
     private List<PeerInfo> allPeers;
     private PeerCommunication[] peerCommunications;
-    private SyncGossipController[] controllers;
     private final ArrayList<CommunicationEvent> events = new ArrayList<>();
 
     @BeforeEach
@@ -71,8 +65,8 @@ public class PeerCommunicationTests {
 
     @AfterEach
     void testTeardown() throws Exception {
-        for (SyncGossipController controller : this.controllers) {
-            controller.stop();
+        for (PeerCommunication pc : this.peerCommunications) {
+            pc.stop();
         }
     }
 
@@ -95,7 +89,6 @@ public class PeerCommunicationTests {
         var threadManager = AdHocThreadManager.getStaticThreadManager();
 
         peerCommunications = new PeerCommunication[allPeers.size()];
-        controllers = new SyncGossipController[allPeers.size()];
 
         for (int i = 0; i < allPeers.size(); i++) {
             var selfPeer = allPeers.get(i);
@@ -112,29 +105,11 @@ public class PeerCommunicationTests {
             protocols.add(new TestProtocol(selfPeer.nodeId(), events));
             protocols.add(HeartbeatProtocol.create(platformContext, pc.getNetworkMetrics()));
 
-            var globalThreads = pc.initialize(threadManager, handshakeProtocols, protocols);
-            final List<DedicatedStoppableThread<NodeId>> threads = pc.buildProtocolThreadsFromCurrentNeighbors();
+            pc.initialize(threadManager, handshakeProtocols, protocols);
 
-            SyncGossipController controller = new SyncGossipController(
-                    new NoOpIntakeEventCounter(),
-                    new SyncGossipSharedProtocolState(
-                            pc.getNetworkMetrics(),
-                            mock(SyncPermitProvider.class),
-                            null,
-                            mock(SyncManagerImpl.class),
-                            new AtomicBoolean(),
-                            null,
-                            null,
-                            null,
-                            null));
-
-            globalThreads.forEach(controller::registerThingToStart);
-            controller.registerDedicatedThreads(threads);
-
-            controller.start();
+            pc.start();
 
             peerCommunications[i] = pc;
-            controllers[i] = controller;
         }
     }
 
@@ -143,21 +118,17 @@ public class PeerCommunicationTests {
         for (int otherNodeIndex : to) {
             otherPeers.add(allPeers.get(otherNodeIndex));
         }
-        controllers[nodeFrom].registerDedicatedThreads(
-                peerCommunications[nodeFrom].addRemovePeers(otherPeers, Collections.emptyList()));
-        controllers[nodeFrom].applyDedicatedThreadsToModify();
+        peerCommunications[nodeFrom].addRemovePeers(otherPeers, Collections.emptyList());
 
         for (int otherNodeIndex : to) {
-            controllers[otherNodeIndex].registerDedicatedThreads(peerCommunications[otherNodeIndex].addRemovePeers(
-                    Collections.singletonList(allPeers.get(nodeFrom)), Collections.emptyList()));
-            controllers[otherNodeIndex].applyDedicatedThreadsToModify();
+            peerCommunications[otherNodeIndex].addRemovePeers(
+                    Collections.singletonList(allPeers.get(nodeFrom)), Collections.emptyList());
         }
     }
 
     private void disconnect(int nodeFrom, int to) {
-        controllers[nodeFrom].registerDedicatedThreads(peerCommunications[nodeFrom].addRemovePeers(
-                Collections.emptyList(), Collections.singletonList(allPeers.get(to))));
-        controllers[nodeFrom].applyDedicatedThreadsToModify();
+        peerCommunications[nodeFrom].addRemovePeers(
+                Collections.emptyList(), Collections.singletonList(allPeers.get(to)));
     }
 
     private void validateCommunication(int nodeA, int nodeB) {
@@ -295,9 +266,8 @@ public class PeerCommunicationTests {
         validateNoCommunication(1, 2);
         validateNoCommunication(0, 3);
 
-        controllers[0].registerDedicatedThreads(peerCommunications[0].addRemovePeers(
-                Collections.singletonList(allPeers.get(1)), Collections.singletonList(allPeers.get(1))));
-        controllers[0].applyDedicatedThreadsToModify();
+        peerCommunications[0].addRemovePeers(
+                Collections.singletonList(allPeers.get(1)), Collections.singletonList(allPeers.get(1)));
 
         Thread.sleep(1000);
         clearEvents();

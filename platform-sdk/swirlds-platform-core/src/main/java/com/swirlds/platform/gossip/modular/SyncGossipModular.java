@@ -53,7 +53,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Utility class used during refactoring; with time, it should disappear, as all things will move to main wiring as all shared state is resolved
+ * Utility class used during refactoring; with time, it should disappear, as all things will move to main wiring as all
+ * shared state is resolved
  */
 public class SyncGossipModular implements Gossip {
 
@@ -173,30 +174,26 @@ public class SyncGossipModular implements Gossip {
                 new VersionCompareHandshake(appVersion, !protocolConfig.tolerateMismatchedVersion());
         final List<ProtocolRunnable> handshakeProtocols = List.of(versionCompareHandshake);
 
-        var networkThreads = network.initialize(threadManager, handshakeProtocols, protocols);
-        final List<DedicatedStoppableThread<NodeId>> threads = network.buildProtocolThreadsFromCurrentNeighbors();
-
-        networkThreads.forEach(controller::registerThingToStart);
+        network.initialize(threadManager, handshakeProtocols, protocols);
         controller.registerThingToStart(sharedState.shadowgraphExecutor());
-        controller.registerDedicatedThreads(threads);
     }
 
     /**
-     * Modify list of current connected peers. Notify all underlying components and start needed threads.
-     * In the case data for the same peer changes (one with the same nodeId), it should be present in both removed and added lists,
-     * with old data in removed and fresh data in added. Internally it will be first removed and then added, so there can be
-     * a short moment when it will drop out of the network if disconnect happens at a bad moment.
-     * NOT THREAD SAFE. Synchronize externally.
-     * @param added peers to be added
+     * Modify list of current connected peers. Notify all underlying components and start needed threads. In the case
+     * data for the same peer changes (one with the same nodeId), it should be present in both removed and added lists,
+     * with old data in removed and fresh data in added. Internally it will be first removed and then added, so there
+     * can be a short moment when it will drop out of the network if disconnect happens at a bad moment. NOT THREAD
+     * SAFE. Synchronize externally.
+     *
+     * @param added   peers to be added
      * @param removed peers to be removed
      */
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
         fallenBehindManager.addRemovePeers(
                 added.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()),
                 removed.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()));
-        controller.registerDedicatedThreads(network.addRemovePeers(added, removed));
         syncPermitProvider.adjustTotalPermits(added.size() - removed.size());
-        controller.applyDedicatedThreadsToModify();
+        network.addRemovePeers(added, removed);
     }
 
     /**
@@ -214,8 +211,14 @@ public class SyncGossipModular implements Gossip {
             @NonNull final BindableInputWire<Duration, Void> systemHealthInput,
             @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput) {
 
-        startInput.bindConsumer(ignored -> controller.start());
-        stopInput.bindConsumer(ignored -> controller.stop());
+        startInput.bindConsumer(ignored -> {
+            controller.start();
+            network.start();
+        });
+        stopInput.bindConsumer(ignored -> {
+            controller.stop();
+            network.stop();
+        });
         clearInput.bindConsumer(ignored -> controller.clear());
 
         eventInput.bindConsumer(sharedState.shadowgraph()::addEvent);
