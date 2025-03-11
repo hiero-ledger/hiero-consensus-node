@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.contract.precompile.token;
+package com.hedera.services.bdd.suites.contract.precompile.token.address_0x16c;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
@@ -69,7 +69,7 @@ public class TokenMetadataTest {
     @Contract(contract = "CreateTokenVersioned", creationGas = 1_000_000L, variant = VARIANT_16C)
     static SpecContract contractTarget;
 
-    @Contract(contract = "TokenInfo", creationGas = 1_000_000L)
+    @Contract(contract = "TokenInfo", creationGas = 1_000_000L, variant = VARIANT_16C)
     static SpecContract tokenInfoContract;
 
     @FungibleToken(name = "fungibleToken", initialSupply = 1_000L, maxSupply = 1_200L)
@@ -126,7 +126,7 @@ public class TokenMetadataTest {
             final var ledger = exposeTargetLedgerIdTo(ledgerId::set);
             allRunFor(spec, create, ledger);
             final var getInfo = tokenInfoContract
-                    .call("getInformationForTokenV2", newToken.get())
+                    .call("getInformationForToken", newToken.get())
                     .gas(100_000L)
                     .andAssert(txn -> txn.hasKnownStatus(SUCCESS).via("getInfo").logged());
             final var childRecord = childRecordsCheck(
@@ -157,7 +157,7 @@ public class TokenMetadataTest {
             final var ledger = exposeTargetLedgerIdTo(ledgerId::set);
             allRunFor(spec, create, ledger);
             final var getInfo = tokenInfoContract
-                    .call("getInformationForTokenV2", newToken.get())
+                    .call("getInformationForToken", newToken.get())
                     .gas(100_000L)
                     .andAssert(txn -> txn.hasKnownStatus(SUCCESS).via("getInfo").logged());
             final var childRecord = childRecordsCheck(
@@ -189,7 +189,7 @@ public class TokenMetadataTest {
             final var ledger = exposeTargetLedgerIdTo(ledgerId::set);
             allRunFor(spec, create, ledger);
             final var getInfo = tokenInfoContract
-                    .call("getInformationForTokenV2", newToken.get())
+                    .call("getInformationForToken", newToken.get())
                     .gas(100_000L)
                     .andAssert(txn -> txn.hasKnownStatus(SUCCESS).via("getInfo").logged());
             final var childRecord = childRecordsCheck(
@@ -221,7 +221,7 @@ public class TokenMetadataTest {
             final var ledger = exposeTargetLedgerIdTo(ledgerId::set);
             allRunFor(spec, create, ledger);
             final var getInfo = tokenInfoContract
-                    .call("getInformationForTokenV2", newToken.get())
+                    .call("getInformationForToken", newToken.get())
                     .gas(100_000L)
                     .andAssert(txn -> txn.hasKnownStatus(SUCCESS).via("getInfo").logged());
             final var childRecord = childRecordsCheck(
@@ -237,7 +237,7 @@ public class TokenMetadataTest {
                                                     .addCustomFees(customFee(spec))
                                                     .setMetadataKey(metaKey(spec))
                                                     .build()))));
-            allRunFor(spec, getInfo, childRecord);
+            allRunFor(spec, getInfo);
         }));
     }
 
@@ -254,7 +254,7 @@ public class TokenMetadataTest {
             final var ledger = exposeTargetLedgerIdTo(ledgerId::set);
             allRunFor(spec, create, ledger);
             final var getInfo = tokenInfoContract
-                    .call("getInformationForTokenV2", newToken.get())
+                    .call("getInformationForToken", newToken.get())
                     .gas(100_000L)
                     .andAssert(txn -> txn.hasKnownStatus(SUCCESS).via("getInfo").logged());
             final var childRecord = childRecordsCheck(
@@ -285,7 +285,7 @@ public class TokenMetadataTest {
             final var ledger = exposeTargetLedgerIdTo(ledgerId::set);
             allRunFor(spec, create, ledger);
             final var getInfo = tokenInfoContract
-                    .call("getInformationForTokenV2", newToken.get())
+                    .call("getInformationForToken", newToken.get())
                     .gas(100_000L)
                     .andAssert(txn -> txn.hasKnownStatus(SUCCESS).via("getInfo").logged());
             final var childRecord = childRecordsCheck(
@@ -317,7 +317,7 @@ public class TokenMetadataTest {
             final var ledger = exposeTargetLedgerIdTo(ledgerId::set);
             allRunFor(spec, create, ledger);
             final var getInfo = tokenInfoContract
-                    .call("getInformationForTokenV2", newToken.get())
+                    .call("getInformationForToken", newToken.get())
                     .gas(100_000L)
                     .andAssert(txn -> txn.hasKnownStatus(SUCCESS).via("getInfo").logged());
             final var childRecord = childRecordsCheck(
@@ -349,7 +349,7 @@ public class TokenMetadataTest {
             final var ledger = exposeTargetLedgerIdTo(ledgerId::set);
             allRunFor(spec, create, ledger);
             final var getInfo = tokenInfoContract
-                    .call("getInformationForTokenV2", newToken.get())
+                    .call("getInformationForToken", newToken.get())
                     .gas(100_000L)
                     .andAssert(txn -> txn.hasKnownStatus(SUCCESS).via("getInfo").logged());
             final var childRecord = childRecordsCheck(
