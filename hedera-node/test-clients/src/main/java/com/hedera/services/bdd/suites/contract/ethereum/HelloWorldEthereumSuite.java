@@ -63,6 +63,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
@@ -244,6 +245,31 @@ public class HelloWorldEthereumSuite {
                                 ? Optional.of("Malicious" + " EOA balance" + " increased")
                                 : Optional.empty())),
                 getAliasedAccountInfo(maliciousEOA).has(accountWith().nonce(1L)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> badRecIdGivesInvalidSignature() {
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
+                        .via("autoAccount"),
+                getTxnRecord("autoAccount").andAllChildRecords(),
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                contractCreate(PAY_RECEIVABLE_CONTRACT).adminKey(THRESHOLD),
+                // EIP1559 Ethereum Calls fail with invalid rec ids
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(depositAmount))
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .via("payTxn")
+                        .nonce(0)
+                        .maxFeePerGas(50L)
+                        .maxPriorityGas(2L)
+                        .gasLimit(1_000_000L)
+                        .sending(depositAmount)
+                        .withWrongParityRecId()
+                        .hasKnownStatus(INVALID_ACCOUNT_ID));
     }
 
     @HapiTest

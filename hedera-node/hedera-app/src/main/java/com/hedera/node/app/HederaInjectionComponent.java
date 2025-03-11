@@ -50,7 +50,6 @@ import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.app.workflows.query.annotations.OperatorQueries;
 import com.hedera.node.app.workflows.query.annotations.UserQueries;
-import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
@@ -171,9 +170,6 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder initTrigger(InitTrigger initTrigger);
-
-        @BindsInstance
-        Builder crypto(Cryptography engine);
 
         @BindsInstance
         Builder platform(Platform platform);

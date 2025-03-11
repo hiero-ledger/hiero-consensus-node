@@ -29,10 +29,8 @@ import static com.swirlds.platform.util.BootstrapUtils.setupBrowserWindow;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
@@ -55,7 +53,7 @@ import com.swirlds.platform.gui.model.InfoApp;
 import com.swirlds.platform.gui.model.InfoMember;
 import com.swirlds.platform.gui.model.InfoSwirld;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -232,7 +230,6 @@ public class Browser {
                     FileSystemManager.create(configuration),
                     nodeId);
             final var cryptography = CryptographyFactory.create();
-            CryptographyHolder.set(cryptography);
             final KeysAndCerts keysAndCerts = initNodeSecurity(
                             appDefinition.getConfigAddressBook(), configuration, Set.copyOf(nodesToRun))
                     .get(nodeId);
@@ -241,8 +238,7 @@ public class Browser {
             cryptography.digestSync(appDefinition.getConfigAddressBook());
 
             // Set the MerkleCryptography instance for this node
-            final var merkleCryptography = MerkleCryptographyFactory.create(configuration, CryptographyHolder.get());
-            MerkleCryptoFactory.set(merkleCryptography);
+            final var merkleCryptography = MerkleCryptographyFactory.create(configuration);
 
             // Register with the ConstructableRegistry classes which need configuration.
             BootstrapUtils.setupConstructableRegistryWithConfiguration(configuration);
@@ -252,17 +248,15 @@ public class Browser {
                     configuration,
                     Time.getCurrent(),
                     guiMetrics,
-                    cryptography,
                     FileSystemManager.create(configuration),
                     recycleBin,
-                    MerkleCryptographyFactory.create(configuration, CryptographyHolder.get()));
+                    merkleCryptography);
             // Each platform needs a different temporary state on disk.
             MerkleDb.resetDefaultInstancePath();
             PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
             // Create the initial state for the platform
-            StateLifecycles stateLifecycles = appMain.newStateLifecycles();
+            ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
             final HashedReservedSignedState reservedState = getInitialState(
-                    configuration,
                     recycleBin,
                     appMain.getSoftwareVersion(),
                     appMain::newStateRoot,
@@ -281,7 +275,7 @@ public class Browser {
                     initialState,
                     appDefinition.getConfigAddressBook(),
                     platformContext,
-                    stateLifecycles,
+                    consensusStateEventHandler,
                     platformStateFacade);
 
             // Build the platform with the given values
@@ -290,7 +284,7 @@ public class Browser {
                     appDefinition.getSwirldName(),
                     appMain.getSoftwareVersion(),
                     initialState,
-                    stateLifecycles,
+                    consensusStateEventHandler,
                     nodeId,
                     AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
                     RosterUtils.buildRosterHistory(initialState.get().getState(), platformStateFacade),

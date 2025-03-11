@@ -267,7 +267,8 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                         reconnectMetrics,
                         platformStateFacade),
                 stateConfig,
-                platformStateFacade);
+                platformStateFacade,
+                platformContext.getMerkleCryptography());
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
@@ -351,7 +352,6 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                 new DefaultSignedStateValidator(platformContext, platformStateFacade),
                 fallenBehindManager,
                 platformStatusSupplier,
-                platformContext.getConfiguration(),
                 platformStateFacade);
 
         final Protocol heartbeatProtocol = new HeartbeatProtocol(

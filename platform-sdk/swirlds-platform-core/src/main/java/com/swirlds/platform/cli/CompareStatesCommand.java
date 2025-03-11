@@ -8,7 +8,6 @@ import com.swirlds.cli.commands.StateCommand;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.logging.legacy.LogMarker;
@@ -122,11 +121,12 @@ public final class CompareStatesCommand extends AbstractCommand {
         logger.info(LogMarker.CLI.getMarker(), "Loading state from {}", statePath);
 
         final ReservedSignedState signedState = SignedStateFileReader.readStateFile(
-                        platformContext.getConfiguration(), statePath, DEFAULT_PLATFORM_STATE_FACADE, platformContext)
+                        statePath, DEFAULT_PLATFORM_STATE_FACADE, platformContext)
                 .reservedSignedState();
         logger.info(LogMarker.CLI.getMarker(), "Hashing state");
         try {
-            MerkleCryptoFactory.getInstance()
+            platformContext
+                    .getMerkleCryptography()
                     .digestTreeAsync(signedState.get().getState().getRoot())
                     .get();
         } catch (final InterruptedException | ExecutionException e) {

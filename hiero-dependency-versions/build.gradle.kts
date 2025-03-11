@@ -7,7 +7,7 @@ plugins {
 }
 
 dependencies {
-    api(platform("io.netty:netty-bom:4.1.118.Final"))
+    api(platform("io.netty:netty-bom:4.1.119.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -20,16 +20,16 @@ val besu = "24.3.3"
 val bouncycastle = "1.80"
 val dagger = "2.55"
 val eclipseCollections = "11.1.0"
-val grpc = "1.70.0"
-val hederaCryptography = "0.1.1-SNAPSHOT"
-val helidon = "4.1.6"
-val jackson = "2.18.2"
+val grpc = "1.71.0"
+val hederaCryptography = "0.2.1-SNAPSHOT"
+val helidon = "4.2.0"
+val jackson = "2.18.3"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
-val mockito = "5.15.2"
+val mockito = "5.16.0"
 val pbj = "0.9.19" // ATTENTION: keep in sync with plugin version in 'hapi/build.gradle.kts'
-val protobuf = "4.29.3"
-val testContainers = "1.20.5"
+val protobuf = "4.30.0"
+val testContainers = "1.20.6"
 val tuweni = "2.4.2"
 val webcompare = "2.1.7"
 
@@ -51,7 +51,7 @@ dependencies.constraints {
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.0") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.4.1") { because("com.github.dockerjava.api") }
-    api("com.github.spotbugs:spotbugs-annotations:4.9.1") {
+    api("com.github.spotbugs:spotbugs-annotations:4.9.2") {
         because("com.github.spotbugs.annotations")
     }
     api("com.google.auto.service:auto-service-annotations:$autoService") {
@@ -73,7 +73,7 @@ dependencies.constraints {
     api("io.grpc:grpc-netty:$grpc") { because("io.grpc.netty") }
     api("io.grpc:grpc-protobuf:$grpc") { because("io.grpc.protobuf") }
     api("io.grpc:grpc-stub:$grpc") { because("io.grpc.stub") }
-    api("com.esaulpaugh:headlong:12.3.3") { because("com.esaulpaugh.headlong") }
+    api("com.esaulpaugh:headlong:13.0.0") { because("com.esaulpaugh.headlong") }
     api("info.picocli:picocli:4.7.6") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.179") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
@@ -136,16 +136,25 @@ dependencies.constraints {
     api("com.google.protobuf:protoc:$protobuf")
     api("io.grpc:protoc-gen-grpc-java:$grpc")
 
-    api("com.hedera.cryptography:hedera-cryptography-pairings-api:$hederaCryptography") {
-        because("com.hedera.cryptography.pairings.api")
-    }
-    api("com.hedera.cryptography:hedera-cryptography-altbn128:$hederaCryptography") {
-        because("com.hedera.cryptography.altbn128")
+    api("com.hedera.cryptography:hedera-cryptography-blskeygen:$hederaCryptography") {
+        because("com.hedera.cryptography.blskeygen")
     }
     api("com.hedera.cryptography:hedera-cryptography-bls:$hederaCryptography") {
         because("com.hedera.cryptography.bls")
     }
+    api("com.hedera.cryptography:hedera-cryptography-pairings-api:$hederaCryptography") {
+        because("com.hedera.cryptography.pairings.api")
+    }
     api("com.hedera.cryptography:hedera-cryptography-tss:$hederaCryptography") {
         because("com.hedera.cryptography.tss")
+    }
+    api("com.hedera.cryptography:hedera-cryptography-utils:$hederaCryptography") {
+        because("com.hedera.cryptography.utils")
+    }
+    api("com.hedera.cryptography:hedera-cryptography-rpm:$hederaCryptography") {
+        because("com.hedera.cryptography.rpm")
+    }
+    api("com.hedera.cryptography:hedera-cryptography-hinTS:$hederaCryptography") {
+        because("com.hedera.cryptography.hints")
     }
 }

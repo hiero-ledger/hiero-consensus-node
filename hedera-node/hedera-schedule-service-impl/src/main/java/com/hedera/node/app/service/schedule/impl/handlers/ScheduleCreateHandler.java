@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULED_TRANSACTION_N
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRATION_TIME_MUST_BE_HIGHER_THAN_CONSENSUS_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRY_IS_BUSY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRY_NOT_CONFIGURABLE;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.hapi.node.base.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
@@ -22,6 +23,7 @@ import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.scheduledTxnIdFrom;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.transactionIdForScheduled;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
+import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -169,6 +171,10 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         }
         final var validationResult = validate(provisionalSchedule, consensusNow, isLongTermEnabled);
         validateTrue(isMaybeExecutable(validationResult), validationResult);
+
+        validateFalse(
+                !isLongTermEnabled && provisionalSchedule.providedExpirationSecond() != 0,
+                SCHEDULE_EXPIRY_NOT_CONFIGURABLE);
 
         // Note that we must store the original ScheduleCreate transaction body in the Schedule so
         // we can compare those bytes to any new ScheduleCreate transaction for detecting duplicate

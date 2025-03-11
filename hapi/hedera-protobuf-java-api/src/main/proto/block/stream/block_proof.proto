@@ -83,12 +83,62 @@ message BlockProof {
     uint64 block = 1;
 
     /**
-     * A merkle root hash of the previous block.
+     * A block root hash for the previous block.
      * <p>
-     * This MUST contain a hash of the "block" merkle tree root for the
-     * previous block.<br/>
-     * The hash algorithm used MUST match the algorithm declared in the
-     * block header _for that block_.
+     * This value MUST match the block merkle tree root hash of the previous
+     * block in the block stream.<br/>
+     * This value SHALL be empty for the genesis block, and SHALL NOT be empty
+     * for any other block.<br/>
+     * Client systems SHOULD optimistically reject any block with a
+     * `previous_block_proof_hash` that does not match the block hash of the
+     * previous block and MAY assume the block stream has encountered data
+     * loss, data corruption, or unauthorized modification.
+     * <p>
+     * The process for computing a block hash is somewhat complex, and involves
+     * creating a "virtual" merkle tree to obtain the root merkle hash of
+     * that virtual tree.<br/>
+     * The merkle tree SHALL have a 4 part structure with 2 internal nodes,
+     * structured in a strictly binary tree.
+     * <ul>
+     *   <li>The merkle tree root SHALL be the parent of both
+     *       internal nodes.
+     *     <ol>
+     *       <li>The first "internal" node SHALL be the parent of the
+     *           two "left-most" nodes.
+     *         <ol>
+     *           <li>The first leaf MUST be the previous block hash, and is a
+     *               single 48-byte value.</li>
+     *           <li>The second leaf MUST be the root of a, strictly binary,
+     *               merkle tree composed of all "input" block items in
+     *               the block.<br/>
+     *               Input items SHALL be transactions, system transactions,
+     *               and events.<br/>
+     *               Leaf nodes in this subtree SHALL be ordered in the
+     *               same order that the block items are encountered
+     *               in the stream.</li>
+     *         </ol>
+     *       </li>
+     *       <li>The second "internal" node SHALL be the parent of the
+     *           two "right-most" nodes.
+     *         <ol>
+     *           <li>The third leaf MUST be the root of a, strictly binary,
+     *               merkle tree composed of all "output" block items in
+     *               the block.<br/>
+     *               Output items SHALL be transaction result, transaction
+     *               output, and state changes.<br/>
+     *               Leaf nodes in this subtree SHALL be ordered in the
+     *               same order that the block items are encountered
+     *               in the stream.</li>
+     *           <li>The fourth leaf MUST be the merkle tree root hash for
+     *               network state at the start of the block, and is a single
+     *               48-byte value.</li>
+     *         </ol>
+     *       </li>
+     *     </ol>
+     *   </li>
+     *   <li>The block hash SHALL be the SHA-384 hash calculated for the root
+     *       of this merkle tree.</li>
+     * </ul>
      */
     bytes previous_block_root_hash = 2;
 
