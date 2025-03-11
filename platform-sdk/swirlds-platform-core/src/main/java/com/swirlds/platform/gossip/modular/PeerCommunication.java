@@ -71,15 +71,10 @@ public class PeerCommunication implements ConnectionTracker {
             @NonNull final PeerInfo selfPeer,
             @NonNull final KeysAndCerts keysAndCerts) {
 
-        Objects.requireNonNull(platformContext);
-        Objects.requireNonNull(peers);
-        Objects.requireNonNull(selfPeer);
-        Objects.requireNonNull(keysAndCerts);
-
-        this.keysAndCerts = keysAndCerts;
-        this.platformContext = platformContext;
-        this.peers = ImmutableList.copyOf(peers);
-        this.selfPeer = selfPeer;
+        this.keysAndCerts = Objects.requireNonNull(keysAndCerts);
+        this.platformContext = Objects.requireNonNull(platformContext);
+        this.peers = ImmutableList.copyOf(Objects.requireNonNull(peers));
+        this.selfPeer = Objects.requireNonNull(selfPeer);
         this.selfId = selfPeer.nodeId();
 
         this.networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfPeer.nodeId());

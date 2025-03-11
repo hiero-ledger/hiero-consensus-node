@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.metrics;
 
-import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
-import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
-
 import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.common.units.TimeUnit;
 import com.swirlds.metrics.api.Counter;
@@ -109,24 +106,7 @@ public class ReconnectMetrics {
                 Duration.ofNanos(System.nanoTime() - receiverStartNanos).toSeconds());
     }
 
-    /**
-     * Records the occurrence of rejecting a reconnect attempt from a peer.
-     *
-     * @param nodeId the peer being rejected.
-     */
-    public void recordReconnectRejection(final long nodeId) {
-        rejectionFrequency
-                .computeIfAbsent(
-                        nodeId,
-                        newId -> new CountPerSecond(
-                                metrics,
-                                new CountPerSecond.Config(
-                                                PLATFORM_CATEGORY,
-                                                String.format("reconnectRejections_per_sec_%02d", newId))
-                                        .withDescription(String.format(
-                                                "number of reconnections rejected per second from node %02d", newId))
-                                        .withUnit("rejectionsPerSec")
-                                        .withFormat(FORMAT_10_0)))
-                .count();
+    public Metrics getMetrics() {
+        return metrics;
     }
 }

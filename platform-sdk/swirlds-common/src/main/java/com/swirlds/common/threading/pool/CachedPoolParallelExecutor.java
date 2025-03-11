@@ -96,6 +96,8 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
 
     /**
      * {@inheritDoc}
+     *
+     * From the point when join is called, no need tasks will be accepted for execution.
      */
     @Override
     public void join() throws InterruptedException {
@@ -104,6 +106,8 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
 
     /**
      * {@inheritDoc}
+     *
+     * From the point when join is called, no need tasks will be accepted for execution.
      */
     @Override
     public void join(long millis) throws InterruptedException {
@@ -113,6 +117,8 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
 
     /**
      * {@inheritDoc}
+     *
+     * From the point when join is called, no need tasks will be accepted for execution.
      */
     @Override
     public void join(long millis, int nanos) throws InterruptedException {

@@ -98,7 +98,7 @@ public class SyncManagerImpl implements FallenBehindManager {
      * {@inheritDoc}
      */
     @Override
-    public void addRemovePeers(@NonNull Set<NodeId> added, @NonNull Set<NodeId> removed) {
+    public void addRemovePeers(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed) {
         fallenBehindManager.addRemovePeers(added, removed);
     }
 }
