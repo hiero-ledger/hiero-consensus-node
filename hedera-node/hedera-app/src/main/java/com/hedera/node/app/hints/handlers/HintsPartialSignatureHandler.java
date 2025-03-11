@@ -14,25 +14,27 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import java.util.concurrent.ConcurrentMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import java.util.concurrent.ConcurrentMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Singleton
 public class HintsPartialSignatureHandler implements TransactionHandler {
     private static final Logger logger = LogManager.getLogger(HintsPartialSignatureHandler.class);
+
     @NonNull
     private final ConcurrentMap<Bytes, HintsContext.Signing> signings;
+
     private final HintsContext hintsContext;
     private final HintsControllers controllers;
 
     @Inject
-    public HintsPartialSignatureHandler(@NonNull ConcurrentMap<Bytes, HintsContext.Signing> signings,
-                                        final HintsContext context,
-                                        final HintsControllers controllers) {
+    public HintsPartialSignatureHandler(
+            @NonNull ConcurrentMap<Bytes, HintsContext.Signing> signings,
+            final HintsContext context,
+            final HintsControllers controllers) {
         this.signings = requireNonNull(signings);
         this.hintsContext = requireNonNull(context);
         this.controllers = requireNonNull(controllers);

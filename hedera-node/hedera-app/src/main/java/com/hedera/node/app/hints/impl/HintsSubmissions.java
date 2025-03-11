@@ -14,13 +14,11 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -121,14 +119,15 @@ public class HintsSubmissions extends TssSubmissions {
         requireNonNull(message);
         final long constructionId = context.constructionIdOrThrow();
         return submit(
-                b -> {
-                    final var signature = keyAccessor.signWithBlsPrivateKey(constructionId, message);
-                    b.hintsPartialSignature(
-                            new HintsPartialSignatureTransactionBody(constructionId, message, requireNonNull(signature)));
-                },
-                onFailure).exceptionally(t -> {
-            logger.warn("Failed to submit partial signature for message {}", message, t);
-            return null;
-        });
+                        b -> {
+                            final var signature = keyAccessor.signWithBlsPrivateKey(constructionId, message);
+                            b.hintsPartialSignature(new HintsPartialSignatureTransactionBody(
+                                    constructionId, message, requireNonNull(signature)));
+                        },
+                        onFailure)
+                .exceptionally(t -> {
+                    logger.warn("Failed to submit partial signature for message {}", message, t);
+                    return null;
+                });
     }
 }

@@ -810,9 +810,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         } catch (UnknownHederaFunctionality e) {
             throw new IllegalArgumentException("" + UNKNOWN);
         }
-        if(function == HederaFunctionality.HINTS_PARTIAL_SIGNATURE) {
-            logger.info("Submitting partial signature transaction");
-        }
         try {
             final var config = configProvider.getConfiguration();
             final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
@@ -823,7 +820,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             final var payload = com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(nodeTransactionWith(body));
             requireNonNull(daggerApp).submissionManager().submit(body, payload);
         } catch (PreCheckException e) {
-            logger.info("Pre-check failed for transaction: {}, {}", e.getMessage(), function);
             final var reason = e.responseCode();
             if (reason == DUPLICATE_TRANSACTION) {
                 // In this case the client must not retry with the same transaction, but
@@ -831,9 +827,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 throw new IllegalArgumentException("" + DUPLICATE_TRANSACTION);
             }
             throw new IllegalStateException("" + reason);
-        }catch (Throwable e) {
-            logger.error("Error submitting transaction: {}", e.getMessage());
-            throw new IllegalStateException("" + e.getMessage());
         }
     }
 

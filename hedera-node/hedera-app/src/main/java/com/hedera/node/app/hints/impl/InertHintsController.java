@@ -7,6 +7,7 @@ import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.OptionalInt;
@@ -62,7 +63,8 @@ public class InertHintsController implements HintsController {
     }
 
     @Override
-    public void addHintsKeyPublication(@NonNull final ReadableHintsStore.HintsKeyPublication publication) {
+    public void addHintsKeyPublication(
+            @NonNull final ReadableHintsStore.HintsKeyPublication publication, final Bytes crs) {
         requireNonNull(publication);
         // No-op
     }

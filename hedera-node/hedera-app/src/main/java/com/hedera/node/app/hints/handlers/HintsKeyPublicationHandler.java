@@ -60,7 +60,9 @@ public class HintsKeyPublicationHandler implements TransactionHandler {
                             hintsKey,
                             partyId,
                             adoptionTime);
-                    controller.addHintsKeyPublication(new HintsKeyPublication(nodeId, hintsKey, partyId, adoptionTime));
+                    controller.addHintsKeyPublication(
+                            new HintsKeyPublication(nodeId, hintsKey, partyId, adoptionTime),
+                            hintsStore.getCrsState().crs());
                 }
             }
         });

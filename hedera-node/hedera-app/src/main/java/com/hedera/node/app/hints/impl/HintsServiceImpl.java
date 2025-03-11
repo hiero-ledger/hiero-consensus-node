@@ -144,9 +144,9 @@ public class HintsServiceImpl implements HintsService {
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }
-        final var signing = component
-                .signings()
-                .computeIfAbsent(blockHash, b -> component.signingContext().newSigning(b, requireNonNull(currentRoster)));
+        final var signing = component.signings().computeIfAbsent(blockHash, b -> component
+                .signingContext()
+                .newSigning(b, requireNonNull(currentRoster)));
         component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
             logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
             return null;

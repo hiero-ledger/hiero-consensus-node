@@ -13,9 +13,6 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -24,6 +21,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The hinTS context that can be used to request hinTS signatures using the latest
@@ -192,11 +191,9 @@ public class HintsContext {
                 final long nodeId,
                 @NonNull final Bytes signature) {
             requireNonNull(signature);
+            final var partyId = partyIds.get(nodeId);
             if (this.constructionId == constructionId && partyIds.containsKey(nodeId)) {
-                final int partyId = partyIds.get(nodeId);
                 final var isValid = library.verifyBls(crs, signature, message, aggregationKey, partyId);
-                log.info("Partial signature from node {} for party {} isValid {} constructionId {}", nodeId,
-                        partyId, isValid, constructionId);
                 if (isValid) {
                     signatures.put(partyId, signature);
                     final var weight = currentRoster.rosterEntries().stream()
@@ -204,9 +201,11 @@ public class HintsContext {
                             .mapToLong(RosterEntry::weight)
                             .findFirst()
                             .orElse(0L);
-                    log.info("Threshold weight reached got {}, needed {}", weightOfSignatures.addAndGet(weight), thresholdWeight);
-                    if (weightOfSignatures.addAndGet(weight) >= thresholdWeight) {
-                        future.complete(library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures));
+                    final var totalWeight = weightOfSignatures.addAndGet(weight);
+                    if (totalWeight >= thresholdWeight) {
+                        final var aggregatedSignature =
+                                library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
+                        future.complete(aggregatedSignature);
                     }
                 }
             }

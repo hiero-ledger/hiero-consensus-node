@@ -137,7 +137,7 @@ class HintsControllerImplTest {
     void ignoresKeyPublicationIfNotInGracePeriod() {
         setupWith(FINISHED_CONSTRUCTION);
 
-        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION);
+        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
 
         verify(weights, never()).targetNodeWeights();
     }
@@ -147,7 +147,7 @@ class HintsControllerImplTest {
         setupWithFinalCrs(UNFINISHED_CONSTRUCTION);
         given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
 
-        subject.addHintsKeyPublication(UNEXPECTED_NODE_ONE_PUBLICATION);
+        subject.addHintsKeyPublication(UNEXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
 
         verifyNoMoreInteractions(weights);
     }
@@ -159,7 +159,7 @@ class HintsControllerImplTest {
         scheduledTasks.poll();
         given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
 
-        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION);
+        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
 
         final var task = scheduledTasks.poll();
         assertNotNull(task);
@@ -214,8 +214,8 @@ class HintsControllerImplTest {
         given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME))
                 .willReturn(CONSTRUCTION_WITH_START_TIME);
 
-        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION);
-        subject.addHintsKeyPublication(TARDY_NODE_TWO_PUBLICATION);
+        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
+        subject.addHintsKeyPublication(TARDY_NODE_TWO_PUBLICATION, INITIAL_CRS);
         given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
         runScheduledTasks();
 

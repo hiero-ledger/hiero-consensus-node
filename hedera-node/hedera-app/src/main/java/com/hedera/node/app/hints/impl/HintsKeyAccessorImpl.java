@@ -10,18 +10,16 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HexFormat;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Singleton
 public class HintsKeyAccessorImpl
@@ -48,7 +46,6 @@ public class HintsKeyAccessorImpl
     @Override
     public Bytes signWithBlsPrivateKey(final long constructionId, @NonNull final Bytes message) {
         final var key = getOrCreateBlsPrivateKey(constructionId);
-        log.info("Signing message with BLS key {} for constructionId {}", HexFormat.of().formatHex(key.toByteArray()), constructionId);
         return library.signBls(message, key);
     }
 

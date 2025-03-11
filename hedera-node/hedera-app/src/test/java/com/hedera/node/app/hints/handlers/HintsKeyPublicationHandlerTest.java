@@ -111,7 +111,7 @@ class HintsKeyPublicationHandlerTest {
 
         verify(controller)
                 .addHintsKeyPublication(
-                        new ReadableHintsStore.HintsKeyPublication(NODE_ID, HINTS_KEY, 1, CONSENSUS_NOW));
+                        new ReadableHintsStore.HintsKeyPublication(NODE_ID, HINTS_KEY, 1, CONSENSUS_NOW), Bytes.EMPTY);
     }
 
     @Test
@@ -129,7 +129,7 @@ class HintsKeyPublicationHandlerTest {
 
         verify(controller, never())
                 .addHintsKeyPublication(
-                        new ReadableHintsStore.HintsKeyPublication(NODE_ID, HINTS_KEY, 1, CONSENSUS_NOW));
+                        new ReadableHintsStore.HintsKeyPublication(NODE_ID, HINTS_KEY, 1, CONSENSUS_NOW), Bytes.EMPTY);
     }
 
     private void givenPublicationWith(final int partyId, final int numParties, @NonNull final Bytes hintsKey) {

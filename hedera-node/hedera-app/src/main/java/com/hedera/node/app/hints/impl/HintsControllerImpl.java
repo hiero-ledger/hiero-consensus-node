@@ -20,7 +20,6 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
-import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.ReadableHintsStore.HintsKeyPublication;
 import com.hedera.node.app.hints.WritableHintsStore;
@@ -187,7 +186,6 @@ public class HintsControllerImpl implements HintsController {
         }
         if (construction.hasPreprocessingStartTime() && isActive) {
             final var crs = hintsStore.getCrsState().crs();
-            log.info("Inside construction.hasPreprocessingStartTime() && isActive");
             if (!votes.containsKey(selfId) && preprocessingVoteFuture == null) {
                 preprocessingVoteFuture =
                         startPreprocessingVoteFuture(asInstant(construction.preprocessingStartTimeOrThrow()), crs);
@@ -195,7 +193,6 @@ public class HintsControllerImpl implements HintsController {
         } else {
             final var crs = hintsStore.getCrsState().crs();
             if (shouldStartPreprocessing(now)) {
-                log.info("Starting preprocessing for construction {}", construction.constructionId());
                 construction = hintsStore.setPreprocessingStartTime(construction.constructionId(), now);
                 if (isActive) {
                     preprocessingVoteFuture = startPreprocessingVoteFuture(now, crs);
@@ -391,8 +388,6 @@ public class HintsControllerImpl implements HintsController {
 
     @Override
     public @NonNull OptionalInt partyIdOf(final long nodeId) {
-        log.info("nodeId {}, nodePartyIds {},  expectedPartyId {}, weights {}", nodeId, nodePartyIds,
-                expectedPartyId(nodeId), weights);
         if (!weights.targetIncludes(nodeId)) {
             return OptionalInt.empty();
         }
@@ -402,7 +397,7 @@ public class HintsControllerImpl implements HintsController {
     }
 
     @Override
-    public void addHintsKeyPublication(@NonNull final HintsKeyPublication publication) {
+    public void addHintsKeyPublication(@NonNull final HintsKeyPublication publication, final Bytes crs) {
         requireNonNull(publication);
         // If grace period is over, we have either finished construction or already set the
         // preprocessing time to something earlier than consensus now; so we will not use
@@ -411,7 +406,7 @@ public class HintsControllerImpl implements HintsController {
             log.info("Construction has no grace period end time. Returning.");
             return;
         }
-        maybeUpdateForHintsKey(initialCrs, publication);
+        maybeUpdateForHintsKey(crs, publication);
     }
 
     @Override
@@ -539,9 +534,6 @@ public class HintsControllerImpl implements HintsController {
         if (now.isBefore(asInstant(construction.gracePeriodEndTimeOrThrow()))) {
             return false;
         } else {
-            //            log.info(
-            //                    "Checking if we should start preprocessing {} - {}",
-            //                    weightOfValidHintsKeysAt(now), weights.targetWeightThreshold());
             return weightOfValidHintsKeysAt(now) >= weights.targetWeightThreshold();
         }
     }
@@ -652,9 +644,7 @@ public class HintsControllerImpl implements HintsController {
             final int selfPartyId = expectedPartyId(selfId);
             publicationFuture = CompletableFuture.runAsync(
                             () -> {
-                                log.info("Starting computing hinTS key for construction {}", construction.constructionId());
                                 final var hints = library.computeHints(crs, blsPrivateKey, selfPartyId, numParties);
-//                                log.info("Submitting hinTS key with {} - selfPartyId {}", blsPrivateKey, selfPartyId);
                                 submissions
                                         .submitHintsKey(selfPartyId, numParties, hints)
                                         .join();
@@ -680,19 +670,17 @@ public class HintsControllerImpl implements HintsController {
                             // time, there is no risk of CME with handle thread running addKeyPublication()
                             final var hintKeys = validationFutures.headMap(cutoff, true).values().stream()
                                     .map(CompletableFuture::join)
-//                                    .filter(Validation::isValid)
+                                    .filter(Validation::isValid)
                                     .collect(toMap(
                                             Validation::partyId, Validation::hintsKey, (a, b) -> a, TreeMap::new));
                             final var aggregatedWeights = nodePartyIds.entrySet().stream()
-//                                    .filter(entry -> hintKeys.containsKey(entry.getValue()))
+                                    .filter(entry -> hintKeys.containsKey(entry.getValue()))
                                     .collect(toMap(
                                             Map.Entry::getValue,
                                             entry -> weights.targetWeightOf(entry.getKey()),
                                             (a, b) -> a,
                                             TreeMap::new));
                             final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
-                            log.info("Preprocessing output: {} hintsKey :{}, aggregatedWeights: {}", output,
-                                    hintKeys, aggregatedWeights);
                             final var preprocessedKeys = PreprocessedKeys.newBuilder()
                                     .verificationKey(Bytes.wrap(output.verificationKey()))
                                     .aggregationKey(Bytes.wrap(output.aggregationKey()))
