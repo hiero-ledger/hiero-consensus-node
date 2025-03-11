@@ -14,7 +14,7 @@ import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.WAITING
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
@@ -49,8 +49,6 @@ import org.apache.logging.log4j.Logger;
 public class DefaultTransactionHandler implements TransactionHandler {
 
     private static final Logger logger = LogManager.getLogger(DefaultTransactionHandler.class);
-
-    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
     /**
      * The class responsible for all interactions with the swirld state
@@ -128,7 +126,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
                 .roundsNonAncient();
         this.handlerMetrics = new RoundHandlingMetrics(platformContext);
 
-        previousRoundLegacyRunningEventHash = NULL_HASH;
+        previousRoundLegacyRunningEventHash = Cryptography.NULL_HASH;
         this.platformStateFacade = platformStateFacade;
 
         final PlatformSchedulersConfig schedulersConfig =
@@ -253,7 +251,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
             platformStateFacade.setLegacyRunningEventHashTo(consensusState, previousRoundLegacyRunningEventHash);
         } else {
-            platformStateFacade.setLegacyRunningEventHashTo(consensusState, NULL_HASH);
+            platformStateFacade.setLegacyRunningEventHashTo(consensusState, Cryptography.NULL_HASH);
         }
     }
 
