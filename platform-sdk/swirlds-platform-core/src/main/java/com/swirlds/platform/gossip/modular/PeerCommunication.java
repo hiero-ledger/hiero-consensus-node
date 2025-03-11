@@ -4,8 +4,9 @@ package com.swirlds.platform.gossip.modular;
 import com.google.common.collect.ImmutableList;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.threading.framework.StoppableThread;
+import com.swirlds.common.threading.framework.TypedStoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
+import com.swirlds.common.threading.interrupt.InterruptableRunnable;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.ThreadConfig;
@@ -57,6 +58,11 @@ public class PeerCommunication implements ConnectionTracker {
     private List<Protocol> protocolList;
     private PeerConnectionServer connectionServer;
 
+    private final Map<Object, DedicatedStoppableThread<NodeId>> dedicatedThreads = new HashMap<>();
+    private final List<DedicatedStoppableThread<NodeId>> dedicatedThreadsToModify = new ArrayList<>();
+    private boolean started = false;
+    private TypedStoppableThread<InterruptableRunnable> connectionServerThread;
+
     /**
      * Create manager of communication with neighbouring nodes for exchanging events.
      *
@@ -84,6 +90,37 @@ public class PeerCommunication implements ConnectionTracker {
     }
 
     /**
+     * Second half of constructor, to initialize things which cannot be passed in the constructor for whatever reasons
+     *
+     * @param threadManager      the thread manager
+     * @param handshakeProtocols list of handshake protocols for new connections
+     * @param protocols          list of peer protocols for handling data for established connection
+     */
+    void initialize(ThreadManager threadManager, List<ProtocolRunnable> handshakeProtocols, List<Protocol> protocols) {
+
+        this.threadManager = threadManager;
+        this.handshakeProtocols = handshakeProtocols;
+        this.protocolList = protocols;
+
+        this.connectionManagers =
+                new DynamicConnectionManagers(selfId, peers, platformContext, this, keysAndCerts, topology);
+
+        this.connectionServer = createConnectionServer();
+
+        final ThreadConfig threadConfig = platformContext.getConfiguration().getConfigData(ThreadConfig.class);
+
+        this.connectionServerThread = new StoppableThreadConfiguration<>(threadManager)
+                .setPriority(threadConfig.threadPrioritySync())
+                .setNodeId(selfId)
+                .setComponent(PLATFORM_THREAD_POOL_NAME)
+                .setThreadName("connectionServer")
+                .setWork(connectionServer)
+                .build();
+
+        registerDedicatedThreads(buildProtocolThreads(topology.getNeighbors()));
+    }
+
+    /**
      * @return network metrics to register data about communication traffic and latencies
      */
     public NetworkMetrics getNetworkMetrics() {
@@ -98,16 +135,13 @@ public class PeerCommunication implements ConnectionTracker {
      *
      * @param added   peers to be added
      * @param removed peers to be removed
-     * @return set of per-peer thread information based on applied diff; it will contain nodeId->null for peers which
-     * got removed, nodeId->threadForFreshData for ones which got updated
      */
-    public Collection<DedicatedStoppableThread<NodeId>> addRemovePeers(
-            @NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
+    public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
         Objects.requireNonNull(added);
         Objects.requireNonNull(removed);
 
         if (added.isEmpty() && removed.isEmpty()) {
-            return ImmutableList.of();
+            return;
         }
 
         List<DedicatedStoppableThread<NodeId>> threads = new ArrayList<>();
@@ -157,17 +191,56 @@ public class PeerCommunication implements ConnectionTracker {
             peerLock.unlock();
         }
 
-        return threads;
+        registerDedicatedThreads(threads);
+        applyDedicatedThreadsToModify();
     }
 
     /**
-     * Internal method similar to {@link #addRemovePeers(List, List)}, to be used during initialization for core set of
-     * peers
-     *
-     * @return see {@link #addRemovePeers(List, List)}
+     * {@inheritDoc}
      */
-    List<DedicatedStoppableThread<NodeId>> buildProtocolThreadsFromCurrentNeighbors() {
-        return buildProtocolThreads(topology.getNeighbors());
+    @Override
+    public void newConnectionOpened(@NonNull final Connection sc) {
+        Objects.requireNonNull(sc);
+        networkMetrics.connectionEstablished(sc);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void connectionClosed(final boolean outbound, @NonNull final Connection conn) {
+        Objects.requireNonNull(conn);
+        networkMetrics.recordDisconnect(conn);
+    }
+
+    /**
+     * Spin up all the threads registered for already existing peers
+     */
+    void start() {
+        if (started) {
+            throw new IllegalStateException("Gossip already started");
+        }
+        started = true;
+
+        this.connectionServerThread.start();
+
+        applyDedicatedThreadsToModify();
+    }
+
+    /**
+     * Stop all network threads
+     */
+    void stop() {
+        if (!started) {
+            throw new IllegalStateException("Gossip not started");
+        }
+
+        this.connectionServerThread.stop();
+
+        for (final DedicatedStoppableThread dst : dedicatedThreads.values()) {
+            dst.thread().interrupt(); // aggresive interrupt to avoid hanging for a long time
+            dst.thread().stop();
+        }
     }
 
     private List<DedicatedStoppableThread<NodeId>> buildProtocolThreads(Collection<NodeId> peers) {
@@ -199,39 +272,7 @@ public class PeerCommunication implements ConnectionTracker {
         return syncProtocolThreads;
     }
 
-    /**
-     * Second half of constructor, to initialize things which cannot be passed in the constructor for whatever reasons
-     *
-     * @param threadManager      the thread manager
-     * @param handshakeProtocols list of handshake protocols for new connections
-     * @param protocols          list of peer protocols for handling data for established connection
-     * @return list of utility thread to be started together with a start of platform
-     */
-    List<StoppableThread> initialize(
-            ThreadManager threadManager, List<ProtocolRunnable> handshakeProtocols, List<Protocol> protocols) {
-
-        this.threadManager = threadManager;
-        this.handshakeProtocols = handshakeProtocols;
-        this.protocolList = protocols;
-
-        this.connectionManagers =
-                new DynamicConnectionManagers(selfId, peers, platformContext, this, keysAndCerts, topology);
-
-        var threadsToRun = new ArrayList<StoppableThread>();
-        final ThreadConfig threadConfig = platformContext.getConfiguration().getConfigData(ThreadConfig.class);
-        this.connectionServer = getConnectionServer();
-        threadsToRun.add(new StoppableThreadConfiguration<>(threadManager)
-                .setPriority(threadConfig.threadPrioritySync())
-                .setNodeId(selfId)
-                .setComponent(PLATFORM_THREAD_POOL_NAME)
-                .setThreadName("connectionServer")
-                .setWork(connectionServer)
-                .build());
-
-        return threadsToRun;
-    }
-
-    private PeerConnectionServer getConnectionServer() {
+    private PeerConnectionServer createConnectionServer() {
         var inboundConnectionHandler = new InboundConnectionHandler(
                 platformContext, this, peers, selfId, connectionManagers::newConnection, platformContext.getTime());
         // allow other members to create connections to me
@@ -248,20 +289,44 @@ public class PeerCommunication implements ConnectionTracker {
     }
 
     /**
-     * {@inheritDoc}
+     * Registers threads which should be started when {@link #start()} method is called and stopped on {@link #stop()}
+     * Order in which this method is called is important, so don't call it concurrently without external control.
+     * @param things thread to start
      */
-    @Override
-    public void newConnectionOpened(@NonNull final Connection sc) {
-        Objects.requireNonNull(sc);
-        networkMetrics.connectionEstablished(sc);
+    private void registerDedicatedThreads(final @NonNull Collection<DedicatedStoppableThread<NodeId>> things) {
+        Objects.requireNonNull(things);
+        dedicatedThreadsToModify.addAll(things);
     }
 
     /**
-     * {@inheritDoc}
+     * Should be called after {@link #registerDedicatedThreads(Collection)} to actually start/stop threads; it is split into half
+     * because this method can be called only for running system, so during startup, dedicated threads will be registered a lot earlier
+     * than started
+     * Method can be called many times, it will be no-op if no dedicate thread changes were made in meantime
+     * Do NOT call this method concurrently; it is not protected against such access and can have undefined behaviour
      */
-    @Override
-    public void connectionClosed(final boolean outbound, @NonNull final Connection conn) {
-        Objects.requireNonNull(conn);
-        networkMetrics.recordDisconnect(conn);
+    private void applyDedicatedThreadsToModify() {
+        if (!started) {
+            logger.warn("Cannot apply dedicated threads status when gossip is not started");
+            return;
+        }
+        for (DedicatedStoppableThread<NodeId> dst : dedicatedThreadsToModify) {
+            var newThread = dst.thread();
+            var oldThread = dedicatedThreads.remove(dst.key());
+            if (newThread == null) {
+                if (oldThread != null && oldThread.thread() != null) {
+                    oldThread.thread().interrupt();
+                } else {
+                    logger.warn("Dedicated thread {} was not found, but we were asked to stop it", dst.key());
+                }
+            } else {
+                if (oldThread != null && oldThread.thread() != null) {
+                    oldThread.thread().interrupt();
+                }
+                dedicatedThreads.put(dst.key(), dst);
+                newThread.start();
+            }
+        }
+        dedicatedThreadsToModify.clear();
     }
 }
