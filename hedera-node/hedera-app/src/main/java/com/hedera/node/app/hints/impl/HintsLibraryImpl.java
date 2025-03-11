@@ -95,7 +95,8 @@ public class HintsLibraryImpl implements HintsLibrary {
     public Bytes signBls(@NonNull final Bytes message, @NonNull final Bytes privateKey) {
         requireNonNull(message);
         requireNonNull(privateKey);
-        return Bytes.wrap(BRIDGE.signBls(message.toByteArray(), privateKey.toByteArray()));
+        final var signature = BRIDGE.signBls(message.toByteArray(), privateKey.toByteArray());
+        return signature == null ? null : Bytes.wrap(signature);
     }
 
     @Override
@@ -134,7 +135,7 @@ public class HintsLibraryImpl implements HintsLibrary {
                 .toArray(byte[][]::new);
         final var aggregatedSignature = BRIDGE.aggregateSignatures(
                 crs.toByteArray(), aggregationKey.toByteArray(), verificationKey.toByteArray(), parties, signatures);
-        return Bytes.wrap(aggregatedSignature);
+        return aggregatedSignature == null ? null : Bytes.wrap(aggregatedSignature);
     }
 
     @Override

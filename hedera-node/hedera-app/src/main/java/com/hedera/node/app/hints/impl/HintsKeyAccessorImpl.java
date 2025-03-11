@@ -48,7 +48,7 @@ public class HintsKeyAccessorImpl
     @Override
     public Bytes signWithBlsPrivateKey(final long constructionId, @NonNull final Bytes message) {
         final var key = getOrCreateBlsPrivateKey(constructionId);
-//        log.info("Signing message with BLS key {}", HexFormat.of().formatHex(key.toByteArray()));
+        log.info("Signing message with BLS key {} for constructionId {}", HexFormat.of().formatHex(key.toByteArray()), constructionId);
         return library.signBls(message, key);
     }
 

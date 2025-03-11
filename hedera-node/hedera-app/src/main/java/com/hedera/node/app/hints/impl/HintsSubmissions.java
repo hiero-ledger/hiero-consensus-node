@@ -123,9 +123,8 @@ public class HintsSubmissions extends TssSubmissions {
         return submit(
                 b -> {
                     final var signature = keyAccessor.signWithBlsPrivateKey(constructionId, message);
-                    logger.info("Submitting partial signature  {} - {}", signature, message);
                     b.hintsPartialSignature(
-                            new HintsPartialSignatureTransactionBody(constructionId, message, signature));
+                            new HintsPartialSignatureTransactionBody(constructionId, message, requireNonNull(signature)));
                 },
                 onFailure).exceptionally(t -> {
             logger.warn("Failed to submit partial signature for message {}", message, t);

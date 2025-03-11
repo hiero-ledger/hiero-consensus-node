@@ -141,7 +141,6 @@ public class HintsServiceImpl implements HintsService {
 
     @Override
     public CompletableFuture<Bytes> signFuture(@NonNull final Bytes blockHash) {
-        logger.info("Signing block hash {}", blockHash);
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }

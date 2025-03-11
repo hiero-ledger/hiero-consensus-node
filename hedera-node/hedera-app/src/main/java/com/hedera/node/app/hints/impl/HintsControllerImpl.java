@@ -680,17 +680,19 @@ public class HintsControllerImpl implements HintsController {
                             // time, there is no risk of CME with handle thread running addKeyPublication()
                             final var hintKeys = validationFutures.headMap(cutoff, true).values().stream()
                                     .map(CompletableFuture::join)
-                                    .filter(Validation::isValid)
+//                                    .filter(Validation::isValid)
                                     .collect(toMap(
                                             Validation::partyId, Validation::hintsKey, (a, b) -> a, TreeMap::new));
                             final var aggregatedWeights = nodePartyIds.entrySet().stream()
-                                    .filter(entry -> hintKeys.containsKey(entry.getValue()))
+//                                    .filter(entry -> hintKeys.containsKey(entry.getValue()))
                                     .collect(toMap(
                                             Map.Entry::getValue,
                                             entry -> weights.targetWeightOf(entry.getKey()),
                                             (a, b) -> a,
                                             TreeMap::new));
                             final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
+                            log.info("Preprocessing output: {} hintsKey :{}, aggregatedWeights: {}", output,
+                                    hintKeys, aggregatedWeights);
                             final var preprocessedKeys = PreprocessedKeys.newBuilder()
                                     .verificationKey(Bytes.wrap(output.verificationKey()))
                                     .aggregationKey(Bytes.wrap(output.aggregationKey()))

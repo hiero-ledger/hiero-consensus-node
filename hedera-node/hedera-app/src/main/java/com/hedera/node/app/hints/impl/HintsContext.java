@@ -195,7 +195,8 @@ public class HintsContext {
             if (this.constructionId == constructionId && partyIds.containsKey(nodeId)) {
                 final int partyId = partyIds.get(nodeId);
                 final var isValid = library.verifyBls(crs, signature, message, aggregationKey, partyId);
-                log.info("Partial signature from node {} for party {} isValid {}", nodeId, partyId, isValid);
+                log.info("Partial signature from node {} for party {} isValid {} constructionId {}", nodeId,
+                        partyId, isValid, constructionId);
                 if (isValid) {
                     signatures.put(partyId, signature);
                     final var weight = currentRoster.rosterEntries().stream()
