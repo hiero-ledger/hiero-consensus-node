@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * A HashMap-like structure that implements the FastCopyable interface.
  */

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.virtualmerkle;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
@@ -24,7 +9,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
@@ -60,6 +46,7 @@ import java.util.stream.Stream;
  * Validator to read a data source and all its data and check the complete data set is valid.
  */
 public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValue> {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(MerkleDbConfig.class)
@@ -142,7 +129,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
      * @return the hash of the content
      */
     public static Hash hashOf(final byte[] content) {
-        return new Hash(CryptographyHolder.get().digestSync(content));
+        return new Hash(CRYPTOGRAPHY.digestSync(content));
     }
 
     public static void main(final String[] args) throws IOException {

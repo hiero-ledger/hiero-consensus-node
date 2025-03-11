@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
@@ -26,9 +11,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
@@ -46,7 +30,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("VirtualMap Hashing Tests")
 class VirtualMapHashingTest {
-    private static final MerkleCryptography CRYPTO = MerkleCryptoFactory.getInstance();
 
     @Test
     @Tag(TestComponentTags.VMAP)
@@ -54,7 +37,7 @@ class VirtualMapHashingTest {
     void hashEmptyMap() {
         final VirtualMap<TestKey, TestValue> map = createMap();
         final VirtualMap<TestKey, TestValue> copy = map.copy();
-        final Hash hash = CRYPTO.digestTreeSync(map);
+        final Hash hash = TestMerkleCryptoFactory.getInstance().digestTreeSync(map);
         assertNotNull(hash, "hash should not be null");
 
         map.release();
@@ -69,7 +52,7 @@ class VirtualMapHashingTest {
         map.put(new TestKey('a'), new TestValue("a"));
         final VirtualMap<TestKey, TestValue> copy = map.copy();
 
-        final Hash hash = MerkleCryptoFactory.getInstance().digestTreeSync(map);
+        final Hash hash = TestMerkleCryptoFactory.getInstance().digestTreeSync(map);
         assertNotNull(hash, "hash should not be null");
 
         map.release();
@@ -86,7 +69,7 @@ class VirtualMapHashingTest {
         }
 
         final VirtualMap<TestKey, TestValue> map1 = map0.copy();
-        final Hash hash0 = MerkleCryptoFactory.getInstance().digestTreeSync(map0);
+        final Hash hash0 = TestMerkleCryptoFactory.getInstance().digestTreeSync(map0);
         assertNotNull(hash0, "hash should not be null");
 
         for (int i = 100; i < 200; i++) {
@@ -94,10 +77,10 @@ class VirtualMapHashingTest {
         }
 
         final VirtualMap<TestKey, TestValue> map2 = map1.copy();
-        final Hash hash1 = MerkleCryptoFactory.getInstance().digestTreeSync(map1);
+        final Hash hash1 = TestMerkleCryptoFactory.getInstance().digestTreeSync(map1);
         assertNotNull(hash1, "hash should not be null");
 
-        final Hash hash0_2 = MerkleCryptoFactory.getInstance().digestTreeSync(map0);
+        final Hash hash0_2 = TestMerkleCryptoFactory.getInstance().digestTreeSync(map0);
         assertNotEquals(hash0, hash1, "hash should have changed");
         assertEquals(hash0_2, map0.getHash(), "map should still have the same hash");
 
@@ -116,7 +99,7 @@ class VirtualMapHashingTest {
             mapA.put(new TestKey(i), new TestValue(Integer.toString(i)));
         }
         final VirtualMap<TestKey, TestValue> copyA = mapA.copy();
-        final Hash hashA = MerkleCryptoFactory.getInstance().digestTreeSync(mapA);
+        final Hash hashA = TestMerkleCryptoFactory.getInstance().digestTreeSync(mapA);
         assertNotNull(hashA, "hash should not be null");
 
         final VirtualMap<TestKey, TestValue> mapB = createMap();
@@ -124,7 +107,7 @@ class VirtualMapHashingTest {
             mapB.put(new TestKey(i), new TestValue(Integer.toString(i)));
         }
         final VirtualMap<TestKey, TestValue> copyB = mapB.copy();
-        final Hash hashB = MerkleCryptoFactory.getInstance().digestTreeSync(mapB);
+        final Hash hashB = TestMerkleCryptoFactory.getInstance().digestTreeSync(mapB);
         assertEquals(hashA, hashB, "both trees should derive the same hash");
 
         mapA.release();
@@ -143,7 +126,7 @@ class VirtualMapHashingTest {
             mapA.put(new TestKey(i), new TestValue(Integer.toString(i)));
         }
         final VirtualMap<TestKey, TestValue> copyA = mapA.copy();
-        final Hash hashA = MerkleCryptoFactory.getInstance().digestTreeSync(mapA);
+        final Hash hashA = TestMerkleCryptoFactory.getInstance().digestTreeSync(mapA);
         assertNotNull(hashA, "hash should not be null");
 
         final VirtualMap<TestKey, TestValue> mapB = createMap();
@@ -151,7 +134,7 @@ class VirtualMapHashingTest {
             mapB.put(new TestKey(i), new TestValue(Integer.toString(i)));
         }
         final VirtualMap<TestKey, TestValue> copyB = mapB.copy();
-        final Hash hashB = MerkleCryptoFactory.getInstance().digestTreeSync(mapB);
+        final Hash hashB = TestMerkleCryptoFactory.getInstance().digestTreeSync(mapB);
         assertEquals(hashA, hashB, "both trees should derive the same hash");
 
         mapA.release();
@@ -183,7 +166,7 @@ class VirtualMapHashingTest {
 
         final VirtualMap<TestKey, TestValue> copy = map.copy();
 
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         assertNotNull(map.getHash(), "map should be hashed");
         assertNotNull(root.getHash(), "tree should be hashed");
@@ -215,7 +198,7 @@ class VirtualMapHashingTest {
 
         final VirtualMap<TestKey, TestValue> copy = map.copy();
 
-        MerkleCryptoFactory.getInstance().digestTreeAsync(root).get();
+        TestMerkleCryptoFactory.getInstance().digestTreeAsync(root).get();
 
         assertNotNull(map.getHash(), "map should be hashed");
         assertNotNull(root.getHash(), "tree should be hashed");
@@ -261,7 +244,7 @@ class VirtualMapHashingTest {
         final VirtualMap<TestKey, TestValue> copy1 = map1.copy();
         final VirtualMap<TestKey, TestValue> copy2 = map2.copy();
 
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         assertNotNull(map0.getHash(), "map should be hashed");
         assertNotNull(map1.getHash(), "map should be hashed");
@@ -290,7 +273,7 @@ class VirtualMapHashingTest {
         map0.remove(new TestKey(delete2));
 
         final VirtualMap<TestKey, TestValue> map1 = map0.copy();
-        final Hash hash0 = MerkleCryptoFactory.getInstance().digestTreeSync(map0);
+        final Hash hash0 = TestMerkleCryptoFactory.getInstance().digestTreeSync(map0);
         assertNotNull(hash0, "hash should not be null");
 
         map0.release();
@@ -314,7 +297,7 @@ class VirtualMapHashingTest {
 
         final VirtualMap<TestKey, TestValue> prev = current;
         current = current.copy();
-        Future<Hash> future = MerkleCryptoFactory.getInstance().digestTreeAsync(prev);
+        Future<Hash> future = TestMerkleCryptoFactory.getInstance().digestTreeAsync(prev);
 
         final long numInternals = current.getState().getFirstLeafPath();
         for (int i = 0; i < nKeys; ++i) {

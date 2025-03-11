@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
@@ -61,11 +46,11 @@ import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.utils.Signing;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ScheduleID;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -300,7 +285,7 @@ public class ContractSignScheduleTest {
                     getScheduleInfo(SCHEDULE_H).isExecuted().hasSignatories(GENESIS, ED25519KEY));
         }
 
-        private @NotNull CustomSpecAssert signWithEd(
+        private @NonNull CustomSpecAssert signWithEd(
                 final AtomicReference<ScheduleID> scheduleID, final ResponseCodeEnum expectedStatus) {
             return withOpContext((spec, opLog) -> {
                 final var message = getMessageBytes(scheduleID);
@@ -330,7 +315,7 @@ public class ContractSignScheduleTest {
             });
         }
 
-        private @NotNull CustomSpecAssert signWithEcdsa(
+        private @NonNull CustomSpecAssert signWithEcdsa(
                 final AtomicReference<ScheduleID> scheduleID, final ResponseCodeEnum expectedStatus) {
             return withOpContext((spec, opLog) -> {
                 final var message = getMessageBytes(scheduleID);

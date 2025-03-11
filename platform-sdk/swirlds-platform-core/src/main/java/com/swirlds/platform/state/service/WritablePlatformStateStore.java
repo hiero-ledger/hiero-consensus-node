@@ -1,23 +1,6 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.platform.state.service.PbjConverter.toPbjAddressBook;
-import static com.swirlds.platform.state.service.PbjConverter.toPbjConsensusSnapshot;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
 import static java.util.Objects.requireNonNull;
@@ -30,7 +13,6 @@ import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -98,24 +80,6 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      * {@inheritDoc}
      */
     @Override
-    public void setAddressBook(@Nullable final AddressBook addressBook) {
-        final var previousState = stateOrThrow();
-        update(previousState.copyBuilder().addressBook(toPbjAddressBook(addressBook)));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setPreviousAddressBook(@Nullable final AddressBook addressBook) {
-        final var previousState = stateOrThrow();
-        update(previousState.copyBuilder().previousAddressBook(toPbjAddressBook(addressBook)));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void setRound(final long round) {
         final var previousState = stateOrThrow();
         update(previousState
@@ -166,10 +130,10 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      * {@inheritDoc}
      */
     @Override
-    public void setSnapshot(@NonNull final com.swirlds.platform.consensus.ConsensusSnapshot snapshot) {
+    public void setSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         requireNonNull(snapshot);
         final var previousState = stateOrThrow();
-        update(previousState.copyBuilder().consensusSnapshot(toPbjConsensusSnapshot(snapshot)));
+        update(previousState.copyBuilder().consensusSnapshot(snapshot));
     }
 
     /**

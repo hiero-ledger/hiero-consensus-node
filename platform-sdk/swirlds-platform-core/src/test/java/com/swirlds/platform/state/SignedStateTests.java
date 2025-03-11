@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -28,8 +13,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.base.utility.Pair;
 import com.swirlds.common.exceptions.ReferenceCountException;
+import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.crypto.SignatureVerifier;
@@ -56,9 +41,11 @@ class SignedStateTests {
     /**
      * Generate a signed state.
      */
-    private Pair<SignedState, TestPlatformStateFacade> generateSignedStateFacadePair(
-            final Random random, final MerkleNodeState state) {
-        return new RandomSignedStateGenerator(random).setState(state).buildWithFacade();
+    private SignedState generateSignedState(final Random random, final MerkleNodeState state) {
+        return new RandomSignedStateGenerator(random)
+                .setState(state)
+                .buildWithFacade()
+                .left();
     }
 
     @BeforeEach
@@ -80,7 +67,7 @@ class SignedStateTests {
     private MerkleNodeState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
         final var real = new TestMerkleStateRoot();
-        FAKE_MERKLE_STATE_LIFECYCLES.initStates(real);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(real);
         RosterUtils.setActiveRoster(real, RandomRosterBuilder.create(random).build(), 0L);
         final MerkleNodeState state = spy(real);
         if (reserveCallback != null) {
@@ -88,7 +75,7 @@ class SignedStateTests {
                         reserveCallback.run();
                         return null;
                     })
-                    .when(state)
+                    .when((MerkleNode) state)
                     .reserve();
         }
 
@@ -123,11 +110,7 @@ class SignedStateTests {
                     released.set(true);
                 });
 
-        Pair<SignedState, TestPlatformStateFacade> pair = generateSignedStateFacadePair(random, state);
-        final SignedState signedState = pair.left();
-        final TestPlatformStateFacade platformStateFacade = pair.right();
-        final PlatformStateModifier platformState = new PlatformState();
-        when(platformStateFacade.getWritablePlatformStateOf(state)).thenReturn(platformState);
+        final SignedState signedState = generateSignedState(random, state);
 
         final ReservedSignedState reservedSignedState;
         reservedSignedState = signedState.reserve("test");
@@ -190,11 +173,7 @@ class SignedStateTests {
                     released.set(true);
                 });
 
-        Pair<SignedState, TestPlatformStateFacade> pair = generateSignedStateFacadePair(random, state);
-        final SignedState signedState = pair.left();
-        final TestPlatformStateFacade platformStateFacade = pair.right();
-        final PlatformStateModifier platformState = new PlatformState();
-        when(platformStateFacade.getWritablePlatformStateOf(state)).thenReturn(platformState);
+        final SignedState signedState = generateSignedState(random, state);
 
         final ReservedSignedState reservedSignedState = signedState.reserve("test");
 
@@ -235,7 +214,7 @@ class SignedStateTests {
         final MerkleNodeState state = spy(new TestMerkleStateRoot());
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
         final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
-        FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(state);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
         when(platformState.getRound()).thenReturn(0L);
         final SignedState signedState = new SignedState(
                 TestPlatformContextBuilder.create().build().getConfiguration(),

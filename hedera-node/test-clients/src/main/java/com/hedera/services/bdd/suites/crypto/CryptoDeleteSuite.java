@@ -1,29 +1,17 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.including;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
@@ -35,25 +23,34 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDissociate
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHip32Auto;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_ACCOUNT_SAME_AS_DELETE_ACCOUNT;
 
+import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.ContextRequirement;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
+import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.TransferList;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -185,5 +182,48 @@ public class CryptoDeleteSuite {
                         .initialSupply(TOKEN_INITIAL_SUPPLY)
                         .treasury(TREASURY),
                 cryptoDelete(TREASURY).transfer(TRANSFER_ACCOUNT).hasKnownStatus(ACCOUNT_IS_TREASURY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> deleteEcdsaKeyAliasWorked() {
+        return hapiTest(
+                createHip32Auto(1, SECP_256K1_SHAPE, i -> ACCOUNT_TO_BE_DELETED),
+                balanceSnapshot("before", ACCOUNT_TO_BE_DELETED),
+                withAddressOfKey(
+                        ACCOUNT_TO_BE_DELETED,
+                        address -> cryptoTransfer((spec, builder) -> builder.setTransfers(TransferList.newBuilder()
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(AccountID.newBuilder().setAccountNum(2))
+                                        .setAmount(-ONE_HUNDRED_HBARS)
+                                        .build())
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(AccountID.newBuilder()
+                                                .setAlias(ByteString.copyFrom(explicitBytesOf(address))))
+                                        .setAmount(ONE_HUNDRED_HBARS)
+                                        .build())
+                                .build()))),
+                getAccountBalance(ACCOUNT_TO_BE_DELETED).hasTinyBars(changeFromSnapshot("before", ONE_HUNDRED_HBARS)),
+                cryptoDelete(ACCOUNT_TO_BE_DELETED),
+                withAddressOfKey(ACCOUNT_TO_BE_DELETED, address -> getAliasedAccountInfo(
+                                ByteString.copyFrom(explicitBytesOf(address)))
+                        .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID)),
+                withAddressOfKey(ACCOUNT_TO_BE_DELETED, address -> cryptoTransfer(
+                                (spec, builder) -> builder.setTransfers(TransferList.newBuilder()
+                                        .addAccountAmounts(AccountAmount.newBuilder()
+                                                .setAccountID(
+                                                        AccountID.newBuilder().setAccountNum(2))
+                                                .setAmount(-ONE_HUNDRED_HBARS)
+                                                .build())
+                                        .addAccountAmounts(AccountAmount.newBuilder()
+                                                .setAccountID(AccountID.newBuilder()
+                                                        .setAlias(ByteString.copyFrom(explicitBytesOf(address))))
+                                                .setAmount(ONE_HUNDRED_HBARS)
+                                                .build())
+                                        .build()))
+                        .via("shouldBeAutoCreation")),
+                getTxnRecord("shouldBeAutoCreation")
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(1)
+                        .logged());
     }
 }

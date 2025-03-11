@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -26,6 +12,13 @@ import java.util.concurrent.atomic.AtomicReference;
 public class StateTestBase extends TestBase {
     protected static final String UNKNOWN_STATE_KEY = "BOGUS_STATE_KEY";
     protected static final String UNKNOWN_KEY = "BOGUS_KEY";
+
+    public static final String FIRST_SERVICE = "First-Service";
+    public static final String SECOND_SERVICE = "Second-Service";
+    public static final String UNKNOWN_SERVICE = "Bogus-Service";
+
+    public static final SemanticVersion TEST_VERSION =
+            SemanticVersion.newBuilder().major(1).build();
 
     protected static final int FRUIT_STATE_ID = 123;
     protected static final int ANIMAL_STATE_ID = 234;
@@ -190,5 +183,10 @@ public class StateTestBase extends TestBase {
     protected WritableSingletonState<String> writableCountryState() {
         final AtomicReference<String> backingValue = new AtomicReference<>(AUSTRALIA);
         return new WritableSingletonStateBase<>(COUNTRY_STATE_KEY, backingValue::get, backingValue::set);
+    }
+
+    /** A convenience method for creating {@link SemanticVersion}. */
+    protected SemanticVersion version(int major, int minor, int patch) {
+        return new SemanticVersion(major, minor, patch, null, null);
     }
 }

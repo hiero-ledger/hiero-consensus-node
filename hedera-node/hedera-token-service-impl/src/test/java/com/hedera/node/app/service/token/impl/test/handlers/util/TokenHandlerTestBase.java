@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.util;
 
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
@@ -39,11 +24,14 @@ import com.hedera.hapi.node.transaction.RoyaltyFee;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
-import com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -63,6 +51,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class TokenHandlerTestBase {
+    protected static final Configuration configuration = HederaTestConfigBuilder.createConfig();
+    protected static final long SHARD =
+            configuration.getConfigData(HederaConfig.class).shard();
+    protected static final long REALM =
+            configuration.getConfigData(HederaConfig.class).realm();
+    protected static final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
     protected static final String TOKENS = "TOKENS";
     protected static final Key payerKey = A_COMPLEX_KEY;
     protected final Key adminKey = A_COMPLEX_KEY;
@@ -210,7 +204,7 @@ public class TokenHandlerTestBase {
                 deleted,
                 TokenType.FUNGIBLE_COMMON,
                 TokenSupplyType.INFINITE,
-                BaseCryptoHandler.asAccount(0L, 0L, autoRenewAccountNumber),
+                idFactory.newAccountId(autoRenewAccountNumber),
                 autoRenewSecs,
                 expirationTime,
                 memo,

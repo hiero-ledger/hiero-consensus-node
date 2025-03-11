@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -22,16 +7,14 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.CallContractOutput;
-import com.hedera.hapi.block.stream.output.CryptoTransferOutput;
+import com.hedera.hapi.block.stream.output.CreateAccountOutput;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
-import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.platform.event.EventTransaction;
@@ -51,11 +34,8 @@ class BlockStreamBuilderOutputTest {
     private static final TransactionID TXN_ID = TransactionID.newBuilder()
             .accountID(AccountID.newBuilder().accountNum(2L).build())
             .build();
-    private static final List<AssessedCustomFee> ASSESSED_CUSTOM_FEES = List.of(new AssessedCustomFee(
-            1L,
-            TokenID.newBuilder().tokenNum(123).build(),
-            AccountID.newBuilder().accountNum(98L).build(),
-            List.of(AccountID.newBuilder().accountNum(2L).build())));
+    private static final AccountID ACCOUNT_ID =
+            AccountID.newBuilder().accountNum(1L).build();
     private static final ContractFunctionResult FUNCTION_RESULT =
             ContractFunctionResult.newBuilder().amount(666L).build();
     private static final BlockItem EVENT_TRANSACTION = BlockItem.newBuilder()
@@ -69,7 +49,7 @@ class BlockStreamBuilderOutputTest {
             .build();
     private static final BlockItem FIRST_OUTPUT = BlockItem.newBuilder()
             .transactionOutput(TransactionOutput.newBuilder()
-                    .cryptoTransfer(new CryptoTransferOutput(ASSESSED_CUSTOM_FEES))
+                    .accountCreate(new CreateAccountOutput(ACCOUNT_ID))
                     .build())
             .build();
     private static final BlockItem SECOND_OUTPUT = BlockItem.newBuilder()

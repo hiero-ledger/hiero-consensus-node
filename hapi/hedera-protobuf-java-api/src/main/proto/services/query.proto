@@ -1,0 +1,231 @@
+/**
+ * # Query
+ * This is the parent message for all queries, and this message is
+ * serialized and signed, with the signature included in the QueryHeader.
+ *
+ * All of the entries in the `query` `oneof` are fully specified elsewhere;
+ * we only include a short summary here.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/get_by_key.proto";
+import "services/get_by_solidity_id.proto";
+
+import "services/contract_call_local.proto";
+import "services/contract_get_info.proto";
+import "services/contract_get_bytecode.proto";
+import "services/contract_get_records.proto";
+
+import "services/crypto_get_account_balance.proto";
+import "services/crypto_get_account_records.proto";
+import "services/crypto_get_info.proto";
+import "services/crypto_get_live_hash.proto";
+import "services/crypto_get_stakers.proto";
+
+import "services/file_get_contents.proto";
+import "services/file_get_info.proto";
+
+import "services/transaction_get_receipt.proto";
+import "services/transaction_get_record.proto";
+import "services/transaction_get_fast_record.proto";
+
+import "services/consensus_get_topic_info.proto";
+
+import "services/network_get_version_info.proto";
+import "services/network_get_execution_time.proto";
+
+import "services/token_get_info.proto";
+import "services/schedule_get_info.proto";
+
+import "services/token_get_account_nft_infos.proto";
+import "services/token_get_nft_info.proto";
+import "services/token_get_nft_infos.proto";
+
+import "services/get_account_details.proto";
+
+/**
+ * A query transaction.<br/>
+ * This message is serialized to bytes and those bytes are signed by the
+ * submitter, with the signature included in the QueryHeader for the query
+ * request.
+ */
+message Query {
+    oneof query {
+        /**
+         * Get all entities associated with a given key.
+         */
+        GetByKeyQuery getByKey = 1;
+
+        /**
+         * Get an Hedera identifier associated with an identifier in EVM
+         * "Solidity" form.<br/>
+         * Most often used in smart contracts to find an Hedera account,
+         * file, or contract identifier to pass to a system contract or
+         * precompile.
+         */
+        GetBySolidityIDQuery getBySolidityID = 2;
+
+        /**
+         * Call a function of a smart contract.<br/>
+         * This call is executed exclusively on the node to which it is
+         * submitted, and is much less expensive than a `contractCall`
+         * transaction.
+         */
+        ContractCallLocalQuery contractCallLocal = 3;
+
+        /**
+         * Get information about a smart contract.
+         */
+        ContractGetInfoQuery contractGetInfo = 4;
+
+        /**
+         * Get runtime bytecode used by a smart contract.
+         */
+        ContractGetBytecodeQuery contractGetBytecode = 5;
+
+        /**
+         * This query is unsupported and SHALL fail.<br/>
+         * Requests for this information MUST be directed to a mirror node.
+         * <p>
+         * Get Records of a smart contract.
+         */
+        ContractGetRecordsQuery ContractGetRecords = 6 [deprecated = true];
+
+        /**
+         * Get the current HBAR balance of an Hedera account or smart contract.
+         */
+        CryptoGetAccountBalanceQuery cryptogetAccountBalance = 7;
+
+        /**
+         * Get records of all "recent" transactions for which a specified
+         * account is the effective payer.
+         */
+        CryptoGetAccountRecordsQuery cryptoGetAccountRecords = 8;
+
+        /**
+         * Get information about an account, including the balance.<br/>
+         * This does not get the list of account records.
+         */
+        CryptoGetInfoQuery cryptoGetInfo = 9;
+
+        /**
+         * This query is unsupported and SHALL fail.<br/>
+         * Requests for this information MUST be directed to a mirror node.
+         * <p>
+         * Get a single livehash from a single account, if present.
+         */
+        CryptoGetLiveHashQuery cryptoGetLiveHash = 10 [deprecated = true];
+
+        /**
+         * This query is unsupported and SHALL fail.<br/>
+         * Requests for this information MUST be directed to a mirror node.
+         * <p>
+         * Get all the accounts that are proxy staking to this account.
+         */
+        CryptoGetStakersQuery cryptoGetProxyStakers = 11 [deprecated = true];
+
+        /**
+         * Get the content of a file.
+         */
+        FileGetContentsQuery fileGetContents = 12;
+
+        /**
+         * Get metadata for a file.
+         */
+        FileGetInfoQuery fileGetInfo = 13;
+
+        /**
+         * Get a receipt for a transaction.<br/>
+         * This only returns a receipt if the transaction is "recent", which
+         * is typically within the previous 180 seconds (3 minutes).
+         */
+        TransactionGetReceiptQuery transactionGetReceipt = 14;
+
+        /**
+         * Get a record for a transaction.
+         * This only returns a record if the transaction is "available", which
+         * is typically within the previous 1 hour.
+         */
+        TransactionGetRecordQuery transactionGetRecord = 15;
+
+        /**
+         * Get a record for a transaction.
+         * This only returns a record if the transaction is "recent", which
+         * is typically within the previous 180 seconds (3 minutes).
+         */
+        TransactionGetFastRecordQuery transactionGetFastRecord = 16;
+
+        /**
+         * Get metadata for a consensus topic.
+         */
+        ConsensusGetTopicInfoQuery consensusGetTopicInfo = 50;
+
+        /**
+         * Get the versions of Hedera Services and the HAPI API deployed on
+         * the responding consensus node.
+         */
+        NetworkGetVersionInfoQuery networkGetVersionInfo = 51;
+
+        /**
+         * Get metadata for a token.
+         */
+        TokenGetInfoQuery tokenGetInfo = 52;
+
+        /**
+         * Get metadata for a schedule.<br/>
+         * A schedule is a request to execute a transaction at a future
+         * time.
+         */
+        ScheduleGetInfoQuery scheduleGetInfo = 53;
+
+        /**
+         * This query is unsupported and SHALL fail.<br/>
+         * Requests for this information MUST be directed to a mirror node.
+         * <p>
+         * Get a list of non-fungible/unique tokens associated with an account.
+         */
+        TokenGetAccountNftInfosQuery tokenGetAccountNftInfos = 54 [deprecated = true];
+
+        /**
+         * Get metadata for a specific, serial numbered, non-fungible/unique
+         * token (NFT).
+         */
+        TokenGetNftInfoQuery tokenGetNftInfo = 55;
+
+        /**
+         * This query is unsupported and SHALL fail.<br/>
+         * Requests for this information MUST be directed to a mirror node.
+         * <p>
+         * Get metadata for all non-fungible/unique tokens (NFTs) of a single
+         * type within a range of indices (0-based count of minted tokens).
+         */
+        TokenGetNftInfosQuery tokenGetNftInfos = 56 [deprecated = true];
+
+        /**
+         * This query is unsupported and SHALL fail.<br/>
+         * Requests for this information MUST be directed to a mirror node.
+         * <p>
+         * Get the execution time for a recent transaction.
+         */
+        NetworkGetExecutionTimeQuery networkGetExecutionTime = 57 [deprecated = true];
+
+        /**
+         * Get detail metadata for an account.
+         */
+        GetAccountDetailsQuery accountDetails = 58;
+    }
+}

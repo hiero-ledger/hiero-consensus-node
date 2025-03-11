@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files.hashmap;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -264,13 +249,14 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final boolean forceIndexRebuilding = merkleDbConfig.indexRebuildingEnforced();
             if (Files.exists(indexFile) && !forceIndexRebuilding) {
                 bucketIndexToBucketLocation = preferDiskBasedIndex
-                        ? new LongListDisk(indexFile, configuration)
-                        : new LongListOffHeap(indexFile, configuration);
+                        ? new LongListDisk(indexFile, numOfBuckets, configuration)
+                        : new LongListOffHeap(indexFile, numOfBuckets, configuration);
                 loadedDataCallback = null;
             } else {
                 // create new index and setup call back to rebuild
-                bucketIndexToBucketLocation =
-                        preferDiskBasedIndex ? new LongListDisk(indexFile, configuration) : new LongListOffHeap();
+                bucketIndexToBucketLocation = preferDiskBasedIndex
+                        ? new LongListDisk(numOfBuckets, configuration)
+                        : new LongListOffHeap(numOfBuckets, configuration);
                 loadedDataCallback = (dataLocation, bucketData) -> {
                     final Bucket bucket = bucketPool.getBucket();
                     bucket.readFrom(bucketData);
@@ -280,13 +266,14 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         } else {
             // create store dir
             Files.createDirectories(storeDir);
-            // create new index
-            bucketIndexToBucketLocation =
-                    preferDiskBasedIndex ? new LongListDisk(indexFile, configuration) : new LongListOffHeap();
             // calculate number of entries we can store in a disk page
             final int minimumBuckets = (int) (mapSize / GOOD_AVERAGE_BUCKET_ENTRY_COUNT);
             // numOfBuckets is the nearest power of two greater than minimumBuckets with a min of 2
             numOfBuckets = Math.max(Integer.highestOneBit(minimumBuckets) * 2, 2);
+            // create new index
+            bucketIndexToBucketLocation = preferDiskBasedIndex
+                    ? new LongListDisk(numOfBuckets, configuration)
+                    : new LongListOffHeap(numOfBuckets, configuration);
             // we are new so no need for a loadedDataCallback
             loadedDataCallback = null;
             // write metadata

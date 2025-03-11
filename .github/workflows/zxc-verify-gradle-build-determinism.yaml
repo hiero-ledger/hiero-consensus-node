@@ -17,7 +17,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21.0.4"
+        default: "21.0.6"
 
     secrets:
       gradle-cache-username:
@@ -130,8 +130,8 @@ jobs:
       matrix:
         # Disabled MacOS runner testing due to concurrency issues with the Github hosted runners.
         os:
+          - ubuntu-24.04
           - ubuntu-22.04
-          - ubuntu-20.04
           #- macos-12
           #- macos-11
           - windows-2022
@@ -232,7 +232,7 @@ jobs:
           fi
 
       - name: Publish Manifests
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         if: ${{ steps.regen-manifest.conclusion == 'success' && failure() && !cancelled() }}
         with:
           name: Gradle Manifests [${{ join(matrix.os, ', ') }}]

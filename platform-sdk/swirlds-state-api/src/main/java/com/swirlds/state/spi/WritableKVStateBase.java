@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.spi;
 
 import static java.util.Objects.requireNonNull;
@@ -30,7 +15,7 @@ import java.util.*;
  */
 public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V> implements WritableKVState<K, V> {
     /** A map of all modified values buffered in this mutable state */
-    private final Map<K, V> modifications = new LinkedHashMap<>();
+    private final Map<K, V> modifications;
     /**
      * A list of listeners to be notified of changes to the state.
      */
@@ -42,7 +27,18 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
      * @param stateKey The state key. Cannot be null.
      */
     protected WritableKVStateBase(@NonNull final String stateKey) {
+        this(stateKey, new LinkedHashMap<>());
+    }
+
+    /**
+     * Create a new StateBase from the provided map.
+     *
+     * @param stateKey The state key. Cannot be null.
+     * @param modifications A map that is used to init the cache.
+     */
+    protected WritableKVStateBase(@NonNull final String stateKey, @NonNull final Map<K, V> modifications) {
         super(stateKey);
+        this.modifications = Objects.requireNonNull(modifications);
     }
 
     /**

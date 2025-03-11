@@ -1,0 +1,87 @@
+/**
+ * # Network
+ * A representation that includes all “biographical information” on each
+ * node that is needed by a network with TSS fully operational.
+ * Required in order to replace the address book with Rosters.
+ * This is a format for data that exists on disk, not in state or block
+ * streams, but can be regenerated during state freeze operations for network
+ * resets.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+
+syntax = "proto3";
+
+package com.hedera.node.internal.network;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/state/addressbook/node.proto";
+import "services/state/roster/roster.proto";
+
+option java_package = "com.hedera.node.internal.network.legacy";
+// <<<pbj.java_package = "com.hedera.node.internal.network">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+
+
+/**
+  * A description of the Network of Consensus Nodes.<br/>
+  * This records the full information needed to bootstrap a network from Genesis
+  * or Network Transplant with TSS enabled and where the legacy address book is
+  * completely replaced by Rosters.
+  *
+  * The Network message SHOULD Encapsulate all the information needed for a
+  * specific node, repeated for all the nodes in the network.
+  *
+  * SHALL eliminate the requirement for separate overrides or genesis
+  * configurations, providing a standardized format for storing necessary
+  * metadata about all nodes in a network that are required for bootstrapping
+  * including TssEncryptionKeys, Roster entries, and ledgerIds.
+  *
+  * ### Block Stream Effects
+  * None. This is a format for data that exists on disk, not in state or block
+  * streams, but can be regenerated during state freeze operations for network
+  * resets.
+ */
+message Network {
+  reserved 2;
+
+  /**
+   * The metadata of the nodes in the network.
+   */
+  repeated NodeMetadata node_metadata = 1;
+
+  /**
+  * If set, the hash of the first roster that adopted TSS.<br/>
+  * A public input to every hinTS verification key proof.
+  */
+  bytes ledger_id = 3;
+}
+
+/**
+ * The full information needed for a single node in the network state.
+ */
+message NodeMetadata {
+  reserved 3;
+
+  /**
+   * The node's entry in the current roster at the time of the network snapshot;
+   * required to validate the network's ledger id if set.
+   */
+  com.hedera.hapi.node.state.roster.RosterEntry roster_entry = 1;
+
+  /**
+  * A consensus node representation.
+  * <p>
+  * Each node MUST be uniquely identifiable _within_ a ledger and must not
+  * be duplicated _between_ shards and realms.<br/>
+  * This field MUST represent a complete address book entry for a single node
+  * in the network state.<br/>
+  */
+  com.hedera.hapi.node.state.addressbook.Node node = 2;
+}

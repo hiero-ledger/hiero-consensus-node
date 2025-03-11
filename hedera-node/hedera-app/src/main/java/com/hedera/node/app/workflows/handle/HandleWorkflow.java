@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
@@ -39,6 +24,7 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
+import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
 import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static java.util.Objects.requireNonNull;
 
@@ -66,6 +52,7 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.roster.ActiveRosters;
@@ -163,6 +150,7 @@ public class HandleWorkflow {
     private final ScheduleService scheduleService;
     private final CongestionMetrics congestionMetrics;
     private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final CurrentPlatformStatus currentPlatformStatus;
 
     // The last second since the epoch at which the metrics were updated; this does not affect transaction handling
     private long lastMetricUpdateSecond;
@@ -196,7 +184,8 @@ public class HandleWorkflow {
             @NonNull final HintsService hintsService,
             @NonNull final HistoryService historyService,
             @NonNull final CongestionMetrics congestionMetrics,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
+            @NonNull final CurrentPlatformStatus currentPlatformStatus) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -227,6 +216,7 @@ public class HandleWorkflow {
         this.hintsService = requireNonNull(hintsService);
         this.historyService = requireNonNull(historyService);
         this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
+        this.currentPlatformStatus = requireNonNull(currentPlatformStatus);
     }
 
     /**
@@ -338,7 +328,8 @@ public class HandleWorkflow {
         // that have been being computed in background threads. The running hash has to be included in
         // state, but we want to synchronize with background threads as infrequently as possible. So once per
         // round is the minimum we can do. Note the BlockStreamManager#endRound() method is called in Hedera's
-        // implementation of StateLifecycles#onSealConsensusRound(), since the BlockStreamManager cannot do its
+        // implementation of ConsensusStateEventHandler#onSealConsensusRound(), since the BlockStreamManager cannot do
+        // its
         // end-of-block work until the platform has finished all its state changes.
         if (userTransactionsHandled && streamMode != BLOCKS) {
             blockRecordManager.endRound(state);
@@ -506,7 +497,11 @@ public class HandleWorkflow {
                     }
                 }
                 executionEnd = executableTxn.nbf();
-                doStreamingKVChanges(writableStates, entityIdWritableStates, executionEnd, iter::remove);
+                doStreamingKVChanges(
+                        writableStates,
+                        entityIdWritableStates,
+                        boundaryStateChangeListener.lastConsensusTimeOrThrow(),
+                        iter::remove);
                 nextTime = boundaryStateChangeListener
                         .lastConsensusTimeOrThrow()
                         .plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
@@ -515,7 +510,11 @@ public class HandleWorkflow {
             // The purgeUntilNext() iterator extension purges any schedules with wait_until_expiry=false
             // that expire after the last schedule returned from next(), until either the next executable
             // schedule or the iterator boundary is reached
-            doStreamingKVChanges(writableStates, entityIdWritableStates, executionEnd, iter::purgeUntilNext);
+            doStreamingKVChanges(
+                    writableStates,
+                    entityIdWritableStates,
+                    boundaryStateChangeListener.lastConsensusTimeOrThrow(),
+                    iter::purgeUntilNext);
             // If the iterator is not exhausted, we can only mark the second _before_ the last-executed NBF time
             // as complete; if it is exhausted, we mark the rightmost second of the interval as complete
             if (iter.hasNext()) {
@@ -894,9 +893,16 @@ public class HandleWorkflow {
      */
     private void reconcileTssState(
             @NonNull final TssConfig tssConfig, @NonNull final State state, @NonNull final Instant now) {
-        if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
+        if (tssConfig.crsEnabled() || tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var activeRosters = ActiveRosters.from(rosterStore);
+            final var isActive = currentPlatformStatus.get() == ACTIVE;
+            if (tssConfig.crsEnabled()) {
+                final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
+                final var hintsStore = new WritableHintsStoreImpl(hintsWritableStates);
+                doStreamingKVChanges(
+                        hintsWritableStates, null, now, () -> hintsService.executeCrsWork(hintsStore, now, isActive));
+            }
             if (tssConfig.hintsEnabled()) {
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 final var hintsStore = new WritableHintsStoreImpl(hintsWritableStates);
@@ -904,23 +910,21 @@ public class HandleWorkflow {
                         hintsWritableStates,
                         null,
                         now,
-                        () -> hintsService.reconcile(activeRosters, hintsStore, now, tssConfig));
+                        () -> hintsService.reconcile(activeRosters, hintsStore, now, tssConfig, isActive));
             }
             if (tssConfig.historyEnabled()) {
-                final Bytes currentMetadata;
-                if (tssConfig.hintsEnabled()) {
-                    final var hintsStore = new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME));
-                    currentMetadata = hintsStore.getActiveVerificationKey();
-                } else {
-                    currentMetadata = null;
-                }
+                final Bytes currentMetadata = tssConfig.hintsEnabled()
+                        ? new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME))
+                                .getActiveVerificationKey()
+                        : Bytes.wrap(new byte[32]);
                 final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
                 final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
                 doStreamingKVChanges(
                         historyWritableStates,
                         null,
                         now,
-                        () -> historyService.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig));
+                        () -> historyService.reconcile(
+                                activeRosters, currentMetadata, historyStore, now, tssConfig, isActive));
             }
         }
     }

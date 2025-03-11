@@ -1,26 +1,11 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.nfttokeninfo;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_ACCOUNT_ID;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO_V2;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.address_0x167.NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.address_0x16c.NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO_16C;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CIVILIAN_OWNED_NFT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_FIXED_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_FRACTIONAL_CUSTOM_FEES;
@@ -29,7 +14,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTE_DEFAULT_KEYLIST;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTE_KEYLIST;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_EVERYTHING_TOKEN;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_EVERYTHING_TOKEN_V2;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_EVERYTHING_TOKEN_16C;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.LEDGER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OPERATOR;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
@@ -42,7 +27,7 @@ import static org.mockito.Mockito.when;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.NftTokenInfoCall;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.NftTokenInfoTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.address_0x167.NftTokenInfoTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.config.api.Configuration;
@@ -126,7 +111,7 @@ class NftTokenInfoCallTest extends CallTestBase {
         when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(LEDGER_ID);
         when(ledgerConfig.id()).thenReturn(expectedLedgerId);
-        when(nativeOperations.getNft(FUNGIBLE_EVERYTHING_TOKEN_V2.tokenId().tokenNum(), 2L))
+        when(nativeOperations.getNft(FUNGIBLE_EVERYTHING_TOKEN_16C.tokenId().tokenNum(), 2L))
                 .thenReturn(CIVILIAN_OWNED_NFT);
 
         when(nativeOperations.getAccount(CIVILIAN_OWNED_NFT.ownerIdOrThrow())).thenReturn(SOMEBODY);
@@ -136,16 +121,16 @@ class NftTokenInfoCallTest extends CallTestBase {
                 gasCalculator,
                 mockEnhancement(),
                 false,
-                FUNGIBLE_EVERYTHING_TOKEN_V2,
+                FUNGIBLE_EVERYTHING_TOKEN_16C,
                 2L,
                 config,
-                NON_FUNGIBLE_TOKEN_INFO_V2.function());
+                NON_FUNGIBLE_TOKEN_INFO_16C.function());
 
         final var result = subject.execute().fullResult().result();
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(
-                Bytes.wrap(NON_FUNGIBLE_TOKEN_INFO_V2
+                Bytes.wrap(NON_FUNGIBLE_TOKEN_INFO_16C
                         .getOutputs()
                         .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
@@ -243,7 +228,7 @@ class NftTokenInfoCallTest extends CallTestBase {
     @Test
     void returnsNftTokenInfoStatusForMissingTokenStaticCallV2() {
         final var subject = new NftTokenInfoCall(
-                gasCalculator, mockEnhancement(), true, null, 0L, config, NON_FUNGIBLE_TOKEN_INFO_V2.function());
+                gasCalculator, mockEnhancement(), true, null, 0L, config, NON_FUNGIBLE_TOKEN_INFO_16C.function());
 
         final var result = subject.execute().fullResult().result();
 

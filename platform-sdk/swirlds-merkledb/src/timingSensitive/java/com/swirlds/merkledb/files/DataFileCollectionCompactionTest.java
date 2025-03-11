@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
@@ -467,8 +452,8 @@ class DataFileCollectionCompactionTest {
         String storeName = "testMergeSnapshotRestore";
         final Path testDir = tempFileDir.resolve(storeName);
         Files.createDirectories(testDir);
-        final LongListOffHeap index = new LongListOffHeap();
-        index.updateValidRange(0, numFiles * numValues);
+        final LongListOffHeap index = new LongListOffHeap(numValues, numFiles * numValues, 0);
+        index.updateValidRange(0, numFiles * numValues - 1);
         final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
         final DataFileCompactor compactor =
                 new DataFileCompactor(MERKLE_DB_CONFIG, storeName, store, index, null, null, null, null);
@@ -561,7 +546,8 @@ class DataFileCollectionCompactionTest {
         store.close();
 
         // Restore
-        final LongListOffHeap index2 = new LongListOffHeap(snapshotDir.resolve("index.ll"), CONFIGURATION);
+        final LongListOffHeap index2 =
+                new LongListOffHeap(snapshotDir.resolve("index.ll"), numValues, numFiles * numValues, 0, CONFIGURATION);
         final DataFileCollection store2 = new DataFileCollection(MERKLE_DB_CONFIG, snapshotDir, storeName, null);
         // Check index size
         assertEquals(numFiles * numValues, index2.size());
@@ -584,15 +570,15 @@ class DataFileCollectionCompactionTest {
     @DisplayName("Restore with inconsistent index")
     void testInconsistentIndex() throws Exception {
         final int MAXKEYS = 100;
-        final LongList index = new LongListOffHeap();
+        final LongList index = new LongListOffHeap(MAXKEYS / 10, MAXKEYS, 0);
         String storeName = "testInconsistentIndex";
         final Path testDir = tempFileDir.resolve(storeName);
         final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
         final DataFileCompactor compactor =
                 new DataFileCompactor(MERKLE_DB_CONFIG, storeName, store, index, null, null, null, null);
 
-        final int numFiles = 2;
-        index.updateValidRange(0, numFiles * MAXKEYS);
+        final int numFiles = 10; // should be greater than min number of files to compact
+        index.updateValidRange(0, MAXKEYS - 1);
         for (long i = 0; i < numFiles; i++) {
             store.startWriting();
             for (int j = 0; j < MAXKEYS; ++j) {
@@ -620,6 +606,7 @@ class DataFileCollectionCompactionTest {
                 if (updateCount.incrementAndGet() == MAXKEYS / 2) {
                     // Start a snapshot while the index is being updated
                     try {
+                        System.err.println("SAVED");
                         index.writeToFile(savedIndex);
                         store.snapshot(snapshot);
                     } catch (IOException ex) {
@@ -642,7 +629,7 @@ class DataFileCollectionCompactionTest {
         }
 
         // Create a new data collection from the snapshot
-        LongList index2 = new LongListOffHeap(savedIndex, CONFIGURATION);
+        LongList index2 = new LongListOffHeap(savedIndex, MAXKEYS / 10, MAXKEYS, 0, CONFIGURATION);
         final DataFileCollection store2 = new DataFileCollection(MERKLE_DB_CONFIG, snapshot, storeName, null);
 
         // Merge all files with redundant records

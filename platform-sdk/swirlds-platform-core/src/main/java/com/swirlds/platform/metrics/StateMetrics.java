@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.metrics;
 
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
@@ -36,8 +21,9 @@ public class StateMetrics {
 
     private static final RunningAverageMetric.Config AVG_SEC_TRANS_HANDLED_CONFIG = new RunningAverageMetric.Config(
                     INTERNAL_CATEGORY, "secTransH")
-            .withDescription("avg time to handle a consensus transaction in StateLifecycles.onHandleTransaction "
-                    + "(in seconds)")
+            .withDescription(
+                    "avg time to handle a consensus transaction in ConsensusStateEventHandler.onHandleTransaction "
+                            + "(in seconds)")
             .withFormat(FORMAT_10_6);
     private final RunningAverageMetric avgSecTransHandled;
 
@@ -49,15 +35,15 @@ public class StateMetrics {
 
     private static final SpeedometerMetric.Config TRANS_HANDLED_PER_SECOND_CONFIG = new SpeedometerMetric.Config(
                     INTERNAL_CATEGORY, PlatformStatNames.TRANSACTIONS_HANDLED_PER_SECOND)
-            .withDescription(
-                    "number of consensus transactions per second handled " + "by StateLifecycles.onHandleTransaction()")
+            .withDescription("number of consensus transactions per second handled "
+                    + "by ConsensusStateEventHandler.onHandleTransaction()")
             .withFormat(FORMAT_9_6);
     private final SpeedometerMetric transHandledPerSecond;
 
     private static final RunningAverageMetric.Config AVG_STATE_COPY_MICROS_CONFIG = new RunningAverageMetric.Config(
                     INTERNAL_CATEGORY, "stateCopyMicros")
-            .withDescription(
-                    "average time it takes the State.copy() method in StateLifecycles to finish " + "(in microseconds)")
+            .withDescription("average time it takes the State.copy() method in ConsensusStateEventHandler to finish "
+                    + "(in microseconds)")
             .withFormat(FORMAT_16_2);
     private final RunningAverageMetric avgStateCopyMicros;
 

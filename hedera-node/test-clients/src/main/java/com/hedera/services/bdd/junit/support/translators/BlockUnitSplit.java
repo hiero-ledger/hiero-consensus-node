@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
@@ -107,7 +92,8 @@ public class BlockUnitSplit {
         PendingBlockTransactionParts pendingParts = new PendingBlockTransactionParts();
         final List<BlockTransactionParts> unitParts = new ArrayList<>();
         final List<StateChange> unitStateChanges = new ArrayList<>();
-        for (final var item : block.items()) {
+        for (int i = 0; i < block.items().size(); i++) {
+            final var item = block.items().get(i);
             switch (item.item().kind()) {
                 case UNSET, RECORD_FILE -> throw new IllegalStateException(
                         "Cannot split block with item of kind " + item.item().kind());
@@ -122,7 +108,12 @@ public class BlockUnitSplit {
                         if (pendingParts.areComplete()) {
                             unitParts.add(pendingParts.toBlockTransactionParts());
                         }
-                        final var txnIdType = classifyTxnId(txnId, unitTxnId, nextParts, lastTxnIdType);
+                        final boolean hasParentConsensusTimestamp = block.items()
+                                .get(i + 1)
+                                .transactionResultOrThrow()
+                                .hasParentConsensusTimestamp();
+                        final var txnIdType =
+                                classifyTxnId(txnId, unitTxnId, nextParts, lastTxnIdType, hasParentConsensusTimestamp);
                         if (txnIdType == TxnIdType.NEW_UNIT_BY_ID && !unitParts.isEmpty()) {
                             completeAndAdd(units, unitParts, unitStateChanges);
                         }
@@ -160,7 +151,8 @@ public class BlockUnitSplit {
             @NonNull final TransactionID nextId,
             @Nullable final TransactionID unitTxnId,
             @NonNull final TransactionParts parts,
-            @Nullable final TxnIdType lastTxnIdType) {
+            @Nullable final TxnIdType lastTxnIdType,
+            final boolean hasParentConsensusTimestamp) {
         if (isAutoEntityMgmtTxn(parts)) {
             return TxnIdType.AUTO_SYSFILE_MGMT_ID;
         }
@@ -171,11 +163,13 @@ public class BlockUnitSplit {
         if (unitTxnId == null) {
             return TxnIdType.NEW_UNIT_BY_ID;
         }
-        // Scheduled transactions never begin a new transactional unit and
-        final var radicallyDifferent = !nextId.scheduled()
+        // Scheduled or batch inner transactions never begin a new transactional unit
+        final var radicallyDifferent = !hasParentConsensusTimestamp
+                && !nextId.scheduled()
                 && (!nextId.accountIDOrElse(AccountID.DEFAULT).equals(unitTxnId.accountIDOrElse(AccountID.DEFAULT))
                         || !nextId.transactionValidStartOrElse(Timestamp.DEFAULT)
-                                .equals(unitTxnId.transactionValidStartOrElse(Timestamp.DEFAULT)));
+                                .equals(unitTxnId.transactionValidStartOrElse(Timestamp.DEFAULT))
+                        || unitTxnId.equals(nextId));
         return radicallyDifferent ? TxnIdType.NEW_UNIT_BY_ID : TxnIdType.SAME_UNIT_BY_ID;
     }
 

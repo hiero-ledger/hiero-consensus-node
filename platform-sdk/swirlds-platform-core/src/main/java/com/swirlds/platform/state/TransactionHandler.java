@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
@@ -52,12 +37,14 @@ public class TransactionHandler {
      *
      * @param round
      * 		the round to apply
-     * @param stateLifecycles
-     * 		the stateLifecycles to apply {@code round} to
+     * @param consensusStateEventHandler
+     * 		the consensusStateEventHandler to apply {@code round} to
      * @param stateRoot the state root to apply {@code round} to
      */
     public <T extends MerkleNodeState> Queue<ScopedSystemTransaction<StateSignatureTransaction>> handleRound(
-            final ConsensusRound round, final StateLifecycles<MerkleNodeState> stateLifecycles, final T stateRoot) {
+            final ConsensusRound round,
+            final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
+            final T stateRoot) {
         final Queue<ScopedSystemTransaction<StateSignatureTransaction>> scopedSystemTransactions =
                 new ConcurrentLinkedQueue<>();
 
@@ -65,7 +52,7 @@ public class TransactionHandler {
             final Instant timeOfHandle = Instant.now();
             final long startTime = System.nanoTime();
 
-            stateLifecycles.onHandleConsensusRound(round, stateRoot, scopedSystemTransactions::add);
+            consensusStateEventHandler.onHandleConsensusRound(round, stateRoot, scopedSystemTransactions::add);
 
             final double secondsElapsed = (System.nanoTime() - startTime) * NANOSECONDS_TO_SECONDS;
 
@@ -81,7 +68,7 @@ public class TransactionHandler {
         } catch (final Throwable t) {
             logger.error(
                     EXCEPTION.getMarker(),
-                    "error invoking StateLifecycles.onHandleConsensusRound() [ nodeId = {} ] with round {}",
+                    "error invoking ConsensusStateEventHandler.onHandleConsensusRound() [ nodeId = {} ] with round {}",
                     selfId,
                     round.getRoundNum(),
                     t);

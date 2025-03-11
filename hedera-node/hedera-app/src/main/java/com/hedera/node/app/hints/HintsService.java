@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints;
 
 import static java.util.Objects.requireNonNull;
@@ -96,24 +81,35 @@ public interface HintsService extends Service, BlockHashSigner {
      *     network state if this is the first time the network ever began reconciling a hinTS construction for
      *     the transition.</Li>
      *     <Li>For the resolved {@link HintsController} for the transition, invoke its
-     *     {@link HintsController#advanceConstruction(Instant, WritableHintsStore)} method.</li>
+     *     {@link HintsController#advanceConstruction(Instant, WritableHintsStore, boolean)} method.</li>
      * </ol>
      * <p>
      * <b>Important:</b> Note that whether a new {@link HintsController} is created, or an appropriate
      * one already exists, its subsequent behavior will be a deterministic function of the given consensus time and
      * {@link HintsService} states. That is, controllers are persistent objects <i>only</i> due to performance
      * considerations, but are <i>logically</i> functions of just the network state and consensus time.
+     *  @param activeRosters the active rosters
      *
-     * @param activeRosters the active rosters
-     * @param hintsStore the hints store, for recording progress if needed
-     * @param now the current consensus time
-     * @param tssConfig the TSS configuration
+     * @param hintsStore            the hints store, for recording progress if needed
+     * @param now                   the current consensus time
+     * @param tssConfig             the TSS configuration
+     * @param isActive              if the platform is active
      */
     void reconcile(
             @NonNull ActiveRosters activeRosters,
             @NonNull WritableHintsStore hintsStore,
             @NonNull Instant now,
-            @NonNull TssConfig tssConfig);
+            @NonNull TssConfig tssConfig,
+            final boolean isActive);
+
+    /**
+     * Executes the work needed to set the CRS for the network and start the preprocessing vote.
+     *
+     * @param hintsStore            the hints store
+     * @param now                   the current consensus time
+     * @param isActive               if the platform is active
+     */
+    void executeCrsWork(@NonNull WritableHintsStore hintsStore, @NonNull Instant now, final boolean isActive);
 
     /**
      * Stops the hinTS service, causing it to abandon any in-progress work.

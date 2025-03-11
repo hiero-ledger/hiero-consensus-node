@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.dsl.entities;
 
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -51,7 +36,7 @@ import org.apache.logging.log4j.Logger;
  * @param <O> the type of the operation used to create the entity
  * @param <M> the type of the entity's model
  */
-public abstract class AbstractSpecEntity<O extends SpecOperation, M extends Record> implements SpecEntity {
+public abstract class AbstractSpecEntity<O extends SpecOperation, M> implements SpecEntity {
     private static final Logger log = LogManager.getLogger(AbstractSpecEntity.class);
 
     /**
@@ -62,7 +47,7 @@ public abstract class AbstractSpecEntity<O extends SpecOperation, M extends Reco
      * @param <S> the type of the operation
      * @param <R> the type of the model
      */
-    protected record Creation<S extends SpecOperation, R extends Record>(S op, R model) {}
+    protected record Creation<S extends SpecOperation, R>(S op, R model) {}
 
     /**
      * Represents the result of a successful entity creation.
@@ -71,14 +56,14 @@ public abstract class AbstractSpecEntity<O extends SpecOperation, M extends Reco
      * @param registrar the registrar for the entity
      * @param <R> the type of the model
      */
-    protected record Result<R extends Record>(R model, SpecEntityRegistrar registrar) {}
+    protected record Result<R>(R model, SpecEntityRegistrar registrar) {}
 
     /**
      * Wraps a supplier of a future result, allowing us to defer scheduling that supplier until we know
      * it we are the privileged supplier out of potentially several concurrent threads.
      * @param <M> the type of the model returned by the supplier
      */
-    private static class DeferredResult<M extends Record> {
+    private static class DeferredResult<M> {
         private static final Duration SCHEDULING_TIMEOUT = Duration.ofSeconds(10);
 
         /**

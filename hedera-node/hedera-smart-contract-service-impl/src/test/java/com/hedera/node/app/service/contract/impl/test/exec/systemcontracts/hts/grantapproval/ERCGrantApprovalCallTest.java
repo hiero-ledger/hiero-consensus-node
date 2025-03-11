@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.grantapproval;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL;
@@ -26,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_I
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REVOKE_APPROVAL_SPENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.UNAUTHORIZED_SPENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asBytesResult;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -45,6 +31,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval.ERCGrantApprovalCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval.GrantApprovalTranslator;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -80,6 +67,9 @@ class ERCGrantApprovalCallTest extends CallTestBase {
     @Mock
     private ReadableAccountStore accountStore;
 
+    @Mock
+    private ProxyWorldUpdater updater;
+
     @Test
     void erc20approve() {
         subject = new ERCGrantApprovalCall(
@@ -99,6 +89,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
         given(nativeOperations.readableAccountStore()).willReturn(accountStore);
+        given(frame.getWorldUpdater()).willReturn(updater);
+        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         given(accountStore.getAccountById(any(AccountID.class))).willReturn(account);
         given(account.accountIdOrThrow())
                 .willReturn(AccountID.newBuilder().accountNum(1).build());
@@ -133,6 +125,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID.tokenNum(), 100L)).willReturn(nft);
         given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(token);
         given(nativeOperations.readableAccountStore()).willReturn(accountStore);
+        given(frame.getWorldUpdater()).willReturn(updater);
+        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         given(accountStore.getAccountById(any(AccountID.class))).willReturn(account);
         given(account.accountIdOrThrow())
                 .willReturn(AccountID.newBuilder().accountNum(1).build());
@@ -252,6 +246,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID.tokenNum(), 100L)).willReturn(nft);
         given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(token);
         given(nativeOperations.readableAccountStore()).willReturn(accountStore);
+        given(frame.getWorldUpdater()).willReturn(updater);
+        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         given(accountStore.getAccountById(any(AccountID.class))).willReturn(account);
         given(account.accountIdOrThrow())
                 .willReturn(AccountID.newBuilder().accountNum(1).build());

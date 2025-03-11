@@ -1,22 +1,8 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentInWorkingDir;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.NUM_LONG_ZEROS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
 import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
@@ -39,6 +25,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -488,5 +475,33 @@ public class Utils {
     @NonNull
     public static String defaultContractsRoot(@NonNull final String variant) {
         return variant.isEmpty() ? DEFAULT_CONTRACTS_ROOT : DEFAULT_CONTRACTS_ROOT + "_" + requireNonNull(variant);
+    }
+
+    /**
+     * Converts a long-zero address to a {@link ScheduleID} with id number instead of alias.
+     *
+     * @param shard the shard of the Hedera network
+     * @param realm the realm of the Hedera network
+     * @param address the EVM address
+     * @return the {@link ScheduleID}
+     */
+    public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
+            final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+        return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
+                .setScheduleNum(address.value().longValueExact())
+                .build();
+    }
+
+    public static boolean isLongZeroAddress(final long shard, final long realm, final byte[] explicit) {
+        // check if first bytes are matching the shard and the realm
+        final byte[] shardAndRealm = new byte[12];
+        arraycopy(Ints.toByteArray((int) shard), 0, shardAndRealm, 0, 4);
+        arraycopy(Longs.toByteArray(realm), 0, shardAndRealm, 4, 8);
+        for (int i = 0; i < NUM_LONG_ZEROS; i++) {
+            if (explicit[i] != shardAndRealm[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 }

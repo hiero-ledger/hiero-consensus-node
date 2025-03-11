@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows;
 
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
@@ -320,7 +305,7 @@ public record DispatchOptions<T extends StreamBuilder>(
      * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
      * to externalize if the parent succeeds.
      * <ul>
-     *     <li>Dispatching an internal contract creation in the EVM.</li>
+     *     <li>Charging a custom topic fee from inside the consensus service.</li>
      * </ul>
      *
      * @param payerId the account to pay for the dispatch
@@ -350,5 +335,36 @@ public record DispatchOptions<T extends StreamBuilder>(
                 transactionCustomizer,
                 metaData,
                 null);
+    }
+
+    /**
+     * returns options for a dispatch for atomic batch transaction
+     *
+     * @param <T> the type of stream builder to use for the dispatch
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @param customFeeCharging the custom fee charging strategy for the dispatch
+     * @return the options for the atomic batch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> atomicBatchDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @NonNull final FeeCharging customFeeCharging) {
+        return new DispatchOptions<>(
+                Commit.WITH_PARENT,
+                payerId,
+                body,
+                UsePresetTxnId.NO,
+                PREAUTHORIZED_KEYS,
+                emptySet(),
+                TransactionCategory.BATCH,
+                ConsensusThrottling.ON,
+                streamBuilderType,
+                ReversingBehavior.REVERSIBLE,
+                NOOP_TRANSACTION_CUSTOMIZER,
+                EMPTY_METADATA,
+                customFeeCharging);
     }
 }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl.producers.formats.v7;
 
 import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.RECORD_STREAM_ITEMS;
@@ -190,6 +175,14 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
     }
 
     public static final class RecordStreamItemV7ProtoCodec implements Codec<RecordStreamItemV7> {
+
+        private static final RecordStreamItemV7 DEFAULT_VALUE = new RecordStreamItemV7(null, null, null, null, 0, 0);
+
+        @Override
+        public RecordStreamItemV7 getDefaultInstance() {
+            return DEFAULT_VALUE;
+        }
+
         public @NonNull RecordStreamItemV7 parse(
                 @NonNull final ReadableSequentialData input, final boolean strictMode, final int maxDepth) {
             return new RecordStreamItemV7(null, null, null, null, 0, 0);

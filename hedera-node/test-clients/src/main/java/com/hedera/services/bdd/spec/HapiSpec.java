@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
 import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
@@ -228,6 +213,9 @@ public class HapiSpec implements Runnable, Executable {
     private FeesAndRatesProvider ratesProvider;
     private ThreadPoolExecutor finalizingExecutor;
     private CompletableFuture<Void> finalizingFuture;
+
+    @Nullable
+    private Map<String, String> setupOverrides;
 
     /**
      * If non-null, the non-remote network to target with this spec.
@@ -695,6 +683,27 @@ public class HapiSpec implements Runnable, Executable {
         return false;
     }
 
+    /**
+     * Add properties that will be given priority in the spec's {@link HapiSpecSetup}.
+     * @param props the properties to add
+     * @return this
+     */
+    private HapiSpec withPrioritySetup(@Nullable final Map<String, String> props) {
+        if (props != null) {
+            setupOverrides = props;
+        }
+        return this;
+    }
+
+    /**
+     * Finalizes the setup properties for this spec.
+     */
+    private void finalizeSetupProperties() {
+        if (setupOverrides != null) {
+            hapiSetup.addOverrides(setupOverrides);
+        }
+    }
+
     private boolean init() {
         if (targetNetwork == null) {
             targetNetwork = RemoteNetwork.newRemoteNetwork(hapiSetup.nodes(), clientsFor(hapiSetup));
@@ -1083,7 +1092,22 @@ public class HapiSpec implements Runnable, Executable {
      */
     public static Stream<DynamicTest> hapiTest(@NonNull final SpecOperation... ops) {
         return propertyPreservingHapiTest(
-                Optional.ofNullable(PROPERTIES_TO_PRESERVE.get()).orElse(emptyList()), ops);
+                Optional.ofNullable(PROPERTIES_TO_PRESERVE.get()).orElse(emptyList()), null, ops);
+    }
+
+    /**
+     * Creates dynamic tests derived from with the given operations and {@link HapiSpecSetup} overrides, preserving
+     * any network properties bound to the thread by a {@link LeakyHapiTest} test factory.
+     *
+     * @param setupOverrides the setup overrides
+     * @param ops the operations
+     * @return a {@link Stream} of {@link DynamicTest}s
+     */
+    public static Stream<DynamicTest> customizedHapiTest(
+            @NonNull final Map<String, String> setupOverrides, @NonNull final SpecOperation... ops) {
+        requireNonNull(setupOverrides);
+        return propertyPreservingHapiTest(
+                Optional.ofNullable(PROPERTIES_TO_PRESERVE.get()).orElse(emptyList()), setupOverrides, ops);
     }
 
     /**
@@ -1091,21 +1115,25 @@ public class HapiSpec implements Runnable, Executable {
      * restored to their original values after running the tests.
      *
      * @param propertiesToPreserve the properties to preserve
-     * @param ops                  the operations
+     * @param setupOverrides the setup overrides, if any
+     * @param ops the operations
      * @return a {@link Stream} of {@link DynamicTest}s
      */
-    public static Stream<DynamicTest> propertyPreservingHapiTest(
-            @NonNull final List<String> propertiesToPreserve, @NonNull final SpecOperation... ops) {
+    private static Stream<DynamicTest> propertyPreservingHapiTest(
+            @NonNull final List<String> propertiesToPreserve,
+            @Nullable final Map<String, String> setupOverrides,
+            @NonNull final SpecOperation... ops) {
         requireNonNull(propertiesToPreserve);
         return Stream.of(DynamicTest.dynamicTest(
                 AS_WRITTEN_DISPLAY_NAME,
                 targeted(new HapiSpec(
-                        SPEC_NAME.get(),
-                        HapiSpecSetup.setupFrom(HapiSpecSetup.getDefaultPropertySource()),
-                        new SpecOperation[0],
-                        new SpecOperation[0],
-                        ops,
-                        propertiesToPreserve))));
+                                SPEC_NAME.get(),
+                                HapiSpecSetup.setupFrom(HapiSpecSetup.getDefaultPropertySource()),
+                                new SpecOperation[0],
+                                new SpecOperation[0],
+                                ops,
+                                propertiesToPreserve)
+                        .withPrioritySetup(setupOverrides))));
     }
 
     public static DynamicTest namedHapiTest(String name, @NonNull final SpecOperation... ops) {
@@ -1147,7 +1175,7 @@ public class HapiSpec implements Runnable, Executable {
         // directly from the network's HederaNode instances instead of this "nodes" property
         final var specNodes =
                 targetNetwork.nodes().stream().map(HederaNode::hapiSpecInfo).collect(joining(","));
-        spec.addOverrideProperties(Map.of("nodes", specNodes));
+        spec.addOverrideProperties(Map.of("nodes", specNodes, "memo.useSpecName", "true"));
 
         if (targetNetwork instanceof EmbeddedNetwork embeddedNetwork) {
             final Map<String, String> overrides;
@@ -1165,6 +1193,8 @@ public class HapiSpec implements Runnable, Executable {
                 spec.setKeyGenerator(requireNonNull(REPEATABLE_KEY_GENERATOR.get()));
             }
         }
+
+        spec.finalizeSetupProperties();
     }
 
     public HapiSpec(String name, SpecOperation[] ops) {

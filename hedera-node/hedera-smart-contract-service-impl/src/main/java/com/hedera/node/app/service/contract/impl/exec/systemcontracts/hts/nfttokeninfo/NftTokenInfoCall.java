@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
@@ -23,8 +8,8 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.nftTokenInfoTupleFor;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO_V2;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.address_0x167.NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.address_0x16c.NftTokenInfoTranslator.NON_FUNGIBLE_TOKEN_INFO_16C;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
@@ -99,7 +84,7 @@ public class NftTokenInfoCall extends AbstractNonRevertibleTokenViewCall {
         final var ledgerConfig = configuration.getConfigData(LedgerConfig.class);
         final var ledgerId = Bytes.wrap(ledgerConfig.id().toByteArray()).toString();
 
-        return function.getName().equals(NON_FUNGIBLE_TOKEN_INFO.methodName())
+        return function.getOutputs().equals(NON_FUNGIBLE_TOKEN_INFO.getOutputs())
                 ? successResult(
                         NON_FUNGIBLE_TOKEN_INFO
                                 .getOutputs()
@@ -109,7 +94,7 @@ public class NftTokenInfoCall extends AbstractNonRevertibleTokenViewCall {
                                                 token, nonNullNft, serialNumber, ledgerId, nativeOperations(), 1))),
                         gasRequirement)
                 : successResult(
-                        NON_FUNGIBLE_TOKEN_INFO_V2
+                        NON_FUNGIBLE_TOKEN_INFO_16C
                                 .getOutputs()
                                 .encode(Tuple.of(
                                         status.protoOrdinal(),

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.merkle.map;
 
 import static com.swirlds.demo.platform.TestUtil.generateRandomContent;
@@ -28,12 +13,12 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
+import com.swirlds.demo.platform.PlatformTestingToolConsensusStateEventHandler;
 import com.swirlds.demo.platform.PlatformTestingToolState;
-import com.swirlds.demo.platform.PlatformTestingToolStateLifecycles;
 import com.swirlds.demo.platform.TestUtil;
 import com.swirlds.demo.platform.expiration.ExpirationUtils;
 import com.swirlds.merkle.map.MerkleMap;
@@ -62,7 +47,7 @@ public class MapValueFCQTests {
     private static final Random RANDOM = new Random();
     private static final Random random = new Random();
     static PlatformTestingToolState state;
-    static PlatformTestingToolStateLifecycles lifecycles;
+    static PlatformTestingToolConsensusStateEventHandler lifecycles;
     private static MerkleCryptography cryptography;
     private static MapValueFCQ mapValueFCQ;
     private static MapKey mapKey;
@@ -76,11 +61,11 @@ public class MapValueFCQTests {
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
-        cryptography = MerkleCryptoFactory.getInstance();
+        cryptography = TestMerkleCryptoFactory.getInstance();
 
         mapKey = new MapKey(0, 0, random.nextLong());
         state = Mockito.spy(PlatformTestingToolState.class);
-        lifecycles = new PlatformTestingToolStateLifecycles(DEFAULT_PLATFORM_STATE_FACADE);
+        lifecycles = new PlatformTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
         final Platform platform = Mockito.mock(Platform.class);
         when(platform.getSelfId()).thenReturn(NodeId.of(0L));
         final Roster roster = RandomRosterBuilder.create(RANDOM).withSize(4).build();

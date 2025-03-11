@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.migration;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
@@ -47,7 +32,7 @@ import org.mockito.Mockito;
 
 class MigrationTestingToolStateTest {
     private MigrationTestingToolState state;
-    private MigrationTestToolStateLifecycles stateLifecycles;
+    private MigrationTestToolConsensusStateEventHandler consensusStateEventHandler;
     private Random random;
     private Round round;
     private ConsensusEvent event;
@@ -59,7 +44,7 @@ class MigrationTestingToolStateTest {
     @BeforeEach
     void setUp() {
         state = new MigrationTestingToolState();
-        stateLifecycles = new MigrationTestToolStateLifecycles();
+        consensusStateEventHandler = new MigrationTestToolConsensusStateEventHandler();
         random = new Random();
         round = mock(Round.class);
         event = mock(ConsensusEvent.class);
@@ -92,7 +77,7 @@ class MigrationTestingToolStateTest {
             MigrationTestingToolTransaction migrationTestingToolTransaction = Mockito.spy(tr);
             utilities.when(() -> TransactionUtils.parseTransaction(any())).thenReturn(migrationTestingToolTransaction);
             Mockito.doNothing().when(migrationTestingToolTransaction).applyTo(state);
-            stateLifecycles.onHandleConsensusRound(round, state, consumer);
+            consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
         }
 
         assertThat(consumedTransactions).isEmpty();
@@ -105,7 +90,7 @@ class MigrationTestingToolStateTest {
                 StateSignatureTransaction.PROTOBUF.toBytes(stateSignatureTransaction);
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         assertThat(consumedTransactions).hasSize(1);
     }
@@ -129,7 +114,7 @@ class MigrationTestingToolStateTest {
         when(secondConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
         when(thirdConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         assertThat(consumedTransactions).hasSize(3);
     }
@@ -157,7 +142,7 @@ class MigrationTestingToolStateTest {
         when(gossipEvent.transactions()).thenReturn(List.of(transactionBytes, transactionBytes, transactionBytes));
         event = new PlatformEvent(gossipEvent);
 
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         assertThat(consumedTransactions).hasSize(3);
     }
@@ -181,14 +166,14 @@ class MigrationTestingToolStateTest {
         when(gossipEvent.transactions()).thenReturn(List.of(transactionBytes));
         event = new PlatformEvent(gossipEvent);
 
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         assertThat(consumedTransactions).hasSize(1);
     }
 
     @Test
     void onSealDefaultsToTrue() {
-        final boolean result = stateLifecycles.onSealConsensusRound(round, state);
+        final boolean result = consensusStateEventHandler.onSealConsensusRound(round, state);
 
         assertThat(result).isTrue();
     }
