@@ -14,18 +14,13 @@ import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionTracker;
 import com.swirlds.platform.network.NetworkMetrics;
-import com.swirlds.platform.network.NetworkPeerIdentifier;
 import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.NegotiationProtocols;
 import com.swirlds.platform.network.communication.ProtocolNegotiatorThread;
-import com.swirlds.platform.network.connectivity.ConnectionServer;
 import com.swirlds.platform.network.connectivity.InboundConnectionHandler;
-import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
-import com.swirlds.platform.network.connectivity.SocketFactory;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
-import com.swirlds.platform.network.topology.StaticConnectionManagers;
 import com.swirlds.platform.network.topology.StaticTopology;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -55,14 +50,12 @@ public class PeerCommunication implements ConnectionTracker {
     private final PlatformContext platformContext;
     private ImmutableList<PeerInfo> peers;
     private final PeerInfo selfPeer;
-    private StaticConnectionManagers connectionManagers;
-    private NetworkPeerIdentifier peerIdentifier;
-    private SocketFactory socketFactory;
+    private DynamicConnectionManagers connectionManagers;
     private ThreadManager threadManager;
-    private NodeId selfId;
+    private final NodeId selfId;
     private List<ProtocolRunnable> handshakeProtocols;
     private List<Protocol> protocolList;
-    private OutboundConnectionCreator outboundConnectionCreator;
+    private PeerConnectionServer connectionServer;
 
     /**
      * Create manager of communication with neighbouring nodes for exchanging events.
@@ -161,9 +154,7 @@ public class PeerCommunication implements ConnectionTracker {
             this.topology = new StaticTopology(peers, selfPeer.nodeId());
 
             connectionManagers.addRemovePeers(added, removed, topology);
-            peerIdentifier.addRemovePeers(added, removed);
-            outboundConnectionCreator.addRemovePeers(added, removed);
-            socketFactory.reload(peers);
+            connectionServer.replacePeers(peers);
 
             threads.addAll(
                     buildProtocolThreads(added.stream().map(PeerInfo::nodeId).toList()));
@@ -228,34 +219,12 @@ public class PeerCommunication implements ConnectionTracker {
         this.handshakeProtocols = handshakeProtocols;
         this.protocolList = protocols;
 
+        this.connectionManagers =
+                new DynamicConnectionManagers(selfId, peers, platformContext, this, keysAndCerts, topology);
+
         var threadsToRun = new ArrayList<StoppableThread>();
-
         final ThreadConfig threadConfig = platformContext.getConfiguration().getConfigData(ThreadConfig.class);
-
-        this.peerIdentifier = new NetworkPeerIdentifier(platformContext, peers);
-        this.socketFactory =
-                NetworkUtils.createSocketFactory(selfId, peers, keysAndCerts, platformContext.getConfiguration());
-        // create an instance that can create new outbound connections
-        this.outboundConnectionCreator =
-                new OutboundConnectionCreator(platformContext, selfId, this, socketFactory, peers);
-        this.connectionManagers = new StaticConnectionManagers(topology, outboundConnectionCreator);
-        final InboundConnectionHandler inboundConnectionHandler = new InboundConnectionHandler(
-                platformContext,
-                this,
-                peerIdentifier,
-                selfId,
-                connectionManagers::newConnection,
-                platformContext.getTime());
-        // allow other members to create connections to me
-        // Assume all ServiceEndpoints use the same port and use the port from the first endpoint.
-        // Previously, this code used a "local port" corresponding to the internal endpoint,
-        // which should normally be the second entry in the endpoints list if it's obtained via
-        // a regular AddressBook -> Roster conversion.
-        // The assumption must be correct, otherwise, if ports were indeed different, then the old code
-        // using the AddressBook would never have listened on a port associated with the external endpoint,
-        // thus not allowing anyone to connect to the node from outside the local network, which we'd have noticed.
-        final ConnectionServer connectionServer =
-                new ConnectionServer(threadManager, selfPeer.port(), socketFactory, inboundConnectionHandler::handle);
+        this.connectionServer = getConnectionServer();
         threadsToRun.add(new StoppableThreadConfiguration<>(threadManager)
                 .setPriority(threadConfig.threadPrioritySync())
                 .setNodeId(selfId)
@@ -265,6 +234,22 @@ public class PeerCommunication implements ConnectionTracker {
                 .build());
 
         return threadsToRun;
+    }
+
+    private PeerConnectionServer getConnectionServer() {
+        var inboundConnectionHandler = new InboundConnectionHandler(
+                platformContext, this, peers, selfId, connectionManagers::newConnection, platformContext.getTime());
+        // allow other members to create connections to me
+        // Assume all ServiceEndpoints use the same port and use the port from the first endpoint.
+        // Previously, this code used a "local port" corresponding to the internal endpoint,
+        // which should normally be the second entry in the endpoints list if it's obtained via
+        // a regular AddressBook -> Roster conversion.
+        // The assumption must be correct, otherwise, if ports were indeed different, then the old code
+        // using the AddressBook would never have listened on a port associated with the external endpoint,
+        // thus not allowing anyone to connect to the node from outside the local network, which we'd have noticed.
+        var socketFactory =
+                NetworkUtils.createSocketFactory(selfId, peers, keysAndCerts, platformContext.getConfiguration());
+        return new PeerConnectionServer(selfPeer.port(), inboundConnectionHandler, socketFactory);
     }
 
     /**
