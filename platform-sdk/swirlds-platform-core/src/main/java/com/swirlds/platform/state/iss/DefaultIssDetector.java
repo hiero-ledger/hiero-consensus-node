@@ -220,7 +220,7 @@ public class DefaultIssDetector implements IssDetector {
     /**
      * {@inheritDoc}
      */
-    @Nullable
+    @NonNull
     @Override
     public List<IssNotification> handleStateSignatureTransactions(
             @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {
@@ -236,7 +236,10 @@ public class DefaultIssDetector implements IssDetector {
             // If the signature is for a state hash that this component is already tracking, apply it now.
             // Otherwise, save it for later.
             if (round <= savedSignatures.getFirstSequenceNumberInWindow()) {
-                issNotifications.add(handlePostconsensusSignature(transaction));
+                final IssNotification issNotification = handlePostconsensusSignature(transaction);
+                if (issNotification != null) {
+                    issNotifications.add(issNotification);
+                }
             } else {
                 savedSignatures.getEntriesWithSequenceNumber(round).add(transaction);
             }

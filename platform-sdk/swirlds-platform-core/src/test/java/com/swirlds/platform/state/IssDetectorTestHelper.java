@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.state.notifications.IssNotification;
@@ -10,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
 
 /**
  * A helper class for testing the {@link com.swirlds.platform.state.iss.IssDetector}.
@@ -26,8 +29,13 @@ public class IssDetectorTestHelper {
         this.issDetector = Objects.requireNonNull(issDetector);
     }
 
-    public void handleStateAndRound(@NonNull final TransactionHandlerResult transactionHandlerResult) {
-        trackIssNotifications(issDetector.handleState(transactionHandlerResult.stateWithHashComplexity().state()));
+    public void handleStateSignatureTransactions(
+            @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {
+        trackIssNotifications(issDetector.handleStateSignatureTransactions(systemTransactions));
+    }
+
+    public void handleState(@NonNull final ReservedSignedState reservedSignedState) {
+        trackIssNotifications(issDetector.handleState(reservedSignedState));
     }
 
     public void overridingState(@NonNull final ReservedSignedState state) {
