@@ -175,6 +175,14 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
     }
 
     public static final class RecordStreamItemV7ProtoCodec implements Codec<RecordStreamItemV7> {
+
+        private static final RecordStreamItemV7 DEFAULT_VALUE = new RecordStreamItemV7(null, null, null, null, 0, 0);
+
+        @Override
+        public RecordStreamItemV7 getDefaultInstance() {
+            return DEFAULT_VALUE;
+        }
+
         public @NonNull RecordStreamItemV7 parse(
                 @NonNull final ReadableSequentialData input, final boolean strictMode, final int maxDepth) {
             return new RecordStreamItemV7(null, null, null, null, 0, 0);
