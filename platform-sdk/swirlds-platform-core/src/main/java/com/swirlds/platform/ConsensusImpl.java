@@ -786,7 +786,7 @@ public class ConsensusImpl implements Consensus {
      * @param judges the judges for this round
      * @param decidedRound the info for the round with the unique famous witnesses, which is also
      *     the round received for these events reaching consensus now
-     * @param whitening a XOR of all judge signatures in this round
+     * @param whitening a XOR of all judge hashes in this round
      */
     private @NonNull List<EventImpl> findConsensusEvents(
             @NonNull final List<EventImpl> judges, final long decidedRound, @NonNull final byte[] whitening) {

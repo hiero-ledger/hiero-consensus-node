@@ -28,9 +28,10 @@ public final class ConsensusUtils {
      * @return true if voting for famous, false if voting for not famous
      */
     public static boolean coin(@NonNull final EventImpl event) {
-        // coin is one bit from signature (LSB of second of two middle bytes)
-        final int sigLen = (int) event.getBaseEvent().getSignature().length();
-        return ((event.getBaseEvent().getSignature().getByte((sigLen / 2)) & 1) == 1);
+        // coin is one bit from hash (LSB of second of two middle bytes)
+        final Bytes hashBytes = event.getBaseHash().getBytes();
+        final long sigLen = hashBytes.length();
+        return ((hashBytes.getByte((sigLen / 2)) & 1) == 1);
     }
 
     /**
@@ -51,15 +52,15 @@ public final class ConsensusUtils {
     }
 
     /**
-     * @return a XOR of all judge signatures in this round
+     * @return a XOR of all judge hashes in this round
      */
     public static @NonNull byte[] generateWhitening(@NonNull final Iterable<EventImpl> judges) {
-        // an XOR of the signatures of judges in a round, used during sorting
+        // an XOR of the hashes of judges in a round, used during sorting
         final byte[] whitening = new byte[CryptoConstants.SIG_SIZE_BYTES];
         // find whitening for round
         for (final EventImpl w : judges) { // calculate the whitening byte array
             if (w != null) {
-                final Bytes sig = w.getBaseEvent().getSignature();
+                final Bytes sig = w.getBaseHash().getBytes();
                 final int mn = Math.min(whitening.length, (int) sig.length());
                 for (int i = 0; i < mn; i++) {
                     whitening[i] ^= sig.getByte(i);

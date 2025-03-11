@@ -85,7 +85,6 @@ public class EventImpl implements Clearable {
             @Nullable final EventImpl selfParent,
             @Nullable final EventImpl otherParent) {
         Objects.requireNonNull(platformEvent, "baseEvent");
-        Objects.requireNonNull(platformEvent.getSignature(), "signature");
         this.selfParent = selfParent;
         this.otherParent = otherParent;
         // ConsensusImpl.currMark starts at 1 and counts up, so all events initially count as

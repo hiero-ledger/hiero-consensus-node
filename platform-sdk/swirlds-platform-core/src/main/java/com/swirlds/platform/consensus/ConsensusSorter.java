@@ -10,11 +10,11 @@ import java.util.List;
 
 /** Sorts consensus events into their consensus order */
 public class ConsensusSorter implements Comparator<EventImpl> {
-    /** an XOR of the signatures of unique famous witnesses in a round, used during sorting */
+    /** an XOR of the hashes of unique famous witnesses in a round, used during sorting */
     final byte[] whitening;
 
     /**
-     * @param whitening an XOR of the signatures of unique famous witnesses in a round
+     * @param whitening an XOR of the hashes of unique famous witnesses in a round
      */
     public ConsensusSorter(@NonNull final byte[] whitening) {
         this.whitening = whitening;
@@ -55,8 +55,8 @@ public class ConsensusSorter implements Comparator<EventImpl> {
             return c;
         }
 
-        // subsort ties by whitened signature
+        // subsort ties by whitened hashes
         return Utilities.arrayCompare(
-                e1.getBaseEvent().getSignature(), e2.getBaseEvent().getSignature(), whitening);
+                e1.getBaseHash().getBytes(), e2.getBaseHash().getBytes(), whitening);
     }
 }
