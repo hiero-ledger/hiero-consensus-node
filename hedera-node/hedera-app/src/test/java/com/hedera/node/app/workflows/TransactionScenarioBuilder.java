@@ -133,7 +133,9 @@ public class TransactionScenarioBuilder implements Scenarios {
                                 .seconds((System.currentTimeMillis() / 1000) - 1)
                                 .build())
                         .build())
-                .atomicBatch(AtomicBatchTransactionBody.newBuilder().transactions(innerTxns))
+                .atomicBatch(AtomicBatchTransactionBody.newBuilder()
+                        .transactions(
+                                innerTxns.stream().map(Transaction::bodyBytes).toList()))
                 .transactionFee(1L)
                 .transactionValidDuration(Duration.newBuilder().seconds(60).build())
                 .build();

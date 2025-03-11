@@ -2,6 +2,7 @@
 package com.hedera.node.app.spi.workflows;
 
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -22,6 +23,15 @@ public interface PureChecksContext {
      * @param body
      * @throws PreCheckException
      */
-    @NonNull
     void dispatchPureChecks(@NonNull TransactionBody body) throws PreCheckException;
+
+    /**
+     * Parses the transaction bytes and returns the {@link TransactionBody}.
+     *
+     * @param bodyBytes the bytes of the transaction
+     * @return the {@link TransactionBody} parsed from the bytes
+     * @throws PreCheckException if the transaction is invalid
+     */
+    @NonNull
+    TransactionBody parseTransactionBytes(@NonNull Bytes bodyBytes) throws PreCheckException;
 }

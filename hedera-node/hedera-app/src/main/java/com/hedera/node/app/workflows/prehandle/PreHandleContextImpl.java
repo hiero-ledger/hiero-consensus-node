@@ -472,7 +472,7 @@ public class PreHandleContextImpl implements PreHandleContext {
     public TransactionKeys allKeysForTransaction(@NonNull TransactionBody body, @NonNull final AccountID payerId)
             throws PreCheckException {
         // Throws PreCheckException if the transaction body is structurally invalid
-        final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);
+        final var pureChecksContext = new PureChecksContextImpl(body, dispatcher, transactionChecker);
         dispatcher.dispatchPureChecks(pureChecksContext);
         // Throws PreCheckException if the payer account does not exist
         final var context =
@@ -485,6 +485,12 @@ public class PreHandleContextImpl implements PreHandleContext {
             throw new PreCheckException(UNRESOLVABLE_REQUIRED_SIGNERS);
         }
         return context;
+    }
+
+    @NonNull
+    @Override
+    public TransactionBody parseTransactionBytes(@NonNull Bytes bodyBytes) throws PreCheckException {
+        return transactionChecker.parseAndCheck(bodyBytes).txBody();
     }
 
     @Override

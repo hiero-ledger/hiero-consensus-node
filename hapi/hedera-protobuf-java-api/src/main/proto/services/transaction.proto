@@ -665,5 +665,5 @@ message TransactionBody {
  */
 message AtomicBatchTransactionBody {
   // <<<pbj.java_package = "com.hedera.hapi.node.util">>> This comment is special code for setting PBJ Compiler java package
-  repeated Transaction transactions = 1;
+  repeated bytes transactions = 1;
 }
