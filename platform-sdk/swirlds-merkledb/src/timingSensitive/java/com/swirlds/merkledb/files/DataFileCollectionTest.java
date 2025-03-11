@@ -123,7 +123,7 @@ class DataFileCollectionTest {
 
         fileCollectionMap.put(testType, fileCollection);
         // create stored offsets list
-        final LongListHeap storedOffsets = new LongListHeap(5000);
+        final LongListHeap storedOffsets = new LongListHeap(5000, Integer.MAX_VALUE, 0);
         storedOffsets.updateValidRange(0, 1100);
         storedOffsetsMap.put(testType, storedOffsets);
         // create 10x 100 item files
@@ -631,7 +631,7 @@ class DataFileCollectionTest {
         assertSame(0, fileCollection.getAllCompletedFiles().size(), "Should be no files");
         fileCollectionMap.put(testType, fileCollection);
         // create stored offsets list
-        final LongListHeap storedOffsets = new LongListHeap(5000);
+        final LongListHeap storedOffsets = new LongListHeap(5000, Integer.MAX_VALUE, 0);
         storedOffsets.updateValidRange(0, 1100);
         storedOffsetsMap.put(testType, storedOffsets);
         // create 10x 100 item files
@@ -719,7 +719,7 @@ class DataFileCollectionTest {
 
         // init file collection with some content to compact
         final DataFileCollection fileCollection = new DataFileCollection(MERKLE_DB_CONFIG, dbDir, storeName, null);
-        final LongListHeap storedOffsets = new LongListHeap(5000);
+        final LongListHeap storedOffsets = new LongListHeap(5000, Integer.MAX_VALUE, 0);
         storedOffsets.updateValidRange(0, 1100);
         final DataFileCompactor compactor = new DataFileCompactor(
                 MERKLE_DB_CONFIG, storeName, fileCollection, storedOffsets, null, null, null, null);
