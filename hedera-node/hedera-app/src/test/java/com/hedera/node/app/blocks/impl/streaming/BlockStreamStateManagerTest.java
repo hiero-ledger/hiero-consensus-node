@@ -12,7 +12,7 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class BlockStreamStateManagerTest {
+class BlockStreamStateManagerTest {
     private static final long TEST_BLOCK_NUMBER = 1L;
     private static final long TEST_BLOCK_NUMBER2 = 2L;
 

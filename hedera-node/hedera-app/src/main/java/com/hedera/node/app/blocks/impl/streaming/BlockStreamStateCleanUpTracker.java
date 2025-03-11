@@ -11,38 +11,40 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * A class to track block acknowledgments for verified blocks by block nodes.
+ * A class to track block recognitions for blocks sent to block nodes.
+ * Recognitions because the class keeps track of BlockAcknowledgements and SkipBlock responses.
+ * Consensus node can receive SkipBlock PublishStreamResponse which indicates
+ * that the block is received from another source which means that the block is being recognized.
  */
-public class BlockAcknowledgementTracker {
-    private static final Logger logger = LogManager.getLogger(BlockAcknowledgementTracker.class);
+public class BlockStreamStateCleanUpTracker {
+    private static final Logger logger = LogManager.getLogger(BlockStreamStateCleanUpTracker.class);
 
     private final BlockStreamStateManager blockStreamStateManager;
-    private final ConcurrentHashMap<String, AtomicLong> blockAcknowledgments;
-    private final int requiredAcknowledgments;
+    private final ConcurrentHashMap<String, AtomicLong> blockRecognitions;
+    private final int requiredRecognitions;
     private final boolean deleteFilesOnDisk;
 
     /**
-     * @param requiredAcknowledgments the required number of block acknowledgments before deleting files on disc
+     * @param blockStreamStateManager the block stream state manager to clean up block states
+     * @param requiredRecognitions the required number of block recognitions before deleting files on disc
      * @param deleteFilesOnDisk whether to delete files on disk
      */
-    public BlockAcknowledgementTracker(
+    public BlockStreamStateCleanUpTracker(
             @NonNull BlockStreamStateManager blockStreamStateManager,
-            int requiredAcknowledgments,
+            int requiredRecognitions,
             boolean deleteFilesOnDisk) {
         this.blockStreamStateManager = requireNonNull(blockStreamStateManager);
-        this.blockAcknowledgments = new ConcurrentHashMap<>();
-        this.requiredAcknowledgments = requiredAcknowledgments;
+        this.blockRecognitions = new ConcurrentHashMap<>();
+        this.requiredRecognitions = requiredRecognitions;
         this.deleteFilesOnDisk = deleteFilesOnDisk;
     }
 
     /**
-     * @param connectionId the connection id to update the block acknowledgment for
+     * @param connectionId the connection id to update the block recognition for
      * @param blockNumber the block number
      */
-    public void trackAcknowledgment(@NonNull String connectionId, long blockNumber) {
-        blockAcknowledgments
-                .computeIfAbsent(connectionId, k -> new AtomicLong(0))
-                .set(blockNumber);
+    public void trackBlockRecognition(@NonNull String connectionId, long blockNumber) {
+        blockRecognitions.computeIfAbsent(connectionId, k -> new AtomicLong(0)).set(blockNumber);
 
         checkBlockDeletion(blockNumber);
     }
@@ -52,15 +54,15 @@ public class BlockAcknowledgementTracker {
      */
     @VisibleForTesting
     public void checkBlockDeletion(long blockNumber) {
-        long acknowledgementsCount = blockAcknowledgments.values().stream()
+        long recognitionsCount = blockRecognitions.values().stream()
                 .filter(ack -> ack.get() >= blockNumber)
                 .count();
 
-        if (acknowledgementsCount == requiredAcknowledgments) {
+        if (recognitionsCount == requiredRecognitions) {
             logger.info(
-                    "Block {} has received sufficient acknowledgments ({}). Ready for cleanup.",
+                    "Block {} has received sufficient recognitions ({}). Ready for cleanup.",
                     blockNumber,
-                    requiredAcknowledgments);
+                    requiredRecognitions);
             // Trigger cleanup event
             blockStreamStateManager.cleanUpBlockState(blockNumber);
 
@@ -83,8 +85,6 @@ public class BlockAcknowledgementTracker {
      * @return the last verified block for this connection id
      */
     public long getLastVerifiedBlock(@NonNull String connectionId) {
-        return blockAcknowledgments
-                .getOrDefault(connectionId, new AtomicLong(0))
-                .get();
+        return blockRecognitions.getOrDefault(connectionId, new AtomicLong(0)).get();
     }
 }

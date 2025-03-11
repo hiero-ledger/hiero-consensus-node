@@ -28,13 +28,13 @@ public class BlockNodeConnection {
     private StreamObserver<PublishStreamRequest> requestObserver;
     private volatile boolean isActive = true;
     private final String connectionId;
-    private final BlockAcknowledgementTracker acknowledgmentTracker;
+    private final BlockStreamStateCleanUpTracker acknowledgmentTracker;
 
     public BlockNodeConnection(
             @NonNull BlockNodeConfig nodeConfig,
             @NonNull GrpcServiceClient grpcServiceClient,
             @NonNull BlockNodeConnectionManager manager,
-            @NonNull BlockAcknowledgementTracker acknowledgmentTracker) {
+            @NonNull BlockStreamStateCleanUpTracker acknowledgmentTracker) {
         this.node = requireNonNull(nodeConfig);
         this.grpcServiceClient = requireNonNull(grpcServiceClient);
         this.manager = requireNonNull(manager);
@@ -75,7 +75,7 @@ public class BlockNodeConnection {
         if (acknowledgement.hasBlockAck()) {
             final var ackBlockNumber = acknowledgement.getBlockAck().getBlockNumber();
 
-            acknowledgmentTracker.trackAcknowledgment(connectionId, ackBlockNumber);
+            acknowledgmentTracker.trackBlockRecognition(connectionId, ackBlockNumber);
         }
     }
 
