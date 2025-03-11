@@ -208,7 +208,7 @@ public enum TestType {
                 throws IOException {
             final MerkleDb database = MerkleDb.getInstance(dbPath, CONFIGURATION);
             final MerkleDbTableConfig tableConfig =
-                    new MerkleDbTableConfig((short) 1, DigestType.SHA_384, size * 10L, hashesRamToDiskThreshold);
+                    new MerkleDbTableConfig((short) 1, DigestType.SHA_384, size, hashesRamToDiskThreshold);
             MerkleDbDataSource dataSource = database.createDataSource(name, tableConfig, enableMerging);
             dataSource.registerMetrics(getMetrics());
             return dataSource;
