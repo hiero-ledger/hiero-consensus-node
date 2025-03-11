@@ -38,6 +38,7 @@ import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -512,6 +513,32 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
         }
     }
 
+    @Test
+    @DisplayName("Regression test for hiero-ledger/hiero-consensus-node/issues/18235")
+    void testSnapshotHalfEmptyChunks() throws IOException {
+        try (final LongList longList = createFullyParameterizedLongListWith(200, 10000)) {
+            longList.updateValidRange(500, 1100);
+            longList.put(599, 1599); // chunk 2
+            longList.put(1050, 2050); // chunk 5
+            longList.put(900, 1900); // chunk 4
+            longList.put(700, 1700); // chunk 3
+            final Path tmpDir = Files.createTempDirectory("testSnapshotHalfEmptyChunks");
+            final Path tmpFile = tmpDir.resolve("snapshot");
+            longList.writeToFile(tmpFile);
+            try (final LongList restored = createLongListFromFile(tmpFile)) {
+                assertEquals(1700, restored.get(700));
+                assertEquals(2050, restored.get(1050));
+                assertEquals(1900, restored.get(900));
+                assertEquals(1599, restored.get(599));
+                // Make sure chunk 3 doesn't have any values carried over from chunk 2
+                assertEquals(0, restored.get(799));
+            } finally {
+                Files.delete(tmpFile);
+                Files.delete(tmpDir);
+            }
+        }
+    }
+
     // Parametrized tests to test cross compatibility between the Long List implementations
 
     /**
@@ -743,13 +770,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             populateList(writerList);
             checkData(writerList);
 
-            // Save the original file size for comparison (for LongListDisk)
-            long originalFileSize = 0;
-            if (writerList instanceof LongListDisk) {
-                originalFileSize =
-                        ((LongListDisk) writerList).getCurrentFileChannel().size() + writerList.currentFileHeaderSize;
-            }
-
             // Update the valid range to shrink the list by setting a new minimum valid index
             writerList.updateValidRange(HALF_SAMPLE_SIZE, MAX_LONGS - 1);
 
@@ -764,14 +784,10 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                     String.format("testShrinkListMinValidIndex_write_%s_read_back_%s.ll", writerFactory, readerFactory);
             final Path longListFile = writeLongListToFileAndVerify(writerList, TEMP_FILE_NAME, tempDir);
 
-            // If using LongListDisk, verify that the file size reflects the shrink operation
-            if (writerList instanceof LongListDisk) {
-                assertEquals(
-                        HALF_SAMPLE_SIZE * Long.BYTES,
-                        originalFileSize - Files.size(longListFile),
-                        "File size after shrinking does not match expected reduction.");
-            }
-
+            assertEquals(
+                    (SAMPLE_SIZE - HALF_SAMPLE_SIZE) * Long.BYTES + FILE_HEADER_SIZE_V2,
+                    Files.size(longListFile),
+                    "Wrong snapshot file size");
             // Reconstruct the LongList from the file
             try (final LongList readerList = readerFactory.createFromFile().apply(longListFile, CONFIGURATION)) {
                 // Validate that all entries in the reconstructed list match the writer list
@@ -802,14 +818,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             populateList(writerList);
             checkData(writerList);
 
-            // Save the original file size for comparison (for LongListDisk)
-            // temporary file channel doesn't contain the header
-            long originalFileSize = 0;
-            if (writerList instanceof LongListDisk) {
-                originalFileSize =
-                        ((LongListDisk) writerList).getCurrentFileChannel().size() + writerList.currentFileHeaderSize;
-            }
-
             // Update the valid range to shrink the list by setting a new maximum valid index
             writerList.updateValidRange(0, HALF_SAMPLE_SIZE - 1);
 
@@ -824,13 +832,10 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                     String.format("testShrinkListMaxValidIndex_write_%s_read_back_%s.ll", writerFactory, readerFactory);
             final Path longListFile = writeLongListToFileAndVerify(writerList, TEMP_FILE_NAME, tempDir);
 
-            // If using LongListDisk, verify that the file size reflects the shrink operation
-            if (writerList instanceof LongListDisk) {
-                assertEquals(
-                        HALF_SAMPLE_SIZE * Long.BYTES,
-                        originalFileSize - Files.size(longListFile),
-                        "File size after shrinking does not match expected reduction.");
-            }
+            assertEquals(
+                    (SAMPLE_SIZE - HALF_SAMPLE_SIZE) * Long.BYTES + FILE_HEADER_SIZE_V2,
+                    Files.size(longListFile),
+                    "Wrong snapshot file size");
 
             // Reconstruct the LongList from the file
             try (final LongList readerList = readerFactory.createFromFile().apply(longListFile, CONFIGURATION)) {
