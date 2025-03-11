@@ -28,6 +28,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.LOCAL_CALL_MODIFICATION_EXCEPTION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OBTAINER_SAME_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.parallel.ResourceAccessMode.READ_WRITE;
@@ -189,6 +190,12 @@ public class SelfDestructSuite {
         }
 
         @HapiTest
+        @DisplayName("cannot SELFDESTRUCT with same contracts as beneficiary and balance")
+        final Stream<DynamicTest> selfDestructFailsWhenContractItselfIsBeneficiaryAndHasBalance50() {
+            return selfDestructSucceedsWhenContractSelfDestructsItselfWithTokens(HapiSuite.EVM_VERSION_050);
+        }
+
+        @HapiTest
         @DisplayName("cannot SELFDESTRUCT within a static call")
         final Stream<DynamicTest>
                 selfDestructViaCallLocalWithAccount999ResultsInLocalCallModificationPrecheckFailed50() {
@@ -273,6 +280,22 @@ public class SelfDestructSuite {
                                 mirrorAddrWith(beneficiaryId.get()))
                         .hasKnownStatus(INVALID_SIGNATURE)),
                 getAccountInfo(BENEFICIARY).has(accountWith().balance(ONE_HUNDRED_HBARS)),
+                getContractInfo(SELF_DESTRUCT_CALLABLE_CONTRACT)
+                        .has(contractWith().balance(ONE_HBAR)));
+    }
+
+    final Stream<DynamicTest> selfDestructSucceedsWhenContractSelfDestructsItselfWithTokens(
+            @NonNull final String evmVersion) {
+        final AtomicLong contractNum = new AtomicLong();
+        return hapiTest(
+                contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT)
+                        .balance(ONE_HBAR)
+                        .exposingNumTo(contractNum::set),
+                sourcing(() -> contractCall(
+                                SELF_DESTRUCT_CALLABLE_CONTRACT,
+                                DESTROY_EXPLICIT_BENEFICIARY,
+                                mirrorAddrWith(contractNum.get()))
+                        .hasKnownStatus(OBTAINER_SAME_CONTRACT_ID)),
                 getContractInfo(SELF_DESTRUCT_CALLABLE_CONTRACT)
                         .has(contractWith().balance(ONE_HBAR)));
     }
@@ -377,9 +400,11 @@ public class SelfDestructSuite {
                         .payingWith(payerAccount)
                         .andAssert(txn -> txn.hasKnownStatus(SUCCESS)),
                 selfDestructCallableContract.getInfo().andAssert(ci -> {
-                    if (expectedDeletionStatus)
+                    if (expectedDeletionStatus) {
                         ci.hasCostAnswerPrecheck(OK).has(contractWith().isDeleted());
-                    else ci.hasCostAnswerPrecheck(OK).has(contractWith().isNotDeleted());
+                    } else {
+                        ci.hasCostAnswerPrecheck(OK).has(contractWith().isNotDeleted());
+                    }
                 }));
     }
 
