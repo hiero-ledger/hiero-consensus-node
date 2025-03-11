@@ -1,22 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey;
+package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.address_0x16c;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_16C_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyCommons.getTokenKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.fromHeadlongAddress;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.state.token.Token;
-import com.hedera.node.app.hapi.utils.InvalidTransactionException;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyCall;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Modifier;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
-import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Optional;
@@ -29,10 +28,11 @@ import javax.inject.Singleton;
 @Singleton
 public class TokenKeyTranslator extends AbstractCallTranslator<HtsCallAttempt> {
     /** Selector for getTokenKey(address,uint) method. */
-    public static final SystemContractMethod TOKEN_KEY = SystemContractMethod.declare(
+    public static final SystemContractMethod TOKEN_KEY_16C = SystemContractMethod.declare(
                     "getTokenKey(address,uint)", ReturnTypes.RESPONSE_CODE_TOKEN_KEY)
             .withModifier(Modifier.VIEW)
-            .withCategory(Category.TOKEN_QUERY);
+            .withCategory(Category.TOKEN_QUERY)
+            .withSupportedAddress(HTS_16C_CONTRACT_ID);
 
     /**
      * Default constructor for injection.
@@ -44,13 +44,13 @@ public class TokenKeyTranslator extends AbstractCallTranslator<HtsCallAttempt> {
         // Dagger2
         super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
 
-        registerMethods(TOKEN_KEY);
+        registerMethods(TOKEN_KEY_16C);
     }
 
     @Override
     public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
         requireNonNull(attempt);
-        return attempt.isMethod(TOKEN_KEY);
+        return attempt.isMethod(TOKEN_KEY_16C);
     }
 
     /**
@@ -58,35 +58,15 @@ public class TokenKeyTranslator extends AbstractCallTranslator<HtsCallAttempt> {
      */
     @Override
     public Call callFrom(@NonNull final HtsCallAttempt attempt) {
-        final var args = TOKEN_KEY.decodeCall(attempt.input().toArrayUnsafe());
+        final var args = TOKEN_KEY_16C.decodeCall(attempt.input().toArrayUnsafe());
         final var token = attempt.linkedToken(fromHeadlongAddress(args.get(0)));
         final BigInteger keyType = args.get(1);
 
-        final boolean metadataSupport =
-                attempt.configuration().getConfigData(ContractsConfig.class).metadataKeyAndFieldEnabled();
         return new TokenKeyCall(
                 attempt.systemContractGasCalculator(),
                 attempt.enhancement(),
                 attempt.isStaticCall(),
                 token,
-                getTokenKey(token, keyType.intValue(), metadataSupport));
-    }
-
-    public Key getTokenKey(final Token token, final int keyType, final boolean metadataSupport)
-            throws InvalidTransactionException {
-        if (token == null) {
-            return null;
-        }
-        return switch (keyType) {
-            case 1 -> token.adminKey();
-            case 2 -> token.kycKey();
-            case 4 -> token.freezeKey();
-            case 8 -> token.wipeKey();
-            case 16 -> token.supplyKey();
-            case 32 -> token.feeScheduleKey();
-            case 64 -> token.pauseKey();
-            case 128 -> metadataSupport ? token.metadataKey() : null;
-            default -> null;
-        };
+                getTokenKey(token, keyType.intValue(), HTS_16C_CONTRACT_ID));
     }
 }
