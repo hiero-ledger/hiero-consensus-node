@@ -47,5 +47,5 @@ public interface FallenBehindManager {
      * @param added node ids which were added from the roster
      * @param removed node ids which were removed from the roster
      */
-    void addRemovePeers(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed);
+    void addRemovePeers(@NonNull Set<NodeId> added, @NonNull Set<NodeId> removed);
 }

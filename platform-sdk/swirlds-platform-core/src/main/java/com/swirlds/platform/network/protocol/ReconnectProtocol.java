@@ -70,7 +70,7 @@ public class ReconnectProtocol implements Protocol {
             @NonNull final ReconnectController reconnectController,
             @NonNull final SignedStateValidator validator,
             @NonNull final FallenBehindManager fallenBehindManager,
-            final Supplier<PlatformStatus> platformStatusSupplier,
+            @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.platformContext = Objects.requireNonNull(platformContext);

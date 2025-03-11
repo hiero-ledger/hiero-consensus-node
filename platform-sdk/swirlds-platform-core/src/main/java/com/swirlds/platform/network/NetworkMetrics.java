@@ -9,7 +9,11 @@ import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.LongAdder;
@@ -84,9 +88,8 @@ public class NetworkMetrics {
      * @throws IllegalArgumentException if {@code platform} is {@code null}
      */
     public NetworkMetrics(@NonNull final Metrics metrics, @NonNull final NodeId selfId) {
-        Objects.requireNonNull(metrics, "The metrics must not be null.");
         this.selfId = Objects.requireNonNull(selfId, "The selfId must not be null.");
-        this.metrics = metrics;
+        this.metrics = Objects.requireNonNull(metrics, "The metrics must not be null.");
 
         avgPing = metrics.getOrCreate(AVG_PING_CONFIG);
         bytesPerSecondSent = metrics.getOrCreate(BYTES_PER_SECOND_SENT_CONFIG);

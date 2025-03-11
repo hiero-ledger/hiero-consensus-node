@@ -17,6 +17,7 @@ import com.swirlds.platform.network.topology.StaticConnectionManagers;
 import com.swirlds.platform.network.topology.StaticTopology;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,10 +51,10 @@ public class DynamicConnectionManagers {
             @NonNull final ConnectionTracker connectionTracker,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final NetworkTopology topology) {
-        this.selfId = selfId;
-        this.platformContext = platformContext;
-        this.connectionTracker = connectionTracker;
-        this.keysAndCerts = keysAndCerts;
+        this.selfId = Objects.requireNonNull(selfId);
+        this.platformContext = Objects.requireNonNull(platformContext);
+        this.connectionTracker = Objects.requireNonNull(connectionTracker);
+        this.keysAndCerts = Objects.requireNonNull(keysAndCerts);
         for (PeerInfo peer : peers) {
             updateManager(topology, peer);
         }
@@ -76,7 +77,7 @@ public class DynamicConnectionManagers {
      *
      * @param newConn a new connection that has been established
      */
-    public void newConnection(final Connection newConn) throws InterruptedException {
+    public void newConnection(@NonNull final Connection newConn) throws InterruptedException {
 
         final ConnectionManager cs = connectionManagers.get(newConn.getOtherId());
         if (cs == null) {
@@ -116,7 +117,10 @@ public class DynamicConnectionManagers {
      * @param removed  peers to remove
      * @param topology new topology with all the changes applied
      */
-    public void addRemovePeers(List<PeerInfo> added, List<PeerInfo> removed, StaticTopology topology) {
+    public void addRemovePeers(
+            @NonNull final List<PeerInfo> added,
+            @NonNull final List<PeerInfo> removed,
+            @NonNull final StaticTopology topology) {
         for (PeerInfo peerInfo : removed) {
             connectionManagers.remove(peerInfo.nodeId());
         }
@@ -125,7 +129,7 @@ public class DynamicConnectionManagers {
         }
     }
 
-    private void updateManager(NetworkTopology topology, PeerInfo otherPeer) {
+    private void updateManager(@NonNull final NetworkTopology topology, @NonNull final PeerInfo otherPeer) {
         if (topology.shouldConnectToMe(otherPeer.nodeId())) {
             connectionManagers.put(otherPeer.nodeId(), new InboundConnectionManager());
         } else if (topology.shouldConnectTo(otherPeer.nodeId())) {

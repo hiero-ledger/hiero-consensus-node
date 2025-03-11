@@ -6,9 +6,9 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.gossip.FallenBehindManager;
 
 /**
@@ -23,9 +23,8 @@ public class FallenBehindManagerImpl implements FallenBehindManager {
 
     /**
      * set of neighbors who report that this node has fallen behind
-     * Threadsafe to access without synchronization
      */
-    private final Set<NodeId> reportFallenBehind;
+    private final Set<NodeId> reportFallenBehind = new HashSet<>();
 
     /**
      * Enables submitting platform status actions
@@ -48,7 +47,6 @@ public class FallenBehindManagerImpl implements FallenBehindManager {
             @NonNull final ReconnectConfig config) {
         Objects.requireNonNull(selfId, "selfId");
 
-        reportFallenBehind = ConcurrentHashMap.newKeySet();
         this.numNeighbors = numNeighbors;
 
         this.statusActionSubmitter = Objects.requireNonNull(statusActionSubmitter);
@@ -89,7 +87,7 @@ public class FallenBehindManagerImpl implements FallenBehindManager {
     }
 
     @Override
-    public boolean hasFallenBehind() {
+    public synchronized boolean hasFallenBehind() {
         return numNeighbors * config.fallenBehindThreshold() < reportFallenBehind.size();
     }
 
@@ -111,7 +109,7 @@ public class FallenBehindManagerImpl implements FallenBehindManager {
     }
 
     @Override
-    public int numReportedFallenBehind() {
+    public synchronized int numReportedFallenBehind() {
         return reportFallenBehind.size();
     }
 }
