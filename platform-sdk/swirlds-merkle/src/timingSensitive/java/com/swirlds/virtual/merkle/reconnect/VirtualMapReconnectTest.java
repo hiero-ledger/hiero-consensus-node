@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtual.merkle.reconnect;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -24,8 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.merkle.test.fixtures.FakeVirtualMap;
@@ -321,7 +306,7 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
             final int permittedLeaves, final int permittedInternals) {
         return (final VirtualMap<TestKey, TestValue> map) -> {
             // We need to hash the original tree before getting its view.
-            MerkleCryptoFactory.getInstance().digestTreeSync(map);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(map);
 
             final MerkleInternal imitationMap = new FakeVirtualMap();
 

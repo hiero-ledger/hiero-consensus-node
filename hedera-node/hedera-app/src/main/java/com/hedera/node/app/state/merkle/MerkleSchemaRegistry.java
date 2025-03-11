@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.MIGRATION;
@@ -41,17 +26,15 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.merkle.MerkleStateRoot.MerkleWritableStates;
-import com.swirlds.state.merkle.StateMetadata;
-import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
 import com.swirlds.state.merkle.disk.OnDiskValueSerializer;
 import com.swirlds.state.merkle.queue.QueueNode;
@@ -125,7 +108,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final Configuration bootstrapConfig,
             @NonNull final SchemaApplications schemaApplications) {
         this.constructableRegistry = requireNonNull(constructableRegistry);
-        this.serviceName = StateUtils.validateStateKey(requireNonNull(serviceName));
+        this.serviceName = StateMetadata.validateStateKey(requireNonNull(serviceName));
         this.bootstrapConfig = requireNonNull(bootstrapConfig);
         this.schemaApplications = requireNonNull(schemaApplications);
     }
@@ -172,7 +155,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
      * to perform any necessary logic on restart. Most services have nothing to do, but some may need
      * to read files from disk, and could potentially change their state as a result.
      *
-     * @param state the state for this registry to use.
+     * @param stateRoot the state for this registry to use.
      * @param previousVersion The version of state loaded from disk. Possibly null.
      * @param currentVersion The current version. Never null. Must be newer than {@code
      * previousVersion}.
@@ -189,7 +172,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
     // too many parameters, commented out code
     @SuppressWarnings({"java:S107", "java:S125"})
     public void migrate(
-            @NonNull final State state,
+            @NonNull final MerkleNodeState stateRoot,
             @Nullable final SemanticVersion previousVersion,
             @NonNull final SemanticVersion currentVersion,
             @NonNull final Configuration appConfig,
@@ -201,7 +184,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final MigrationStateChanges migrationStateChanges,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final PlatformStateFacade platformStateFacade) {
-        requireNonNull(state);
+        requireNonNull(stateRoot);
         requireNonNull(currentVersion);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
@@ -210,9 +193,6 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
         requireNonNull(migrationStateChanges);
         if (isSoOrdered(currentVersion, previousVersion)) {
             throw new IllegalArgumentException("The currentVersion must be at least the previousVersion");
-        }
-        if (!(state instanceof MerkleNodeState stateRoot)) {
-            throw new IllegalArgumentException("The state must be an instance of " + MerkleNodeState.class.getName());
         }
         final long roundNumber = platformStateFacade.roundOf(stateRoot);
         if (schemas.isEmpty()) {
@@ -333,7 +313,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                     } else if (!def.onDisk()) {
                         stateRoot.putServiceStateIfAbsent(md, () -> {
                             final var map = new MerkleMap<>();
-                            map.setLabel(StateUtils.computeLabel(serviceName, stateKey));
+                            map.setLabel(StateMetadata.computeLabel(serviceName, stateKey));
                             return map;
                         });
                     } else {
@@ -355,9 +335,11 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                                     final var tableConfig = new MerkleDbTableConfig(
                                             (short) 1,
                                             DigestType.SHA_384,
+                                            // Future work: drop StateDefinition.maxKeysHint and load VM size
+                                            // from VirtualMapConfig.size instead
                                             def.maxKeysHint(),
                                             merkleDbConfig.hashesRamToDiskThreshold());
-                                    final var label = StateUtils.computeLabel(serviceName, stateKey);
+                                    final var label = StateMetadata.computeLabel(serviceName, stateKey);
                                     final var dsBuilder =
                                             new MerkleDbDataSourceBuilder(tableConfig, platformConfiguration);
                                     final var virtualMap = new VirtualMap<>(

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
@@ -45,6 +30,7 @@ import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
@@ -124,14 +110,14 @@ public record HederaEvmTransactionResult(
      *
      * @return the result
      */
-    public ContractFunctionResult asQueryResult() {
+    public ContractFunctionResult asQueryResult(@NonNull final ProxyWorldUpdater updater) {
         if (haltReason != null) {
             return asUncommittedFailureResult(errorMessageFor(haltReason)).build();
         } else if (revertReason != null) {
             return asUncommittedFailureResult(errorMessageForRevert(revertReason))
                     .build();
         } else {
-            return asSuccessResultForQuery();
+            return asSuccessResultForQuery(updater);
         }
     }
     /**
@@ -351,20 +337,20 @@ public record HederaEvmTransactionResult(
                 .contractCallResult(output)
                 .contractID(recipientId)
                 .createdContractIDs(createdIds)
-                .logInfo(pbjLogsFrom(logs))
+                .logInfo(pbjLogsFrom(updater.entityIdFactory(), logs))
                 .evmAddress(recipientEvmAddressIfCreatedIn(createdIds))
                 .contractNonces(updater.getUpdatedContractNonces())
                 .errorMessage("")
                 .signerNonce(signerNonce);
     }
 
-    private ContractFunctionResult asSuccessResultForQuery() {
+    private ContractFunctionResult asSuccessResultForQuery(@NonNull final ProxyWorldUpdater updater) {
         return ContractFunctionResult.newBuilder()
                 .gasUsed(gasUsed)
                 .bloom(bloomForAll(logs))
                 .contractCallResult(output)
                 .contractID(recipientId)
-                .logInfo(pbjLogsFrom(logs))
+                .logInfo(pbjLogsFrom(updater.entityIdFactory(), logs))
                 .errorMessage("")
                 .signerNonce(signerNonce)
                 .build();

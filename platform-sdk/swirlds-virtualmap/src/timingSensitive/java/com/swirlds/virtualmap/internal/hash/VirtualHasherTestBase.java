@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.hash;
 
+import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashBuilder;
@@ -113,7 +99,7 @@ public class VirtualHasherTestBase extends VirtualTestBase {
 
         final long rightChildPath = Path.getRightChildPath(internalNode.path());
         VirtualHashRecord rightChild = ds.getInternal(rightChildPath);
-        Hash rightHash = CRYPTO.getNullHash();
+        Hash rightHash = Cryptography.NULL_HASH;
         if (rightChild != null) {
             if (rightChildPath < ds.firstLeafPath) {
                 rightChild = hashSubTree(ds, hashBuilder, rightChild);
@@ -173,7 +159,7 @@ public class VirtualHasherTestBase extends VirtualTestBase {
             if (rec == null) {
                 final Hash hash;
                 if (path < firstLeafPath) {
-                    hash = CRYPTO.getNullHash();
+                    hash = Cryptography.NULL_HASH;
                 } else {
                     final VirtualLeafRecord<TestKey, TestValue> leaf = getLeaf(path);
                     hash = CRYPTO.digestSync(leaf);

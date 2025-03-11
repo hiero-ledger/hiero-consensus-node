@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
@@ -108,8 +93,9 @@ public class AppFeeCharging implements FeeCharging {
                 result.serviceFeeStatus() == UNABLE_TO_PAY_SERVICE_FEE || result.duplicateStatus() == DUPLICATE;
         final var feesToCharge = shouldWaiveServiceFee ? fees.withoutServiceComponent() : fees;
         switch (ctx.category()) {
-            case USER, NODE -> ctx.charge(result.payerOrThrow().accountIdOrThrow(), feesToCharge, result.creatorId());
-            default -> ctx.charge(result.payerOrThrow().accountIdOrThrow(), feesToCharge);
+            case USER, NODE -> ctx.charge(
+                    result.payerOrThrow().accountIdOrThrow(), feesToCharge, result.creatorId(), null);
+            default -> ctx.charge(result.payerOrThrow().accountIdOrThrow(), feesToCharge, null);
         }
     }
 }

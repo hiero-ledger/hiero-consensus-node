@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * The Hedera implementation of the Hedera Node Schedule Service (as defined in
  * {@code com.hedera.node.app.service.schedule}).

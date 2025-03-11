@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createRoot;
@@ -23,10 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.virtualmap.test.fixtures.DummyVirtualStateAccessor;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
@@ -39,7 +23,6 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 @DisplayName("VirtualRootNode Hashing Tests")
 class VirtualRootNodeHashingTest {
-    private static final MerkleCryptography CRYPTO = MerkleCryptoFactory.getInstance();
 
     // FUTURE WORK tests to write:
     //  - deterministic hashing
@@ -57,7 +40,7 @@ class VirtualRootNodeHashingTest {
         assertNotNull(hash, "hash should not be null");
 
         final MerkleInternal expected = new InternalWithBasicHash();
-        final Hash expectedHash = CRYPTO.digestTreeSync(expected);
+        final Hash expectedHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(expected);
         assertEquals(expectedHash, hash, "empty root hash value didn't match expectations");
 
         root.release();
@@ -127,7 +110,7 @@ class VirtualRootNodeHashingTest {
             rootB.put(new TestKey(i), new TestValue(Integer.toString(i)));
         }
         final VirtualRootNode<TestKey, TestValue> copyB = rootB.copy();
-        final Hash hashB = MerkleCryptoFactory.getInstance().digestTreeSync(rootA);
+        final Hash hashB = TestMerkleCryptoFactory.getInstance().digestTreeSync(rootA);
 
         assertEquals(hashA, hashB, "both algorithms should derive the same hash");
 
@@ -156,7 +139,7 @@ class VirtualRootNodeHashingTest {
         }
         final VirtualRootNode<TestKey, TestValue> copyB = rootB.copy();
         final Hash hashB =
-                MerkleCryptoFactory.getInstance().digestTreeAsync(rootA).get();
+                TestMerkleCryptoFactory.getInstance().digestTreeAsync(rootA).get();
 
         assertEquals(hashA, hashB, "both algorithms should derive the same hash");
 

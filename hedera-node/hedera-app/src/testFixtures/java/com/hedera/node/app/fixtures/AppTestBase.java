@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fixtures;
 
 import static com.swirlds.platform.roster.RosterRetriever.buildRoster;
@@ -44,9 +29,6 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
@@ -61,6 +43,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -79,7 +62,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.LongSupplier;
 
 /**
  * Most of the components in this module have rich and interesting dependencies. While we can (and at times must) mock
@@ -137,7 +119,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 .state(entityCountsState)
                 .build();
 
-        state = new State() {
+        state = new TestMerkleStateRoot() {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull String serviceName) {
@@ -152,17 +134,6 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 return TokenService.NAME.equals(serviceName) || EntityIdService.NAME.equals(serviceName)
                         ? writableStates
                         : null;
-            }
-
-            @Override
-            public void init(
-                    Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
-                // no-op
-            }
-
-            @Override
-            public void setHash(Hash hash) {
-                // no-op
             }
         };
     }

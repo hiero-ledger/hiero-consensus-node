@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isvalidalias;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -68,7 +53,7 @@ public class IsValidAliasCall extends AbstractCall {
         ACCOUNT_NUM_ALIAS_OF_ACCOUNT_WITHOUT_EVM_ALIAS,
         EVM_ALIAS_OF_ACCOUNT,
         EVM_ADDRESS_WITH_NO_ASSOCIATED_ACCOUNT
-    };
+    }
 
     /**
      * Determine what kind of alias the {@link Address} is, w.r.t. current accounts known to the system
@@ -78,7 +63,7 @@ public class IsValidAliasCall extends AbstractCall {
      */
     public static @NonNull AliasKind getAliasKindForAddressWithAccount(
             @NonNull final Address address, @NonNull final HederaNativeOperations nativeOperations) {
-        final boolean isAccountNumAlias /*aka long-zero*/ = isLongZero(address);
+        final boolean isAccountNumAlias /*aka long-zero*/ = isLongZero(nativeOperations.entityIdFactory(), address);
         final long accountNum = accountNumberForEvmReference(address, nativeOperations);
 
         if (accountNum == MISSING_ENTITY_NUMBER) {

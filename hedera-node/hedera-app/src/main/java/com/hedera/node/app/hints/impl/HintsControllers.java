@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
 import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
@@ -48,11 +33,10 @@ public class HintsControllers {
     private final Executor executor;
     private final HintsKeyAccessor keyAccessor;
     private final HintsLibrary library;
-    private final HintsLibraryCodec codec;
     private final HintsSubmissions submissions;
     private final HintsContext context;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
-    private Supplier<Configuration> configurationSupplier;
+    private final Supplier<Configuration> configurationSupplier;
 
     /**
      * May be null if the node has just started, or if the network has completed the most up-to-date
@@ -66,14 +50,12 @@ public class HintsControllers {
             @NonNull final Executor executor,
             @NonNull final HintsKeyAccessor keyAccessor,
             @NonNull final HintsLibrary library,
-            @NonNull final HintsLibraryCodec codec,
             @NonNull final HintsSubmissions submissions,
             @NonNull final HintsContext context,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
             @NonNull final Supplier<Configuration> configurationSupplier) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
-        this.codec = requireNonNull(codec);
         this.context = requireNonNull(context);
         this.library = requireNonNull(library);
         this.submissions = requireNonNull(submissions);
@@ -174,7 +156,6 @@ public class HintsControllers {
                     weights,
                     executor,
                     library,
-                    codec,
                     votes,
                     publications,
                     submissions,

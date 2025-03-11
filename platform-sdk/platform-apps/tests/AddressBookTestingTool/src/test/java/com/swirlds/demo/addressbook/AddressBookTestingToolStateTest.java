@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.addressbook;
 
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -56,7 +41,7 @@ class AddressBookTestingToolStateTest {
 
     private static final int RUNNING_SUM_INDEX = 3;
     private static AddressBookTestingToolState state;
-    private static AddressBookTestingToolStateLifecycles stateLifecycles;
+    private static AddressBookTestingToolConsensusStateEventHandler consensusStateEventHandler;
     private AddressBookTestingToolMain main;
     private Random random;
     private Platform platform;
@@ -76,8 +61,9 @@ class AddressBookTestingToolStateTest {
     @BeforeAll
     static void initState() {
         state = new AddressBookTestingToolState();
-        stateLifecycles = new AddressBookTestingToolStateLifecycles(DEFAULT_PLATFORM_STATE_FACADE);
-        FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
+        consensusStateEventHandler =
+                new AddressBookTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
     }
 
     @BeforeEach
@@ -99,7 +85,7 @@ class AddressBookTestingToolStateTest {
         when(addressBookTestingToolConfig.testScenario())
                 .thenReturn(String.valueOf(AddressBookTestScenario.GENESIS_NORMAL));
 
-        stateLifecycles.onStateInitialized(state, platform, initTrigger, softwareVersion);
+        consensusStateEventHandler.onStateInitialized(state, platform, initTrigger, softwareVersion);
 
         main = mock(AddressBookTestingToolMain.class);
         random = new Random();
@@ -135,7 +121,7 @@ class AddressBookTestingToolStateTest {
         when(consensusTransaction.getApplicationTransaction()).thenReturn(bytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -157,7 +143,7 @@ class AddressBookTestingToolStateTest {
         when(consensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -190,7 +176,7 @@ class AddressBookTestingToolStateTest {
         when(thirdConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -214,7 +200,7 @@ class AddressBookTestingToolStateTest {
         when(consensusTransaction.getApplicationTransaction()).thenReturn(emptyStateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -242,7 +228,7 @@ class AddressBookTestingToolStateTest {
         when(thirdConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedTransactions).hasSize(3);
@@ -258,7 +244,7 @@ class AddressBookTestingToolStateTest {
         when(consensusTransaction.getApplicationTransaction()).thenReturn(emptyStateSignatureBytes);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedTransactions).hasSize(1);
@@ -275,7 +261,7 @@ class AddressBookTestingToolStateTest {
         when(consensusTransaction.getApplicationTransaction()).thenReturn(emptyStateSignatureBytes);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedTransactions).isEmpty();
@@ -286,7 +272,7 @@ class AddressBookTestingToolStateTest {
         // Given (empty)
 
         // When
-        final boolean result = stateLifecycles.onSealConsensusRound(round, state);
+        final boolean result = consensusStateEventHandler.onSealConsensusRound(round, state);
 
         // Then
         assertThat(result).isTrue();

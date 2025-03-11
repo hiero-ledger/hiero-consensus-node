@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
@@ -28,6 +13,10 @@ import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.handlers.HintsKeyPublicationHandler;
 import com.hedera.node.app.hints.handlers.HintsPartialSignatureHandler;
 import com.hedera.node.app.hints.handlers.HintsPreprocessingVoteHandler;
+import com.hedera.node.app.history.handlers.HistoryHandlers;
+import com.hedera.node.app.history.handlers.HistoryProofKeyPublicationHandler;
+import com.hedera.node.app.history.handlers.HistoryProofSignatureHandler;
+import com.hedera.node.app.history.handlers.HistoryProofVoteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.AddressBookHandlers;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeDeleteHandler;
@@ -128,6 +117,15 @@ class HandleWorkflowModuleTest {
 
     @Mock
     private HintsKeyPublicationHandler hintsKeyPublicationHandler;
+
+    @Mock
+    private HistoryProofKeyPublicationHandler proofKeyPublicationHandler;
+
+    @Mock
+    private HistoryProofSignatureHandler proofSignatureHandler;
+
+    @Mock
+    private HistoryProofVoteHandler proofVoteHandler;
 
     @Mock
     private CrsPublicationHandler crsPublicationHandler;
@@ -279,6 +277,9 @@ class HandleWorkflowModuleTest {
     @Mock
     private UtilPrngHandler utilPrngHandler;
 
+    @Mock
+    private HintsKeyPublicationHandler keyPublicationHandler;
+
     @TempDir
     java.nio.file.Path tempDir;
 
@@ -347,6 +348,8 @@ class HandleWorkflowModuleTest {
 
         final var hintsHandlers = new HintsHandlers(
                 hintsKeyPublicationHandler, preprocessingVoteHandler, partialSignatureHandler, crsPublicationHandler);
+        final var historyHandlers =
+                new HistoryHandlers(proofSignatureHandler, proofKeyPublicationHandler, proofVoteHandler);
         final var handlers = HandleWorkflowModule.provideTransactionHandlers(
                 networkAdminHandlers,
                 consensusHandlers,
@@ -356,7 +359,8 @@ class HandleWorkflowModuleTest {
                 tokenHandlers,
                 utilHandlers,
                 addressBookHandlers,
-                hintsHandlers);
+                hintsHandlers,
+                historyHandlers);
         assertInstanceOf(TransactionHandlers.class, handlers);
     }
 }

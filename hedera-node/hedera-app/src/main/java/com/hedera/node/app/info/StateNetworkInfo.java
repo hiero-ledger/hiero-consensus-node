@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.info;
 
 import static com.hedera.node.app.info.NodeInfoImpl.fromRosterEntry;
@@ -34,6 +19,7 @@ import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.ReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +42,14 @@ public class StateNetworkInfo implements NetworkInfo {
      */
     private final Roster activeRoster;
 
-    private final Map<Long, NodeInfo> nodeInfos;
+    /**
+     * Non-final because we need {@code handleTransaction} to be able to swap in an
+     * updated map atomically, without giving a pre-handle thread a temporary view of
+     * an empty map. (Note that {@code handleTransaction}'s updates will only change
+     * <i>metadata</i> of nodes, but not the set of nodes itself; so pre-handle threads
+     * can use any version of the map to test for address book membership.)
+     */
+    private volatile Map<Long, NodeInfo> nodeInfos;
 
     /**
      * Constructs a new network information provider from the given state, roster, selfID, and configuration provider.
@@ -113,8 +106,7 @@ public class StateNetworkInfo implements NetworkInfo {
 
     @Override
     public void updateFrom(@NonNull final State state) {
-        nodeInfos.clear();
-        nodeInfos.putAll(nodeInfosFrom(state));
+        nodeInfos = nodeInfosFrom(state);
     }
 
     /**
@@ -150,6 +142,6 @@ public class StateNetworkInfo implements NetworkInfo {
                 log.warn("Node {} not found in node store", rosterEntry.nodeId());
             }
         }
-        return nodeInfos;
+        return Collections.unmodifiableMap(nodeInfos);
     }
 }

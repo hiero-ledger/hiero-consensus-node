@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.roster;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -264,12 +249,11 @@ public final class RosterUtils {
     /**
      * Build an instance of RosterHistory from the current/previous rosters as reported by the RosterRetriever.
      * <p>
-     * The RosterRetriever implementation fetches the rosters from the RosterState/RosterMap,
-     * and automatically falls back to fetching them from the PlatformState if the RosterState is empty.
+     * The RosterRetriever implementation fetches the rosters from the RosterState/RosterMap.
      *
      * @param state a State object to fetch data from
      * @return a RosterHistory
-     * @deprecated To be removed once AddressBook to Roster refactoring is complete.
+     * @deprecated To be removed once AddressBook to Roster refactoring is complete and Browser/Turtle stop using it
      */
     @Deprecated(forRemoval = true)
     @NonNull
@@ -283,7 +267,7 @@ public final class RosterUtils {
         roundRosterPairList.add(new RoundRosterPair(platformStateFacade.roundOf(state), currentHash));
         rosterMap.put(currentHash, currentRoster);
 
-        final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state, platformStateFacade);
+        final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state);
         if (previousRoster != null) {
             final Bytes previousHash = RosterUtils.hash(previousRoster).getBytes();
             roundRosterPairList.add(new RoundRosterPair(0, previousHash));

@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.Hedera;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.SpeedometerMetric;
@@ -38,8 +22,6 @@ import org.apache.logging.log4j.Logger;
 public abstract class MethodBase implements ServerCalls.UnaryMethod<BufferedData, BufferedData> {
     private static final Logger logger = LogManager.getLogger(MethodBase.class);
 
-    // To be set by configuration. See Issue #4294
-    private static final int MAX_MESSAGE_SIZE = Hedera.MAX_SIGNED_TXN_SIZE;
     // To be set by configuration. See Issue #4294. Originally this was intended to be the same max size as
     // a transaction, but some files and other responses are much larger. So we had to set this larger.
     private static final int MAX_RESPONSE_SIZE = 1024 * 1024 * 2;
@@ -88,13 +70,19 @@ public abstract class MethodBase implements ServerCalls.UnaryMethod<BufferedData
     /** A metric for the calls per second successfully handled by this method */
     private final SpeedometerMetric callsHandledSpeedometer;
 
+    private final int maxMessageSize;
+
     /**
      * Create a new instance.
      *
      * @param serviceName a non-null reference to the service name
      * @param methodName a non-null reference to the method name
      */
-    MethodBase(@NonNull final String serviceName, @NonNull final String methodName, @NonNull final Metrics metrics) {
+    MethodBase(
+            @NonNull final String serviceName,
+            @NonNull final String methodName,
+            @NonNull final Metrics metrics,
+            final int maxMessageSize) {
 
         this.serviceName = requireNonNull(serviceName);
         this.methodName = requireNonNull(methodName);
@@ -105,6 +93,7 @@ public abstract class MethodBase implements ServerCalls.UnaryMethod<BufferedData
         this.callsHandledSpeedometer = speedometer(metrics, SPEEDOMETER_HANDLED_NAME_TPL, SPEEDOMETER_HANDLED_DESC_TPL);
         this.callsReceivedSpeedometer =
                 speedometer(metrics, SPEEDOMETER_RECEIVED_NAME_TPL, SPEEDOMETER_RECEIVED_DESC_TPL);
+        this.maxMessageSize = maxMessageSize;
     }
 
     @Override
@@ -115,10 +104,10 @@ public abstract class MethodBase implements ServerCalls.UnaryMethod<BufferedData
         callsReceivedSpeedometer.cycle();
 
         // Fail-fast if the request is too large (Note that the request buffer is sized to allow exactly
-        // 1 more byte than MAX_MESSAGE_SIZE, so we can detect this case).
-        if (requestBuffer.length() > MAX_MESSAGE_SIZE) {
+        // 1 more byte than maxMessageSize, so we can detect this case).
+        if (requestBuffer.length() > maxMessageSize) {
             callsFailedCounter.increment();
-            final var exception = new RuntimeException("More than " + MAX_MESSAGE_SIZE + " received");
+            final var exception = new RuntimeException("More than " + maxMessageSize + " received");
             responseObserver.onError(exception);
             return;
         }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform;
 
 import com.swirlds.common.platform.NodeId;
@@ -45,7 +30,7 @@ public class AppClient extends Thread {
             @NonNull final NodeId selfId,
             @NonNull final SuperConfig currentConfig,
             @NonNull final String myName,
-            @NonNull final PlatformTestingToolStateLifecycles stateLifecycles) {
+            @NonNull final PlatformTestingToolConsensusStateEventHandler stateEventHandler) {
         this.platform = Objects.requireNonNull(platform, "platform must not be null");
         this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
         Objects.requireNonNull(currentConfig, "currentConfig must not be null");
@@ -68,7 +53,7 @@ public class AppClient extends Thread {
         try (final AutoCloseableWrapper<PlatformTestingToolState> wrapper =
                 UnsafeMutablePTTStateAccessor.getInstance().getUnsafeMutableState(platform.getSelfId())) {
             final PlatformTestingToolState state = wrapper.get();
-            submitter = new TransactionSubmitter(submitConfig, stateLifecycles.getControlQuorum());
+            submitter = new TransactionSubmitter(submitConfig, stateEventHandler.getControlQuorum());
             expectedFCMFamily = state.getStateExpectedMap();
         }
 

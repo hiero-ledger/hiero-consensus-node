@@ -1,25 +1,9 @@
-/*
- * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
-import static com.swirlds.merkledb.collections.AbstractLongList.DEFAULT_MAX_LONGS_TO_STORE;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 
+import com.swirlds.config.api.Configuration;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
@@ -28,24 +12,21 @@ import org.junit.jupiter.params.provider.Arguments;
 class LongListOffHeapTest extends AbstractLongListTest<LongListOffHeap> {
 
     @Override
-    protected LongListOffHeap createLongList() {
-        return new LongListOffHeap();
+    protected LongListOffHeap createLongList(long capacity, Configuration config) {
+        return new LongListOffHeap(capacity, config);
     }
 
     @Override
-    protected LongListOffHeap createLongListWithChunkSizeInMb(final int chunkSizeInMb) {
-        final int impliedLongsPerChunk = Math.toIntExact((((long) chunkSizeInMb * MEBIBYTES_TO_BYTES) / Long.BYTES));
-        return new LongListOffHeap(impliedLongsPerChunk, DEFAULT_MAX_LONGS_TO_STORE, 0);
+    protected LongListOffHeap createLongList(
+            final int longsPerChunk, final long capacity, final long reservedBufferLength) {
+        return new LongListOffHeap(longsPerChunk, capacity, reservedBufferLength);
     }
 
     @Override
-    protected LongListOffHeap createFullyParameterizedLongListWith(final int numLongsPerChunk, final long maxLongs) {
-        return new LongListOffHeap(numLongsPerChunk, maxLongs, 0);
-    }
-
-    @Override
-    protected LongListOffHeap createLongListFromFile(final Path file) throws IOException {
-        return new LongListOffHeap(file, CONFIGURATION);
+    protected LongListOffHeap createLongList(
+            final Path file, final int longsPerChunk, final long capacity, final long reservedBufferLength)
+            throws IOException {
+        return new LongListOffHeap(file, longsPerChunk, capacity, reservedBufferLength, CONFIGURATION);
     }
 
     /**

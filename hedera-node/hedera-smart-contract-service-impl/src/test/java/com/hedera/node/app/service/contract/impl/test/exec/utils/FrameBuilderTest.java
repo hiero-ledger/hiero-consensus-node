@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.utils;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
@@ -31,6 +16,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NETWORK
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_BLOCK_NO;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALUE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownContextWith;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownHapiCall;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownHapiCreate;
@@ -121,6 +107,7 @@ class FrameBuilderTest {
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
         given(account.getEvmCode(Bytes.wrap(CALL_DATA.toByteArray()))).willReturn(CONTRACT_CODE);
         given(worldUpdater.updater()).willReturn(stackedUpdater);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
         given(blocks.blockHashOf(SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
         final var config = HederaTestConfigBuilder.create()
@@ -147,7 +134,7 @@ class FrameBuilderTest {
         assertEquals(Wei.of(VALUE), frame.getApparentValue());
         assertSame(blockValues, frame.getBlockValues());
         assertFalse(frame.isStatic());
-        assertEquals(asLongZeroAddress(DEFAULT_COINBASE), frame.getMiningBeneficiary());
+        assertEquals(asLongZeroAddress(entityIdFactory, DEFAULT_COINBASE), frame.getMiningBeneficiary());
         final var hashLookup = frame.getBlockHashLookup();
         assertEquals(Hash.EMPTY, hashLookup.apply(SOME_BLOCK_NO));
         assertSame(config, configOf(frame));
@@ -170,6 +157,7 @@ class FrameBuilderTest {
         given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
         given(blocks.blockHashOf(SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(account.getEvmCode(Bytes.wrap(CALL_DATA.toByteArray()))).willReturn(CONTRACT_CODE);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
@@ -196,7 +184,7 @@ class FrameBuilderTest {
         assertEquals(Wei.of(VALUE), frame.getApparentValue());
         assertSame(blockValues, frame.getBlockValues());
         assertFalse(frame.isStatic());
-        assertEquals(asLongZeroAddress(DEFAULT_COINBASE), frame.getMiningBeneficiary());
+        assertEquals(asLongZeroAddress(entityIdFactory, DEFAULT_COINBASE), frame.getMiningBeneficiary());
         final var hashLookup = frame.getBlockHashLookup();
         assertEquals(Hash.EMPTY, hashLookup.apply(SOME_BLOCK_NO));
         assertSame(config, configOf(frame));
@@ -217,6 +205,7 @@ class FrameBuilderTest {
         given(worldUpdater.updater()).willReturn(stackedUpdater);
         given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(null);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("contracts.evm.allowCallsToNonContractAccounts", "false")
                 .getOrCreateConfig();
@@ -241,6 +230,7 @@ class FrameBuilderTest {
         given(worldUpdater.updater()).willReturn(stackedUpdater);
         given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(account.getEvmCode(Bytes.wrap(CALL_DATA.toByteArray()))).willReturn(CONTRACT_CODE);
         final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
 
@@ -264,7 +254,7 @@ class FrameBuilderTest {
         assertEquals(Wei.of(VALUE), frame.getApparentValue());
         assertSame(blockValues, frame.getBlockValues());
         assertFalse(frame.isStatic());
-        assertEquals(asLongZeroAddress(DEFAULT_COINBASE), frame.getMiningBeneficiary());
+        assertEquals(asLongZeroAddress(entityIdFactory, DEFAULT_COINBASE), frame.getMiningBeneficiary());
         final var hashLookup = frame.getBlockHashLookup();
         assertSame(config, configOf(frame));
         assertDoesNotThrow(frame::notifyCompletion);
@@ -281,6 +271,7 @@ class FrameBuilderTest {
         final var transaction = wellKnownRelayedHapiCall(VALUE);
         givenContractExists();
         given(worldUpdater.updater()).willReturn(stackedUpdater);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
         given(contract.deleted()).willReturn(true);
         final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
@@ -305,7 +296,7 @@ class FrameBuilderTest {
         assertEquals(Wei.of(VALUE), frame.getApparentValue());
         assertSame(blockValues, frame.getBlockValues());
         assertFalse(frame.isStatic());
-        assertEquals(asLongZeroAddress(DEFAULT_COINBASE), frame.getMiningBeneficiary());
+        assertEquals(asLongZeroAddress(entityIdFactory, DEFAULT_COINBASE), frame.getMiningBeneficiary());
         final var hashLookup = frame.getBlockHashLookup();
         assertSame(config, configOf(frame));
         assertDoesNotThrow(frame::notifyCompletion);
@@ -322,6 +313,7 @@ class FrameBuilderTest {
         final var transaction = wellKnownRelayedHapiCall(VALUE);
         givenContractExists();
         given(worldUpdater.updater()).willReturn(stackedUpdater);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
         given(blocks.blockHashOf(SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
         final var config = HederaTestConfigBuilder.create()
@@ -348,7 +340,7 @@ class FrameBuilderTest {
         assertEquals(Wei.of(VALUE), frame.getApparentValue());
         assertSame(blockValues, frame.getBlockValues());
         assertFalse(frame.isStatic());
-        assertEquals(asLongZeroAddress(DEFAULT_COINBASE), frame.getMiningBeneficiary());
+        assertEquals(asLongZeroAddress(entityIdFactory, DEFAULT_COINBASE), frame.getMiningBeneficiary());
         final var hashLookup = frame.getBlockHashLookup();
         assertEquals(Hash.EMPTY, hashLookup.apply(SOME_BLOCK_NO));
         assertSame(config, configOf(frame));
@@ -365,6 +357,7 @@ class FrameBuilderTest {
     void constructsExpectedFrameForCreate() {
         final var transaction = wellKnownHapiCreate();
         given(worldUpdater.updater()).willReturn(stackedUpdater);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
         given(blocks.blockHashOf(SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
         final var config = HederaTestConfigBuilder.create()
@@ -392,7 +385,7 @@ class FrameBuilderTest {
         assertEquals(Wei.of(VALUE), frame.getApparentValue());
         assertSame(blockValues, frame.getBlockValues());
         assertFalse(frame.isStatic());
-        assertEquals(asLongZeroAddress(DEFAULT_COINBASE), frame.getMiningBeneficiary());
+        assertEquals(asLongZeroAddress(entityIdFactory, DEFAULT_COINBASE), frame.getMiningBeneficiary());
         final var hashLookup = frame.getBlockHashLookup();
         assertEquals(Hash.EMPTY, hashLookup.apply(SOME_BLOCK_NO));
         assertSame(config, configOf(frame));

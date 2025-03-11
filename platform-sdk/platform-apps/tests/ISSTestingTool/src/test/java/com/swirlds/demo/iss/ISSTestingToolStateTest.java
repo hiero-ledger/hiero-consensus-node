@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
@@ -49,7 +34,7 @@ class ISSTestingToolStateTest {
     private static final int RUNNING_SUM_INDEX = 3;
     private ISSTestingToolMain main;
     private ISSTestingToolState state;
-    private ISSTestingToolStateLifecycles stateLifecycles;
+    private ISSTestingToolConsensusStateEventHandler consensusStateEventHandler;
     private Round round;
     private ConsensusEvent event;
     private List<ScopedSystemTransaction<StateSignatureTransaction>> consumedTransactions;
@@ -60,7 +45,7 @@ class ISSTestingToolStateTest {
     @BeforeEach
     void setUp() {
         state = new ISSTestingToolState();
-        stateLifecycles = new ISSTestingToolStateLifecycles();
+        consensusStateEventHandler = new ISSTestingToolConsensusStateEventHandler();
         main = mock(ISSTestingToolMain.class);
         final var random = new Random();
         round = mock(Round.class);
@@ -90,7 +75,7 @@ class ISSTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(bytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -113,7 +98,7 @@ class ISSTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -146,7 +131,7 @@ class ISSTestingToolStateTest {
         when(thirdConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -170,7 +155,7 @@ class ISSTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(emptyStateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -195,7 +180,7 @@ class ISSTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(emptyStateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         verify(round, times(1)).iterator();
@@ -235,7 +220,7 @@ class ISSTestingToolStateTest {
         when(round.iterator()).thenReturn(Collections.singletonList(event).iterator());
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedTransactions).hasSize(3);
@@ -267,7 +252,7 @@ class ISSTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(transactionBytes);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedTransactions).hasSize(1);
@@ -297,7 +282,7 @@ class ISSTestingToolStateTest {
         when(transaction.getApplicationTransaction()).thenReturn(transactionBytes);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedTransactions).isEmpty();
@@ -308,7 +293,7 @@ class ISSTestingToolStateTest {
         // Given (empty)
 
         // When
-        final boolean result = stateLifecycles.onSealConsensusRound(round, state);
+        final boolean result = consensusStateEventHandler.onSealConsensusRound(round, state);
 
         // Then
         assertThat(result).isTrue();

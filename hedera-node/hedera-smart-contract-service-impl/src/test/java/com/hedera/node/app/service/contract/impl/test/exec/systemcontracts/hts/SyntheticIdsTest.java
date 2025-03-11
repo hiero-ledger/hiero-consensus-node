@@ -1,25 +1,13 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
@@ -29,6 +17,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperatio
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.SyntheticIds;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,8 +33,10 @@ class SyntheticIdsTest {
 
     @Test
     void returnsNumericIdIfAddressIsCanonicalReference() {
-        given(nativeOperations.resolveAlias(ConversionUtils.tuweniToPbjBytes(EIP_1014_ADDRESS)))
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.resolveAlias(0, 0, ConversionUtils.tuweniToPbjBytes(EIP_1014_ADDRESS)))
                 .willReturn(TestHelpers.A_NEW_ACCOUNT_ID.accountNumOrThrow());
+        given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
         final var subject = implicitSubject.converterFor(nativeOperations);
         final var synthId = subject.convert(asHeadlongAddress(EIP_1014_ADDRESS));
@@ -54,6 +45,7 @@ class SyntheticIdsTest {
 
     @Test
     void returnsNumericIdIfMissingLongZeroDebit() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var missingLongZeroAddress = asHeadlongAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         final var subject = implicitSubject.converterFor(nativeOperations);
         final var synthId = subject.convert(missingLongZeroAddress);
@@ -62,8 +54,9 @@ class SyntheticIdsTest {
 
     @Test
     void returnsAliasIdIfMissingLongZeroCredit() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var expectedId = AccountID.newBuilder()
-                .alias(Bytes.wrap(asEvmAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow())))
+                .alias(Bytes.wrap(asEvmAddress(shard, realm, A_NEW_ACCOUNT_ID.accountNumOrThrow())))
                 .build();
         final var missingLongZeroAddress = asHeadlongAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         final var subject = implicitSubject.converterFor(nativeOperations);
@@ -73,8 +66,10 @@ class SyntheticIdsTest {
 
     @Test
     void returnsGuaranteedFailLazyCreateIfMissingLongZeroCredit() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var expectedId = AccountID.newBuilder()
-                .alias(Bytes.wrap(asEvmAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow())))
+                .alias(Bytes.wrap(asEvmAddress(shard, realm, A_NEW_ACCOUNT_ID.accountNumOrThrow())))
                 .build();
         final var missingLongZeroAddress = asHeadlongAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         final var subject = implicitSubject.converterFor(nativeOperations);
@@ -84,9 +79,11 @@ class SyntheticIdsTest {
 
     @Test
     void returnsLazyCreateToZeroAddressIfLongZeroCreditWithNonCanonicalReference() {
-        final var expectedId =
-                AccountID.newBuilder().alias(Bytes.wrap(asEvmAddress(0L))).build();
+        final var expectedId = AccountID.newBuilder()
+                .alias(Bytes.wrap(asEvmAddress(shard, realm, 0L)))
+                .build();
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID.accountNumOrThrow())).willReturn(ALIASED_SOMEBODY);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var nonCanonicalLongZeroAddress = asHeadlongAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         final var subject = implicitSubject.converterFor(nativeOperations);
         final var synthId = subject.convertCredit(nonCanonicalLongZeroAddress);

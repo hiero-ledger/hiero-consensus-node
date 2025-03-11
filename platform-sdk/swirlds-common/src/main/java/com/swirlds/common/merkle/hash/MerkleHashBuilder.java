@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2020-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.hash;
 
-import static com.swirlds.common.merkle.utility.MerkleConstants.MERKLE_DIGEST_TYPE;
+import static com.swirlds.common.crypto.Cryptography.DEFAULT_SET_HASH;
 
 import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.common.crypto.Cryptography;
@@ -38,20 +23,13 @@ public class MerkleHashBuilder {
 
     private final MerkleCryptography merkleCryptography;
 
-    private final Cryptography cryptography;
-
     /**
      * Construct an object which calculates the hash of a merkle tree.
      *
-     * @param cryptography
-     * 		the {@link Cryptography} implementation to use
-     * @param cpuThreadCount
-     * 		the number of threads to be used for computing hash
+     * @param cpuThreadCount the number of threads to be used for computing hash
      */
-    public MerkleHashBuilder(
-            final MerkleCryptography merkleCryptography, final Cryptography cryptography, final int cpuThreadCount) {
+    public MerkleHashBuilder(final MerkleCryptography merkleCryptography, final int cpuThreadCount) {
         this.merkleCryptography = merkleCryptography;
-        this.cryptography = cryptography;
         this.threadPool = new ForkJoinPool(cpuThreadCount);
     }
 
@@ -90,7 +68,7 @@ public class MerkleHashBuilder {
      */
     public Hash digestTreeSync(MerkleNode root) {
         if (root == null) {
-            return cryptography.getNullHash(MERKLE_DIGEST_TYPE);
+            return Cryptography.NULL_HASH;
         }
 
         final Iterator<MerkleNode> iterator = root.treeIterator()
@@ -109,7 +87,7 @@ public class MerkleHashBuilder {
      */
     public Future<Hash> digestTreeAsync(MerkleNode root) {
         if (root == null) {
-            return new StandardFuture<>(cryptography.getNullHash(MERKLE_DIGEST_TYPE));
+            return new StandardFuture<>(Cryptography.NULL_HASH);
         } else if (root.getHash() != null) {
             return new StandardFuture<>(root.getHash());
         } else {
@@ -134,7 +112,7 @@ public class MerkleHashBuilder {
                 continue;
             }
 
-            merkleCryptography.digestSync(node, MERKLE_DIGEST_TYPE);
+            merkleCryptography.digestSync(node, Cryptography.DEFAULT_DIGEST_TYPE);
         }
     }
 
@@ -157,13 +135,13 @@ public class MerkleHashBuilder {
             if (node == null || node.getHash() != null) {
                 out.send();
             } else if (node.isLeaf()) {
-                merkleCryptography.digestSync(node.asLeaf(), MERKLE_DIGEST_TYPE);
+                merkleCryptography.digestSync(node.asLeaf());
                 out.send();
             } else {
                 MerkleInternal internal = node.asInternal();
                 int nChildren = internal.getNumberOfChildren();
                 if (nChildren == 0) {
-                    merkleCryptography.digestSync(internal, MERKLE_DIGEST_TYPE);
+                    merkleCryptography.digestSync(internal, DEFAULT_SET_HASH);
                     out.send();
                 } else {
                     ComputeTask compute = new ComputeTask(internal, nChildren, out);
@@ -199,7 +177,7 @@ public class MerkleHashBuilder {
 
         @Override
         protected boolean onExecute() {
-            merkleCryptography.digestSync(internal, MERKLE_DIGEST_TYPE);
+            merkleCryptography.digestSync(internal, DEFAULT_SET_HASH);
             out.send();
             return true;
         }

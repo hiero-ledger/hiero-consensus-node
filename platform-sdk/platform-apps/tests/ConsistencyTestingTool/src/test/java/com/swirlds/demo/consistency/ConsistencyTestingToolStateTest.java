@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -53,7 +38,7 @@ import org.junit.jupiter.api.Test;
 public class ConsistencyTestingToolStateTest {
 
     private static ConsistencyTestingToolState state;
-    private static ConsistencyTestingToolStateLifecycles stateLifecycle;
+    private static ConsistencyTestingToolConsensusStateEventHandler stateLifecycle;
     private Random random;
     private Platform platform;
     private PlatformContext platformContext;
@@ -72,8 +57,8 @@ public class ConsistencyTestingToolStateTest {
     @BeforeAll
     static void initState() {
         state = new ConsistencyTestingToolState();
-        stateLifecycle = new ConsistencyTestingToolStateLifecycles(DEFAULT_PLATFORM_STATE_FACADE);
-        FAKE_MERKLE_STATE_LIFECYCLES.initStates(state);
+        stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
     }
 
     @BeforeEach

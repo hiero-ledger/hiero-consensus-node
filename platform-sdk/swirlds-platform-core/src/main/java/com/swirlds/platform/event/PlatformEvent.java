@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2016-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event;
 
 import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndLogIfInterrupted;
@@ -58,17 +43,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private Instant timeReceived;
 
     /**
-     * The sequence number of an event before it is added to the write queue.
-     */
-    public static final long NO_STREAM_SEQUENCE_NUMBER = -1;
-
-    /**
-     * Each event is assigned a sequence number as it is written to the preconsensus event stream. This is used to
-     * signal when events have been made durable.
-     */
-    private long streamSequenceNumber = NO_STREAM_SEQUENCE_NUMBER;
-
-    /**
      * The id of the node which sent us this event
      * <p>
      * The sender ID of an event should not be serialized when an event is serialized, and it should not affect the hash
@@ -88,11 +62,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * This latch counts down when prehandle has been called on all application transactions contained in this event.
      */
     private final CountDownLatch prehandleCompleted = new CountDownLatch(1);
-    /**
-     * The actual birth round to return. May not be the original birth round if this event was created in the software
-     * version right before the birth round migration.
-     */
-    private long birthRound;
 
     /**
      * Construct a new instance from an unsigned event and a signature.
@@ -137,7 +106,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         this.senderId = null;
         this.consensusData = NO_CONSENSUS;
         Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null");
-        this.birthRound = gossipEvent.eventCore().birthRound();
     }
 
     /**
@@ -146,34 +114,10 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      *
      * @return a copy of this event
      */
-    public PlatformEvent copyGossipedData() {
+    public @NonNull PlatformEvent copyGossipedData() {
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
         platformEvent.setHash(getHash());
         return platformEvent;
-    }
-
-    /**
-     * Set the sequence number in the preconsensus event stream for this event.
-     *
-     * @param streamSequenceNumber the sequence number
-     */
-    public void setStreamSequenceNumber(final long streamSequenceNumber) {
-        if (this.streamSequenceNumber != NO_STREAM_SEQUENCE_NUMBER) {
-            throw new IllegalStateException("sequence number already set");
-        }
-        this.streamSequenceNumber = streamSequenceNumber;
-    }
-
-    /**
-     * Get the sequence number in the preconsensus event stream for this event.
-     *
-     * @return the sequence number
-     */
-    public long getStreamSequenceNumber() {
-        if (streamSequenceNumber == NO_STREAM_SEQUENCE_NUMBER) {
-            throw new IllegalStateException("sequence number not set");
-        }
-        return streamSequenceNumber;
     }
 
     /**
@@ -196,7 +140,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @return the descriptor for the event
      */
     public @NonNull EventDescriptorWrapper getDescriptor() {
-        return metadata.getDescriptor(getBirthRound());
+        return metadata.getDescriptor();
     }
 
     @Override
@@ -245,7 +189,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @return the birth round of the event
      */
     public long getBirthRound() {
-        return birthRound;
+        return metadata.getBirthRound();
     }
 
     /**
@@ -364,12 +308,15 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
 
     /**
      * Override the birth round for this event. This will only be called for events created in the software version
-     * right before the birth round migration.
+     * right before the birth round migration. Parents of this event may also have their birth round overridden if their
+     * generation is greater or equal to the specified {@code ancientGenerationThreshold} value.
      *
      * @param birthRound the birth round that has been assigned to this event
+     * @param ancientGenerationThreshold the threshold to determine if this event's parents should also have their
+     *                                   birth round overridden
      */
-    public void overrideBirthRound(final long birthRound) {
-        this.birthRound = birthRound;
+    public void overrideBirthRound(final long birthRound, final long ancientGenerationThreshold) {
+        metadata.setBirthRoundOverride(birthRound, ancientGenerationThreshold);
     }
 
     /**

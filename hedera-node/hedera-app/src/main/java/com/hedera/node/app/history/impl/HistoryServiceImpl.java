@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
 import static java.util.Objects.requireNonNull;
@@ -58,11 +43,9 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
             @NonNull final HistoryLibrary library,
-            @NonNull final HistoryLibraryCodec codec,
             @NonNull final Configuration bootstrapConfig) {
         this.bootstrapConfig = requireNonNull(bootstrapConfig);
-        this.component =
-                DaggerHistoryServiceComponent.factory().create(library, codec, appContext, executor, metrics, this);
+        this.component = DaggerHistoryServiceComponent.factory().create(library, appContext, executor, metrics, this);
     }
 
     @VisibleForTesting
@@ -83,7 +66,8 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             @Nullable final Bytes metadata,
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive) {
         requireNonNull(activeRosters);
         requireNonNull(historyStore);
         requireNonNull(now);
@@ -94,7 +78,7 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
                 if (!construction.hasTargetProof()) {
                     final var controller =
                             component.controllers().getOrCreateFor(activeRosters, construction, historyStore);
-                    controller.advanceConstruction(now, metadata, historyStore);
+                    controller.advanceConstruction(now, metadata, historyStore, isActive);
                 }
             }
             case HANDOFF -> {

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
@@ -71,7 +56,7 @@ class DataFileCollectionCompactionHammerTest {
         final Path tempFileDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(
                 "DataFileCollectionCompactionHammerTest", CONFIGURATION);
         assertDoesNotThrow(() -> {
-            final LongListHeap index = new LongListHeap();
+            final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
             String storeName = "benchmark";
             final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
             final var coll = new DataFileCollection(
@@ -135,7 +120,7 @@ class DataFileCollectionCompactionHammerTest {
     void hammer() throws IOException, InterruptedException, ExecutionException {
         final Path tempFileDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(
                 "DataFileCollectionCompactionHammerTest", CONFIGURATION);
-        final LongListHeap index = new LongListHeap();
+        final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
         String storeName = "hammer";
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final var coll = new DataFileCollection(

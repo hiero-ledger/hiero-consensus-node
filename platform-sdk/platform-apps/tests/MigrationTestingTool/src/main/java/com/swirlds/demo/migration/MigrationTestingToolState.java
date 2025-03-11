@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.migration;
 
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.crypto.DigestType;
@@ -81,11 +66,10 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
      */
     private static class ChildIndices {
         public static final int UNUSED_PLATFORM_STATE = 0;
-        public static final int MERKLE_MAP = 1;
-        public static final int VIRTUAL_MAP = 2;
-
-        public static final int UNUSED_ROSTERS = 3;
-        public static final int UNUSED_ROSTER_STATE = 4;
+        public static final int UNUSED_ROSTERS = 1;
+        public static final int UNUSED_ROSTER_STATE = 2;
+        public static final int MERKLE_MAP = 3;
+        public static final int VIRTUAL_MAP = 4;
 
         public static final int CHILD_COUNT = 5;
 
@@ -93,9 +77,7 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
         public static final int OLD_CHILD_COUNT = 3;
     }
 
-    public MigrationTestingToolState() {
-        allocateSpaceForChild(ChildIndices.CHILD_COUNT);
-    }
+    public MigrationTestingToolState() {}
 
     private MigrationTestingToolState(final MigrationTestingToolState that) {
         super(that);
@@ -142,7 +124,7 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
     @Override
     public MerkleNode migrate(int version) {
         if (version == ClassVersion.VIRTUAL_MAP) {
-            FAKE_MERKLE_STATE_LIFECYCLES.initRosterState(this);
+            FAKE_CONSENSUS_STATE_EVENT_HANDLER.initRosterState(this);
             return this;
         }
 

@@ -1,24 +1,9 @@
-/*
- * Copyright (C) 2021-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 
+import com.swirlds.config.api.Configuration;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
@@ -27,24 +12,21 @@ import org.junit.jupiter.params.provider.Arguments;
 public class LongListHeapTest extends AbstractLongListTest<LongListHeap> {
 
     @Override
-    protected LongListHeap createLongList() {
-        return new LongListHeap();
+    protected LongListHeap createLongList(long capacity, Configuration config) {
+        return new LongListHeap(capacity, config);
     }
 
     @Override
-    protected LongListHeap createLongListWithChunkSizeInMb(final int chunkSizeInMb) {
-        final int impliedLongsPerChunk = Math.toIntExact((chunkSizeInMb * (long) MEBIBYTES_TO_BYTES) / Long.BYTES);
-        return new LongListHeap(impliedLongsPerChunk);
+    protected LongListHeap createLongList(
+            final int longsPerChunk, final long capacity, final long reservedBufferLength) {
+        return new LongListHeap(longsPerChunk, capacity, reservedBufferLength);
     }
 
     @Override
-    protected LongListHeap createFullyParameterizedLongListWith(final int numLongsPerChunk, final long maxLongs) {
-        return new LongListHeap(numLongsPerChunk, maxLongs, 0);
-    }
-
-    @Override
-    protected LongListHeap createLongListFromFile(final Path file) throws IOException {
-        return new LongListHeap(file, CONFIGURATION);
+    protected LongListHeap createLongList(
+            final Path file, final int longsPerChunk, final long capacity, final long reservedBufferLength)
+            throws IOException {
+        return new LongListHeap(file, longsPerChunk, capacity, reservedBufferLength, CONFIGURATION);
     }
 
     /**

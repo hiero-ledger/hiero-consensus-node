@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -137,12 +122,12 @@ public final class EmbeddedVerbs {
      * @return the operation that will expose the record to the observer
      * @param <T> the type of the record
      */
-    public static <T extends Record> ViewSingletonOp<T> viewSingleton(
+    public static <T> ViewSingletonOp<T> viewSingleton(
             @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final Consumer<T> observer) {
         requireNonNull(serviceName);
         requireNonNull(stateKey);
         requireNonNull(observer);
-        return new ViewSingletonOp<T>(serviceName, stateKey, observer);
+        return new ViewSingletonOp<>(serviceName, stateKey, observer);
     }
 
     /**
@@ -155,7 +140,7 @@ public final class EmbeddedVerbs {
      * @param <K> the type of the key
      * @param <V> the type of the value
      */
-    public static <K extends Record, V extends Record> ViewKVStateOp<K, V> viewKVState(
+    public static <K, V> ViewKVStateOp<K, V> viewKVState(
             @NonNull final String serviceName,
             @NonNull final String stateKey,
             @NonNull final Consumer<ReadableKVState<K, V>> observer) {
@@ -175,7 +160,7 @@ public final class EmbeddedVerbs {
      * @param <K> the type of the key
      * @param <V> the type of the value
      */
-    public static <K extends Record, V extends Record> MutateKVStateOp<K, V> mutateKVState(
+    public static <K, V> MutateKVStateOp<K, V> mutateKVState(
             @NonNull final String serviceName,
             @NonNull final String stateKey,
             @NonNull final Consumer<WritableKVState<K, V>> observer) {
@@ -195,7 +180,7 @@ public final class EmbeddedVerbs {
      * @param <K> the type of the key
      * @param <V> the type of the value
      */
-    public static <K extends Record, V extends Record> ViewMappingValueOp<K, V> viewMappedValue(
+    public static <K, V> ViewMappingValueOp<K, V> viewMappedValue(
             @NonNull final String serviceName,
             @NonNull final String stateKey,
             @NonNull final K key,

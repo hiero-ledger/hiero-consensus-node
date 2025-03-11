@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.crypto;
 
 import static com.swirlds.common.crypto.engine.EcdsaSecp256k1Verifier.ECDSA_KECCAK_256_SIZE;
@@ -21,6 +6,7 @@ import static com.swirlds.common.crypto.engine.EcdsaSecp256k1Verifier.ECDSA_UNCO
 import static com.swirlds.common.test.fixtures.crypto.EcdsaUtils.asRawEcdsaSecp256k1Key;
 import static com.swirlds.common.test.fixtures.crypto.EcdsaUtils.signDigestWithEcdsaSecp256k1;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import java.security.KeyPair;
@@ -103,15 +89,11 @@ public class EcdsaSignedTxnPool {
         }
 
         final SignedTxn signedTxn = signedTxns.get(nextIdx);
-
+        final byte[] content = signedTxn.txn;
         return new TransactionSignature(
-                signedTxn.txn,
-                ECDSA_KECCAK_256_SIZE + PUBLIC_KEY_LEN,
-                signedTxn.sigLen,
-                ECDSA_KECCAK_256_SIZE,
-                PUBLIC_KEY_LEN,
-                0,
-                ECDSA_KECCAK_256_SIZE,
+                Bytes.wrap(content, 0, ECDSA_KECCAK_256_SIZE),
+                Bytes.wrap(content, ECDSA_KECCAK_256_SIZE, PUBLIC_KEY_LEN),
+                Bytes.wrap(content, ECDSA_KECCAK_256_SIZE + PUBLIC_KEY_LEN, signedTxn.sigLen),
                 SignatureType.ECDSA_SECP256K1);
     }
 
