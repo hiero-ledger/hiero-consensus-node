@@ -14,6 +14,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZ
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsableForAliasedId;
 import static com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator.validateTokenTransfers;
+import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -115,9 +116,23 @@ public class TokenAirdropValidator {
                 for (var transfer : xfers.nftTransfers()) {
                     final var receiver = transfer.receiverAccountID();
                     for (final var fee : token.customFees()) {
-                        if (fee.hasRoyaltyFee() && fee.royaltyFeeOrThrow().hasFallbackFee()) {
-                            validateTrue(
-                                    isExemptFromCustomFees(token, receiver, fee), TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY);
+                        if (fee.hasRoyaltyFee()) {
+                            // Fallbacks are completely prohibited on token types used in airdrops
+                            if (fee.royaltyFeeOrThrow().hasFallbackFee()) {
+                                validateTrue(
+                                        isExemptFromCustomFees(token, receiver, fee),
+                                        TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY);
+                            } else {
+                                // And even without a fallback, there must be no implied royalty fee payment (that is,
+                                // the sender must be fee exempt or receive no fungible value in the airdrop)
+                                final var senderId = transfer.senderAccountIDOrThrow();
+                                if (!isExemptFromCustomFees(token, senderId, fee)) {
+                                    // (FUTURE) Use a different response code for this failure mode
+                                    validateFalse(
+                                            senderIsCreditedFungibleValue(op, senderId),
+                                            TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY);
+                                }
+                            }
                         }
                     }
                 }
@@ -134,6 +149,24 @@ public class TokenAirdropValidator {
                 validateTrue(totalNftTransfers <= ledgerConfig.nftTransfersMaxLen(), BATCH_SIZE_LIMIT_EXCEEDED);
             }
         }
+    }
+
+    /**
+     * Check if the sender is credited with fungible value in the given airdrop.
+     * @param op the token airdrop transaction body
+     * @param senderId the sender account ID
+     * @return true if the sender is credited with fungible value, false otherwise
+     */
+    private boolean senderIsCreditedFungibleValue(
+            @NonNull final TokenAirdropTransactionBody op, @NonNull final AccountID senderId) {
+        for (final var tokenTransfers : op.tokenTransfers()) {
+            for (final var adjustment : tokenTransfers.transfers()) {
+                if (adjustment.accountIDOrThrow().equals(senderId) && adjustment.amount() > 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
