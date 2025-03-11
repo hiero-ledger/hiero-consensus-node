@@ -5,11 +5,11 @@ import com.swirlds.common.FastCopyable;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.exceptions.IllegalChildIndexException;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
 import com.swirlds.common.merkle.utility.Keyed;
 import com.swirlds.common.merkle.utility.MerkleLong;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.demo.platform.expiration.ExpirationRecordEntry;
 import com.swirlds.demo.platform.expiration.ExpirationUtils;
 import com.swirlds.fcqueue.FCQueue;
@@ -127,7 +127,7 @@ public class MapValueFCQ<T extends FastCopyable & SerializableHashable> extends 
             return getHash();
         }
 
-        return MerkleCryptoFactory.getInstance().digestTreeSync(this);
+        return TestMerkleCryptoFactory.getInstance().digestTreeSync(this);
     }
 
     public long getBalanceValue() {

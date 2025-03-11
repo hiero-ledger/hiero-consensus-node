@@ -20,17 +20,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.interfaces.MerkleType;
 import com.swirlds.common.merkle.route.MerkleRouteFactory;
 import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.system.address.AddressBook;
@@ -55,6 +55,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("StateProof Tests")
 class StateProofTests {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -122,12 +123,11 @@ class StateProofTests {
     @DisplayName("Basic Behavior Test")
     void basicBehaviorTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Cryptography cryptography = CryptographyHolder.get();
 
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         final AddressBook addressBook =
                 RandomAddressBookBuilder.create(random).withSize(10).build();
@@ -138,13 +138,13 @@ class StateProofTests {
         final Map<NodeId, Signature> signatures =
                 generateThresholdOfSignatures(random, addressBook, signatureBuilder, root.getHash(), SUPER_MAJORITY);
 
-        final StateProof stateProof = new StateProof(cryptography, root, signatures, List.of(nodeD));
+        final StateProof stateProof = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
 
         assertEquals(1, stateProof.getPayloads().size());
         assertSame(nodeD, stateProof.getPayloads().get(0));
-        assertTrue(stateProof.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(stateProof.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
         // Checking a second time shouldn't cause problems
-        assertTrue(stateProof.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(stateProof.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         final StateProof deserialized = serializeAndDeserialize(stateProof);
 
@@ -152,19 +152,18 @@ class StateProofTests {
         assertNotSame(nodeD, deserialized.getPayloads().get(0));
         assertEquals(nodeD, deserialized.getPayloads().get(0));
         // Checking a second time shouldn't cause problems
-        assertTrue(deserialized.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(deserialized.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
     }
 
     @Test
     @DisplayName("Leaf Tree Test")
     void leafTreeTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Cryptography cryptography = CryptographyHolder.get();
 
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildSizeOneTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         final AddressBook addressBook =
                 RandomAddressBookBuilder.create(random).withSize(10).build();
@@ -172,13 +171,13 @@ class StateProofTests {
         final Map<NodeId, Signature> signatures =
                 generateThresholdOfSignatures(random, addressBook, signatureBuilder, root.getHash(), SUPER_MAJORITY);
 
-        final StateProof stateProof = new StateProof(cryptography, root, signatures, List.of(root.asLeaf()));
+        final StateProof stateProof = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(root.asLeaf()));
 
         assertEquals(1, stateProof.getPayloads().size());
         assertSame(root, stateProof.getPayloads().get(0));
-        assertTrue(stateProof.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(stateProof.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
         // Checking a second time shouldn't cause problems
-        assertTrue(stateProof.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(stateProof.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         final StateProof deserialized = serializeAndDeserialize(stateProof);
 
@@ -186,7 +185,7 @@ class StateProofTests {
         assertNotSame(root, deserialized.getPayloads().get(0));
         assertEquals(root, deserialized.getPayloads().get(0));
         // Checking a second time shouldn't cause problems
-        assertTrue(deserialized.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertTrue(deserialized.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
     }
 
     private void testWithNPayloads(
@@ -199,7 +198,7 @@ class StateProofTests {
 
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         final AddressBook addressBook = RandomAddressBookBuilder.create(random)
                 .withSize(random.nextInt(1, 10))
@@ -223,9 +222,9 @@ class StateProofTests {
             assertTrue(payloadFound);
         }
 
-        assertTrue(stateProof.isValid(cryptography, addressBook, threshold, signatureBuilder));
+        assertTrue(stateProof.isValid(addressBook, threshold, signatureBuilder));
         // Checking a second time shouldn't cause problems
-        assertTrue(stateProof.isValid(cryptography, addressBook, threshold, signatureBuilder));
+        assertTrue(stateProof.isValid(addressBook, threshold, signatureBuilder));
 
         final StateProof deserialized = serializeAndDeserialize(stateProof);
 
@@ -243,9 +242,9 @@ class StateProofTests {
             assertTrue(payloadFound);
         }
 
-        assertTrue(deserialized.isValid(cryptography, addressBook, threshold, signatureBuilder));
+        assertTrue(deserialized.isValid(addressBook, threshold, signatureBuilder));
         // Checking a second time shouldn't cause problems
-        assertTrue(deserialized.isValid(cryptography, addressBook, threshold, signatureBuilder));
+        assertTrue(deserialized.isValid(addressBook, threshold, signatureBuilder));
     }
 
     @ParameterizedTest
@@ -253,19 +252,18 @@ class StateProofTests {
     @DisplayName("Multi Payload Test")
     void multiPayloadTest(final int thresholdOrdinal) throws IOException {
         final Random random = getRandomPrintSeed();
-        final Cryptography cryptography = CryptographyHolder.get();
 
         final Threshold threshold = Threshold.values()[thresholdOrdinal];
 
         final MerkleNode root = buildLessSimpleTreeExtended();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
         final List<MerkleLeaf> leafNodes = new ArrayList<>();
         root.treeIterator().setFilter(MerkleType::isLeaf).forEachRemaining(node -> leafNodes.add(node.asLeaf()));
 
         for (int payloadCount = 1; payloadCount < leafNodes.size(); payloadCount++) {
             Collections.shuffle(leafNodes, random);
             final List<MerkleLeaf> payloads = leafNodes.subList(0, payloadCount);
-            testWithNPayloads(random, root, cryptography, payloads, threshold);
+            testWithNPayloads(random, root, CRYPTOGRAPHY, payloads, threshold);
         }
     }
 
@@ -293,7 +291,7 @@ class StateProofTests {
         }
 
         // Now, rehash the tree using the incorrect leaf hashes.
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         final AddressBook addressBook = RandomAddressBookBuilder.create(random)
                 .withSize(random.nextInt(1, 10))
@@ -320,9 +318,9 @@ class StateProofTests {
         // serialize and deserialize to make sure the validator is not using the incorrect hashes
         final StateProof deserialized = serializeAndDeserialize(stateProof);
 
-        assertFalse(deserialized.isValid(cryptography, addressBook, STRONG_MINORITY, signatureBuilder));
+        assertFalse(deserialized.isValid(addressBook, STRONG_MINORITY, signatureBuilder));
         // Checking a second time shouldn't cause problems
-        assertFalse(deserialized.isValid(cryptography, addressBook, STRONG_MINORITY, signatureBuilder));
+        assertFalse(deserialized.isValid(addressBook, STRONG_MINORITY, signatureBuilder));
     }
 
     /**
@@ -332,7 +330,6 @@ class StateProofTests {
     @DisplayName("Invalid Payload Test")
     void invalidPayloadTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Cryptography cryptography = CryptographyHolder.get();
 
         final MerkleNode root = buildLessSimpleTreeExtended();
         final List<MerkleLeaf> leafNodes = new ArrayList<>();
@@ -341,7 +338,7 @@ class StateProofTests {
         for (int payloadCount = 1; payloadCount < leafNodes.size(); payloadCount++) {
             Collections.shuffle(leafNodes, random);
             final List<MerkleLeaf> payloads = leafNodes.subList(0, payloadCount);
-            testWithNInvalidPayloads(random, root, cryptography, payloads);
+            testWithNInvalidPayloads(random, root, CRYPTOGRAPHY, payloads);
         }
     }
 
@@ -349,10 +346,9 @@ class StateProofTests {
     @DisplayName("Deterministic Serialization Test")
     void deterministicSerializationTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Cryptography cryptography = CryptographyHolder.get();
 
         final MerkleNode root = buildLessSimpleTreeExtended();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
         final List<MerkleLeaf> leafNodes = new ArrayList<>();
         root.treeIterator().setFilter(MerkleType::isLeaf).forEachRemaining(node -> leafNodes.add(node.asLeaf()));
         Collections.shuffle(leafNodes, random);
@@ -374,9 +370,9 @@ class StateProofTests {
         final Map<NodeId, Signature> signaturesAlternateOrder = new TreeMap<>(Comparator.reverseOrder());
         signaturesAlternateOrder.putAll(signatures);
 
-        final StateProof stateProofA = new StateProof(cryptography, root, signatures, payloads);
+        final StateProof stateProofA = new StateProof(CRYPTOGRAPHY, root, signatures, payloads);
         final StateProof stateProofB =
-                new StateProof(cryptography, root, signaturesAlternateOrder, payloadsAlternateOrder);
+                new StateProof(CRYPTOGRAPHY, root, signaturesAlternateOrder, payloadsAlternateOrder);
 
         final ByteArrayOutputStream byteOutA = new ByteArrayOutputStream();
         final ByteArrayOutputStream byteOutB = new ByteArrayOutputStream();
@@ -397,10 +393,9 @@ class StateProofTests {
     @DisplayName("Round Trip Serialization Test")
     void roundTripSerializationTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Cryptography cryptography = CryptographyHolder.get();
 
         final MerkleNode root = buildLessSimpleTreeExtended();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
         final List<MerkleLeaf> leafNodes = new ArrayList<>();
         root.treeIterator().setFilter(MerkleType::isLeaf).forEachRemaining(node -> leafNodes.add(node.asLeaf()));
         Collections.shuffle(leafNodes, random);
@@ -416,7 +411,7 @@ class StateProofTests {
             signatures.put(nodeId, signature);
         }
 
-        final StateProof stateProofA = new StateProof(cryptography, root, signatures, payloads);
+        final StateProof stateProofA = new StateProof(CRYPTOGRAPHY, root, signatures, payloads);
         final ByteArrayOutputStream byteOutA = new ByteArrayOutputStream();
         final SerializableDataOutputStream outA = new SerializableDataOutputStream(byteOutA);
         outA.writeSerializable(stateProofA, true);
@@ -436,12 +431,11 @@ class StateProofTests {
     @DisplayName("Zero Weight Signature Test")
     void zeroWeightSignatureTest() {
         final Random random = getRandomPrintSeed();
-        final Cryptography cryptography = CryptographyHolder.get();
 
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         // For this test, there will be 9 total weight,
         // with the node at index 9 having 0 stake, and all others having a weight of 1.
@@ -469,10 +463,10 @@ class StateProofTests {
             signatures.put(nodeId, signature);
         }
 
-        final StateProof stateProofA = new StateProof(cryptography, root, signatures, List.of(nodeD));
+        final StateProof stateProofA = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
 
         // We don't quite have the right threshold
-        assertFalse(stateProofA.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(stateProofA.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Adding the zero weight signature should not change the result.
         final NodeId nodeId = addressBook.getNodeId(9);
@@ -481,8 +475,8 @@ class StateProofTests {
                 signatureBuilder.fakeSign(root.getHash().copyToByteArray(), address.getSigPublicKey());
         signatures.put(nodeId, signature);
 
-        final StateProof stateProofB = new StateProof(cryptography, root, signatures, List.of(nodeD));
-        assertFalse(stateProofB.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        final StateProof stateProofB = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
+        assertFalse(stateProofB.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Adding another non-zero weight signature should do the trick.
 
@@ -492,20 +486,19 @@ class StateProofTests {
                 signatureBuilder.fakeSign(root.getHash().copyToByteArray(), address2.getSigPublicKey());
         signatures.put(nodeId2, signature2);
 
-        final StateProof stateProofC = new StateProof(cryptography, root, signatures, List.of(nodeD));
-        assertTrue(stateProofC.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        final StateProof stateProofC = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
+        assertTrue(stateProofC.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
     }
 
     @Test
     @DisplayName("Signature Not In Address Book Test")
     void signatureNotInAddressBookTest() {
         final Random random = getRandomPrintSeed();
-        final Cryptography cryptography = CryptographyHolder.get();
 
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         // For this test, there will be 9 total weight, with each node having a weight of 1.
         final AddressBook addressBook =
@@ -528,10 +521,10 @@ class StateProofTests {
             signatures.put(nodeId, signature);
         }
 
-        final StateProof stateProofA = new StateProof(cryptography, root, signatures, List.of(nodeD));
+        final StateProof stateProofA = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
 
         // We don't quite have the right threshold
-        assertFalse(stateProofA.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(stateProofA.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Adding a signature for a node not in the address book should not change the result.
         final NodeId nodeId = NodeId.of(10000000);
@@ -539,8 +532,8 @@ class StateProofTests {
         final Signature signature = randomSignature(random);
         signatures.put(nodeId, signature);
 
-        final StateProof stateProofB = new StateProof(cryptography, root, signatures, List.of(nodeD));
-        assertFalse(stateProofB.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        final StateProof stateProofB = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
+        assertFalse(stateProofB.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Adding another real signature should do the trick.
 
@@ -550,8 +543,8 @@ class StateProofTests {
                 signatureBuilder.fakeSign(root.getHash().copyToByteArray(), address2.getSigPublicKey());
         signatures.put(nodeId2, signature2);
 
-        final StateProof stateProofC = new StateProof(cryptography, root, signatures, List.of(nodeD));
-        assertTrue(stateProofC.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        final StateProof stateProofC = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
+        assertTrue(stateProofC.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
     }
 
     private final class DummyNodeId extends NodeId {
@@ -569,12 +562,11 @@ class StateProofTests {
     @DisplayName("Duplicate Signatures Test")
     void duplicateSignaturesTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Cryptography cryptography = CryptographyHolder.get();
 
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         // For this test, there will be 9 total weight, with each node having a weight of 1.
         final AddressBook addressBook =
@@ -597,10 +589,10 @@ class StateProofTests {
             signatures.put(nodeId, signature);
         }
 
-        final StateProof stateProofA = new StateProof(cryptography, root, signatures, List.of(nodeD));
+        final StateProof stateProofA = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
 
         // We don't quite have the right threshold
-        assertFalse(stateProofA.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(stateProofA.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Adding duplicate signatures should not change the result.
         // We can force the logic to accept duplicate signatures by playing games with hash codes,
@@ -613,12 +605,12 @@ class StateProofTests {
         signatures.putAll(duplicateSignatures);
         assertEquals(12, signatures.size());
 
-        final StateProof stateProofB = new StateProof(cryptography, root, signatures, List.of(nodeD));
-        assertFalse(stateProofB.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        final StateProof stateProofB = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
+        assertFalse(stateProofB.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Serialize and deserialize. This will get rid of any hash code games. Should still not be valid.
         final StateProof deserialized = serializeAndDeserialize(stateProofB);
-        assertFalse(deserialized.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(deserialized.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Adding another non-duplicate signature should do the trick.
 
@@ -628,20 +620,19 @@ class StateProofTests {
                 signatureBuilder.fakeSign(root.getHash().copyToByteArray(), address2.getSigPublicKey());
         signatures.put(nodeId2, signature2);
 
-        final StateProof stateProofC = new StateProof(cryptography, root, signatures, List.of(nodeD));
-        assertTrue(stateProofC.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        final StateProof stateProofC = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
+        assertTrue(stateProofC.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
     }
 
     @Test
     @DisplayName("Real Signatures Wrong IDs Test")
     void realSignaturesWrongIdsTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Cryptography cryptography = CryptographyHolder.get();
 
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         // For this test, there will be 9 total weight, with each node having a weight of 1.
         final AddressBook addressBook =
@@ -664,8 +655,8 @@ class StateProofTests {
             signatures.put(nodeId, signature);
         }
 
-        final StateProof stateProofA = new StateProof(cryptography, root, signatures, List.of(nodeD));
-        assertTrue(stateProofA.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        final StateProof stateProofA = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
+        assertTrue(stateProofA.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // Using the same signatures with the wrong node IDs should not work.
         final Map<NodeId, Signature> wrongSignatures = new HashMap<>();
@@ -682,24 +673,23 @@ class StateProofTests {
             wrongSignatures.put(nodeId, signature);
         }
 
-        final StateProof stateProofB = new StateProof(cryptography, root, wrongSignatures, List.of(nodeD));
-        assertFalse(stateProofB.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        final StateProof stateProofB = new StateProof(CRYPTOGRAPHY, root, wrongSignatures, List.of(nodeD));
+        assertFalse(stateProofB.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
 
         // serialization shouldn't change anything
         final StateProof deserialized = serializeAndDeserialize(stateProofB);
-        assertFalse(deserialized.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+        assertFalse(deserialized.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
     }
 
     @Test
     @DisplayName("Threshold Test")
     void thresholdTest() {
         final Random random = getRandomPrintSeed();
-        final Cryptography cryptography = CryptographyHolder.get();
 
         final FakeSignatureBuilder signatureBuilder = new FakeSignatureBuilder(random);
 
         final MerkleNode root = buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
         // For this test, there will be 12 total weight, with each node having a weight of 1.
         // 12 is chosen because it is divisible by both 2 and 3.
@@ -724,24 +714,24 @@ class StateProofTests {
 
             int weight = index + 1;
 
-            final StateProof stateProof = new StateProof(cryptography, root, signatures, List.of(nodeD));
+            final StateProof stateProof = new StateProof(CRYPTOGRAPHY, root, signatures, List.of(nodeD));
 
             if (weight >= 4) { // >= 1/3
-                assertTrue(stateProof.isValid(cryptography, addressBook, STRONG_MINORITY, signatureBuilder));
+                assertTrue(stateProof.isValid(addressBook, STRONG_MINORITY, signatureBuilder));
             } else {
-                assertFalse(stateProof.isValid(cryptography, addressBook, STRONG_MINORITY, signatureBuilder));
+                assertFalse(stateProof.isValid(addressBook, STRONG_MINORITY, signatureBuilder));
             }
 
             if (weight > 6) { // > 1/2
-                assertTrue(stateProof.isValid(cryptography, addressBook, MAJORITY, signatureBuilder));
+                assertTrue(stateProof.isValid(addressBook, MAJORITY, signatureBuilder));
             } else {
-                assertFalse(stateProof.isValid(cryptography, addressBook, MAJORITY, signatureBuilder));
+                assertFalse(stateProof.isValid(addressBook, MAJORITY, signatureBuilder));
             }
 
             if (weight > 8) { // > 2/3
-                assertTrue(stateProof.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+                assertTrue(stateProof.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
             } else {
-                assertFalse(stateProof.isValid(cryptography, addressBook, SUPER_MAJORITY, signatureBuilder));
+                assertFalse(stateProof.isValid(addressBook, SUPER_MAJORITY, signatureBuilder));
             }
         }
     }

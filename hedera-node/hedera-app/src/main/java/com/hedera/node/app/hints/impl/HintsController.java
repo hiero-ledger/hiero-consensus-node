@@ -32,10 +32,21 @@ public interface HintsController {
      * Acts relative to the given state to let this node help advance the ongoing hinTS construction toward a
      * deterministic completion, if possible.
      *
-     * @param now the current consensus time
+     * @param now        the current consensus time
      * @param hintsStore the hints store, in case the controller is able to complete the construction
+     * @param isActive   if the platform is active
      */
-    void advanceConstruction(@NonNull Instant now, @NonNull WritableHintsStore hintsStore);
+    void advanceConstruction(@NonNull Instant now, @NonNull WritableHintsStore hintsStore, final boolean isActive);
+
+    /**
+     * Advances the ongoing CRS work, if possible. This is only relevant when TSS is enabled or on genesis
+     * when the network is gathering contributions to construct CRS.
+     *
+     * @param now                   the current consensus time
+     * @param hintsStore            the hints store
+     * @param isActive              if the platform is active
+     */
+    void advanceCRSWork(@NonNull Instant now, @NonNull WritableHintsStore hintsStore, final boolean isActive);
 
     /**
      * Returns the expected party id for the given node id, if available.

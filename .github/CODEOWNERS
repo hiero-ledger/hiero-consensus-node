@@ -10,12 +10,11 @@
 /example-apps/**/module-info.java               @hiero-ledger/hcn-tools-and-libs-codeowners
 /example-apps/swirlds-platform-base-example/    @hiero-ledger/hcn-tools-and-libs-codeowners
 
-
 #########################
 ##### HAPI protobuf #####
 #########################
 
-/hapi/                                          @hiero-ledger/hcn-execution-codeowners @hiero-ledger/hcn-smart-contract-codeowners @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-tools-and-libs-codeowners
+/hapi/                                          @hiero-ledger/hcn-execution-codeowners @hiero-ledger/hcn-smart-contract-codeowners @hiero-ledger/hcn-consensus-codeowners
 /hapi/hedera-protobufs/services                 @hiero-ledger/hcn-execution-codeowners @hiero-ledger/hcn-smart-contract-codeowners @jsync-swirlds @hiero-ledger/hiero-mirror-node-maintainers
 
 
@@ -82,8 +81,6 @@
 /platform-sdk/swirlds-metrics-*/                    @hiero-ledger/hcn-tools-and-libs-codeowners
 /platform-sdk/swirlds-platform-core/                @hiero-ledger/hcn-consensus-codeowners
 /platform-sdk/swirlds-state-*/                      @hiero-ledger/hcn-tools-and-libs-codeowners
-/platform-sdk/swirlds-unit-tests/common/            @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-tools-and-libs-codeowners
-/platform-sdk/swirlds-unit-tests/core/              @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-tools-and-libs-codeowners
 /platform-sdk/swirlds-unit-tests/structures/        @hiero-ledger/hcn-tools-and-libs-codeowners
 /platform-sdk/swirlds-virtualmap/                   @hiero-ledger/hcn-tools-and-libs-codeowners
 /platform-sdk/**/module-info.java                   @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-tools-and-libs-codeowners
@@ -91,7 +88,7 @@
 ####################
 #####   HAPI  ######
 ####################
-/hapi/                                              @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-tools-and-libs-codeowners @hiero-ledger/hcn-execution-codeowners @hiero-ledger/hcn-smart-contract-codeowners
+/hapi/                                              @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-execution-codeowners @hiero-ledger/hcn-smart-contract-codeowners
 
 # Documentation
 /platform-sdk/docs/platformWiki.md                  @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-tools-and-libs-codeowners

@@ -23,7 +23,6 @@ option java_package = "com.hedera.hapi.block.stream.output.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream.output">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "services/custom_fees.proto";
 import "services/basic_types.proto";
 
 /**
@@ -77,14 +76,7 @@ message DeleteAccountOutput {}
  * This message SHALL NOT duplicate information already contained in
  * the original transaction.
  */
-message CryptoTransferOutput {
-  /**
-   * Custom fees assessed during a CryptoTransfer.
-   * <p>
-   * These fees SHALL be present in the full transfer list for the transaction.
-   */
-  repeated proto.AssessedCustomFee assessed_custom_fees = 1;
-}
+message CryptoTransferOutput {}
 
 /**
  * Block Stream data for a `updateAccount` transaction.
