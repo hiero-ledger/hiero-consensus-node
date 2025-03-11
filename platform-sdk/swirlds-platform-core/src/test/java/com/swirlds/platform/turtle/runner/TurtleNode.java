@@ -157,8 +157,8 @@ public class TurtleNode {
         final PlatformBuildingBlocks buildingBlocks = platformComponentBuilder.getBuildingBlocks();
         final PlatformWiring platformWiring = buildingBlocks.platformWiring();
 
-        wireConsensusRoundsHolder(platformWiring);
-        wireSignedStatesHolder(platformWiring);
+        wireConsensusRoundsTestCollector(platformWiring);
+        wireSignedStatesTestCollector(platformWiring);
 
         final SimulatedGossip gossip = network.getGossipInstance(nodeId);
         gossip.provideIntakeEventCounter(
@@ -169,33 +169,34 @@ public class TurtleNode {
         platform = platformComponentBuilder.build();
     }
 
-    private void wireConsensusRoundsHolder(final PlatformWiring platformWiring) {
-        final ComponentWiring<ConsensusRoundsTestCollector, Void> consensusRoundsHolderWiring = new ComponentWiring<>(
-                model, ConsensusRoundsTestCollector.class, TaskSchedulerConfiguration.parse("DIRECT"));
+    private void wireConsensusRoundsTestCollector(final PlatformWiring platformWiring) {
+        final ComponentWiring<ConsensusRoundsTestCollector, Void> consensusRoundsTestCollectorWiring =
+                new ComponentWiring<>(
+                        model, ConsensusRoundsTestCollector.class, TaskSchedulerConfiguration.parse("DIRECT"));
 
         consensusRoundsTestCollector = new DefaultConsensusRoundsTestCollector();
-        consensusRoundsHolderWiring.bind(consensusRoundsTestCollector);
+        consensusRoundsTestCollectorWiring.bind(consensusRoundsTestCollector);
 
         final InputWire<List<ConsensusRound>> consensusRoundsHolderInputWire =
-                consensusRoundsHolderWiring.getInputWire(ConsensusRoundsTestCollector::interceptRounds);
+                consensusRoundsTestCollectorWiring.getInputWire(ConsensusRoundsTestCollector::interceptRounds);
 
         final OutputWire<List<ConsensusRound>> consensusEngineOutputWire =
                 platformWiring.getConsensusEngineOutputWire();
         consensusEngineOutputWire.solderTo(consensusRoundsHolderInputWire);
     }
 
-    private void wireSignedStatesHolder(final PlatformWiring platformWiring) {
+    private void wireSignedStatesTestCollector(final PlatformWiring platformWiring) {
         final OutputWire<ReservedSignedState> reservedSignedStatesOutputWiring =
                 platformWiring.getReservedSignedStateCollectorOutputWire();
 
-        final ComponentWiring<SignedStatesTestCollector, Void> signedStatesHolderWiring = new ComponentWiring<>(
+        final ComponentWiring<SignedStatesTestCollector, Void> signedStatesTestCollectorWiring = new ComponentWiring<>(
                 model, SignedStatesTestCollector.class, TaskSchedulerConfiguration.parse("DIRECT"));
 
         signedStatesTestCollector = new DefaultSignedStatesTestCollector();
-        signedStatesHolderWiring.bind(signedStatesTestCollector);
+        signedStatesTestCollectorWiring.bind(signedStatesTestCollector);
 
         final InputWire<ReservedSignedState> signedStateHolderInputWire =
-                signedStatesHolderWiring.getInputWire(SignedStatesTestCollector::interceptReservedSignedState);
+                signedStatesTestCollectorWiring.getInputWire(SignedStatesTestCollector::interceptReservedSignedState);
         reservedSignedStatesOutputWiring.solderTo(signedStateHolderInputWire);
     }
 
@@ -214,8 +215,8 @@ public class TurtleNode {
     }
 
     public void clear() {
-        consensusRoundsTestCollector.clear("clear data");
-        signedStatesTestCollector.clear("clear data");
+        consensusRoundsTestCollector.clear();
+        signedStatesTestCollector.clear();
     }
 
     @NonNull

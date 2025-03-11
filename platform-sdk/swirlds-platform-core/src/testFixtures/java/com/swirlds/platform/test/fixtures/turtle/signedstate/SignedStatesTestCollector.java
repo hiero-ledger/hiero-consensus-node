@@ -2,11 +2,10 @@
 package com.swirlds.platform.test.fixtures.turtle.signedstate;
 
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.StateSignatureCollector;
 import java.util.List;
 
 /**
- * A test component collecting state signs produced by the {@link StateSignatureCollector}
+ * A test component collecting reserved signed states.
  */
 public interface SignedStatesTestCollector {
 

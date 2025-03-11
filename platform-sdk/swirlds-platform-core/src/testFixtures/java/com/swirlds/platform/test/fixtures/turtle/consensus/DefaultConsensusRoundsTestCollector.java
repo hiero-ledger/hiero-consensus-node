@@ -13,16 +13,25 @@ public class DefaultConsensusRoundsTestCollector implements ConsensusRoundsTestC
 
     final List<ConsensusRound> collectedRounds = new ArrayList<>();
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void interceptRounds(final List<ConsensusRound> rounds) {
         collectedRounds.addAll(rounds);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void clear() {
         collectedRounds.clear();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     public List<ConsensusRound> getCollectedRounds() {
         return collectedRounds;
