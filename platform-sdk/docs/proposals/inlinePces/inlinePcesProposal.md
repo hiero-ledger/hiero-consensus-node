@@ -13,12 +13,12 @@ between the consensus engine and the PCES writer, removing the need for the PCES
 and the responsibility of the consensus engine to tell the PCES writer when to flush, while introducing negligible
 additional latency.
 
-| Metadata           | Entities                            | 
-|--------------------|-------------------------------------|
-| Designers          | Cody, Richard, Jasper               |
-| Functional Impacts | Platform                            |
-| Related Proposals  | N/A                                 |
-| HIPS               | N/A                                 |
+|      Metadata      |       Entities        |
+|--------------------|-----------------------|
+| Designers          | Cody, Richard, Jasper |
+| Functional Impacts | Platform              |
+| Related Proposals  | N/A                   |
+| HIPS               | N/A                   |
 
 ---
 
@@ -117,7 +117,7 @@ the event is in the process of being written, other parts of the system utilize 
 transactions in a round, we pause if the keystone event for that round has not yet been made durable on disk.
 
 After this change is made, no part of the system after event intake will utilize an event until it has been made
-durable by the PcesWriter, except for Gossip. Gossip will only have to wait for self-events to be persisted. 
+durable by the PcesWriter, except for Gossip. Gossip will only have to wait for self-events to be persisted.
 
 #### PcesSequencer removal
 
