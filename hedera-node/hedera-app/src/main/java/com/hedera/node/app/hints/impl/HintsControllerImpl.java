@@ -21,9 +21,11 @@ import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.ReadableHintsStore.HintsKeyPublication;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.roster.RosterTransitionWeights;
+import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -72,13 +74,7 @@ public class HintsControllerImpl implements HintsController {
      * This will be null until the first node has contributed to the CRS update.
      */
     @Nullable
-    private CompletableFuture<CRSValidation> finalUpdatedCrsFuture;
-    /**
-     * The initial CRS for the network. This is used to verify the first update to the CRS. This will be null if
-     * the CRS construction is complete when the controller is created.
-     */
-    @Nullable
-    private final Bytes initialCrs;
+    private CompletableFuture<CRSValidation> finalCrsFuture;
 
     /**
      * The ongoing construction, updated each time the controller advances the construction in state.
@@ -139,23 +135,22 @@ public class HintsControllerImpl implements HintsController {
         this.configurationSupplier = requireNonNull(configuration);
 
         final var crsState = hintsStore.getCrsState();
-        final var crsPublications = hintsStore.getCrsPublicationsByNodeIds(weights.sourceNodeIds());
         if (crsState.stage() == GATHERING_CONTRIBUTIONS) {
+            final var crsPublications = hintsStore.getOrderedCrsPublicationsByNodeIds(weights.sourceNodeIds());
             crsPublications.forEach((nodeId, publication) -> {
                 if (publication != null) {
                     verifyCrsUpdate(publication, hintsStore, nodeId);
                 }
             });
         }
-        this.initialCrs = crsState.stage() != COMPLETED ? crsState.crs() : null;
         // Ensure we are up-to-date on any published hinTS keys we might need for this construction
-        if (!construction.hasHintsScheme()) {
+        if (crsState.stage() == COMPLETED && !construction.hasHintsScheme()) {
             final var cutoffTime = construction.hasPreprocessingStartTime()
                     ? asInstant(construction.preprocessingStartTimeOrThrow())
                     : Instant.MAX;
             publications.forEach(publication -> {
                 if (!publication.adoptionTime().isAfter(cutoffTime)) {
-                    maybeUpdateForHintsKey(initialCrs, publication);
+                    maybeUpdateForHintsKey(crsState.crs(), publication);
                 }
             });
         }
@@ -262,12 +257,13 @@ public class HintsControllerImpl implements HintsController {
                 repeatFromFirstNode(now, hintsStore, tssConfig);
             } else {
                 final var finalUpdatedCrs =
-                        requireNonNull(finalUpdatedCrsFuture).join();
+                        requireNonNull(finalCrsFuture).join();
                 final var updatedState = crsState.copyBuilder()
                         .crs(finalUpdatedCrs.crs())
                         .stage(COMPLETED)
                         .contributionEndTime((Timestamp) null)
                         .build();
+                TssBlockHashSigner.LOGGED_READY.set(true);
                 hintsStore.setCRSState(updatedState);
                 log.info("CRS construction COMPLETED");
             }
@@ -295,7 +291,6 @@ public class HintsControllerImpl implements HintsController {
         final var updatedState = crsState.copyBuilder()
                 .stage(GATHERING_CONTRIBUTIONS)
                 .contributionEndTime(asTimestamp(now.plus(contributionTime)))
-                .crs(requireNonNull(initialCrs))
                 .nextContributingNodeId(firstNodeId)
                 .build();
         hintsStore.setCRSState(updatedState);
@@ -308,9 +303,9 @@ public class HintsControllerImpl implements HintsController {
      * @return true if the total weight of the contributions is more than 2/3 total weight of all nodes in the
      */
     private boolean validateWeightOfContributions() {
-        final var contributedWeight = finalUpdatedCrsFuture == null
+        final var contributedWeight = finalCrsFuture == null
                 ? 0L
-                : finalUpdatedCrsFuture.join().weightContributedSoFar();
+                : finalCrsFuture.join().weightContributedSoFar();
         final var totalWeight = weights.sourceNodeWeights().values().stream()
                 .mapToLong(Long::longValue)
                 .sum();
@@ -344,8 +339,8 @@ public class HintsControllerImpl implements HintsController {
     private void submitUpdatedCRS(final @NonNull WritableHintsStore hintsStore) {
         crsPublicationFuture = CompletableFuture.runAsync(
                         () -> {
-                            final Bytes previousCRS = (finalUpdatedCrsFuture != null)
-                                    ? finalUpdatedCrsFuture.join().crs()
+                            final Bytes previousCRS = (finalCrsFuture != null)
+                                    ? finalCrsFuture.join().crs()
                                     : hintsStore.getCrsState().crs();
                             final var updatedCRS = library.updateCrs(previousCRS, generateEntropy());
                             final var newCRS = decodeCrsUpdate(previousCRS.length(), updatedCRS);
@@ -455,8 +450,8 @@ public class HintsControllerImpl implements HintsController {
         if (crsPublicationFuture != null) {
             crsPublicationFuture.cancel(true);
         }
-        if (finalUpdatedCrsFuture != null) {
-            finalUpdatedCrsFuture.cancel(true);
+        if (finalCrsFuture != null) {
+            finalCrsFuture.cancel(true);
         }
         validationFutures.values().forEach(future -> future.cancel(true));
     }
@@ -478,14 +473,16 @@ public class HintsControllerImpl implements HintsController {
     @Override
     public void verifyCrsUpdate(
             @NonNull final CrsPublicationTransactionBody publication,
-            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final ReadableHintsStore hintsStore,
             final long creatorId) {
+        requireNonNull(publication);
+        requireNonNull(hintsStore);
         final var creatorWeight = weights.sourceWeightOf(creatorId);
-        if (finalUpdatedCrsFuture == null) {
-            finalUpdatedCrsFuture = CompletableFuture.supplyAsync(
+        if (finalCrsFuture == null) {
+            final var initialCrs = hintsStore.getCrsState().crs();
+            finalCrsFuture = CompletableFuture.supplyAsync(
                             () -> {
-                                final var isValid = library.verifyCrsUpdate(
-                                        requireNonNull(initialCrs), publication.newCrs(), publication.proof());
+                                final var isValid = library.verifyCrsUpdate(initialCrs, publication.newCrs(), publication.proof());
                                 if (isValid) {
                                     return new CRSValidation(publication.newCrs(), creatorWeight);
                                 }
@@ -497,7 +494,7 @@ public class HintsControllerImpl implements HintsController {
                         return new CRSValidation(initialCrs, 0L);
                     });
         } else {
-            finalUpdatedCrsFuture = finalUpdatedCrsFuture
+            finalCrsFuture = finalCrsFuture
                     .thenApplyAsync(
                             previousValidation -> {
                                 final var isValid = library.verifyCrsUpdate(
@@ -510,11 +507,7 @@ public class HintsControllerImpl implements HintsController {
                                 return new CRSValidation(
                                         previousValidation.crs(), previousValidation.weightContributedSoFar());
                             },
-                            executor)
-                    .exceptionally(e -> {
-                        log.error("Error verifying CRS update", e);
-                        return new CRSValidation(initialCrs, 0L);
-                    });
+                            executor);
         }
     }
 
@@ -542,10 +535,12 @@ public class HintsControllerImpl implements HintsController {
      * If the publication is for the expected party id, update the node and party id mappings and
      * start a validation future for the hinTS key.
      *
-     * @param initialCrs  the initial CRS
+     * @param crs  the CRS
      * @param publication the publication
      */
-    private void maybeUpdateForHintsKey(final Bytes initialCrs, @NonNull final HintsKeyPublication publication) {
+    private void maybeUpdateForHintsKey(@NonNull final Bytes crs, @NonNull final HintsKeyPublication publication) {
+        requireNonNull(publication);
+        requireNonNull(crs);
         final int partyId = publication.partyId();
         final long nodeId = publication.nodeId();
         log.info("Maybe update for hints key for partyId: {} and nodeId: {}", partyId, nodeId);
@@ -554,7 +549,7 @@ public class HintsControllerImpl implements HintsController {
             nodePartyIds.put(nodeId, partyId);
             partyNodeIds.put(partyId, nodeId);
             validationFutures.put(
-                    publication.adoptionTime(), validationFuture(initialCrs, partyId, publication.hintsKey()));
+                    publication.adoptionTime(), validationFuture(crs, partyId, publication.hintsKey()));
         }
     }
 
@@ -713,8 +708,8 @@ public class HintsControllerImpl implements HintsController {
     }
 
     @VisibleForTesting
-    public void setFinalUpdatedCrsFuture(@Nullable final CompletableFuture<CRSValidation> finalUpdatedCrsFuture) {
-        this.finalUpdatedCrsFuture = finalUpdatedCrsFuture;
+    public void setFinalCrsFuture(@Nullable final CompletableFuture<CRSValidation> finalCrsFuture) {
+        this.finalCrsFuture = finalCrsFuture;
     }
 
     /**

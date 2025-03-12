@@ -112,6 +112,7 @@ public class HintsServiceImpl implements HintsService {
         }
         // Do the work needed to set the CRS for network and start the preprocessing vote
         if (hintsStore.getCrsState().stage() != COMPLETED) {
+            logger.info("Executing CRS work for {}", hintsStore.getCrsState().stage());
             controller.get().advanceCRSWork(now, hintsStore, isActive);
         }
     }
@@ -124,6 +125,11 @@ public class HintsServiceImpl implements HintsService {
     @Override
     public HintsHandlers handlers() {
         return component.handlers();
+    }
+
+    @Override
+    public void removeSigning(final Bytes bytes) {
+        component.signings().remove(bytes);
     }
 
     @Override

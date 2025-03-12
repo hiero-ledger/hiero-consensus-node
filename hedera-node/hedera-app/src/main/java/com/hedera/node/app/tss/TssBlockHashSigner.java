@@ -13,6 +13,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -61,6 +63,7 @@ public class TssBlockHashSigner implements BlockHashSigner {
     private static final Logger log = LogManager.getLogger(TssBlockHashSigner.class);
 
     public static final String SIGNER_READY_MSG = "TSS protocol ready to sign blocks";
+    public static final AtomicBoolean LOGGED_READY = new AtomicBoolean(false);
 
     @Nullable
     private final HintsService hintsService;
@@ -81,13 +84,14 @@ public class TssBlockHashSigner implements BlockHashSigner {
 
     @Override
     public boolean isReady() {
-        final boolean answer = (hintsService == null || hintsService.isReady())
-                && (historyService == null || historyService.isReady());
-        if (answer && !loggedReady) {
+//        final boolean answer = (hintsService == null || hintsService.isReady())
+//                && (historyService == null || historyService.isReady());
+        final var isReady = LOGGED_READY.get();
+        if (isReady && !loggedReady) {
             log.info(SIGNER_READY_MSG);
             loggedReady = true;
         }
-        return answer;
+        return isReady;
     }
 
     @Override
@@ -96,18 +100,24 @@ public class TssBlockHashSigner implements BlockHashSigner {
         if (!isReady()) {
             throw new IllegalStateException("TSS protocol not ready to sign block hash " + blockHash);
         }
+        final CompletableFuture<Bytes> result;
+
         if (historyService == null) {
             if (hintsService == null) {
-                return CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash));
+                result =  CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash));
             } else {
-                return hintsService.signFuture(blockHash);
+                result = hintsService.signFuture(blockHash);
             }
         } else {
             if (hintsService == null) {
-                return CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash));
+                result = CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash));
             } else {
-                return hintsService.signFuture(blockHash);
+                result = hintsService.signFuture(blockHash);
             }
         }
+        return hintsService == null ? result : result.thenApply(bytes -> {
+            hintsService.removeSigning(bytes);
+            return bytes;
+        });
     }
 }

@@ -413,13 +413,13 @@ class HintsControllerImplTest {
                         .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
                         .crs(INITIAL_CRS)
                         .build());
-        given(store.getCrsPublicationsByNodeIds(any()))
+        given(store.getOrderedCrsPublicationsByNodeIds(any()))
                 .willReturn(
                         Map.of(0L, CrsPublicationTransactionBody.DEFAULT, 1L, CrsPublicationTransactionBody.DEFAULT));
         given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
         given(weights.sourceWeightOf(0L)).willReturn(8L);
         given(weights.sourceWeightOf(1L)).willReturn(10L);
-        subject.setFinalUpdatedCrsFuture(
+        subject.setFinalCrsFuture(
                 CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
         subject.advanceCRSWork(CONSENSUS_NOW, store, true);
 
@@ -443,13 +443,13 @@ class HintsControllerImplTest {
                         .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
                         .crs(INITIAL_CRS)
                         .build());
-        given(store.getCrsPublicationsByNodeIds(any()))
+        given(store.getOrderedCrsPublicationsByNodeIds(any()))
                 .willReturn(
                         Map.of(0L, CrsPublicationTransactionBody.DEFAULT, 2L, CrsPublicationTransactionBody.DEFAULT));
         given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
         given(weights.sourceWeightOf(0L)).willReturn(8L);
         given(weights.sourceWeightOf(2L)).willReturn(1L);
-        subject.setFinalUpdatedCrsFuture(
+        subject.setFinalCrsFuture(
                 CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
         subject.advanceCRSWork(CONSENSUS_NOW, store, true);
 
@@ -482,7 +482,7 @@ class HintsControllerImplTest {
                         .build());
 
         given(weights.sourceNodeIds()).willReturn(SOURCE_NODE_IDS);
-        subject.setFinalUpdatedCrsFuture(
+        subject.setFinalCrsFuture(
                 CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
         subject.advanceCRSWork(CONSENSUS_NOW, store, true);
 

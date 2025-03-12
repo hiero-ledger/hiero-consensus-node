@@ -20,6 +20,5 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "5s") @NetworkProperty Duration crsFinalizationDelay,
         @ConfigProperty(defaultValue = "data/keys/tss") @NodeProperty String tssKeysPath,
         @ConfigProperty(defaultValue = "1024") @NetworkProperty int initialCrsParties,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean hintsEnabled,
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean historyEnabled,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean crsEnabled) {}
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean hintsEnabled,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean historyEnabled) {}

@@ -105,6 +105,6 @@ public interface HintsController {
      */
     void verifyCrsUpdate(
             @NonNull CrsPublicationTransactionBody publication,
-            @NonNull WritableHintsStore hintsStore,
+            @NonNull ReadableHintsStore hintsStore,
             final long creatorId);
 }

@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -149,6 +150,7 @@ public class HintsContext {
         private final ConcurrentMap<Integer, Bytes> signatures = new ConcurrentHashMap<>();
         private final AtomicLong weightOfSignatures = new AtomicLong();
         private final Roster currentRoster;
+        private final AtomicBoolean completed = new AtomicBoolean();
 
         public Signing(
                 final long constructionId,
@@ -191,6 +193,9 @@ public class HintsContext {
                 final long nodeId,
                 @NonNull final Bytes signature) {
             requireNonNull(signature);
+            if(completed.get()) {
+                return;
+            }
             final var partyId = partyIds.get(nodeId);
             if (this.constructionId == constructionId && partyIds.containsKey(nodeId)) {
                 final var isValid = library.verifyBls(crs, signature, message, aggregationKey, partyId);
@@ -202,10 +207,11 @@ public class HintsContext {
                             .findFirst()
                             .orElse(0L);
                     final var totalWeight = weightOfSignatures.addAndGet(weight);
-                    if (totalWeight >= thresholdWeight) {
+                    if (totalWeight >= thresholdWeight && completed.compareAndSet(false, true)) {
                         final var aggregatedSignature =
                                 library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
                         future.complete(aggregatedSignature);
+//                        log.info("Completed signature for {}", message);
                     }
                 }
             }

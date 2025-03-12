@@ -58,5 +58,6 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         final var hintsStore = context.storeFactory().writableStore(WritableHintsStore.class);
         final var crs = hintsStore.getCrsState().crs();
         signings.get(op.message()).incorporate(crs, op.constructionId(), creator, op.partialSignature());
+//        logger.info("Incorporated partial signature for {}", op.message());
     }
 }
