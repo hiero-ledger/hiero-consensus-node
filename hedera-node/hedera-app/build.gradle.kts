@@ -161,6 +161,8 @@ var updateDockerEnvTask =
         commandLine("./update-env.sh", project.version)
     }
 
+dependencies { implementation(project(":swirlds-config-impl")) }
+
 tasks.register<Exec>("createDockerImage") {
     description = "Creates the docker image of the services based on the current version"
     group = "docker"
