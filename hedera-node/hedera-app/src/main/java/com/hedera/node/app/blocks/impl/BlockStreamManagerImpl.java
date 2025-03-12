@@ -384,7 +384,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Update in-memory state to prepare for the next block
             lastBlockHash = blockHash;
             writer = null;
-            log.info("Closed block {} with hash {}", blockNumber, blockHash.toHex());
             blockHashSigner
                     .signFuture(blockHash)
                     .thenAcceptAsync(signature -> finishProofWithSignature(blockHash, signature));

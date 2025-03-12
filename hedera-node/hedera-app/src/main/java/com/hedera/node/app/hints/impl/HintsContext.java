@@ -211,7 +211,6 @@ public class HintsContext {
                         final var aggregatedSignature =
                                 library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
                         future.complete(aggregatedSignature);
-                        //                        log.info("Completed signature for {}", message);
                     }
                 }
             }

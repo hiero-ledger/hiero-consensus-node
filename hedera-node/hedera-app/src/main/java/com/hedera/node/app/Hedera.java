@@ -808,7 +808,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         try {
             function = functionOf(body);
         } catch (UnknownHederaFunctionality e) {
-            e.printStackTrace();
             throw new IllegalArgumentException("" + UNKNOWN);
         }
         try {
