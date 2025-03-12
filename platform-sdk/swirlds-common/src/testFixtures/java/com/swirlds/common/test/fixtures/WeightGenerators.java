@@ -12,6 +12,7 @@ import java.util.random.RandomGenerator;
 public final class WeightGenerators {
 
     public static final WeightGenerator BALANCED = (l, i) -> WeightGenerators.balancedNodeWeights(i);
+    public static final WeightGenerator BALANCED_1000_PER_NODE = (l, i) -> WeightGenerators.balancedNodeWeights(i, i * 1000L);
     public static final WeightGenerator BALANCED_REAL_WEIGHT = (l, i) -> WeightGenerators.balancedNodeWeights(i, true);
     public static final WeightGenerator INCREMENTING = (l, i) -> WeightGenerators.incrementingWeight(i);
     public static final WeightGenerator SINGLE_NODE_STRONG_MINORITY =
@@ -19,6 +20,7 @@ public final class WeightGenerators {
     public static final WeightGenerator ONE_THIRD_ZERO_WEIGHT = WeightGenerators::oneThirdNodesZeroWeight;
     public static final WeightGenerator RANDOM = WeightGenerators::randomNodeWeights;
     public static final WeightGenerator RANDOM_REAL_WEIGHT = (l, i) -> WeightGenerators.randomNodeWeights(l, i, true);
+    public static final WeightGenerator GAUSSIAN = new GaussianWeightGenerator(1000, 100);
 
     /**
      * total weights are the same as the number of the number of tinybars in existence

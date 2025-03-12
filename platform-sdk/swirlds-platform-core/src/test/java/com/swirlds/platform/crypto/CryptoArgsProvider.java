@@ -5,6 +5,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -50,7 +51,7 @@ public class CryptoArgsProvider {
     public static AddressBook createAddressBook(final int size) {
         final Roster roster = RandomRosterBuilder.create(Randotron.create())
                 .withSize(size)
-                .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
                 .build();
 
         // We still use the keys injection mechanism from the EnhancedKeyStoreLoader and CryptoStatic,

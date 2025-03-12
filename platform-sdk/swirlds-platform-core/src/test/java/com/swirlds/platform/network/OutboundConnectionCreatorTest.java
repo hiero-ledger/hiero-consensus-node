@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -44,7 +45,7 @@ class OutboundConnectionCreatorTest {
         final Random r = new Random();
         final Roster roster = RandomRosterBuilder.create(r)
                 .withSize(numNodes)
-                .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
                 .build();
         final int thisNodeIndex = r.nextInt(numNodes);
         int otherNodeIndex = r.nextInt(numNodes);
@@ -132,7 +133,7 @@ class OutboundConnectionCreatorTest {
         final Random r = new Random();
         final Roster roster = RandomRosterBuilder.create(r)
                 .withSize(numNodes)
-                .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
                 .build();
         final int thisNodeIndex = r.nextInt(numNodes);
         int otherNodeIndex = r.nextInt(numNodes);

@@ -2,6 +2,7 @@
 package com.swirlds.platform.state.manager;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,7 +46,7 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
 
     private final Roster roster = RandomRosterBuilder.create(random)
             .withSize(4)
-            .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+            .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
             .build();
 
     private final long firstRound = 50;

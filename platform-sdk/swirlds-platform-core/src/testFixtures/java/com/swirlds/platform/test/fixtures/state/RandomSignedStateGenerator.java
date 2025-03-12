@@ -5,6 +5,7 @@ import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHashBytes;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomSignature;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 import static org.mockito.Mockito.spy;
@@ -121,7 +122,7 @@ public class RandomSignedStateGenerator {
         final Roster rosterInstance;
         if (roster == null) {
             rosterInstance = RandomRosterBuilder.create(random)
-                    .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                    .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
                     .build();
         } else {
             rosterInstance = roster;

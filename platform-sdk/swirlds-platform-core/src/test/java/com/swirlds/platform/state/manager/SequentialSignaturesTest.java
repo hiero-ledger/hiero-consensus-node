@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.manager;
 
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -37,7 +38,7 @@ public class SequentialSignaturesTest extends AbstractStateSignatureCollectorTes
 
     private final Roster roster = RandomRosterBuilder.create(random)
             .withSize(4)
-            .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+            .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
             .build();
 
     /**

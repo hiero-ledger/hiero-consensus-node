@@ -34,7 +34,7 @@ public class RandomRosterBuilder {
      */
     private int size = 4;
 
-    private WeightGenerator weightGenerator;
+    private WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
 
     /**
      * Describes different ways that the random roster has its weight distributed if the custom strategy lambda is
@@ -50,11 +50,6 @@ public class RandomRosterBuilder {
          */
         GAUSSIAN
     }
-
-    /**
-     * The weight distribution strategy.
-     */
-    private WeightDistributionStrategy weightDistributionStrategy;
 
     /**
      * The minimum weight to give to any particular address.
@@ -101,31 +96,16 @@ public class RandomRosterBuilder {
         this.random = Objects.requireNonNull(random);
     }
 
-    private void checkConstraints() {
-        if (weightDistributionStrategy != null && weightGenerator != null) {
-            throw new IllegalStateException("Weight generator and weight distribution strategy cannot be both set");
-        }
-    }
-
     /**
      * Build a random roster given the provided configuration.
      */
     @NonNull
     public Roster build() {
-        checkConstraints();
         final Roster.Builder builder = Roster.newBuilder();
 
         if (maximumWeight == null && size > 0) {
             // We don't want the total weight to overflow a long
             maximumWeight = Long.MAX_VALUE / size;
-        }
-        if (weightGenerator == null) {
-            if (weightDistributionStrategy == null) {
-                weightDistributionStrategy = WeightDistributionStrategy.GAUSSIAN;
-            }
-            weightGenerator = switch (weightDistributionStrategy) {
-                case BALANCED -> (l, i) -> WeightGenerators.balancedNodeWeights(size, size * 1000L);
-                case GAUSSIAN -> new GaussianWeightGenerator(1000, 100);};
         }
 
         final List<Long> weights = weightGenerator.getWeights(random.nextLong(), size).stream()
@@ -164,7 +144,6 @@ public class RandomRosterBuilder {
     @NonNull
     public RandomRosterBuilder withWeightGenerator(@NonNull final WeightGenerator weightGenerator) {
         this.weightGenerator = weightGenerator;
-        checkConstraints();
         return this;
     }
 
@@ -187,19 +166,6 @@ public class RandomRosterBuilder {
     @NonNull
     public RandomRosterBuilder withMaximumWeight(final long maximumWeight) {
         this.maximumWeight = maximumWeight;
-        return this;
-    }
-
-    /**
-     * Set the strategy used for deciding distribution of weight.
-     *
-     * @return this object
-     */
-    @NonNull
-    public RandomRosterBuilder withWeightDistributionStrategy(
-            @NonNull final WeightDistributionStrategy weightDistributionStrategy) {
-        this.weightDistributionStrategy = weightDistributionStrategy;
-        checkConstraints();
         return this;
     }
 

@@ -4,6 +4,7 @@ package com.swirlds.platform.state;
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomSignature;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
@@ -71,8 +72,8 @@ class StateSigningTests {
         final int nodeCount = random.nextInt(10, 20);
 
         final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
         final SignedState signedState = new RandomSignedStateGenerator(random)
@@ -171,8 +172,8 @@ class StateSigningTests {
         final int nodeCount = random.nextInt(10, 20);
 
         final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
         final SignedState signedState = new RandomSignedStateGenerator(random)
@@ -265,8 +266,8 @@ class StateSigningTests {
         final int nodeCount = random.nextInt(10, 20);
 
         final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
 
@@ -350,8 +351,8 @@ class StateSigningTests {
         final int nodeCount = random.nextInt(10, 20);
 
         final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
 
@@ -393,8 +394,8 @@ class StateSigningTests {
 
         final int nodeCount = random.nextInt(10, 20);
         final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
 
@@ -449,8 +450,8 @@ class StateSigningTests {
         final int nodeCount = random.nextInt(10, 20);
 
         final Roster tempRoster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
 
@@ -513,8 +514,8 @@ class StateSigningTests {
         final int nodeCount = random.nextInt(10, 20);
 
         final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightDistributionStrategy(
-                        evenWeighting ? WeightDistributionStrategy.BALANCED : WeightDistributionStrategy.GAUSSIAN)
+                .withWeightGenerator(
+                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
                 .withSize(nodeCount)
                 .build();
 
