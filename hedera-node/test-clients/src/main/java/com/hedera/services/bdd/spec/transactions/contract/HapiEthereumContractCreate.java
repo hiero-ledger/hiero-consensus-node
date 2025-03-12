@@ -347,7 +347,7 @@ public class HapiEthereumContractCreate extends HapiBaseContractCreate<HapiEther
                         b -> Objects.requireNonNull(this.spec).accept(spec, b));
     }
 
-    public HapiEthereumContractCreate markAaJumboTxn() {
+    public HapiEthereumContractCreate markAsJumboTxn() {
         isJumboTxn = true;
         return this;
     }

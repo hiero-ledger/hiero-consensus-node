@@ -11,7 +11,7 @@ import java.util.List;
 public record JumboTransactionsConfig(
         @ConfigProperty(value = "transaction.jumboTxnIsEnabled", defaultValue = "false") @NetworkProperty
                 boolean jumboTxnIsEnabled,
-        @ConfigProperty(value = "transaction.jumboTxnSize", defaultValue = "133120") @NetworkProperty long jumboTxnSize,
+        @ConfigProperty(value = "transaction.jumboTxnSize", defaultValue = "133120") @NetworkProperty int jumboTxnSize,
         @ConfigProperty(value = "transaction.jumboEthereumDataSize", defaultValue = "131072") @NetworkProperty
-                long jumboEthereumDataSize,
+                int jumboEthereumDataSize,
         @ConfigProperty(defaultValue = "callEthereum") @NodeProperty List<String> jumboTxnGrpcMethodNames) {}

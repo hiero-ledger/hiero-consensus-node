@@ -435,7 +435,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 .add("params", Arrays.toString(params.orElse(null)));
     }
 
-    public HapiEthereumCall markAaJumboTxn() {
+    public HapiEthereumCall markAsJumboTxn() {
         isJumboTxn = true;
         return this;
     }
