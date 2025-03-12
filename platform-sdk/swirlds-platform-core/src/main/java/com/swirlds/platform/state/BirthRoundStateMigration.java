@@ -57,6 +57,12 @@ public final class BirthRoundStateMigration {
             logger.info(STARTUP.getMarker(), "Birth round state migration has already been completed.");
             return;
         }
+        final boolean isGenesis = platformStateFacade.isGenesisStateOf(state);
+        if (isGenesis) {
+            // Genesis state, no action needed.
+            logger.info(STARTUP.getMarker(), "Birth round state migration is not needed for genesis state.");
+            return;
+        }
 
         final long lastRoundBeforeMigration = platformStateFacade.roundOf(state);
 
