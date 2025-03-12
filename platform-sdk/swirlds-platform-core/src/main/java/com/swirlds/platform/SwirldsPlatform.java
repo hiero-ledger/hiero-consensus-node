@@ -13,7 +13,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.io.IOIterator;
@@ -88,11 +88,6 @@ import org.apache.logging.log4j.Logger;
 public class SwirldsPlatform implements Platform {
 
     private static final Logger logger = LogManager.getLogger(SwirldsPlatform.class);
-
-    /**
-     * The null hash.
-     */
-    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
     /**
      * The unique ID of this node.
@@ -290,7 +285,7 @@ public class SwirldsPlatform implements Platform {
 
         final Hash legacyRunningEventHash =
                 platformStateFacade.legacyRunningEventHashOf(initialState.getState()) == null
-                        ? NULL_HASH
+                        ? Cryptography.NULL_HASH
                         : platformStateFacade.legacyRunningEventHashOf((initialState.getState()));
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);

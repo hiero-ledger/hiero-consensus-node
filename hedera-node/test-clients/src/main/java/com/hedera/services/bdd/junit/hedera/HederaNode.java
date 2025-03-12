@@ -88,6 +88,8 @@ public interface HederaNode {
     CompletableFuture<Void> statusFuture(
             @NonNull PlatformStatus status, @Nullable Consumer<NodeStatus> nodeStatusObserver);
 
+    CompletableFuture<Void> logFuture(@NonNull String pattern);
+
     /**
      * Returns a future that resolves when the node has written the specified <i>.mf</i> file.
      *
