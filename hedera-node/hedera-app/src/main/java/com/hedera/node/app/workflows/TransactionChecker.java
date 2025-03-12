@@ -32,13 +32,13 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
-import com.hedera.node.app.annotations.MaxSignedTxnSize;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.util.ProtobufUtils;
 import com.hedera.node.app.workflows.prehandle.DueDiligenceException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UnknownFieldException;
@@ -84,16 +84,15 @@ public class TransactionChecker {
     private static final String COUNTER_RECEIVED_SUPER_DEPRECATED_DESC =
             "number of super-deprecated txns (body, sigs) received";
 
-    /** The maximum number of bytes that can exist in the transaction */
-    private final int maxSignedTxnSize;
-    /** The {@link ConfigProvider} used to get properties needed for these checks. */
-    private final ConfigProvider props;
     /** The {@link Counter} used to track the number of deprecated transactions (bodyBytes, sigMap) received. */
     private final Counter deprecatedCounter;
     /** The {@link Counter} used to track the number of super deprecated transactions (body, sigs) received. */
     private final Counter superDeprecatedCounter;
     /** The account ID of the node running this software */
     private final AccountID nodeAccount;
+
+    private final HederaConfig hederaConfig;
+    private final JumboTransactionsConfig jumboTransactionsConfig;
 
     // TODO We need to incorporate the check for "TRANSACTION_TOO_MANY_LAYERS". "maxProtoMessageDepth" is a property
     //  passed to StructuralPrecheck used for this purpose. We will need to add this to PBJ as an argument to the
@@ -102,29 +101,24 @@ public class TransactionChecker {
     /**
      * Create a new {@link TransactionChecker}
      *
-     * @param maxSignedTxnSize the maximum transaction size
      * @param configProvider access to configuration
      * @param metrics metrics related to workflows
      * @throws NullPointerException if one of the arguments is {@code null}
-     * @throws IllegalArgumentException if {@code maxSignedTxnSize} is not positive
      */
     @Inject
     public TransactionChecker(
-            @MaxSignedTxnSize final int maxSignedTxnSize,
             @NodeSelfId @NonNull final AccountID nodeAccount,
             @NonNull final ConfigProvider configProvider,
             @NonNull final Metrics metrics) {
-        if (maxSignedTxnSize <= 0) {
-            throw new IllegalArgumentException("maxSignedTxnSize must be > 0");
-        }
-
         this.nodeAccount = requireNonNull(nodeAccount);
-        this.maxSignedTxnSize = maxSignedTxnSize;
-        this.props = requireNonNull(configProvider);
+        requireNonNull(configProvider);
         this.deprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_DEPRECATED_TXNS_NAME)
                 .withDescription(COUNTER_RECEIVED_DEPRECATED_DESC));
         this.superDeprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_SUPER_DEPRECATED_TXNS_NAME)
                 .withDescription(COUNTER_RECEIVED_SUPER_DEPRECATED_DESC));
+
+        hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
+        jumboTransactionsConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
     }
 
     /**
@@ -136,13 +130,21 @@ public class TransactionChecker {
      */
     @NonNull
     public TransactionInfo parseAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
-        // Fail fast if there are too many transaction bytes
-        if (buffer.length() > maxSignedTxnSize) {
-            throw new PreCheckException(TRANSACTION_OVERSIZE);
-        }
-
+        validateTheBufferSize(buffer);
         final var tx = parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
         return check(tx, buffer);
+    }
+
+    private void validateTheBufferSize(Bytes buffer) throws PreCheckException {
+        final var jumboTxnEnabled = jumboTransactionsConfig.jumboTxnIsEnabled();
+        final var maxJumboTxnSize = jumboTransactionsConfig.jumboTxnSize();
+        final var transactionMaxBytes = hederaConfig.transactionMaxBytes();
+
+        // Fail fast if there are too many transaction bytes
+        final var maxSize = jumboTxnEnabled ? maxJumboTxnSize : transactionMaxBytes;
+        if (buffer.length() > maxSize) {
+            throw new PreCheckException(TRANSACTION_OVERSIZE);
+        }
     }
 
     /**
@@ -298,9 +300,8 @@ public class TransactionChecker {
      */
     private void checkTransactionBody(@NonNull final TransactionBody txBody, HederaFunctionality functionality)
             throws PreCheckException {
-        final var config = props.getConfiguration().getConfigData(HederaConfig.class);
         checkTransactionID(txBody.transactionIDOrThrow());
-        checkMemo(txBody.memo(), config.transactionMaxMemoUtf8Bytes());
+        checkMemo(txBody.memo(), hederaConfig.transactionMaxMemoUtf8Bytes());
         checkMaxCustomFee(txBody.maxCustomFees(), functionality);
 
         // You cannot have a negative transaction fee!! We're not paying you, buddy.
@@ -340,11 +341,10 @@ public class TransactionChecker {
         final var duration = txBody.transactionValidDurationOrThrow();
 
         // Get the configured boundaries
-        final var config = props.getConfiguration().getConfigData(HederaConfig.class);
-        final var min = config.transactionMinValidDuration();
-        final var max = config.transactionMaxValidDuration();
+        final var min = hederaConfig.transactionMinValidDuration();
+        final var max = hederaConfig.transactionMaxValidDuration();
         final var minValidityBufferSecs = requireMinValidLifetimeBuffer == RequireMinValidLifetimeBuffer.YES
-                ? config.transactionMinValidityBufferSecs()
+                ? hederaConfig.transactionMinValidityBufferSecs()
                 : 0;
 
         // The transaction duration must not be longer than the configured maximum transaction duration
@@ -447,8 +447,8 @@ public class TransactionChecker {
     @NonNull
     private Instant toInstant(final Timestamp timestamp) {
         return Instant.ofEpochSecond(
-                clamp(timestamp.seconds(), Instant.MIN.getEpochSecond(), Instant.MAX.getEpochSecond()),
-                clamp(timestamp.nanos(), Instant.MIN.getNano(), Instant.MAX.getNano()));
+                Math.clamp(timestamp.seconds(), Instant.MIN.getEpochSecond(), Instant.MAX.getEpochSecond()),
+                Math.clamp(timestamp.nanos(), Instant.MIN.getNano(), Instant.MAX.getNano()));
     }
 
     /**
@@ -463,11 +463,6 @@ public class TransactionChecker {
      */
     private long toSecondsDuration(final long validForSecs, final Instant validStart, final long minValidBufferSecs) {
         return Math.min(validForSecs - minValidBufferSecs, Instant.MAX.getEpochSecond() - validStart.getEpochSecond());
-    }
-
-    /** A simple utility method replaced in Java 21 with {@code Math.clamp(long, long long)} */
-    private long clamp(final long value, final long min, final long max) {
-        return Math.min(Math.max(value, min), max);
     }
 
     /**
