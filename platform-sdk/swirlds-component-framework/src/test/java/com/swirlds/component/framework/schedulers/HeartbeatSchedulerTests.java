@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -22,7 +21,7 @@ class HeartbeatSchedulerTests {
     void heartbeatByFrequencyTest() throws InterruptedException {
         final FakeTime fakeTime = new FakeTime();
         final WiringModel model =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+                WiringModelBuilder.create(new NoOpMetrics(), fakeTime).build();
 
         final TaskScheduler<Void> scheduler =
                 model.<Void>schedulerBuilder("test").build();
@@ -50,7 +49,7 @@ class HeartbeatSchedulerTests {
     void heartbeatByPeriodTest() throws InterruptedException {
         final FakeTime fakeTime = new FakeTime();
         final WiringModel model =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+                WiringModelBuilder.create(new NoOpMetrics(), fakeTime).build();
 
         final TaskScheduler<Void> scheduler =
                 model.<Void>schedulerBuilder("test").build();
@@ -78,7 +77,7 @@ class HeartbeatSchedulerTests {
     void heartbeatsAtDifferentRates() throws InterruptedException {
         final FakeTime fakeTime = new FakeTime();
         final WiringModel model =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+                WiringModelBuilder.create(new NoOpMetrics(), fakeTime).build();
 
         final TaskScheduler<Void> scheduler =
                 model.<Void>schedulerBuilder("test").build();

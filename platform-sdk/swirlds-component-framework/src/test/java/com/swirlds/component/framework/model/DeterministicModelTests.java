@@ -387,8 +387,7 @@ class DeterministicModelTests {
 
         final FakeTime time = new FakeTime(randomInstant(random), Duration.ZERO);
 
-        final DeterministicWiringModel deterministicWiringModel1 = WiringModelBuilder.create(
-                        new NoOpMetrics(), Time.getCurrent())
+        final DeterministicWiringModel deterministicWiringModel1 = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
         final long value1 =
@@ -398,8 +397,7 @@ class DeterministicModelTests {
                 });
 
         time.reset();
-        final DeterministicWiringModel deterministicWiringModel2 = WiringModelBuilder.create(
-                        new NoOpMetrics(), Time.getCurrent())
+        final DeterministicWiringModel deterministicWiringModel2 = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
         final long value2 =

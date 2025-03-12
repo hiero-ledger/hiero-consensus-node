@@ -5,7 +5,6 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerB
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
@@ -19,7 +18,7 @@ public class DeterministicHeartbeatSchedulerTests {
     @Test
     void heartbeatByFrequencyTest() {
         final FakeTime time = new FakeTime();
-        final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+        final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
 
@@ -47,7 +46,7 @@ public class DeterministicHeartbeatSchedulerTests {
     @Test
     void heartbeatByPeriodTest() {
         final FakeTime time = new FakeTime();
-        final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+        final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
 
@@ -75,7 +74,7 @@ public class DeterministicHeartbeatSchedulerTests {
     @Test
     void heartbeatsAtDifferentRates() {
         final FakeTime time = new FakeTime();
-        final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+        final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
 
