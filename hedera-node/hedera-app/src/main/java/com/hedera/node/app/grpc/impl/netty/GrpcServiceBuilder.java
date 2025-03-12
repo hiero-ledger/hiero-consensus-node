@@ -10,6 +10,9 @@ import com.hedera.node.app.grpc.impl.QueryMethod;
 import com.hedera.node.app.grpc.impl.TransactionMethod;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -52,6 +55,8 @@ final class GrpcServiceBuilder {
      * The marshaller to use to read/write byte arrays to/from {@link InputStream}s. This class is thread safe.
      */
     private final DataBufferMarshaller marshaller;
+
+    private final DataBufferMarshaller jumboMarshaller;
 
     /** The name of the service we are building. For example, the TokenService. */
     private final String serviceName;
@@ -101,7 +106,8 @@ final class GrpcServiceBuilder {
             @NonNull final String serviceName,
             @NonNull final IngestWorkflow ingestWorkflow,
             @NonNull final QueryWorkflow queryWorkflow,
-            @NonNull final DataBufferMarshaller marshaller) {
+            @NonNull final DataBufferMarshaller marshaller,
+            @NonNull final DataBufferMarshaller jumboMarshaller) {
         this.ingestWorkflow = requireNonNull(ingestWorkflow);
         this.queryWorkflow = requireNonNull(queryWorkflow);
         this.serviceName = requireNonNull(serviceName);
@@ -109,6 +115,7 @@ final class GrpcServiceBuilder {
             throw new IllegalArgumentException("serviceName cannot be blank");
         }
         this.marshaller = requireNonNull(marshaller);
+        this.jumboMarshaller = requireNonNull(jumboMarshaller);
     }
 
     /**
@@ -151,21 +158,34 @@ final class GrpcServiceBuilder {
      * Build a grpc {@link ServerServiceDefinition} for each transaction and query method registered with this builder.
      *
      * @param metrics Used for recording metrics for the transaction or query methods
-     * @param maxMessageSize The maximum message size allowed for the gRPC server
+     * @param configProvider Used for obtaining the maximum message size allowed for the gRPC server
      * @return A {@link ServerServiceDefinition} that can be registered with a gRPC server
      */
     @NonNull
-    public ServerServiceDefinition build(@NonNull final Metrics metrics, final int maxMessageSize) {
+    public ServerServiceDefinition build(@NonNull final Metrics metrics, ConfigProvider configProvider) {
+        final var jumboTxnConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
+        final var jumboTxnIsEnabled = jumboTxnConfig.isEnabled();
+        final var maxMessageSize = configProvider
+                .getConfiguration()
+                .getConfigData(HederaConfig.class)
+                .transactionMaxBytes();
+
         final var builder = ServerServiceDefinition.builder(serviceName);
         txMethodNames.forEach(methodName -> {
             logger.debug("Registering gRPC transaction method {}.{}", serviceName, methodName);
+            if (jumboTxnIsEnabled && jumboTxnConfig.grpcMethodNames().contains(methodName)) {
+                final var method = new TransactionMethod(
+                        serviceName, methodName, ingestWorkflow, metrics, jumboTxnConfig.maxTxnSize());
+                addMethod(builder, serviceName, methodName, method, jumboMarshaller);
+                return;
+            }
             final var method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, maxMessageSize);
-            addMethod(builder, serviceName, methodName, method);
+            addMethod(builder, serviceName, methodName, method, marshaller);
         });
         queryMethodNames.forEach(methodName -> {
             logger.debug("Registering gRPC query method {}.{}", serviceName, methodName);
             final var method = new QueryMethod(serviceName, methodName, queryWorkflow, metrics, maxMessageSize);
-            addMethod(builder, serviceName, methodName, method);
+            addMethod(builder, serviceName, methodName, method, marshaller);
         });
         return builder.build();
     }
@@ -175,7 +195,8 @@ final class GrpcServiceBuilder {
             @NonNull final ServerServiceDefinition.Builder builder,
             @NonNull final String serviceName,
             @NonNull final String methodName,
-            @NonNull final MethodBase method) {
+            @NonNull final MethodBase method,
+            @NonNull final DataBufferMarshaller marshallerToUse) {
 
         requireNonNull(builder);
         requireNonNull(serviceName);
@@ -185,8 +206,8 @@ final class GrpcServiceBuilder {
         final var methodDescriptor = MethodDescriptor.<BufferedData, BufferedData>newBuilder()
                 .setType(MethodType.UNARY)
                 .setFullMethodName(serviceName + "/" + methodName)
-                .setRequestMarshaller(marshaller)
-                .setResponseMarshaller(marshaller)
+                .setRequestMarshaller(marshallerToUse)
+                .setResponseMarshaller(marshallerToUse)
                 .build();
 
         builder.addMethod(

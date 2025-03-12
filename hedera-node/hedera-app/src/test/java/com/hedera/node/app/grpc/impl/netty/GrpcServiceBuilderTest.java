@@ -7,6 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.hedera.node.app.utils.TestUtils;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.metrics.api.Metrics;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +27,8 @@ final class GrpcServiceBuilderTest {
     private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL =
             ThreadLocal.withInitial(() -> BufferedData.allocate(6145));
     private static final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller(6144, BUFFER_THREAD_LOCAL::get);
+    private static final DataBufferMarshaller JUMBO_MARSHALLER =
+            new DataBufferMarshaller(130 * 1024, BUFFER_THREAD_LOCAL::get);
 
     // These are simple no-op workflows
     private final QueryWorkflow queryWorkflow = (requestBuffer, responseBuffer) -> {};
@@ -32,9 +37,12 @@ final class GrpcServiceBuilderTest {
     private GrpcServiceBuilder builder;
     private final Metrics metrics = TestUtils.metrics();
 
+    private ConfigProvider configProvider;
+
     @BeforeEach
     void setUp() {
-        builder = new GrpcServiceBuilder(SERVICE_NAME, ingestWorkflow, queryWorkflow, MARSHALLER);
+        builder = new GrpcServiceBuilder(SERVICE_NAME, ingestWorkflow, queryWorkflow, MARSHALLER, JUMBO_MARSHALLER);
+        configProvider = () -> new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1);
     }
 
     @Test
@@ -43,7 +51,7 @@ final class GrpcServiceBuilderTest {
         //noinspection ConstantConditions
         assertThrows(
                 NullPointerException.class,
-                () -> new GrpcServiceBuilder(SERVICE_NAME, ingestWorkflow, null, MARSHALLER));
+                () -> new GrpcServiceBuilder(SERVICE_NAME, ingestWorkflow, null, MARSHALLER, JUMBO_MARSHALLER));
     }
 
     @Test
@@ -52,7 +60,7 @@ final class GrpcServiceBuilderTest {
         //noinspection ConstantConditions
         assertThrows(
                 NullPointerException.class,
-                () -> new GrpcServiceBuilder(null, ingestWorkflow, queryWorkflow, MARSHALLER));
+                () -> new GrpcServiceBuilder(null, ingestWorkflow, queryWorkflow, MARSHALLER, JUMBO_MARSHALLER));
     }
 
     @ParameterizedTest()
@@ -61,7 +69,7 @@ final class GrpcServiceBuilderTest {
     void serviceIsBlank(final String value) {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new GrpcServiceBuilder(value, ingestWorkflow, queryWorkflow, MARSHALLER));
+                () -> new GrpcServiceBuilder(value, ingestWorkflow, queryWorkflow, MARSHALLER, JUMBO_MARSHALLER));
     }
 
     @Test
@@ -98,7 +106,7 @@ final class GrpcServiceBuilderTest {
     @Test
     @DisplayName("The build method will return a ServiceDescriptor")
     void serviceDescriptorIsNotNullOnNoopBuilder() {
-        assertNotNull(builder.build(metrics, 6144));
+        assertNotNull(builder.build(metrics, configProvider));
     }
 
     /**
@@ -108,7 +116,7 @@ final class GrpcServiceBuilderTest {
     @Test
     @DisplayName("The built ServiceDescriptor includes a method with the name of the defined" + " transaction")
     void singleTransaction() {
-        final var sd = builder.transaction("txA").build(metrics, 6144);
+        final var sd = builder.transaction("txA").build(metrics, configProvider);
         assertNotNull(sd.getMethod(SERVICE_NAME + "/txA"));
     }
 
@@ -126,7 +134,7 @@ final class GrpcServiceBuilderTest {
                 .transaction("txC")
                 .query("qC")
                 .transaction("txD")
-                .build(metrics, 6144);
+                .build(metrics, configProvider);
 
         assertNotNull(sd.getMethod(SERVICE_NAME + "/txA"));
         assertNotNull(sd.getMethod(SERVICE_NAME + "/txB"));
@@ -140,7 +148,7 @@ final class GrpcServiceBuilderTest {
     @Test
     @DisplayName("Calling `transaction` with the same name twice is idempotent")
     void duplicateTransaction() {
-        final var sd = builder.transaction("txA").transaction("txA").build(metrics, 6144);
+        final var sd = builder.transaction("txA").transaction("txA").build(metrics, configProvider);
 
         assertNotNull(sd.getMethod(SERVICE_NAME + "/txA"));
     }
@@ -148,7 +156,7 @@ final class GrpcServiceBuilderTest {
     @Test
     @DisplayName("Calling `query` with the same name twice is idempotent")
     void duplicateQuery() {
-        final var sd = builder.query("qA").query("qA").build(metrics, 6144);
+        final var sd = builder.query("qA").query("qA").build(metrics, configProvider);
 
         assertNotNull(sd.getMethod(SERVICE_NAME + "/qA"));
     }
