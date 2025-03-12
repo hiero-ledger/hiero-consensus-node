@@ -9,9 +9,9 @@ import java.util.List;
 
 @ConfigData("jumboTransactions")
 public record JumboTransactionsConfig(
-        @ConfigProperty(value = "jumboTxnIsEnabled", defaultValue = "false") @NetworkProperty boolean jumboTxnIsEnabled,
-        @ConfigProperty(value = "jumboTxnSize", defaultValue = "133120") @NetworkProperty int jumboTxnSize,
-        @ConfigProperty(value = "jumboEthereumDataSize", defaultValue = "131072") @NetworkProperty
-                int jumboEthereumDataSize,
+        @ConfigProperty(value = "isEnabled", defaultValue = "false") @NetworkProperty boolean isEnabled,
+        @ConfigProperty(value = "maxTxnSize", defaultValue = "133120") @NetworkProperty int maxTxnSize,
+        @ConfigProperty(value = "ethereumMaxCallDataSize", defaultValue = "131072") @NetworkProperty
+                int ethereumMaxCallDataSize,
         @ConfigProperty(value = "grpcMethodNames", defaultValue = "callEthereum") @NodeProperty
-                List<String> jumboTxnGrpcMethodNames) {}
+                List<String> grpcMethodNames) {}
