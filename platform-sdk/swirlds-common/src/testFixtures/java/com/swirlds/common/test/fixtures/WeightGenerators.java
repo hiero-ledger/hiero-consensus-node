@@ -72,7 +72,7 @@ public final class WeightGenerators {
      * 		the nodes.
      * @return a list of weight values
      */
-    private static List<Long> balancedNodeWeights(final int numberOfNodes, final long totalWeight) {
+    public static List<Long> balancedNodeWeights(final int numberOfNodes, final long totalWeight) {
         final long weightPerNode = totalWeight / numberOfNodes;
         return Collections.nCopies(numberOfNodes, weightPerNode);
     }
@@ -164,37 +164,6 @@ public final class WeightGenerators {
     }
 
     /**
-     * Creates a list of node weights where three nodes have a strong minority of weight
-     * (evenly distributed) and the remaining weight is split evently among the remaining nodes.
-     *
-     * @param numberOfNodes
-     * 		the number of nodes to generate weight for. Minimum of 11 nodes is required to ensure that only one unique
-     * 		set of three nodes has a super minority based on the total weight of 90.
-     * @return test arguments
-     */
-    public static List<Long> threeNodesWithStrongMinority(final int numberOfNodes) {
-        if (numberOfNodes < 11 || numberOfNodes > 63) {
-            throw new IllegalArgumentException(String.format(
-                    "Invalid number of nodes: %s. Valid range is 11 - 63 for this weight distribution.",
-                    numberOfNodes));
-        }
-        final List<Long> nodeWeights = new ArrayList<>(numberOfNodes);
-
-        final int totalWeight = EASY_TO_READ_WEIGHT;
-        final int strongMinorityWeight = totalWeight / 3;
-
-        for (int nodeId = 0; nodeId < numberOfNodes; nodeId++) {
-            long weight = (totalWeight - strongMinorityWeight) / (numberOfNodes - 3);
-            if (nodeId < 3) {
-                // three nodes have a strong minority of weight
-                weight = strongMinorityWeight / 3;
-            }
-            nodeWeights.add(weight);
-        }
-        return nodeWeights;
-    }
-
-    /**
      * Creates a list of node weights where a single node has a strong minority of weight and
      * the remaining weight is evenly distributed among the remaining nodes.
      *
@@ -233,26 +202,6 @@ public final class WeightGenerators {
 
         for (int nodeId = 0; nodeId < numberOfNodes; nodeId++) {
             final long weight = nodeId + 1L;
-            nodeWeights.add(weight);
-        }
-        return nodeWeights;
-    }
-
-    /**
-     * Creates a list of node weights where a single node has zero weight and the remaining
-     * nodes are assigned an incrementing amount of weight.
-     *
-     * @return test arguments
-     */
-    public static List<Long> incrementingWeightWithOneZeroWeight(final int numberOfNodes) {
-        final List<Long> nodeWeights = new ArrayList<>(numberOfNodes);
-
-        for (int nodeId = 0; nodeId < numberOfNodes; nodeId++) {
-            long weight = nodeId + 1L;
-            if (nodeId == 0 && numberOfNodes > 1) {
-                // Add a zero weight node
-                weight = 0;
-            }
             nodeWeights.add(weight);
         }
         return nodeWeights;

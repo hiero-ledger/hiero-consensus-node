@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import com.swirlds.common.test.fixtures.GaussianWeightGenerator;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
@@ -168,8 +169,7 @@ class IssDetectorTests extends PlatformTest {
         final Randotron random = Randotron.create();
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(100)
-                .withAverageWeight(100)
-                .withWeightStandardDeviation(50)
+                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
                 .build();
 
         final PlatformContext platformContext = createDefaultPlatformContext();
@@ -253,8 +253,7 @@ class IssDetectorTests extends PlatformTest {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withAverageWeight(100)
-                .withWeightStandardDeviation(50)
+                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
                 .build();
 
         final PlatformContext platformContext = createDefaultPlatformContext();
@@ -448,8 +447,7 @@ class IssDetectorTests extends PlatformTest {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(100)
-                .withAverageWeight(100)
-                .withWeightStandardDeviation(50)
+                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
@@ -584,8 +582,7 @@ class IssDetectorTests extends PlatformTest {
                 .roundsNonAncient();
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(100)
-                .withAverageWeight(100)
-                .withWeightStandardDeviation(50)
+                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
@@ -683,8 +680,7 @@ class IssDetectorTests extends PlatformTest {
                 .roundsNonAncient();
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(100)
-                .withAverageWeight(100)
-                .withWeightStandardDeviation(50)
+                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
@@ -769,8 +765,7 @@ class IssDetectorTests extends PlatformTest {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(100)
-                .withAverageWeight(100)
-                .withWeightStandardDeviation(50)
+                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
                 .build();
 
         final PlatformContext platformContext = createDefaultPlatformContext();

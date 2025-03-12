@@ -2,6 +2,7 @@
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -109,8 +110,9 @@ final class ReconnectTest {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(numNodes)
-                .withAverageWeight(weightPerNode)
-                .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator(
+                        (l, i)->WeightGenerators.balancedNodeWeights(numNodes, weightPerNode*numNodes)
+                )
                 .build();
 
         try (final PairedStreams pairedStreams = new PairedStreams()) {

@@ -2,6 +2,7 @@
 package com.swirlds.platform.event.tipset;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -96,8 +97,7 @@ class TipsetTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
-                .withAverageWeight(1)
-                .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator(WeightGenerators.BALANCED)
                 .build();
 
         final NodeId selfId =
