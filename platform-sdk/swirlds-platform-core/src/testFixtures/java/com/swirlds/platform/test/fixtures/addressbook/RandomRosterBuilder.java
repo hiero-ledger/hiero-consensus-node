@@ -36,21 +36,6 @@ public class RandomRosterBuilder {
     private WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
 
     /**
-     * Describes different ways that the random roster has its weight distributed if the custom strategy lambda is
-     * unset.
-     */
-    public enum WeightDistributionStrategy {
-        /**
-         * All nodes have equal weight.
-         */
-        BALANCED,
-        /**
-         * Nodes are given weight with a gaussian distribution.
-         */
-        GAUSSIAN
-    }
-
-    /**
      * The minimum weight to give to any particular address.
      */
     private long minimumWeight = 0;
