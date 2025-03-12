@@ -1,25 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.state.PlatformStateModifier;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.SoftwareVersion;
-import java.time.Instant;
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
-import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
+import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.state.PlatformStateModifier;
+import com.swirlds.platform.system.BasicSoftwareVersion;
+import com.swirlds.platform.system.SoftwareVersion;
+import java.time.Instant;
+import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
