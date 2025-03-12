@@ -3,10 +3,9 @@ package com.swirlds.platform.test.fixtures.consensus.framework;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
+import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.EventConstants;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidation;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
@@ -14,6 +13,7 @@ import com.swirlds.platform.test.fixtures.gui.ListEventProvider;
 import com.swirlds.platform.test.fixtures.gui.TestGuiSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
@@ -108,16 +108,16 @@ public class ConsensusTestOrchestrator {
      * @param validations the validations to run
      */
     public void validate(final Validations validations) {
-        final ConsensusTestNode node1 = nodes.get(0);
+        final ConsensusTestNode node1 = nodes.getFirst();
         for (int i = 1; i < nodes.size(); i++) {
             final ConsensusTestNode node2 = nodes.get(i);
-            for (final ConsensusOutputValidation validator :
+            for (final BiConsumer<ConsensusOutput, ConsensusOutput> validator :
                     validations.getConsensusValidator().getOutputValidations()) {
-                validator.validate(node1.getOutput(), node2.getOutput());
+                validator.accept(node1.getOutput(), node2.getOutput());
             }
-            for (final ConsensusRoundValidation validator :
+            for (final BiConsumer<List<ConsensusRound>, List<ConsensusRound>> validator :
                     validations.getConsensusValidator().getRoundValidations()) {
-                validator.validate(
+                validator.accept(
                         node1.getOutput().getConsensusRounds(),
                         node2.getOutput().getConsensusRounds());
             }

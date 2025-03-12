@@ -8,7 +8,7 @@ import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 
-public class EventRatioValidation implements ConsensusOutputValidation {
+public class EventRatioValidation {
     /**
      * The minimum fraction of events (out of 1.0) that are expected to have reached consensus at
      * the end of the sequence.

@@ -10,7 +10,6 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
@@ -23,6 +22,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.BiConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -170,9 +170,9 @@ public class Turtle {
             final List<ConsensusRound> consensusRoundsForOtherNode =
                     otherNode.getConsensusRoundsHolder().getCollectedRounds();
 
-            for (final ConsensusRoundValidation validator :
+            for (final BiConsumer<List<ConsensusRound>, List<ConsensusRound>> validator :
                     validations.getConsensusValidator().getRoundValidations()) {
-                validator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
+                validator.accept(consensusRoundsForNode1, consensusRoundsForOtherNode);
             }
 
             otherNode.getConsensusRoundsHolder().clear();

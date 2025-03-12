@@ -13,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * This is a specific validator for consensus related tests. It allows defining custom validations related to
@@ -37,11 +38,11 @@ public class ConsensusValidator {
         NO_EVENTS_LOST
     }
 
-    private final Map<ConsensusValidationType, ConsensusOutputValidation> consensusOutputValidationsMap =
-            new EnumMap<>(ConsensusValidationType.class);
+    private final Map<ConsensusValidationType, BiConsumer<ConsensusOutput, ConsensusOutput>>
+            consensusOutputValidationsMap = new EnumMap<>(ConsensusValidationType.class);
 
-    private final Map<ConsensusValidationType, ConsensusRoundValidation> consensusRoundValidationsMap =
-            new EnumMap<>(ConsensusValidationType.class);
+    private final Map<ConsensusValidationType, BiConsumer<List<ConsensusRound>, List<ConsensusRound>>>
+            consensusRoundValidationsMap = new EnumMap<>(ConsensusValidationType.class);
 
     public static @NonNull ConsensusValidator newInstance() {
         return new ConsensusValidator();
@@ -74,7 +75,7 @@ public class ConsensusValidator {
      * Adds a ratio related validation for consensus output.
      */
     public @NonNull ConsensusValidator ratios(@NonNull final EventRatioValidation ratioValidation) {
-        consensusOutputValidationsMap.put(RATIOS, ratioValidation);
+        consensusOutputValidationsMap.put(RATIOS, ratioValidation::validate);
         return this;
     }
 
@@ -91,14 +92,14 @@ public class ConsensusValidator {
     /**
      * Initializes {@link ConsensusValidator} with only consensus output validations.
      */
-    public @NonNull List<ConsensusOutputValidation> getOutputValidations() {
+    public @NonNull List<BiConsumer<ConsensusOutput, ConsensusOutput>> getOutputValidations() {
         return consensusOutputValidationsMap.values().stream().toList();
     }
 
     /**
      * Returns validations related to consensus round.
      */
-    public @NonNull List<ConsensusRoundValidation> getRoundValidations() {
+    public @NonNull List<BiConsumer<List<ConsensusRound>, List<ConsensusRound>>> getRoundValidations() {
         return consensusRoundValidationsMap.values().stream().toList();
     }
 }

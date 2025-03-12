@@ -43,7 +43,6 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
-    requires("org.opentest4j")
     requiresStatic("com.github.spotbugs.annotations")
     requires("awaitility")
 }
