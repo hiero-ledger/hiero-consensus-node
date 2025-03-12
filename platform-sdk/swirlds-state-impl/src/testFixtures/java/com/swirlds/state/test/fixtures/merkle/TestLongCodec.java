@@ -20,17 +20,9 @@ import java.util.Objects;
 @Deprecated
 @SuppressWarnings("Singleton")
 public class TestLongCodec implements Codec<Long> {
-
     public static final TestLongCodec SINGLETON = new TestLongCodec();
 
-    private static final Long DEFAULT_VALUE = 0L;
-
     private TestLongCodec() {}
-
-    @Override
-    public Long getDefaultInstance() {
-        return DEFAULT_VALUE;
-    }
 
     @NonNull
     @Override
