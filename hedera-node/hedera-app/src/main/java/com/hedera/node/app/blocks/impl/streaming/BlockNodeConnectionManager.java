@@ -43,26 +43,32 @@ public class BlockNodeConnectionManager {
     private static final String GRPC_END_POINT =
             BlockStreamServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
 
-    private final Map<BlockNodeConfig, BlockNodeConnection> activeConnections;
-    private BlockNodeConfigExtractor blockNodeConfigurations;
-
+    private final Map<BlockNodeConfig, BlockNodeConnection> activeConnections = new ConcurrentHashMap<>();
     private final Object connectionLock = new Object();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService streamingExecutor = Executors.newSingleThreadExecutor();
+    private BlockNodeConfigExtractor blockNodeConfigurations;
+    private BlockStreamStateCleanUpTracker acknowledgementTracker;
 
     /**
      * Creates a new BlockNodeConnectionManager with the given configuration from disk.
      * @param configProvider the configuration provider
      */
-    public BlockNodeConnectionManager(@NonNull final ConfigProvider configProvider) {
+    public BlockNodeConnectionManager(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final BlockStreamStateManager blockStreamStateManager) {
         requireNonNull(configProvider);
-        this.activeConnections = new ConcurrentHashMap<>();
-
+        requireNonNull(blockStreamStateManager);
         final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
         if (!blockStreamConfig.streamToBlockNodes()) {
             return;
         }
         this.blockNodeConfigurations = new BlockNodeConfigExtractor(blockStreamConfig.blockNodeConnectionFileDir());
+        // Initialize the block acknowledgment tracker
+        this.acknowledgementTracker = new BlockStreamStateCleanUpTracker(
+                blockStreamStateManager,
+                blockNodeConfigurations.getAllNodes().size(),
+                blockStreamConfig.deleteFilesOnDisk());
     }
 
     /**
@@ -101,7 +107,8 @@ public class BlockNodeConnectionManager {
                                     .build())
                     .build());
 
-            BlockNodeConnection connection = new BlockNodeConnection(node, grpcServiceClient, this);
+            BlockNodeConnection connection =
+                    new BlockNodeConnection(node, grpcServiceClient, this, acknowledgementTracker);
             synchronized (connectionLock) {
                 activeConnections.put(node, connection);
             }

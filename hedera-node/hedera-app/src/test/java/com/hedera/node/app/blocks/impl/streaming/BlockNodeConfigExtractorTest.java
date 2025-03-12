@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.blocks.impl;
+package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConfigExtractor;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import java.nio.file.Files;
 import java.nio.file.Path;
