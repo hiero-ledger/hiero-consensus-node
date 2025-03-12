@@ -241,6 +241,8 @@ public class TransactionChecker {
         try {
             checkPrefixMismatch(txInfo.signatureMap().sigPair());
             checkTransactionBody(txInfo.txBody(), txInfo.functionality());
+            checkJumboTransactionBody(txInfo);
+
             return txInfo;
         } catch (PreCheckException e) {
             throw new DueDiligenceException(e.responseCode(), txInfo);
@@ -311,6 +313,23 @@ public class TransactionChecker {
 
         if (!txBody.hasTransactionValidDuration()) {
             throw new PreCheckException(INVALID_TRANSACTION_DURATION);
+        }
+    }
+
+    private void checkJumboTransactionBody(TransactionInfo txInfo) throws PreCheckException {
+        final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
+        final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
+        final var maxJumboEthereumCallDataSize = jumboTransactionsConfig.ethereumMaxCallDataSize();
+
+        if (jumboTxnEnabled
+            && txInfo.serializedTransaction().length() > hederaConfig.transactionMaxBytes()
+            && !allowedJumboHederaFunctionalities.contains(txInfo.txBody().data().kind())) {
+            throw new PreCheckException(TRANSACTION_OVERSIZE);
+        }
+
+        if (txInfo.txBody().hasEthereumTransaction()
+            && txInfo.txBody().ethereumTransaction().ethereumData().length() > maxJumboEthereumCallDataSize) {
+            throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
     }
 
