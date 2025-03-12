@@ -322,13 +322,14 @@ public class TransactionChecker {
         final var maxJumboEthereumCallDataSize = jumboTransactionsConfig.ethereumMaxCallDataSize();
 
         if (jumboTxnEnabled
-            && txInfo.serializedTransaction().length() > hederaConfig.transactionMaxBytes()
-            && !allowedJumboHederaFunctionalities.contains(txInfo.txBody().data().kind())) {
+                && txInfo.serializedTransaction().length() > hederaConfig.transactionMaxBytes()
+                && !allowedJumboHederaFunctionalities.contains(
+                        txInfo.txBody().data().kind())) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
 
         if (txInfo.txBody().hasEthereumTransaction()
-            && txInfo.txBody().ethereumTransaction().ethereumData().length() > maxJumboEthereumCallDataSize) {
+                && txInfo.txBody().ethereumTransaction().ethereumData().length() > maxJumboEthereumCallDataSize) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
     }
