@@ -120,7 +120,7 @@ public class RandomRosterBuilder {
             maximumWeight = Long.MAX_VALUE / size;
         }
         if (weightGenerator == null) {
-            if(weightDistributionStrategy == null){
+            if (weightDistributionStrategy == null) {
                 weightDistributionStrategy = WeightDistributionStrategy.GAUSSIAN;
             }
             weightGenerator = switch (weightDistributionStrategy) {
