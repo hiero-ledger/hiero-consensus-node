@@ -48,7 +48,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -1205,7 +1204,7 @@ public class EnhancedKeyStoreLoader {
                         String.format("s-private-%s.pem", RosterUtils.formatNodeName(nodeId)));
                 final Path ksLocation = legacyPrivateKeyStore(nodeId);
                 if (!Files.exists(sPrivateKeyLocation) && Files.exists(ksLocation)) {
-                    logger.info(
+                    logger.trace(
                             STARTUP.getMarker(),
                             "Extracting private signing key for nodeId: {} from file {}",
                             nodeId,
@@ -1221,7 +1220,7 @@ public class EnhancedKeyStoreLoader {
                                 ksLocation.getFileName());
                         errorCount.incrementAndGet();
                     } else {
-                        logger.info(
+                        logger.trace(
                                 STARTUP.getMarker(),
                                 "Writing private signing key for nodeId: {} to PEM file {}",
                                 nodeId,
@@ -1245,7 +1244,7 @@ public class EnhancedKeyStoreLoader {
                     keyStoreDirectory.resolve(String.format("s-public-%s.pem", RosterUtils.formatNodeName(nodeId)));
             final Path ksLocation = legacyCertificateStore();
             if (!Files.exists(sCertificateLocation) && Files.exists(ksLocation)) {
-                logger.info(
+                logger.trace(
                         STARTUP.getMarker(),
                         "Extracting signing certificate for nodeId: {} from file {} ",
                         nodeId,
@@ -1261,7 +1260,7 @@ public class EnhancedKeyStoreLoader {
                             ksLocation.getFileName());
                     errorCount.incrementAndGet();
                 } else {
-                    logger.info(
+                    logger.trace(
                             STARTUP.getMarker(),
                             "Writing signing certificate for nodeId: {} to PEM file {}",
                             nodeId,
@@ -1383,18 +1382,6 @@ public class EnhancedKeyStoreLoader {
      */
     private void cleanupByMovingPfxFilesToSubDirectory() throws KeyStoreException, KeyLoadingException {
         final AtomicLong cleanupErrorCount = new AtomicLong(0);
-        final AtomicBoolean doCleanup = new AtomicBoolean(false);
-        iterateAddressBook(addressBook, (nodeId, address) -> {
-            if (localNodes.contains(nodeId)) {
-                // move private key PFX files per local node
-                final File sPrivatePfx = legacyPrivateKeyStore(nodeId).toFile();
-                if (sPrivatePfx.exists() && sPrivatePfx.isFile()) {
-                    doCleanup.set(true);
-                }
-            }
-        });
-
-        if (!doCleanup.get()) return;
 
         final String archiveDirectory = ".archive";
         final String now = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss").format(LocalDateTime.now());
@@ -1403,6 +1390,7 @@ public class EnhancedKeyStoreLoader {
         final Path pfxDateDirectory = pfxArchiveDirectory.resolve(now);
 
         logger.info(STARTUP.getMarker(), "Cryptography Migration Cleanup: Moving PFX files to {}", pfxDateDirectory);
+
         if (!Files.exists(pfxDateDirectory)) {
             try {
                 if (!Files.exists(pfxArchiveDirectory)) {
