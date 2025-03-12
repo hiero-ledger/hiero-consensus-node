@@ -52,8 +52,12 @@ public interface VirtualRoot<K extends VirtualKey, V extends VirtualValue> exten
      */
     void waitUntilFlushed() throws InterruptedException;
 
-    default long estimatedSize() {
+    default long estimatedSizeInMemory() {
         return -1;
+    }
+
+    default long estimatedDataSize() {
+        return estimatedSizeInMemory();
     }
 
     /**
@@ -68,6 +72,8 @@ public interface VirtualRoot<K extends VirtualKey, V extends VirtualValue> exten
      * @return true if this copy has been merged
      */
     boolean isMerged();
+
+    void compact();
 
     /**
      * Check if the hash for this copy has already been computed.

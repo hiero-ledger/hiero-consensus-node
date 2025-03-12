@@ -179,11 +179,7 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
      */
     @Override
     public boolean shouldBeFlushed() {
-        if (shouldBeFlushed) {
-            return true;
-        }
-        final long flushThreshold = VIRTUAL_MAP_CONFIG.copyFlushThreshold();
-        return (flushThreshold > 0) && (estimatedSize() >= flushThreshold);
+        return shouldBeFlushed;
     }
 
     /**
@@ -254,7 +250,8 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
 
     private static boolean shouldBeFlushed(DummyVirtualRoot<?, ?> copy) {
         final long copyFlushThreshold = VIRTUAL_MAP_CONFIG.copyFlushThreshold();
-        return (copy.shouldBeFlushed()) || ((copyFlushThreshold > 0) && (copy.estimatedSize() >= copyFlushThreshold));
+        return (copy.shouldBeFlushed())
+                || ((copyFlushThreshold > 0) && (copy.estimatedSizeInMemory() >= copyFlushThreshold));
     }
 
     /**
@@ -323,6 +320,11 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
      */
     public void waitUntilMerged() throws InterruptedException {
         mergeLatch.await();
+    }
+
+    @Override
+    public void compact() {
+        // No-op
     }
 
     /**
@@ -415,7 +417,6 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
             releaseInIsDetached = false;
             release();
         }
-
         return detached;
     }
 
@@ -453,11 +454,11 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
     }
 
     @Override
-    public long estimatedSize() {
+    public long estimatedSizeInMemory() {
         return estimatedSize;
     }
 
-    public void setEstimatedSize(long value) {
+    public void setEstimatedSizeInMemory(long value) {
         estimatedSize = value;
     }
 }
