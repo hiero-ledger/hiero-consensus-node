@@ -49,17 +49,6 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
      */
     private static final int FILE_HEADER_SIZE =
             Integer.BYTES + Integer.BYTES + Long.BYTES + 1 + Long.BYTES + Long.BYTES + Integer.BYTES;
-    /**
-     * A suitable default value for the number of hashes to store per {@link ByteBuffer}.
-     */
-    private static final int DEFAULT_NUM_HASHES_PER_BUFFER = 1_000_000;
-
-    /**
-     * A suitable default value for the maximum number of hashes to store in a single instance
-     * of {@link HashListByteBuffer}. This is to prevent a bug from creating off-heap stores that
-     * are ridiculously large.
-     */
-    private static final long DEFAULT_MAX_HASHES_TO_STORE = 10_000_000_000L;
 
     /**
      * A copy-on-write list of buffers of data. Expands as needed to store buffers of hashes.
@@ -106,19 +95,12 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
     private final boolean offHeap;
 
     /**
-     * Create a new off-heap {@link HashListByteBuffer} with default number of hashes per buffer and max capacity.
-     */
-    public HashListByteBuffer() {
-        this(DEFAULT_NUM_HASHES_PER_BUFFER, DEFAULT_MAX_HASHES_TO_STORE, true);
-    }
-
-    /**
      * Create a {@link HashListByteBuffer} from a file that was saved.
      *
      * @throws IOException
      * 		If there was a problem reading the file
      */
-    public HashListByteBuffer(Path file) throws IOException {
+    public HashListByteBuffer(final Path file, final long expectedMaxHashes) throws IOException {
         try (FileChannel fc = FileChannel.open(file, StandardOpenOption.READ)) {
             // read header
             ByteBuffer headerBuffer = ByteBuffer.allocate(FILE_HEADER_SIZE);
@@ -126,12 +108,16 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
             headerBuffer.rewind();
             final int formatVersion = headerBuffer.getInt();
             if (formatVersion != FILE_FORMAT_VERSION) {
-                throw new IOException("Tried to read a file with incompatible file format version [" + formatVersion
-                        + "], expected [" + FILE_FORMAT_VERSION + "].");
+                throw new IOException("Tried to read a file with incompatible file format version " + "["
+                        + formatVersion + "], expected [" + FILE_FORMAT_VERSION + "].");
             }
             numHashesPerBuffer = headerBuffer.getInt();
             memoryBufferSize = numHashesPerBuffer * HASH_SIZE_BYTES;
             maxHashes = headerBuffer.getLong();
+            if (maxHashes != expectedMaxHashes) {
+                throw new IllegalArgumentException(
+                        "Max hashes mismatch, " + "expected=" + expectedMaxHashes + ", loaded=" + maxHashes);
+            }
             offHeap = headerBuffer.get() == 1;
             maxIndexThatCanBeStored.set(headerBuffer.getLong());
             numberOfHashesStored.set(headerBuffer.getLong());
