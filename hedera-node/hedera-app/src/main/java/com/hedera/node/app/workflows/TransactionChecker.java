@@ -136,12 +136,12 @@ public class TransactionChecker {
     }
 
     private void validateTheBufferSize(Bytes buffer) throws PreCheckException {
-        final var jumboTxnEnabled = jumboTransactionsConfig.jumboTxnIsEnabled();
-        final var maxJumboTxnSize = jumboTransactionsConfig.jumboTxnSize();
+        final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
+        final var jumboMaxTxnSize = jumboTransactionsConfig.maxTxnSize();
         final var transactionMaxBytes = hederaConfig.transactionMaxBytes();
 
         // Fail fast if there are too many transaction bytes
-        final var maxSize = jumboTxnEnabled ? maxJumboTxnSize : transactionMaxBytes;
+        final var maxSize = jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
         if (buffer.length() > maxSize) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
