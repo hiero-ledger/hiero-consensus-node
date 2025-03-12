@@ -54,6 +54,15 @@ public final class VirtualMerkleStateInitializer {
     private static final Logger logger = LogManager.getLogger(VirtualMerkleStateInitializer.class);
     private static final Marker LOGM_DEMO_INFO = LogMarker.DEMO_INFO.getMarker();
 
+    /*
+     * This capacity is somewhat arbitrary, but it is a reasonable limit for all the PTT tests that we have.
+     * An exact number would have to be calculated like this:
+     * (number of nodes) * (number of TYPE_VIRTUAL_MERKLE_CREATE config entries) * (amount specified in each config entry)
+     *
+     * Even though it's possible to calculate the exact number, it's not necessary for the PTT tests, so we just use the constant.
+     */
+    private static final Integer MAX_LIST_CAPACITY = 1_000_000;
+
     private VirtualMerkleStateInitializer() {}
 
     /**
@@ -113,7 +122,7 @@ public final class VirtualMerkleStateInitializer {
     }
 
     private static VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> createAccountsVM(final long numOfKeys) {
-        TABLE_CONFIG.maxNumberOfKeys(numOfKeys);
+        TABLE_CONFIG.maxNumberOfKeys(MAX_LIST_CAPACITY);
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(TABLE_CONFIG, CONFIGURATION);
         return new VirtualMap<>(
                 "accounts",
@@ -124,7 +133,7 @@ public final class VirtualMerkleStateInitializer {
     }
 
     private static VirtualMap<SmartContractMapKey, SmartContractMapValue> createSmartContractsVM(final long numOfKeys) {
-        TABLE_CONFIG.maxNumberOfKeys(numOfKeys);
+        TABLE_CONFIG.maxNumberOfKeys(MAX_LIST_CAPACITY);
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(TABLE_CONFIG, CONFIGURATION);
         return new VirtualMap<>(
                 "smartContracts",
@@ -136,7 +145,7 @@ public final class VirtualMerkleStateInitializer {
 
     private static VirtualMap<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue> createSmartContractByteCodeVM(
             final long numOfKeys) {
-        TABLE_CONFIG.maxNumberOfKeys(numOfKeys);
+        TABLE_CONFIG.maxNumberOfKeys(MAX_LIST_CAPACITY);
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(TABLE_CONFIG, CONFIGURATION);
         return new VirtualMap<>(
                 "smartContractByteCode",
