@@ -77,7 +77,8 @@ class ConnectionServerTest {
 
         final InboundConnectionHandler handler = mock(InboundConnectionHandler.class);
 
-        final PeerConnectionServer server = new PeerConnectionServer(0, handler, socketFactory);
+        final PeerConnectionServer server =
+                new PeerConnectionServer(getStaticThreadManager(), 0, handler, socketFactory, 1);
 
         server.run();
 

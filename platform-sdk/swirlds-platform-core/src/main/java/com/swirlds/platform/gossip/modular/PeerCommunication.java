@@ -19,6 +19,7 @@ import com.swirlds.platform.network.ConnectionTracker;
 import com.swirlds.platform.network.NetworkMetrics;
 import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.PeerInfo;
+import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.platform.network.communication.NegotiationProtocols;
 import com.swirlds.platform.network.communication.ProtocolNegotiatorThread;
 import com.swirlds.platform.network.connectivity.InboundConnectionHandler;
@@ -278,7 +279,15 @@ public class PeerCommunication implements ConnectionTracker {
         // thus not allowing anyone to connect to the node from outside the local network, which we'd have noticed.
         var socketFactory =
                 NetworkUtils.createSocketFactory(selfId, peers, keysAndCerts, platformContext.getConfiguration());
-        return new PeerConnectionServer(selfPeer.port(), inboundConnectionHandler, socketFactory);
+        return new PeerConnectionServer(
+                threadManager,
+                selfPeer.port(),
+                inboundConnectionHandler,
+                socketFactory,
+                platformContext
+                        .getConfiguration()
+                        .getConfigData(SocketConfig.class)
+                        .maxSocketAcceptThreads());
     }
 
     /**

@@ -3,7 +3,9 @@ package com.swirlds.platform.gossip.modular;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
+import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.threading.interrupt.InterruptableRunnable;
+import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.connectivity.InboundConnectionHandler;
 import com.swirlds.platform.network.connectivity.SocketFactory;
@@ -12,6 +14,10 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -29,17 +35,33 @@ public class PeerConnectionServer implements InterruptableRunnable {
     private final SocketFactory socketFactory;
     /** handles newly established connections */
     private InboundConnectionHandler newConnectionHandler;
+    /** a thread pool used to handle incoming connections - we need it, as ssl handshake takes long */
+    private final ExecutorService incomingConnPool;
 
     /**
+     * @param threadManager            responsible for managing thread lifecycles
      * @param port                     the port ot use
      * @param inboundConnectionHandler handles a new connection after it has been created
      * @param socketFactory            responsible for creating new sockets
      */
     public PeerConnectionServer(
-            int port, InboundConnectionHandler inboundConnectionHandler, SocketFactory socketFactory) {
+            final ThreadManager threadManager,
+            int port,
+            InboundConnectionHandler inboundConnectionHandler,
+            SocketFactory socketFactory,
+            int maxThreads) {
         this.port = port;
         this.newConnectionHandler = inboundConnectionHandler;
         this.socketFactory = socketFactory;
+        this.incomingConnPool = new ThreadPoolExecutor(
+                1,
+                maxThreads,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<Runnable>(),
+                new ThreadConfiguration(threadManager)
+                        .setThreadName("sync_server")
+                        .buildFactory());
     }
 
     @Override
@@ -61,11 +83,7 @@ public class PeerConnectionServer implements InterruptableRunnable {
         while (!serverSocket.isClosed()) {
             try {
                 final Socket clientSocket = serverSocket.accept(); // listen, waiting until someone connects
-                InboundConnectionHandler handler;
-                synchronized (this.socketFactory) {
-                    handler = newConnectionHandler;
-                }
-                handler.handle(clientSocket);
+                incomingConnPool.submit(() -> newConnectionHandler.handle(clientSocket));
             } catch (final SocketTimeoutException expectedWithNonZeroSOTimeout) {
                 // A timeout is expected, so we won't log it
                 if (Thread.currentThread().isInterrupted()) {
@@ -81,7 +99,7 @@ public class PeerConnectionServer implements InterruptableRunnable {
     /**
      * Update information about possible peers
      *
-     * @param peers    new list of all peers
+     * @param peers new list of all peers
      */
     public void replacePeers(List<PeerInfo> peers) {
         // there is no good way to synchronize these two field updates versus accept/handle in listen method
