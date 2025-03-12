@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.addressbook;
 
-import com.swirlds.common.test.fixtures.GaussianWeightGenerator;
-import com.swirlds.common.test.fixtures.WeightGenerator;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.test.fixtures.GaussianWeightGenerator;
+import com.swirlds.common.test.fixtures.WeightGenerator;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.crypto.PublicStores;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
@@ -101,7 +101,7 @@ public class RandomRosterBuilder {
         this.random = Objects.requireNonNull(random);
     }
 
-    private void checkConstraints(){
+    private void checkConstraints() {
         if (weightDistributionStrategy != null && weightGenerator != null) {
             throw new IllegalStateException("Weight generator and weight distribution strategy cannot be both set");
         }
@@ -119,15 +119,15 @@ public class RandomRosterBuilder {
             // We don't want the total weight to overflow a long
             maximumWeight = Long.MAX_VALUE / size;
         }
-        if(weightGenerator == null) {
+        if (weightGenerator == null) {
             weightGenerator = switch (weightDistributionStrategy) {
                 case BALANCED -> (l, i) -> WeightGenerators.balancedNodeWeights(size, size * 1000L);
-                case GAUSSIAN -> new GaussianWeightGenerator(1000, 100);
-            };
+                case GAUSSIAN -> new GaussianWeightGenerator(1000, 100);};
         }
 
         final List<Long> weights = weightGenerator.getWeights(random.nextLong(), size).stream()
-                .map(this::applyWeightBounds).toList();
+                .map(this::applyWeightBounds)
+                .toList();
         builder.rosterEntries(IntStream.range(0, size)
                 .mapToObj(index -> {
                     final NodeId nodeId = getNextNodeId();
