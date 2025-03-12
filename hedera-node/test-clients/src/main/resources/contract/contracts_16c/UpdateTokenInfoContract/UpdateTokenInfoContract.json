@@ -1,0 +1,429 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "name": "CallResponseEvent",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenID",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "treasury",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "_name",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_symbol",
+        "type": "string"
+      }
+    ],
+    "name": "checkNameAndSymbolLength",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "keyType",
+        "type": "uint256"
+      }
+    ],
+    "name": "getKeyFromToken",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "inheritAccountKey",
+            "type": "bool"
+          },
+          {
+            "internalType": "address",
+            "name": "contractId",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "ed25519",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "ECDSA_secp256k1",
+            "type": "bytes"
+          },
+          {
+            "internalType": "address",
+            "name": "delegatableContractId",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IHederaTokenService.KeyValue",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "encodedFunctionSelector",
+        "type": "bytes"
+      }
+    ],
+    "name": "redirectForToken",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "responseCode",
+        "type": "int256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "response",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "ed25519",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "ecdsa",
+        "type": "bytes"
+      },
+      {
+        "internalType": "address",
+        "name": "contractID",
+        "type": "address"
+      }
+    ],
+    "name": "tokenUpdateKeys",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "transferFrom",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "serialNumber",
+        "type": "uint256"
+      }
+    ],
+    "name": "transferFromNFT",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "nftToken",
+        "type": "address"
+      },
+      {
+        "internalType": "int64[]",
+        "name": "serialNumbers",
+        "type": "int64[]"
+      },
+      {
+        "internalType": "bytes",
+        "name": "metadata",
+        "type": "bytes"
+      }
+    ],
+    "name": "updateNFTsMetadata",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenID",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "treasury",
+        "type": "address"
+      }
+    ],
+    "name": "updateTokenTreasury",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenID",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "treasury",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "ed25519",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "ecdsa",
+        "type": "bytes"
+      },
+      {
+        "internalType": "address",
+        "name": "contractID",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "autoRenewAccount",
+        "type": "address"
+      },
+      {
+        "internalType": "int64",
+        "name": "autoRenewPeriod",
+        "type": "int64"
+      },
+      {
+        "internalType": "string",
+        "name": "_name",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_symbol",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_memo",
+        "type": "string"
+      }
+    ],
+    "name": "updateTokenWithAllFields",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenID",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "autoRenewAccount",
+        "type": "address"
+      },
+      {
+        "internalType": "int64",
+        "name": "autoRenewPeriod",
+        "type": "int64"
+      }
+    ],
+    "name": "updateTokenWithInvalidKeyValues",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenID",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "treasury",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "ed25519",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "ecdsa",
+        "type": "bytes"
+      },
+      {
+        "internalType": "address",
+        "name": "contractID",
+        "type": "address"
+      }
+    ],
+    "name": "updateTokenWithKeys",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenID",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "treasury",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "ed25519",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "ecdsa",
+        "type": "bytes"
+      },
+      {
+        "internalType": "address",
+        "name": "contractID",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "autoRenewAccount",
+        "type": "address"
+      },
+      {
+        "internalType": "int64",
+        "name": "autoRenewPeriod",
+        "type": "int64"
+      }
+    ],
+    "name": "updateTokenWithoutNameSymbolMemo",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  }
+]
