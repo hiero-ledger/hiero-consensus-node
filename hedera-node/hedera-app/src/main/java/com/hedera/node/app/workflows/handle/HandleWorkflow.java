@@ -239,13 +239,11 @@ public class HandleWorkflow {
             blockStreamManager.writeItem(BlockItem.newBuilder()
                     .roundHeader(new RoundHeader(round.getRoundNum()))
                     .build());
-            logger.info("RoundHeader");
             if (!migrationStateChanges.isEmpty()) {
                 migrationStateChanges.forEach(builder -> blockStreamManager.writeItem(BlockItem.newBuilder()
                         .stateChanges(builder.consensusTimestamp(blockStreamManager.blockTimestamp())
                                 .build())
                         .build()));
-                logger.info("migrationStateChanges.isEmpty()}");
                 migrationStateChanges.clear();
             }
         }
@@ -253,7 +251,6 @@ public class HandleWorkflow {
         try {
             handleEvents(state, round, stateSignatureTxnCallback);
         } finally {
-            logger.info("commitRoundReceipts");
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
             recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
@@ -273,7 +270,6 @@ public class HandleWorkflow {
             @NonNull final Round round,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         boolean userTransactionsHandled = false;
-        logger.info("handleEvents");
         for (final var event : round) {
             if (streamMode != RECORDS) {
                 final var headerItem = BlockItem.newBuilder()
@@ -385,7 +381,8 @@ public class HandleWorkflow {
         } else if (streamMode != BLOCKS && startsNewRecordFile) {
             blockRecordManager.startUserTransaction(consensusNow, state);
         }
-        logger.info("userTxnFactory.createUserTxn");
+
+        //        logger.info("Functionality - {}", userTxn.functionality());
 
         var lastRecordManagerTime = streamMode == RECORDS ? blockRecordManager.consTimeOfLastHandledTxn() : null;
         final var handleOutput = executeTopLevel(userTxn, txnVersion, state);

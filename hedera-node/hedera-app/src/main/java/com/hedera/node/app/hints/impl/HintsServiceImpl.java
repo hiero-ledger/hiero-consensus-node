@@ -21,10 +21,10 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,8 +41,8 @@ public class HintsServiceImpl implements HintsService {
 
     private final HintsLibrary library;
 
-    @Nullable
-    private Roster currentRoster;
+    @NonNull
+    private final AtomicReference<Roster> currentRoster = new AtomicReference<>();
 
     public HintsServiceImpl(
             @NonNull final Metrics metrics,
@@ -54,7 +54,7 @@ public class HintsServiceImpl implements HintsService {
         this.library = requireNonNull(library);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
-                .create(library, appContext, executor, metrics);
+                .create(library, appContext, executor, metrics, currentRoster);
     }
 
     @VisibleForTesting
@@ -94,9 +94,7 @@ public class HintsServiceImpl implements HintsService {
             }
             case HANDOFF -> hintsStore.updateForHandoff(activeRosters);
         }
-        if (currentRoster == null) {
-            currentRoster = activeRosters.findRelatedRoster(activeRosters.currentRosterHash());
-        }
+        currentRoster.set(activeRosters.findRelatedRoster(activeRosters.currentRosterHash()));
     }
 
     @Override
@@ -112,7 +110,6 @@ public class HintsServiceImpl implements HintsService {
         }
         // Do the work needed to set the CRS for network and start the preprocessing vote
         if (hintsStore.getCrsState().stage() != COMPLETED) {
-            logger.info("Executing CRS work for {}", hintsStore.getCrsState().stage());
             controller.get().advanceCRSWork(now, hintsStore, isActive);
         }
     }
@@ -130,6 +127,10 @@ public class HintsServiceImpl implements HintsService {
     @Override
     public void removeSigning(final Bytes bytes) {
         component.signings().remove(bytes);
+        logger.info(
+                "Removed signing {} - map {}",
+                bytes.toString(),
+                component.signings().keySet());
     }
 
     @Override
@@ -152,7 +153,7 @@ public class HintsServiceImpl implements HintsService {
         }
         final var signing = component.signings().computeIfAbsent(blockHash, b -> component
                 .signingContext()
-                .newSigning(b, requireNonNull(currentRoster)));
+                .newSigning(b, requireNonNull(currentRoster.get())));
         component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
             logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
             return null;

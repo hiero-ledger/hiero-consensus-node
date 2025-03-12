@@ -13,7 +13,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -62,7 +61,6 @@ public class TssBlockHashSigner implements BlockHashSigner {
     private static final Logger log = LogManager.getLogger(TssBlockHashSigner.class);
 
     public static final String SIGNER_READY_MSG = "TSS protocol ready to sign blocks";
-    public static final AtomicBoolean LOGGED_READY = new AtomicBoolean(false);
 
     @Nullable
     private final HintsService hintsService;
@@ -83,14 +81,13 @@ public class TssBlockHashSigner implements BlockHashSigner {
 
     @Override
     public boolean isReady() {
-        //        final boolean answer = (hintsService == null || hintsService.isReady())
-        //                && (historyService == null || historyService.isReady());
-        final var isReady = LOGGED_READY.get();
-        if (isReady && !loggedReady) {
+        final boolean answer = (hintsService == null || hintsService.isReady())
+                && (historyService == null || historyService.isReady());
+        if (answer && !loggedReady) {
             log.info(SIGNER_READY_MSG);
             loggedReady = true;
         }
-        return isReady;
+        return answer;
     }
 
     @Override
@@ -102,7 +99,7 @@ public class TssBlockHashSigner implements BlockHashSigner {
         final CompletableFuture<Bytes> result;
 
         if (historyService == null) {
-            if (true || hintsService == null) {
+            if (hintsService == null) {
                 result = CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash));
             } else {
                 result = hintsService.signFuture(blockHash);
@@ -117,7 +114,7 @@ public class TssBlockHashSigner implements BlockHashSigner {
         return hintsService == null
                 ? result
                 : result.thenApply(bytes -> {
-                    hintsService.removeSigning(bytes);
+                    hintsService.removeSigning(blockHash);
                     return bytes;
                 });
     }

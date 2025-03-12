@@ -65,6 +65,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -318,7 +319,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
         if (shouldCloseBlock(roundNum, roundsPerBlock)) {
-            log.info("shouldCloseBlock");
             // If there were no user or node transactions in the block, this writes all
             // the accumulated items starting from the header, sacrificing the benefits
             // of concurrency; but performance impact is irrelevant when there are no
@@ -329,26 +329,23 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Flush all boundary state changes besides the BlockStreamInfo
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
-            log.info("After  worker.sync()");
-            final var inputHash = inputTreeHasher.rootHash().join();
-            log.info("After  inputHash {}", lastNonEmptyRoundNumber);
+
+            final var inputHash =
+                    inputTreeHasher.rootHash().orTimeout(5, TimeUnit.SECONDS).join();
             // This block's starting state hash is the end state hash of the last non-empty round
             final var blockStartStateHash = requireNonNull(endRoundStateHashes.get(lastNonEmptyRoundNumber))
+                    .orTimeout(5, TimeUnit.SECONDS)
                     .join();
-            log.info("After  blockStartStateHash");
             // Now forget that hash, since it's been used
             endRoundStateHashes.remove(lastNonEmptyRoundNumber);
-            log.info("After   endRoundStateHashes.remove");
             // And update the last non-empty round number to this round
             lastNonEmptyRoundNumber = roundNum;
-            log.info("After   lastNonEmptyRoundNumber");
             final var outputTreeStatus = outputTreeHasher.status();
-            log.info("After   outputTreeStatus");
+
             // Put this block hash context in state via the block stream info
             final var writableState = state.getWritableStates(BlockStreamService.NAME);
             final var blockStreamInfoState = writableState.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY);
             final var boundaryTimestamp = boundaryStateChangeListener.boundaryTimestampOrThrow();
-            log.info("Before blockStreamInfoState.put");
             blockStreamInfoState.put(new BlockStreamInfo(
                     blockNumber,
                     blockTimestamp(),
@@ -367,9 +364,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
-            log.info("After  worker.sync() 2");
 
-            final var outputHash = outputTreeHasher.rootHash().join();
+            final var outputHash =
+                    outputTreeHasher.rootHash().orTimeout(5, TimeUnit.SECONDS).join();
             final var leftParent = combine(lastBlockHash, inputHash);
             final var rightParent = combine(outputHash, blockStartStateHash);
             final var blockHash = combine(leftParent, rightParent);

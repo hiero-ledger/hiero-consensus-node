@@ -25,7 +25,6 @@ import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.ReadableHintsStore.HintsKeyPublication;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.roster.RosterTransitionWeights;
-import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -262,7 +261,6 @@ public class HintsControllerImpl implements HintsController {
                         .stage(COMPLETED)
                         .contributionEndTime((Timestamp) null)
                         .build();
-                TssBlockHashSigner.LOGGED_READY.set(true);
                 hintsStore.setCRSState(updatedState);
                 log.info("CRS construction COMPLETED");
             }
