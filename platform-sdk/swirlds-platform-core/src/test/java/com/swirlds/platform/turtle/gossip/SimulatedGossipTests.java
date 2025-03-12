@@ -6,7 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -79,7 +81,7 @@ class SimulatedGossipTests {
 
         // Wire things up
         for (final NodeId nodeId : addressBook.getNodeIdSet()) {
-            final WiringModel model = WiringModelBuilder.create(context)
+            final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                     .withDeterministicModeEnabled(true)
                     .build();
 

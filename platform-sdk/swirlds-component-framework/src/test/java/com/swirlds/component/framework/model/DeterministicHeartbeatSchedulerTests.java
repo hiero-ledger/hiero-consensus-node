@@ -5,8 +5,8 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerB
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import java.time.Duration;
@@ -19,12 +19,9 @@ public class DeterministicHeartbeatSchedulerTests {
     @Test
     void heartbeatByFrequencyTest() {
         final FakeTime time = new FakeTime();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
-        final DeterministicWiringModel model = WiringModelBuilder.create(platformContext)
+        final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                 .withDeterministicModeEnabled(true)
                 .build();
-        ;
 
         final TaskScheduler<Void> scheduler =
                 model.<Void>schedulerBuilder("test").build();
@@ -50,12 +47,9 @@ public class DeterministicHeartbeatSchedulerTests {
     @Test
     void heartbeatByPeriodTest() {
         final FakeTime time = new FakeTime();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
-        final DeterministicWiringModel model = WiringModelBuilder.create(platformContext)
+        final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                 .withDeterministicModeEnabled(true)
                 .build();
-        ;
 
         final TaskScheduler<Void> scheduler =
                 model.<Void>schedulerBuilder("test").build();
@@ -81,12 +75,9 @@ public class DeterministicHeartbeatSchedulerTests {
     @Test
     void heartbeatsAtDifferentRates() {
         final FakeTime time = new FakeTime();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
-        final DeterministicWiringModel model = WiringModelBuilder.create(platformContext)
+        final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                 .withDeterministicModeEnabled(true)
                 .build();
-        ;
 
         final TaskScheduler<Void> scheduler = model.<Void>schedulerBuilder("test")
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
