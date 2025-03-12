@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -369,5 +369,14 @@ public class FrameUtils {
     private static boolean isQualifiedDelegate(@NonNull final Address recipient, @NonNull final MessageFrame frame) {
         return isLongZero(recipient)
                 && contractsConfigOf(frame).permittedDelegateCallers().contains(numberOfLongZero(recipient));
+    }
+
+    public static boolean isPrecompileEnabled(
+            @NonNull final Address precompileAddress, @NonNull final MessageFrame frame) {
+        return contractsConfigOf(frame).disabledPrecompiles().stream()
+                .map(Address::precompiled)
+                .filter(precompileAddress::equals)
+                .findAny()
+                .isEmpty();
     }
 }

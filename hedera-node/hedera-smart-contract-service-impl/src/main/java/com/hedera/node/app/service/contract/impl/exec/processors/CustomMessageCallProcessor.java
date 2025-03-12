@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExcep
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateTranslator.createSelectorsMap;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.acquiredSenderAuthorizationViaDelegateCall;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.alreadyHalted;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isPrecompileEnabled;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isTopLevelTransaction;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.recordBuilderFor;
@@ -140,7 +141,12 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             return;
         }
 
-        final var evmPrecompile = precompiles.get(codeAddress);
+        var evmPrecompile = precompiles.get(codeAddress);
+        if (evmPrecompile != null && !isPrecompileEnabled(codeAddress, frame)) {
+            // disable precompile if so configured.
+            evmPrecompile = null;
+        }
+
         // Check to see if the code address is a system account and possibly halt
         if (addressChecks.isSystemAccount(codeAddress)) {
             doHaltIfInvalidSystemCall(frame, tracer);

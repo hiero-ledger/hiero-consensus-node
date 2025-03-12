@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2023-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,6 +56,8 @@ import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.OpcodeUtils;
 import com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayDeque;
 import java.util.Arrays;
@@ -391,6 +393,47 @@ class FrameUtilsTest {
         given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
         assertTrue(FrameUtils.contractRequired(frame, Address.fromHexString("0xFFFFFFFFFFFFFFFF"), featureFlags));
         verify(featureFlags).isAllowCallsToNonContractAccountsEnabled(DEFAULT_CONTRACTS_CONFIG, null);
+    }
+
+    @Test
+    void configuredPrecompileShouldBeDisabled() {
+        Configuration DISABLED_PRECOMPILE_CONFIG = HederaTestConfigBuilder.create()
+                .withValue("contracts.precompile.disabled", "2,4")
+                .getOrCreateConfig();
+        givenNonInitialFrame();
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DISABLED_PRECOMPILE_CONFIG);
+
+        var shouldBeFalse = FrameUtils.isPrecompileEnabled(Address.precompiled(2), frame);
+        assertFalse(shouldBeFalse);
+
+        shouldBeFalse = FrameUtils.isPrecompileEnabled(Address.precompiled(4), frame);
+        assertFalse(shouldBeFalse);
+
+        var shouldBeTrue = FrameUtils.isPrecompileEnabled(Address.precompiled(1), frame);
+        assertTrue(shouldBeTrue);
+
+        shouldBeTrue = FrameUtils.isPrecompileEnabled(Address.precompiled(3), frame);
+        assertTrue(shouldBeTrue);
+
+        shouldBeTrue = FrameUtils.isPrecompileEnabled(Address.precompiled(8), frame);
+        assertTrue(shouldBeTrue);
+    }
+
+    @Test
+    void allPrecompileEnabledIfDisabledListEmpty() {
+        Configuration DISABLED_PRECOMPILE_CONFIG = HederaTestConfigBuilder.create()
+                .withValue("contracts.precompile.disabled", "")
+                .getOrCreateConfig();
+        givenNonInitialFrame();
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DISABLED_PRECOMPILE_CONFIG);
+
+        boolean shouldBeTrue;
+        for (int i = 1; i < 10; i++) {
+            shouldBeTrue = FrameUtils.isPrecompileEnabled(Address.precompiled(3), frame);
+            assertTrue(shouldBeTrue);
+        }
     }
 
     void givenNonInitialFrame() {
