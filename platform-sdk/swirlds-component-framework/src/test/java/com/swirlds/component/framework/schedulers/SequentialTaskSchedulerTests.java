@@ -39,6 +39,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.RepetitionInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -1207,9 +1209,9 @@ class SequentialTaskSchedulerTests {
         model.stop();
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void exceptionHandlingTest(final String typeString) {
+    @RepeatedTest(1000)
+    void exceptionHandlingTest(final RepetitionInfo info) {
+        final String typeString = (info.getCurrentRepetition() % 2 == 0) ? "SEQUENTIAL" : "SEQUENTIAL_THREAD";
         final WiringModel model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
@@ -1244,7 +1246,8 @@ class SequentialTaskSchedulerTests {
         }
 
         assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-        assertEquals(1, exceptionCount.get());
+        assertEventuallyEquals(
+                1, exceptionCount::get, Duration.ofSeconds(10), "Exception handler did not update the expected value");
 
         model.stop();
     }
