@@ -193,7 +193,7 @@ public class HintsContext {
                 final long nodeId,
                 @NonNull final Bytes signature) {
             requireNonNull(signature);
-            if(completed.get()) {
+            if (completed.get()) {
                 return;
             }
             final var partyId = partyIds.get(nodeId);
@@ -211,7 +211,7 @@ public class HintsContext {
                         final var aggregatedSignature =
                                 library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
                         future.complete(aggregatedSignature);
-//                        log.info("Completed signature for {}", message);
+                        //                        log.info("Completed signature for {}", message);
                     }
                 }
             }

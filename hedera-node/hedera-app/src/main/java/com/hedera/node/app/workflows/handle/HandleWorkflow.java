@@ -103,7 +103,6 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -112,7 +111,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -378,8 +376,7 @@ public class HandleWorkflow {
             type = switch (blockStreamManager.pendingWork()) {
                 case GENESIS_WORK -> GENESIS_TRANSACTION;
                 case POST_UPGRADE_WORK -> POST_UPGRADE_TRANSACTION;
-                default -> ORDINARY_TRANSACTION;
-            };
+                default -> ORDINARY_TRANSACTION;};
         }
         final var userTxn =
                 userTxnFactory.createUserTxn(state, creator, txn, consensusNow, type, stateSignatureTxnCallback);
@@ -919,7 +916,7 @@ public class HandleWorkflow {
             if (tssConfig.historyEnabled()) {
                 final Bytes currentMetadata = tssConfig.hintsEnabled()
                         ? new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME))
-                        .getActiveVerificationKey()
+                                .getActiveVerificationKey()
                         : HintsService.DISABLED_HINTS_METADATA;
                 final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
                 final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);

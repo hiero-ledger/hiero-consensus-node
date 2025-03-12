@@ -14,7 +14,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -84,8 +83,8 @@ public class TssBlockHashSigner implements BlockHashSigner {
 
     @Override
     public boolean isReady() {
-//        final boolean answer = (hintsService == null || hintsService.isReady())
-//                && (historyService == null || historyService.isReady());
+        //        final boolean answer = (hintsService == null || hintsService.isReady())
+        //                && (historyService == null || historyService.isReady());
         final var isReady = LOGGED_READY.get();
         if (isReady && !loggedReady) {
             log.info(SIGNER_READY_MSG);
@@ -103,8 +102,8 @@ public class TssBlockHashSigner implements BlockHashSigner {
         final CompletableFuture<Bytes> result;
 
         if (historyService == null) {
-            if (hintsService == null) {
-                result =  CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash));
+            if (true || hintsService == null) {
+                result = CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash));
             } else {
                 result = hintsService.signFuture(blockHash);
             }
@@ -115,9 +114,11 @@ public class TssBlockHashSigner implements BlockHashSigner {
                 result = hintsService.signFuture(blockHash);
             }
         }
-        return hintsService == null ? result : result.thenApply(bytes -> {
-            hintsService.removeSigning(bytes);
-            return bytes;
-        });
+        return hintsService == null
+                ? result
+                : result.thenApply(bytes -> {
+                    hintsService.removeSigning(bytes);
+                    return bytes;
+                });
     }
 }

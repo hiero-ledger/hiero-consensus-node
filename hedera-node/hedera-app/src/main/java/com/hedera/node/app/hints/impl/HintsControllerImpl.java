@@ -256,8 +256,7 @@ public class HintsControllerImpl implements HintsController {
                 // If the threshold is not met, repeat the process
                 repeatFromFirstNode(now, hintsStore, tssConfig);
             } else {
-                final var finalUpdatedCrs =
-                        requireNonNull(finalCrsFuture).join();
+                final var finalUpdatedCrs = requireNonNull(finalCrsFuture).join();
                 final var updatedState = crsState.copyBuilder()
                         .crs(finalUpdatedCrs.crs())
                         .stage(COMPLETED)
@@ -303,9 +302,8 @@ public class HintsControllerImpl implements HintsController {
      * @return true if the total weight of the contributions is more than 2/3 total weight of all nodes in the
      */
     private boolean validateWeightOfContributions() {
-        final var contributedWeight = finalCrsFuture == null
-                ? 0L
-                : finalCrsFuture.join().weightContributedSoFar();
+        final var contributedWeight =
+                finalCrsFuture == null ? 0L : finalCrsFuture.join().weightContributedSoFar();
         final var totalWeight = weights.sourceNodeWeights().values().stream()
                 .mapToLong(Long::longValue)
                 .sum();
@@ -482,7 +480,8 @@ public class HintsControllerImpl implements HintsController {
             final var initialCrs = hintsStore.getCrsState().crs();
             finalCrsFuture = CompletableFuture.supplyAsync(
                             () -> {
-                                final var isValid = library.verifyCrsUpdate(initialCrs, publication.newCrs(), publication.proof());
+                                final var isValid =
+                                        library.verifyCrsUpdate(initialCrs, publication.newCrs(), publication.proof());
                                 if (isValid) {
                                     return new CRSValidation(publication.newCrs(), creatorWeight);
                                 }
@@ -494,20 +493,17 @@ public class HintsControllerImpl implements HintsController {
                         return new CRSValidation(initialCrs, 0L);
                     });
         } else {
-            finalCrsFuture = finalCrsFuture
-                    .thenApplyAsync(
-                            previousValidation -> {
-                                final var isValid = library.verifyCrsUpdate(
-                                        previousValidation.crs(), publication.newCrs(), publication.proof());
-                                if (isValid) {
-                                    return new CRSValidation(
-                                            publication.newCrs(),
-                                            previousValidation.weightContributedSoFar() + creatorWeight);
-                                }
-                                return new CRSValidation(
-                                        previousValidation.crs(), previousValidation.weightContributedSoFar());
-                            },
-                            executor);
+            finalCrsFuture = finalCrsFuture.thenApplyAsync(
+                    previousValidation -> {
+                        final var isValid = library.verifyCrsUpdate(
+                                previousValidation.crs(), publication.newCrs(), publication.proof());
+                        if (isValid) {
+                            return new CRSValidation(
+                                    publication.newCrs(), previousValidation.weightContributedSoFar() + creatorWeight);
+                        }
+                        return new CRSValidation(previousValidation.crs(), previousValidation.weightContributedSoFar());
+                    },
+                    executor);
         }
     }
 
@@ -548,8 +544,7 @@ public class HintsControllerImpl implements HintsController {
             log.info("Updating for hints key for partyId: {} and nodeId: {}", partyId, nodeId);
             nodePartyIds.put(nodeId, partyId);
             partyNodeIds.put(partyId, nodeId);
-            validationFutures.put(
-                    publication.adoptionTime(), validationFuture(crs, partyId, publication.hintsKey()));
+            validationFutures.put(publication.adoptionTime(), validationFuture(crs, partyId, publication.hintsKey()));
         }
     }
 
