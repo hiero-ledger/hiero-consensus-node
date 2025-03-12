@@ -167,11 +167,14 @@ public class BlockNodeConnectionManager {
 
     public static @NonNull List<PublishStreamRequest> createPublishStreamRequests(
             @NonNull final BlockState block, final int blockItemBatchSize) {
-        List<PublishStreamRequest> batchRequests = new ArrayList<>();
-        for (int i = 0; i < block.itemBytes().size(); i += blockItemBatchSize) {
-            int end = Math.min(i + blockItemBatchSize, block.itemBytes().size());
+        final int totalItems = block.itemBytes().size();
+        // Pre-calculate the expected number of batch requests
+        final int expectedBatchCount = (totalItems + blockItemBatchSize - 1) / blockItemBatchSize;
+        List<PublishStreamRequest> batchRequests = new ArrayList<>(expectedBatchCount);
+        for (int i = 0; i < totalItems; i += blockItemBatchSize) {
+            int end = Math.min(i + blockItemBatchSize, totalItems);
             List<Bytes> batch = block.itemBytes().subList(i, end);
-            List<com.hedera.hapi.block.stream.protoc.BlockItem> protocBlockItems = new ArrayList<>();
+            List<com.hedera.hapi.block.stream.protoc.BlockItem> protocBlockItems = new ArrayList<>(batch.size());
             batch.forEach(batchItem -> {
                 try {
                     protocBlockItems.add(
