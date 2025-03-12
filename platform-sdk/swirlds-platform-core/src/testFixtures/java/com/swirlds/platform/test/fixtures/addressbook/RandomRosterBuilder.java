@@ -34,7 +34,7 @@ public class RandomRosterBuilder {
      */
     private int size = 4;
 
-    private WeightGenerator weightGenerator = new GaussianWeightGenerator(1000, 100);
+    private WeightGenerator weightGenerator;
 
     /**
      * Describes different ways that the random roster has its weight distributed if the custom strategy lambda is
@@ -54,7 +54,7 @@ public class RandomRosterBuilder {
     /**
      * The weight distribution strategy.
      */
-    private WeightDistributionStrategy weightDistributionStrategy = WeightDistributionStrategy.GAUSSIAN;
+    private WeightDistributionStrategy weightDistributionStrategy;
 
     /**
      * The minimum weight to give to any particular address.
@@ -120,6 +120,9 @@ public class RandomRosterBuilder {
             maximumWeight = Long.MAX_VALUE / size;
         }
         if (weightGenerator == null) {
+            if(weightDistributionStrategy == null){
+                weightDistributionStrategy = WeightDistributionStrategy.GAUSSIAN;
+            }
             weightGenerator = switch (weightDistributionStrategy) {
                 case BALANCED -> (l, i) -> WeightGenerators.balancedNodeWeights(size, size * 1000L);
                 case GAUSSIAN -> new GaussianWeightGenerator(1000, 100);};
