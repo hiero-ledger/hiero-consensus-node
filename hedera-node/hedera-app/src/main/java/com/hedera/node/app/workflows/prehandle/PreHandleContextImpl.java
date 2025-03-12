@@ -487,12 +487,6 @@ public class PreHandleContextImpl implements PreHandleContext {
         return context;
     }
 
-    @NonNull
-    @Override
-    public TransactionBody parseTransactionBytes(@NonNull Bytes bodyBytes) throws PreCheckException {
-        return transactionChecker.parseAndCheck(bodyBytes).txBody();
-    }
-
     @Override
     public String toString() {
         return "PreHandleContextImpl{" + "accountStore="

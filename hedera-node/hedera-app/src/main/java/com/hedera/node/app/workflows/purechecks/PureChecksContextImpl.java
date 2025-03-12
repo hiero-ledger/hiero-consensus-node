@@ -51,7 +51,7 @@ public class PureChecksContextImpl implements PureChecksContext {
 
     @NonNull
     @Override
-    public TransactionBody parseTransactionBytes(@NonNull Bytes bodyBytes) throws PreCheckException {
-        return transactionChecker.parseAndCheck(bodyBytes).txBody();
+    public TransactionBody parseSignedTransactionBytes(@NonNull Bytes bodyBytes) throws PreCheckException {
+        return transactionChecker.parseSignedAndCheck(bodyBytes).txBody();
     }
 }

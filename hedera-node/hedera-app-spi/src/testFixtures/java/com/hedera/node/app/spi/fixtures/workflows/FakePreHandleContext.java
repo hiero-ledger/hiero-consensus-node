@@ -412,12 +412,6 @@ public class FakePreHandleContext implements PreHandleContext {
         throw new UnsupportedOperationException("Not yet implemented");
     }
 
-    @NonNull
-    @Override
-    public TransactionBody parseTransactionBytes(@NonNull Bytes bodyBytes) {
-        throw new UnsupportedOperationException("Not yet implemented");
-    }
-
     @Override
     public String toString() {
         return "FakePreHandleContext{" + "accountStore="

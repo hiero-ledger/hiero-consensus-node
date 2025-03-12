@@ -33,5 +33,5 @@ public interface PureChecksContext {
      * @throws PreCheckException if the transaction is invalid
      */
     @NonNull
-    TransactionBody parseTransactionBytes(@NonNull Bytes bodyBytes) throws PreCheckException;
+    TransactionBody parseSignedTransactionBytes(@NonNull Bytes bodyBytes) throws PreCheckException;
 }

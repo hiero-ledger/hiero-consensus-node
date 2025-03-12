@@ -226,14 +226,12 @@ public class AtomicBatchNegativeTest {
                                 .setNode("0.0.0")
                                 .txnId("innerId")
                                 .batchKey("batchOperator")
-                                .payingWith("batchOperator")
-                                .signedTxnFor(spec);
-                        var batchOp = atomicBatch()
+                                .payingWith("batchOperator");
+                        var batchOp =
                                 // add same inner transaction twice
-                                .addTransaction(txn)
-                                .addTransaction(txn)
-                                .payingWith("batchOperator")
-                                .hasPrecheck(BATCH_LIST_CONTAINS_DUPLICATES);
+                                atomicBatch(txn, txn)
+                                        .payingWith("batchOperator")
+                                        .hasPrecheck(BATCH_LIST_CONTAINS_DUPLICATES);
                         allRunFor(spec, batchOp);
                     }));
         }

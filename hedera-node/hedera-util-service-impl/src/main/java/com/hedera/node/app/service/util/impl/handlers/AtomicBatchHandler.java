@@ -30,6 +30,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
+import com.hedera.node.app.service.util.impl.util.InnerTxnCache;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -55,6 +56,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -66,6 +68,7 @@ import javax.inject.Singleton;
 @Singleton
 public class AtomicBatchHandler implements TransactionHandler {
     private final Supplier<FeeCharging> appFeeCharging;
+    private InnerTxnCache innerTxnCache;
 
     private static final AccountID ATOMIC_BATCH_NODE_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).shardNum(0).realmNum(0).build();
@@ -87,6 +90,7 @@ public class AtomicBatchHandler implements TransactionHandler {
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
+        initCache(context);
         final List<Bytes> innerTxs = context.body().atomicBatchOrThrow().transactions();
         if (innerTxs.isEmpty()) {
             throw new PreCheckException(BATCH_LIST_EMPTY);
@@ -94,7 +98,7 @@ public class AtomicBatchHandler implements TransactionHandler {
 
         Set<TransactionID> txIds = new HashSet<>();
         for (final var innerTxBytes : innerTxs) {
-            final var txBody = context.parseTransactionBytes(innerTxBytes);
+            final var txBody = innerTxnCache.computeIfAbsent(innerTxBytes);
 
             // throw if more than one tx has the same transactionID
             validateTruePreCheck(txIds.add(txBody.transactionID()), BATCH_LIST_CONTAINS_DUPLICATES);
@@ -120,7 +124,7 @@ public class AtomicBatchHandler implements TransactionHandler {
         final var txns = atomicBatchTransactionBody.transactions();
         // not using stream below as throwing exception from middle of functional pipeline is a terrible idea
         for (final var txnBytes : txns) {
-            final var innerTxBody = context.parseTransactionBytes(txnBytes);
+            final var innerTxBody = innerTxnCache.computeIfAbsent(txnBytes);
             validateFalsePreCheck(isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_TRANSACTION_IN_BLACKLIST);
             context.requireKeyOrThrow(innerTxBody.batchKey(), INVALID_BATCH_KEY);
             // the inner prehandle of each inner transaction happens in the prehandle workflow.
@@ -146,7 +150,7 @@ public class AtomicBatchHandler implements TransactionHandler {
         // Timebox, and duplication checks are done on dispatch. So, no need to repeat here
         final var recordedFeeCharging = new RecordedFeeCharging(appFeeCharging.get());
         for (final var txnBytes : txns) {
-            final var innerTxnBody = context.parseTransactionBytes(txnBytes);
+            final var innerTxnBody = innerTxnCache.computeIfAbsent(txnBytes);
             final var payerId = innerTxnBody.transactionIDOrThrow().accountIDOrThrow();
             // all the inner transactions' keys are verified in PreHandleWorkflow
             final var dispatchOptions =
@@ -326,5 +330,18 @@ public class AtomicBatchHandler implements TransactionHandler {
                         .amount(entry.getValue())
                         .build())
                 .toList());
+    }
+
+    private void initCache(PureChecksContext context) {
+        if (innerTxnCache == null) {
+            final Function<Bytes, TransactionBody> callback = b -> {
+                try {
+                    return context.parseSignedTransactionBytes(b);
+                } catch (PreCheckException e) {
+                    throw new HandleException(e.responseCode());
+                }
+            };
+            innerTxnCache = new InnerTxnCache(callback);
+        }
     }
 }

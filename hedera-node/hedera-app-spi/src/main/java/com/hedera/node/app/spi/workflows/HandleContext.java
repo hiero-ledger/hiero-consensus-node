@@ -18,7 +18,6 @@ import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -441,14 +440,4 @@ public interface HandleContext {
      * be used to pass additional information to the targeted handlers.
      */
     DispatchMetadata dispatchMetadata();
-
-    /**
-     * Parses the transaction bytes and returns the {@link TransactionBody}.
-     *
-     * @param bodyBytes the bytes of the transaction
-     * @return the {@link TransactionBody} parsed from the bytes
-     * @throws HandleException if the transaction is invalid
-     */
-    @NonNull
-    TransactionBody parseTransactionBytes(@NonNull Bytes bodyBytes) throws HandleException;
 }

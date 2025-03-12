@@ -138,6 +138,19 @@ public class TransactionChecker {
     }
 
     /**
+     * Parses and checks the transaction encoded as protobuf in the given buffer.
+     *
+     * @param buffer The buffer containing the protobuf bytes of the transaction
+     * @return The parsed {@link TransactionInfo}
+     * @throws PreCheckException If parsing fails or any of the checks fail.
+     */
+    @NonNull
+    public TransactionInfo parseSignedAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
+        final var signedTx = parseSigned(buffer);
+        return checkSigned(signedTx, buffer);
+    }
+
+    /**
      * Parse the given {@link Bytes} into a transaction.
      *
      * <p>After verifying that the number of bytes comprising the transaction does not exceed the maximum allowed, the
@@ -150,12 +163,23 @@ public class TransactionChecker {
      */
     @NonNull
     public Transaction parse(@NonNull final Bytes buffer) throws PreCheckException {
-        // Fail fast if there are too many transaction bytes
-        if (buffer.length() > maxSignedTxnSize) {
-            throw new PreCheckException(TRANSACTION_OVERSIZE);
-        }
+        return parseTransaction(buffer, Transaction.PROTOBUF);
+    }
 
-        return parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
+    /**
+     * Parse the given {@link Bytes} into a signed transaction.
+     *
+     * <p>After verifying that the number of bytes comprising the transaction does not exceed the maximum allowed, the
+     * transaction is parsed. A transaction can be checked with {@link #check(Transaction, Bytes)}.
+     *
+     * @param buffer the {@code ByteBuffer} with the serialized transaction
+     * @return an {@link TransactionInfo} with the parsed and checked entities
+     * @throws PreCheckException if the data is not valid
+     * @throws NullPointerException if one of the arguments is {@code null}
+     */
+    @NonNull
+    public SignedTransaction parseSigned(@NonNull final Bytes buffer) throws PreCheckException {
+        return parseTransaction(buffer, SignedTransaction.PROTOBUF);
     }
 
     /**
@@ -217,23 +241,50 @@ public class TransactionChecker {
         if (signatureMap == null) {
             throw new PreCheckException(INVALID_TRANSACTION_BODY);
         }
-        final var txBody =
-                parseStrict(bodyBytes.toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
-        final HederaFunctionality functionality;
-        try {
-            functionality = HapiUtils.functionOf(txBody);
-        } catch (UnknownHederaFunctionality e) {
-            throw new PreCheckException(INVALID_TRANSACTION_BODY);
-        }
-        if (!txBody.hasTransactionID()) {
-            throw new PreCheckException(INVALID_TRANSACTION_ID);
-        } else {
-            final var txnId = txBody.transactionIDOrThrow();
-            if (!txnId.hasAccountID()) {
-                throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
-            }
-        }
-        return checkParsed(new TransactionInfo(tx, txBody, signatureMap, bodyBytes, functionality, serializedTx));
+        return check(tx, bodyBytes, signatureMap, serializedTx);
+    }
+
+    /**
+     * Check the validity of the provided {@link SignedTransaction}
+     *
+     * <p>The following checks are made:
+     * <ul>
+     *   <li>Check that the {@link SignedTransaction} can be parsed</li>
+     *   <li>Check that the {@link TransactionBody} can be parsed</li>
+     *   <li>Check that the {@code transactionID} is specified</li>
+     *   <li>Check that the {@code transactionID} has an accountID that is plausible, meaning that it may exist.</li>
+     *   <li>Check that the {@code transactionID} does not have the "scheduled" flag set</li>
+     *   <li>Check that the {@code transactionID} does not have a nonce set</li>
+     *   <li>Check that this transaction is still live (i.e. its timestamp is within the last 3 minutes).</li>
+     *   <li>Check that the {@code memo} is not too large</li>
+     *   <li>Check that the {@code transaction fee} is non-zero</li>
+     * </ul>
+     *
+     * <p>In all cases involving parsing, parse <strong>strictly</strong>, meaning, if there are any fields in the
+     * protobuf that we do not understand, then throw a {@link PreCheckException}. This means that we are *NOT*
+     * forward compatible. You cannot send a protobuf encoded object to any of the workflows that is newer than the
+     * version of software that is running.
+     *
+     * <p>As can be seen from the above list, these checks are verifying that the transaction is internally consistent,
+     * rather than comparing with state, OTHER THAN deduplication. The account on the transaction may not actually
+     * exist, or may not have enough balance, or the transaction may not have paid enough to cover the fees, or many
+     * other scenarios. Those will be checked in later stages of the workflow (and in many cases, within the service
+     * modules themselves).</p>
+     *
+     * @param signedTx the {@link SignedTransaction} that needs to be checked
+     * @param serializedTx if set, the serialized transaction bytes to include in the {@link TransactionInfo}
+     * @return an {@link TransactionInfo} with the parsed and checked entities
+     * @throws PreCheckException if the data is not valid
+     * @throws NullPointerException if one of the arguments is {@code null}
+     */
+    @NonNull
+    public TransactionInfo checkSigned(@NonNull final SignedTransaction signedTx, @Nullable Bytes serializedTx)
+            throws PreCheckException {
+        final var tx = Transaction.newBuilder()
+                .bodyBytes(signedTx.bodyBytes())
+                .sigMap(signedTx.sigMap())
+                .build();
+        return check(tx, tx.bodyBytes(), tx.sigMap(), serializedTx);
     }
 
     public TransactionInfo checkParsed(@NonNull final TransactionInfo txInfo) throws PreCheckException {
@@ -499,6 +550,48 @@ public class TransactionChecker {
             logger.warn("ParseException while parsing protobuf", e);
             throw new PreCheckException(parseErrorCode);
         }
+    }
+
+    /**
+     * A utility method that parses a transaction based on a give coded and check if the transaction is oversize.
+     * @param buffer The buffer containing the protobuf bytes of the transaction
+     * @param codec The codec to use for parsing
+     * @return <T> The type of the message parsed
+     * @throws PreCheckException if the data is not valid
+     */
+    private <T> T parseTransaction(@NonNull final Bytes buffer, @NonNull final Codec<T> codec)
+            throws PreCheckException {
+        // Fail fast if there are too many transaction bytes
+        if (buffer.length() > maxSignedTxnSize) {
+            throw new PreCheckException(TRANSACTION_OVERSIZE);
+        }
+
+        return parseStrict(buffer.toReadableSequentialData(), codec, INVALID_TRANSACTION);
+    }
+
+    private TransactionInfo check(
+            @NonNull Transaction tx,
+            @NonNull Bytes bodyBytes,
+            @NonNull SignatureMap signatureMap,
+            @Nullable Bytes serializedTx)
+            throws PreCheckException {
+        final var txBody =
+                parseStrict(bodyBytes.toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
+        final HederaFunctionality functionality;
+        try {
+            functionality = HapiUtils.functionOf(txBody);
+        } catch (UnknownHederaFunctionality e) {
+            throw new PreCheckException(INVALID_TRANSACTION_BODY);
+        }
+        if (!txBody.hasTransactionID()) {
+            throw new PreCheckException(INVALID_TRANSACTION_ID);
+        } else {
+            final var txnId = txBody.transactionIDOrThrow();
+            if (!txnId.hasAccountID()) {
+                throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
+            }
+        }
+        return checkParsed(new TransactionInfo(tx, txBody, signatureMap, bodyBytes, functionality, serializedTx));
     }
 
     /**

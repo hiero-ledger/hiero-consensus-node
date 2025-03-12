@@ -111,7 +111,7 @@ class AtomicBatchHandlerTest {
                 .batchKey(SIMPLE_KEY_A)
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .build();
-        given(pureChecksContext.parseTransactionBytes(bytes.getFirst())).willReturn(innerTxnBody);
+        given(pureChecksContext.parseSignedTransactionBytes(bytes.getFirst())).willReturn(innerTxnBody);
         assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
     }
 
@@ -181,8 +181,8 @@ class AtomicBatchHandlerTest {
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .transactionID(transactionId)
                 .build();
-        given(pureChecksContext.parseTransactionBytes(bytes.getFirst())).willReturn(innerTxnBody1);
-        given(pureChecksContext.parseTransactionBytes(bytes.getLast())).willReturn(innerTxnBody2);
+        given(pureChecksContext.parseSignedTransactionBytes(bytes.getFirst())).willReturn(innerTxnBody1);
+        given(pureChecksContext.parseSignedTransactionBytes(bytes.getLast())).willReturn(innerTxnBody2);
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(BATCH_LIST_CONTAINS_DUPLICATES, msg.responseCode());
@@ -200,7 +200,7 @@ class AtomicBatchHandlerTest {
                 .nodeAccountID(AccountID.newBuilder().accountNum(1).build())
                 .build();
         given(pureChecksContext.body()).willReturn(txnBody);
-        given(pureChecksContext.parseTransactionBytes(bytes.getFirst())).willReturn(innerTxnBody);
+        given(pureChecksContext.parseSignedTransactionBytes(bytes.getFirst())).willReturn(innerTxnBody);
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(INVALID_NODE_ACCOUNT_ID, msg.responseCode());
@@ -217,7 +217,7 @@ class AtomicBatchHandlerTest {
                 .build();
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         given(pureChecksContext.body()).willReturn(txnBody);
-        given(pureChecksContext.parseTransactionBytes(bytes.getFirst())).willReturn(innerTxnBody);
+        given(pureChecksContext.parseSignedTransactionBytes(bytes.getFirst())).willReturn(innerTxnBody);
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(MISSING_BATCH_KEY, msg.responseCode());

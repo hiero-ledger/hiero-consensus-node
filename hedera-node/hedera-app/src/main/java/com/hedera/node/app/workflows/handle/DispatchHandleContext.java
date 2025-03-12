@@ -55,7 +55,6 @@ import com.hedera.node.app.workflows.handle.validation.ExpiryValidatorImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -412,15 +411,5 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     @Override
     public DispatchMetadata dispatchMetadata() {
         return dispatchMetaData;
-    }
-
-    @NonNull
-    @Override
-    public TransactionBody parseTransactionBytes(@NonNull Bytes bodyBytes) throws HandleException {
-        try {
-            return transactionChecker.parseAndCheck(bodyBytes).txBody();
-        } catch (PreCheckException e) {
-            throw new HandleException(e.responseCode());
-        }
     }
 }

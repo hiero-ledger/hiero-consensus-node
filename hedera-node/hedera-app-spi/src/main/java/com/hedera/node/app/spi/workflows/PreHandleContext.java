@@ -269,14 +269,4 @@ public interface PreHandleContext extends TransactionKeys {
     @NonNull
     TransactionKeys allKeysForTransaction(@NonNull TransactionBody body, @NonNull AccountID payerId)
             throws PreCheckException;
-
-    /**
-     * Parses the transaction bytes and returns the {@link TransactionBody}.
-     *
-     * @param bodyBytes the bytes of the transaction
-     * @return the {@link TransactionBody} parsed from the bytes
-     * @throws PreCheckException if the transaction is invalid
-     */
-    @NonNull
-    TransactionBody parseTransactionBytes(@NonNull Bytes bodyBytes) throws PreCheckException;
 }

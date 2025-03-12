@@ -36,7 +36,6 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     private static final String DEFAULT_NODE_ACCOUNT_ID = "0.0.0";
     private final List<HapiTxnOp<?>> operationsToBatch = new ArrayList<>();
     private final Map<TransactionID, HapiTxnOp<?>> operationsMap = new HashMap<>();
-    private final List<Transaction> transactionsToBatch = new ArrayList<>();
     private final List<String> txnIdsForOrderValidation = new ArrayList<>();
 
     public HapiAtomicBatch() {}
@@ -73,9 +72,6 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
         final AtomicBatchTransactionBody opBody = spec.txns()
                 .<AtomicBatchTransactionBody, AtomicBatchTransactionBody.Builder>body(
                         AtomicBatchTransactionBody.class, b -> {
-                            b.addAllTransactions(transactionsToBatch.stream()
-                                    .map(Transaction::toByteString)
-                                    .toList());
                             for (HapiTxnOp<?> op : operationsToBatch) {
                                 try {
                                     // set node account id to 0.0.0 if not set
@@ -88,7 +84,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                                     final var txnId = extractTxnId(transaction);
                                     operationsMap.put(txnId, op);
                                     // add the transaction to the batch
-                                    b.addTransactions(transaction.toByteString());
+                                    b.addTransactions(transaction.getSignedTransactionBytes());
                                 } catch (Throwable e) {
                                     throw new RuntimeException(e);
                                 }
@@ -126,11 +122,6 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     @Override
     protected MoreObjects.ToStringHelper toStringHelper() {
         return super.toStringHelper().add("range", operationsToBatch);
-    }
-
-    public HapiAtomicBatch addTransaction(Transaction txn) {
-        transactionsToBatch.add(txn);
-        return this;
     }
 
     public HapiAtomicBatch validateTxnOrder(String... txnIds) {
