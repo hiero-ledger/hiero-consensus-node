@@ -173,10 +173,6 @@ final class TransactionCheckerTest extends AppTestBase {
         @SuppressWarnings("ConstantConditions")
         @DisplayName("Constructor throws on illegal arguments")
         void testConstructorWithIllegalArguments() {
-            assertThatThrownBy(() -> new TransactionChecker(nodeSelfAccountId, props, metrics))
-                    .isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> new TransactionChecker(nodeSelfAccountId, props, metrics))
-                    .isInstanceOf(IllegalArgumentException.class);
             assertThatThrownBy(() -> new TransactionChecker(null, props, metrics))
                     .isInstanceOf(NullPointerException.class);
             assertThatThrownBy(() -> new TransactionChecker(nodeSelfAccountId, null, metrics))
