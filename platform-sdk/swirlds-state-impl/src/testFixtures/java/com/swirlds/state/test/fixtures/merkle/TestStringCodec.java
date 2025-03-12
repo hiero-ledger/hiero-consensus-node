@@ -20,9 +20,17 @@ import java.util.Objects;
 @Deprecated
 @SuppressWarnings("Singleton")
 public class TestStringCodec implements Codec<String> {
+
     public static final TestStringCodec SINGLETON = new TestStringCodec();
 
+    private static final String DEFAULT_VALUE = "";
+
     private TestStringCodec() {}
+
+    @Override
+    public String getDefaultInstance() {
+        return DEFAULT_VALUE;
+    }
 
     @NonNull
     @Override
