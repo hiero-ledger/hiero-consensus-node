@@ -7,6 +7,8 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.TypedStoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.threading.interrupt.InterruptableRunnable;
+import com.swirlds.common.threading.locks.AutoClosableLock;
+import com.swirlds.common.threading.locks.Locks;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.ThreadConfig;
@@ -31,8 +33,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -44,7 +44,7 @@ public class PeerCommunication implements ConnectionTracker {
     private static final Logger logger = LogManager.getLogger(PeerCommunication.class);
     public static final String PLATFORM_THREAD_POOL_NAME = "platform-core";
 
-    private final Lock peerLock = new ReentrantLock();
+    private final AutoClosableLock peerLock = Locks.createAutoLock();
     private final NetworkMetrics networkMetrics;
     private StaticTopology topology;
     private final KeysAndCerts keysAndCerts;
@@ -146,12 +146,7 @@ public class PeerCommunication implements ConnectionTracker {
 
         List<DedicatedStoppableThread<NodeId>> threads = new ArrayList<>();
 
-        if (!peerLock.tryLock()) {
-            logger.error(
-                    "Concurrent access attempted to addRemovePeers, it is a bad idea, as order won't be guaranteed");
-            peerLock.lock();
-        }
-        try {
+        try (final var ignored = peerLock.lock()) {
             Map<NodeId, PeerInfo> newPeers = new HashMap<>();
             for (PeerInfo peer : peers) {
                 newPeers.put(peer.nodeId(), peer);
@@ -187,8 +182,6 @@ public class PeerCommunication implements ConnectionTracker {
 
             threads.addAll(
                     buildProtocolThreads(added.stream().map(PeerInfo::nodeId).toList()));
-        } finally {
-            peerLock.unlock();
         }
 
         registerDedicatedThreads(threads);
@@ -291,6 +284,7 @@ public class PeerCommunication implements ConnectionTracker {
     /**
      * Registers threads which should be started when {@link #start()} method is called and stopped on {@link #stop()}
      * Order in which this method is called is important, so don't call it concurrently without external control.
+     *
      * @param things thread to start
      */
     private void registerDedicatedThreads(final @NonNull Collection<DedicatedStoppableThread<NodeId>> things) {
@@ -299,11 +293,11 @@ public class PeerCommunication implements ConnectionTracker {
     }
 
     /**
-     * Should be called after {@link #registerDedicatedThreads(Collection)} to actually start/stop threads; it is split into half
-     * because this method can be called only for running system, so during startup, dedicated threads will be registered a lot earlier
-     * than started
-     * Method can be called many times, it will be no-op if no dedicate thread changes were made in meantime
-     * Do NOT call this method concurrently; it is not protected against such access and can have undefined behaviour
+     * Should be called after {@link #registerDedicatedThreads(Collection)} to actually start/stop threads; it is split
+     * into half because this method can be called only for running system, so during startup, dedicated threads will be
+     * registered a lot earlier than started Method can be called many times, it will be no-op if no dedicate thread
+     * changes were made in meantime Do NOT call this method concurrently; it is not protected against such access and
+     * can have undefined behaviour
      */
     private void applyDedicatedThreadsToModify() {
         if (!started) {
