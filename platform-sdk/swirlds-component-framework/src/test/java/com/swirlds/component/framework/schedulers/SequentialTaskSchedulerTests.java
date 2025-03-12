@@ -39,8 +39,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import org.junit.jupiter.api.RepeatedTest;
-import org.junit.jupiter.api.RepetitionInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -1209,14 +1207,16 @@ class SequentialTaskSchedulerTests {
         model.stop();
     }
 
-    @RepeatedTest(1000)
-    void exceptionHandlingTest(final RepetitionInfo info) {
-        final String typeString = (info.getCurrentRepetition() % 2 == 0) ? "SEQUENTIAL" : "SEQUENTIAL_THREAD";
+    @ParameterizedTest
+    @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
+    void exceptionHandlingTest(String typeString) {
         final WiringModel model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final AtomicInteger wireValue = new AtomicInteger();
+        final AtomicInteger lastX = new AtomicInteger();
         final Consumer<Integer> handler = x -> {
+            lastX.set(x);
             if (x == 50) {
                 throw new IllegalStateException("intentional");
             }
@@ -1227,7 +1227,11 @@ class SequentialTaskSchedulerTests {
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
-                .withUncaughtExceptionHandler((t, e) -> exceptionCount.incrementAndGet())
+                .withUncaughtExceptionHandler((t, e) -> {
+                    // check that is never called before the task that threw the exception.
+                    assertTrue(lastX.get() >= 50);
+                    exceptionCount.incrementAndGet();
+                })
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .build();
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
@@ -1247,7 +1251,7 @@ class SequentialTaskSchedulerTests {
 
         assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
         assertEventuallyEquals(
-                1, exceptionCount::get, Duration.ofSeconds(10), "Exception handler did not update the expected value");
+                1, exceptionCount::get, Duration.ofSeconds(1), "Exception handler did not update the expected value");
 
         model.stop();
     }

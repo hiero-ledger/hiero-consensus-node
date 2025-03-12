@@ -26,7 +26,13 @@ import java.util.function.ToLongFunction;
  */
 public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> implements Startable, Stoppable {
 
+    /**
+     * This task is meant to unblock tasks list take() operation in case the stop signal is received.
+     */
     private static final SequentialThreadTask POISON_PILL = new SequentialThreadTask(o -> {}, new Object());
+
+    public static final String THREAD_NAME_PREFIX = "<scheduler ";
+    public static final String THREAD_NAME_SUFFIX = ">";
     private final UncaughtExceptionHandler uncaughtExceptionHandler;
     private final ObjectCounter onRamp;
     private final ObjectCounter offRamp;
@@ -47,7 +53,8 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
      *
      * @param model                    the wiring model containing this task scheduler
      * @param name                     the name of the task scheduler
-     * @param uncaughtExceptionHandler the handler to call when an exception is thrown by a task. In this scheduler, the handler is executed immediately after the task that thrown the exception.
+     * @param uncaughtExceptionHandler the handler to call when an exception is thrown by a task.
+     *                                   In this scheduler, the handler is executed immediately after the task that throws the exception.
      * @param onRamp                   the counter to increment when a task is added to the queue
      * @param offRamp                  the counter to decrement when a task is removed from the queue
      * @param dataCounter              the function to weight input data objects for health monitoring
@@ -79,7 +86,7 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
         this.busyTimer = Objects.requireNonNull(busyTimer);
         this.capacity = capacity;
 
-        thread = new Thread(this::run, "<scheduler " + name + ">");
+        thread = new Thread(this::run, THREAD_NAME_PREFIX + name + THREAD_NAME_SUFFIX);
     }
 
     /**
