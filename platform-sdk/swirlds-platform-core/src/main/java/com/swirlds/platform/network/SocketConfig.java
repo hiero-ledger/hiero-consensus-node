@@ -20,8 +20,11 @@ import com.swirlds.config.api.ConfigProperty;
  * @param tcpNoDelay                 if true, then Nagel's algorithm is disabled, which helps latency, hurts bandwidth
  *                                   usage
  * @param gzipCompression            whether to use gzip compression over the network
- * @param waitBetweenReconnects       how many ms should we wait before trying to establish new connection after previous
+ * @param waitBetweenReconnects      how many ms should we wait before trying to establish new connection after previous
  *                                   one is broken, to avoid spam on broken cert; zero or negative for no-sleep
+ * @param maxSocketAcceptThreads     maximum amount of threads which will be spawned to handle incoming SSL socket
+ *                                   accepts, needed because of length SSL handshake; at same time, we don't want it to
+ *                                   be unlimited, to not run out of threads on some kind of DOS
  */
 @ConfigData("socket")
 public record SocketConfig(
@@ -33,4 +36,5 @@ public record SocketConfig(
         @ConfigProperty(defaultValue = "false") boolean useLoopbackIp,
         @ConfigProperty(defaultValue = "true") boolean tcpNoDelay,
         @ConfigProperty(defaultValue = "false") boolean gzipCompression,
-        @ConfigProperty(defaultValue = "-1") int waitBetweenReconnects) {}
+        @ConfigProperty(defaultValue = "10") int waitBetweenReconnects,
+        @ConfigProperty(defaultValue = "30") int maxSocketAcceptThreads) {}

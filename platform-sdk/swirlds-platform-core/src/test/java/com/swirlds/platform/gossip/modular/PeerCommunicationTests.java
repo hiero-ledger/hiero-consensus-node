@@ -53,9 +53,8 @@ public class PeerCommunicationTests {
                 .autoDiscoverExtensions();
 
         configurationBuilder.withValue("socket.timeoutServerAcceptConnect", "100");
-        configurationBuilder.withValue("socket.timeoutSyncClientSocket", "500");
+        configurationBuilder.withValue("socket.timeoutSyncClientSocket", "100");
         configurationBuilder.withValue("socket.timeoutSyncClientConnect", "100");
-        configurationBuilder.withValue("socket.waitBetweenReconnects", "100");
 
         final Configuration configuration = configurationBuilder.build();
 
