@@ -12,7 +12,8 @@ import java.util.random.RandomGenerator;
 public final class WeightGenerators {
 
     public static final WeightGenerator BALANCED = (l, i) -> WeightGenerators.balancedNodeWeights(i);
-    public static final WeightGenerator BALANCED_1000_PER_NODE = (l, i) -> WeightGenerators.balancedNodeWeights(i, i * 1000L);
+    public static final WeightGenerator BALANCED_1000_PER_NODE =
+            (l, i) -> WeightGenerators.balancedNodeWeights(i, i * 1000L);
     public static final WeightGenerator BALANCED_REAL_WEIGHT = (l, i) -> WeightGenerators.balancedNodeWeights(i, true);
     public static final WeightGenerator INCREMENTING = (l, i) -> WeightGenerators.incrementingWeight(i);
     public static final WeightGenerator SINGLE_NODE_STRONG_MINORITY =
