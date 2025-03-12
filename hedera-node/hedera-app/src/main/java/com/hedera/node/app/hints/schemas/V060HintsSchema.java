@@ -57,9 +57,8 @@ public class V060HintsSchema extends Schema {
         final var newCrsState = states.<CRSState>getSingleton(CRS_STATE_KEY);
         if (newCrsState.get() == null || requireNonNull(newCrsState.get()).crs().equals(Bytes.EMPTY)) {
             final var tssConfig = ctx.appConfig().getConfigData(TssConfig.class);
-            log.info("Initializing CRS state with initial parties: {}", tssConfig.initialCrsParties());
             final var initialCrs = library.newCrs(tssConfig.initialCrsParties());
-            log.info("Initialized CRS state with initial CRS with length: {}", initialCrs.length());
+            log.info("Initializing CRS state with initial CRS with parties: {}", tssConfig.initialCrsParties());
             states.<CRSState>getSingleton(CRS_STATE_KEY)
                     .put(CRSState.newBuilder()
                             .stage(CRSStage.GATHERING_CONTRIBUTIONS)

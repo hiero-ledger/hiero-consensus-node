@@ -727,4 +727,9 @@ public class HintsControllerImpl implements HintsController {
      * @param proof the proof of the update
      */
     public record CrsUpdateOutput(@NonNull Bytes crs, @NonNull Bytes proof) {}
+
+    @VisibleForTesting
+    public void addToNodePartyIds(final long nodeId, final int partyId) {
+        nodePartyIds.put(nodeId, partyId);
+    }
 }
