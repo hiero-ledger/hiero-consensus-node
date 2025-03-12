@@ -270,7 +270,7 @@ public class SyncPermitProvider {
      * Modify number of total permits
      * @param totalPermits new number of total permits
      */
-    public void setTotalPermits(int totalPermits) {
+    public synchronized void setTotalPermits(int totalPermits) {
         this.totalPermits = totalPermits;
         this.minimumUnrevokedPermitCount =
                 Math.min(Math.max(totalPermits, 1), syncConfig.minimumHealthyUnrevokedPermitCount());
@@ -280,7 +280,7 @@ public class SyncPermitProvider {
      * Set total number of permits to previous number + passed difference
      * @param permitsDifference positive to add permits, negative to remove permits
      */
-    public void adjustTotalPermits(int permitsDifference) {
+    public synchronized void adjustTotalPermits(int permitsDifference) {
         setTotalPermits(Math.max(0, totalPermits + permitsDifference));
     }
 }

@@ -189,11 +189,13 @@ public class SyncGossipModular implements Gossip {
      * @param removed peers to be removed
      */
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
-        fallenBehindManager.addRemovePeers(
-                added.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()),
-                removed.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()));
-        syncPermitProvider.adjustTotalPermits(added.size() - removed.size());
-        network.addRemovePeers(added, removed);
+        synchronized (this) {
+            fallenBehindManager.addRemovePeers(
+                    added.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()),
+                    removed.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()));
+            syncPermitProvider.adjustTotalPermits(added.size() - removed.size());
+            network.addRemovePeers(added, removed);
+        }
     }
 
     /**
