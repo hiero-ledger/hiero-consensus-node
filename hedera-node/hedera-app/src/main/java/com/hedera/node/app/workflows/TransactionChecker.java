@@ -243,7 +243,6 @@ public class TransactionChecker {
             checkPrefixMismatch(txInfo.signatureMap().sigPair());
             checkTransactionBody(txInfo.txBody(), txInfo.functionality());
             checkJumboTransactionBody(txInfo);
-
             return txInfo;
         } catch (PreCheckException e) {
             throw new DueDiligenceException(e.responseCode(), txInfo);
