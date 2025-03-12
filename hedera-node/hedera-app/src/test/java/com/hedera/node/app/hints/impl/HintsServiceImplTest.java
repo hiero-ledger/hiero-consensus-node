@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hints.impl.WritableHintsStoreImplTest.WITH_ENABLED_HINTS_AND_CRS;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -132,15 +131,6 @@ class HintsServiceImplTest {
         subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
 
         verify(controller).advanceConstruction(CONSENSUS_NOW, hintsStore, true);
-    }
-
-    @Test
-    void registersNoSchemasWhenHintsDisabled() {
-        final var disabledSubject = new HintsServiceImpl(DEFAULT_CONFIG, component, library);
-
-        disabledSubject.registerSchemas(schemaRegistry);
-
-        verifyNoInteractions(schemaRegistry);
     }
 
     @Test

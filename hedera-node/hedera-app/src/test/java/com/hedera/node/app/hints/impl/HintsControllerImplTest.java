@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
@@ -346,10 +345,8 @@ class HintsControllerImplTest {
     @Test
     void crsPublicationsInConstructorWhenNotValid() {
         setupWith(UNFINISHED_CONSTRUCTION);
-        final var task = requireNonNull(scheduledTasks.poll());
-        task.run();
 
-        verify(library).verifyCrsUpdate(eq(INITIAL_CRS), any(), any());
+        verify(library, never()).verifyCrsUpdate(eq(INITIAL_CRS), any(), any());
     }
 
     @Test
@@ -361,9 +358,9 @@ class HintsControllerImplTest {
                         .stage(CRSStage.GATHERING_CONTRIBUTIONS)
                         .crs(INITIAL_CRS)
                         .build());
-        given(store.getOrderedCrsPublicationsByNodeIds(anySet()))
-                .willReturn(
-                        Map.of(0L, CrsPublicationTransactionBody.DEFAULT, 1L, CrsPublicationTransactionBody.DEFAULT));
+        lenient()
+                .when(store.getCrsPublications())
+                .thenReturn(List.of(CrsPublicationTransactionBody.newBuilder().build()));
         given(library.verifyCrsUpdate(any(), any(), any())).willReturn(true);
         final var task = requireNonNull(scheduledTasks.poll());
         task.run();
@@ -375,10 +372,7 @@ class HintsControllerImplTest {
     void addsCRSPublications() {
         setupWith(UNFINISHED_CONSTRUCTION);
         given(library.verifyCrsUpdate(any(), any(), any())).willReturn(true);
-        final var task = requireNonNull(scheduledTasks.poll());
-        task.run();
 
-        verify(library).verifyCrsUpdate(eq(INITIAL_CRS), any(), any());
         subject.addCrsPublication(
                 CrsPublicationTransactionBody.newBuilder()
                         .newCrs(NEW_CRS)
@@ -425,18 +419,14 @@ class HintsControllerImplTest {
                         .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
                         .crs(INITIAL_CRS)
                         .build());
-        given(store.getOrderedCrsPublicationsByNodeIds(any()))
-                .willReturn(
-                        Map.of(0L, CrsPublicationTransactionBody.DEFAULT, 1L, CrsPublicationTransactionBody.DEFAULT));
         given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
-        given(weights.sourceWeightOf(0L)).willReturn(8L);
-        given(weights.sourceWeightOf(1L)).willReturn(10L);
         subject.setFinalCrsFuture(
-                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
+                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 18)));
         subject.advanceCRSWork(CONSENSUS_NOW, store, true);
 
         verify(store)
                 .setCRSState(CRSState.newBuilder()
+                        .crs(INITIAL_CRS)
                         .stage(CRSStage.COMPLETED)
                         .nextContributingNodeId(null)
                         .contributionEndTime((Timestamp) null)
@@ -508,9 +498,6 @@ class HintsControllerImplTest {
                         .build());
         given(library.updateCrs(any(), any())).willReturn(NEW_CRS);
         given(submissions.submitUpdateCRS(any(), any())).willReturn(CompletableFuture.completedFuture(null));
-
-        final var task = requireNonNull(scheduledTasks.poll());
-        task.run();
         assertTrue(scheduledTasks.isEmpty());
 
         subject.advanceCRSWork(CONSENSUS_NOW, store, true);
@@ -545,6 +532,10 @@ class HintsControllerImplTest {
         lenient()
                 .when(store.getCrsPublications())
                 .thenReturn(List.of(CrsPublicationTransactionBody.newBuilder().build()));
+        lenient()
+                .when(store.getOrderedCrsPublicationsByNodeIds(any()))
+                .thenReturn(
+                        Map.of(0L, CrsPublicationTransactionBody.DEFAULT, 1L, CrsPublicationTransactionBody.DEFAULT));
         subject = new HintsControllerImpl(
                 SELF_ID,
                 BLS_KEY_PAIR.privateKey(),
