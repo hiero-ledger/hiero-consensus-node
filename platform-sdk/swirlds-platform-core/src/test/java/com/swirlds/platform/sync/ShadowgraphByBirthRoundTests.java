@@ -3,6 +3,7 @@ package com.swirlds.platform.sync;
 
 import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_FIRST;
 import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterCreator;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -62,7 +63,6 @@ class ShadowgraphByBirthRoundTests {
     private Map<Long, Set<ShadowEvent>> birthRoundToShadows;
     private long maxBirthRound;
     private StandardEventEmitter emitter;
-    private Roster roster;
     private PlatformContext platformContext;
 
     private static Stream<Arguments> graphSizes() {
@@ -83,8 +83,6 @@ class ShadowgraphByBirthRoundTests {
     }
 
     private void initShadowGraph(final Random random, final int numEvents, final int numNodes) {
-        roster = RandomRosterBuilder.create(random).withSize(numNodes).build();
-
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
@@ -92,12 +90,9 @@ class ShadowgraphByBirthRoundTests {
         platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .build();
+        emitter = EventEmitterCreator.newStandardEmitter(random.nextLong(), numNodes);
 
-        final EventEmitterFactory factory =
-                new EventEmitterFactory(platformContext, random, RosterUtils.buildAddressBook(roster));
-        emitter = factory.newStandardEmitter();
-
-        shadowGraph = new Shadowgraph(platformContext, roster.rosterEntries().size(), new NoOpIntakeEventCounter());
+        shadowGraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
         shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(BIRTH_ROUND_THRESHOLD));
 
         for (int i = 0; i < numEvents; i++) {

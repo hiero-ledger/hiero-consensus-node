@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.generator;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.platform.roster.RosterUtils;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.weightedChoice;
 import static com.swirlds.platform.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
@@ -159,6 +161,14 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
         setAddressBookInitializeEventSources(eventSources, addressBook);
         buildDefaultOtherParentAffinityMatrix();
         initializeInternalConsensus();
+    }
+
+    public StandardGraphGenerator(
+            @NonNull final PlatformContext platformContext,
+            final long seed,
+            @NonNull final List<EventSource> eventSources,
+            @NonNull final Roster roster) {
+        this(platformContext, seed, eventSources, RosterUtils.buildAddressBook(roster));
     }
 
     /**

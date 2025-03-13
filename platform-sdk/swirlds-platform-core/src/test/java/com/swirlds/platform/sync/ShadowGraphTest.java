@@ -3,6 +3,7 @@ package com.swirlds.platform.sync;
 
 import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
 import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterCreator;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -62,7 +63,6 @@ class ShadowgraphTest {
     private Map<Long, Set<ShadowEvent>> genToShadows;
     private long maxGen;
     private StandardEventEmitter emitter;
-    private Roster roster;
 
     private static Stream<Arguments> graphSizes() {
         return Stream.of(
@@ -82,15 +82,11 @@ class ShadowgraphTest {
     }
 
     private void initShadowgraph(final Random random, final int numEvents, final int numNodes) {
-        roster = RandomRosterBuilder.create(random).withSize(numNodes).build();
-
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final EventEmitterFactory factory =
-                new EventEmitterFactory(platformContext, random, RosterUtils.buildAddressBook(roster));
-        emitter = factory.newStandardEmitter();
-        shadowgraph = new Shadowgraph(platformContext, roster.rosterEntries().size(), new NoOpIntakeEventCounter());
+        emitter = EventEmitterCreator.newStandardEmitter(random.nextLong(), numNodes);
+        shadowgraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
         shadowgraph.updateEventWindow(EventWindow.getGenesisEventWindow(GENERATION_THRESHOLD));
 
         for (int i = 0; i < numEvents; i++) {
@@ -702,15 +698,11 @@ class ShadowgraphTest {
         final int numRuns = 10;
 
         final Random random = RandomUtils.getRandomPrintSeed();
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(numNodes).build();
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final EventEmitterFactory factory =
-                new EventEmitterFactory(platformContext, random, RosterUtils.buildAddressBook(roster));
-        emitter = factory.newStandardEmitter();
-        shadowgraph = new Shadowgraph(platformContext, roster.rosterEntries().size(), new NoOpIntakeEventCounter());
+        emitter = EventEmitterCreator.newStandardEmitter(random.nextLong(), numNodes);
+        shadowgraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
         for (int i = 0; i < numEvents; i++) {
             shadowgraph.addEvent(emitter.emitEvent().getBaseEvent());
         }
