@@ -13,7 +13,6 @@ import com.swirlds.platform.network.ConnectionTracker;
 import com.swirlds.platform.network.InboundConnectionManager;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.topology.NetworkTopology;
-import com.swirlds.platform.network.topology.StaticConnectionManagers;
 import com.swirlds.platform.network.topology.StaticTopology;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -28,12 +27,12 @@ import org.apache.logging.log4j.Logger;
  */
 public class DynamicConnectionManagers {
 
-    private static final Logger logger = LogManager.getLogger(StaticConnectionManagers.class);
+    private static final Logger logger = LogManager.getLogger(DynamicConnectionManagers.class);
     private final ConcurrentHashMap<NodeId, ConnectionManager> connectionManagers = new ConcurrentHashMap<>();
     private final NodeId selfId;
     private final PlatformContext platformContext;
     private final ConnectionTracker connectionTracker;
-    private final KeysAndCerts keysAndCerts;
+    private final KeysAndCerts ownKeysAndCerts;
 
     /**
      *
@@ -41,7 +40,7 @@ public class DynamicConnectionManagers {
      * @param peers the list of peers
      * @param platformContext the platform context
      * @param connectionTracker connection tracker for all platform connections
-     * @param keysAndCerts    private keys and public certificates
+     * @param ownKeysAndCerts    private keys and public certificates
      * @param topology current topology of connecions
      */
     public DynamicConnectionManagers(
@@ -49,12 +48,12 @@ public class DynamicConnectionManagers {
             @NonNull final List<PeerInfo> peers,
             @NonNull final PlatformContext platformContext,
             @NonNull final ConnectionTracker connectionTracker,
-            @NonNull final KeysAndCerts keysAndCerts,
+            @NonNull final KeysAndCerts ownKeysAndCerts,
             @NonNull final NetworkTopology topology) {
         this.selfId = Objects.requireNonNull(selfId);
         this.platformContext = Objects.requireNonNull(platformContext);
         this.connectionTracker = Objects.requireNonNull(connectionTracker);
-        this.keysAndCerts = Objects.requireNonNull(keysAndCerts);
+        this.ownKeysAndCerts = Objects.requireNonNull(ownKeysAndCerts);
         for (PeerInfo peer : peers) {
             updateManager(topology, peer);
         }
@@ -135,7 +134,8 @@ public class DynamicConnectionManagers {
         } else if (topology.shouldConnectTo(otherPeer.nodeId())) {
             connectionManagers.put(
                     otherPeer.nodeId(),
-                    new OutboundConnectionManager(selfId, otherPeer, platformContext, connectionTracker, keysAndCerts));
+                    new OutboundConnectionManager(
+                            selfId, otherPeer, platformContext, connectionTracker, ownKeysAndCerts));
         } else {
             connectionManagers.remove(otherPeer.nodeId());
         }

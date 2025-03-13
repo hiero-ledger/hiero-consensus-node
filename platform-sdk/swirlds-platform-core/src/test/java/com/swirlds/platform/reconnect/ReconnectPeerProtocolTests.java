@@ -22,15 +22,13 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
-import com.swirlds.common.metrics.IntegerPairAccumulator;
-import com.swirlds.common.metrics.platform.PlatformIntegerPairAccumulator;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.utility.ValueReference;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.protocol.PeerProtocol;
@@ -56,7 +54,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.stubbing.Answer;
 
 /**
  * Tests for the {@link ReconnectPeerProtocol}
@@ -130,13 +127,10 @@ class ReconnectPeerProtocolTests {
         teacherThrottle = mock(ReconnectThrottle.class);
         when(teacherThrottle.initiateReconnect(any())).thenReturn(true);
 
+        var nopMetrics = new NoOpMetrics();
         reconnectMetrics = mock(ReconnectMetrics.class);
-        Metrics metrics = mock(Metrics.class);
-        when(reconnectMetrics.getMetrics()).thenReturn(metrics);
-        when(metrics.getOrCreate(any())).thenAnswer((Answer<IntegerPairAccumulator<Double>>) invocation -> {
-            final IntegerPairAccumulator.Config<Double> config = invocation.getArgument(0);
-            return new PlatformIntegerPairAccumulator<>(config);
-        });
+
+        when(reconnectMetrics.getMetrics()).thenReturn(nopMetrics);
     }
 
     @AfterEach

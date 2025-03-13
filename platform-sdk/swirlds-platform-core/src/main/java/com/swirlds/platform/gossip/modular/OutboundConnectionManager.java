@@ -61,14 +61,14 @@ public class OutboundConnectionManager implements ConnectionManager {
      * @param otherPeer information about the peer we are supposed to connect to
      * @param platformContext the platform context
      * @param connectionTracker connection tracker for all platform connections
-     * @param keysAndCerts    private keys and public certificates
+     * @param ownKeysAndCerts    private keys and public certificates
      */
     public OutboundConnectionManager(
             @NonNull final NodeId selfId,
             @NonNull final PeerInfo otherPeer,
             @NonNull final PlatformContext platformContext,
             @NonNull final ConnectionTracker connectionTracker,
-            @NonNull KeysAndCerts keysAndCerts) {
+            @NonNull final KeysAndCerts ownKeysAndCerts) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.selfId = Objects.requireNonNull(selfId);
@@ -77,7 +77,7 @@ public class OutboundConnectionManager implements ConnectionManager {
         this.socketConfig = platformContext.getConfiguration().getConfigData(SocketConfig.class);
         this.gossipConfig = platformContext.getConfiguration().getConfigData(GossipConfig.class);
         this.socketFactory = NetworkUtils.createSocketFactory(
-                selfId, Collections.singletonList(otherPeer), keysAndCerts, platformContext.getConfiguration());
+                selfId, Collections.singletonList(otherPeer), ownKeysAndCerts, platformContext.getConfiguration());
     }
 
     /**
