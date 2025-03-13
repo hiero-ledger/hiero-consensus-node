@@ -117,7 +117,6 @@ public final class VirtualMerkleStateInitializer {
     }
 
     private static VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> createAccountsVM() {
-        TABLE_CONFIG.maxNumberOfKeys(MAX_LIST_CAPACITY);
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(TABLE_CONFIG, CONFIGURATION);
         return new VirtualMap<>(
                 "accounts",
@@ -128,7 +127,6 @@ public final class VirtualMerkleStateInitializer {
     }
 
     private static VirtualMap<SmartContractMapKey, SmartContractMapValue> createSmartContractsVM() {
-        TABLE_CONFIG.maxNumberOfKeys(MAX_LIST_CAPACITY);
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(TABLE_CONFIG, CONFIGURATION);
         return new VirtualMap<>(
                 "smartContracts",
@@ -140,7 +138,6 @@ public final class VirtualMerkleStateInitializer {
 
     private static VirtualMap<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue>
             createSmartContractByteCodeVM() {
-        TABLE_CONFIG.maxNumberOfKeys(MAX_LIST_CAPACITY);
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(TABLE_CONFIG, CONFIGURATION);
         return new VirtualMap<>(
                 "smartContractByteCode",
