@@ -62,24 +62,18 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
     /**
      * Number of bytes in header v1. The header doesn't include the version number.
      */
-    static final int FILE_HEADER_SIZE_V1 = Integer.BYTES
-            + // hashes per buffer
-            Long.BYTES
-            + // max hashes
-            1
-            + // off/on heap
-            Long.BYTES
-            + // max index
-            Long.BYTES
-            + // num hashes
-            Integer.BYTES; // num buffers
+    static final int FILE_HEADER_SIZE_V1 = Integer.BYTES // hashes per buffer
+            + Long.BYTES // max hashes
+            + 1 // off/on heap
+            + Long.BYTES // max index
+            + Long.BYTES // num hashes
+            + Integer.BYTES; // num buffers
 
     /**
      * Number of bytes in header v2. The header doesn't include the version number.
      */
-    static final int FILE_HEADER_SIZE_V2 = Long.BYTES
-            + // size (num hashes)
-            Long.BYTES; // capacity
+    static final int FILE_HEADER_SIZE_V2 = Long.BYTES // size (num hashes)
+            + Long.BYTES; // capacity
 
     /**
      * A copy-on-write list of buffers of data. Expands as needed to store buffers of hashes.
@@ -199,6 +193,8 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
                 if (read != toRead) {
                     throw new IOException("Failed to read hashes, buffer=" + i + " toRead=" + toRead + " read=" + read);
                 }
+                // Buffers are always stored with position=0 and limit=memoryBufferSize, even if
+                // this is the last buffer with size() in the middle of it
                 buffer.clear();
                 data.add(buffer);
             }
@@ -212,7 +208,8 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
      * @param capacity The number of hashes to store in this hash list. Must be non-negative
      * @param configuration Platform configuration
      */
-    public HashListByteBuffer(final long capacity, final Configuration configuration) {
+    public HashListByteBuffer(final long capacity, @NonNull final Configuration configuration) {
+        requireNonNull(configuration);
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
         if (capacity < 0) {
             throw new IllegalArgumentException("The maximum number of hashes must be non-negative");

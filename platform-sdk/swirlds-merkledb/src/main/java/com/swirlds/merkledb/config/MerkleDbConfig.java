@@ -30,6 +30,8 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  * 		created, changing on an existing database will break it.
  * @param hashStoreRamBufferSize
  *      Number of hashes to store in a single buffer in HashListByteBuffer.
+ * @param hashStoreRamOffHeapBuffers
+ *      Indicates whether hash lists in RAM should use off-heap byte buffers to store hashes.
  * @param longListChunkSize
  *      Number of longs to store in a single chunk in long lists (heap, off-heap, disk).
  * @param longListReservedBufferSize

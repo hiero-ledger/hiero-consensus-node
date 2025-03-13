@@ -270,7 +270,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             if (Files.exists(dbPaths.hashStoreRamFile)) {
                 hashStoreRam = new HashListByteBuffer(dbPaths.hashStoreRamFile, hashesRamToDiskThreshold, config);
             } else {
-                final int hashesPerBuffer = merkleDbConfig.hashStoreRamBufferSize();
                 hashStoreRam = new HashListByteBuffer(hashesRamToDiskThreshold, config);
             }
         } else {
