@@ -2,10 +2,12 @@
 package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
+import static com.hedera.hapi.node.state.hints.HintsConstruction.PreprocessingStateOneOfType.HINTS_SCHEME;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
@@ -37,6 +39,7 @@ import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -45,9 +48,12 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.blocks.impl.NaiveStreamingTreeHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
+import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -118,6 +124,8 @@ public class StateChangesValidator implements BlockStreamValidator {
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
     private MerkleNodeState state;
+    private HintsLibrary hintsLibrary = new HintsLibraryImpl();
+    private boolean isHintsEnabled;
 
     public static void main(String[] args) {
         final var node0Dir = Paths.get("hedera-node/test-clients")
@@ -126,7 +134,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 .normalize();
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
-                        "16b45cff9ac8e84ca93a383193660c02c0c3704ee4f105b66b0a18a723b4d4ed70e5d9d0f485d7fa493f183f86e158e7"),
+                        "4bb15909af8dde81e396c72c2137a608eaad772f56b9f66d79238ee29da9a7d4b1b2f2380c1343e1ed6a117fd95c925e"),
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("config.txt"),
                 node0Dir.resolve("data/config/application.properties"),
@@ -213,6 +221,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 state, GENESIS, DiskStartupNetworks.fromLegacyAddressBook(addressBook), platformConfig);
         final var stateToBeCopied = state;
         state = state.copy();
+        isHintsEnabled = bootstrapConfig.getConfigData(TssConfig.class).hintsEnabled();
         // get the state hash before applying the state changes from current block
         this.genesisStateHash = CRYPTO.digestTreeSync(stateToBeCopied.getRoot());
 
@@ -226,9 +235,41 @@ public class StateChangesValidator implements BlockStreamValidator {
         var startOfStateHash = requireNonNull(genesisStateHash).getBytes();
 
         final int n = blocks.size();
+        Bytes verificationKey = null;
+        if (true || isHintsEnabled) {
+            // scan through blocks and see the state changes where the construction is set in
+            // ACTIVE_HINT_CONSTRUCTION state
+            for (int i = 0; i < n; i++) {
+                final var block = blocks.get(i);
+                for (final var item : block.items()) {
+                    if (item.hasStateChanges()) {
+                        final var changes = item.stateChangesOrThrow();
+                        for (final var stateChange : changes.stateChanges()) {
+                            final var stateName = stateNameOf(stateChange.stateId());
+                            if (stateName.contains(ACTIVE_HINT_CONSTRUCTION_KEY)) {
+                                final var construction =
+                                        stateChange.singletonUpdateOrThrow().hintsConstructionValue();
+                                if (construction != null
+                                        && construction
+                                                .preprocessingState()
+                                                .kind()
+                                                .equals(HINTS_SCHEME)) {
+                                    final HintsScheme hintsScheme = (HintsScheme)
+                                            construction.preprocessingState().value();
+                                    if (hintsScheme.preprocessedKeys() != null) {
+                                        verificationKey =
+                                                hintsScheme.preprocessedKeys().verificationKey();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
-            final var shouldVerifyProof = i == 0 || i == n - 1 || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
+            final var shouldVerifyProof = i == 0 || i == n - 2 || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
             if (i != 0 && shouldVerifyProof) {
                 final var stateToBeCopied = state;
                 this.state = stateToBeCopied.copy();
@@ -270,24 +311,26 @@ public class StateChangesValidator implements BlockStreamValidator {
             if (!firstUserTxnSeen) {
                 assertNull(expectedFirstUserTxnTime, "Block had no user transactions");
             }
-            final var lastBlockItem = block.items().getLast();
-            assertTrue(lastBlockItem.hasBlockProof());
-            final var blockProof = lastBlockItem.blockProofOrThrow();
-            assertEquals(
-                    previousBlockHash,
-                    blockProof.previousBlockRootHash(),
-                    "Previous block hash mismatch for block " + blockProof.block());
+            if (i != n - 1) {
+                final var lastBlockItem = block.items().getLast();
+                assertTrue(lastBlockItem.hasBlockProof());
+                final var blockProof = lastBlockItem.blockProofOrThrow();
+                assertEquals(
+                        previousBlockHash,
+                        blockProof.previousBlockRootHash(),
+                        "Previous block hash mismatch for block " + blockProof.block());
 
-            if (shouldVerifyProof) {
-                final var expectedBlockHash =
-                        computeBlockHash(startOfStateHash, previousBlockHash, inputTreeHasher, outputTreeHasher);
-                validateBlockProof(blockProof, expectedBlockHash);
-                previousBlockHash = expectedBlockHash;
-            } else {
-                previousBlockHash = i < n - 1
-                        ? requireNonNull(blocks.get(i + 1).items().getLast().blockProof())
-                                .previousBlockRootHash()
-                        : Bytes.EMPTY;
+                if (shouldVerifyProof) {
+                    final var expectedBlockHash =
+                            computeBlockHash(startOfStateHash, previousBlockHash, inputTreeHasher, outputTreeHasher);
+                    validateBlockProof(blockProof, expectedBlockHash, verificationKey);
+                    previousBlockHash = expectedBlockHash;
+                } else {
+                    previousBlockHash = i < n - 2
+                            ? requireNonNull(blocks.get(i + 1).items().getLast().blockProof())
+                                    .previousBlockRootHash()
+                            : Bytes.EMPTY;
+                }
             }
         }
         logger.info("Summary of changes by service:\n{}", stateChangesSummary);
@@ -402,7 +445,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         return combine(leftHash, rightHash);
     }
 
-    private void validateBlockProof(@NonNull final BlockProof proof, @NonNull final Bytes blockHash) {
+    private void validateBlockProof(
+            @NonNull final BlockProof proof, @NonNull final Bytes blockHash, final Bytes verificationKey) {
         var provenHash = blockHash;
         final var siblingHashes = proof.siblingHashes();
         if (!siblingHashes.isEmpty()) {
@@ -411,8 +455,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                 provenHash = combine(provenHash, siblingHash.siblingHash());
             }
         }
-        final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
-        assertEquals(expectedSignature, proof.blockSignature(), "Signature mismatch for " + proof);
+        if (verificationKey != null && !verificationKey.equals(Bytes.EMPTY)) {
+            final var signature = proof.blockSignature();
+            final var verified = hintsLibrary.verifyAggregate(signature, blockHash, verificationKey, 1, 3);
+            assertTrue(verified, "Block proof signature verification failed for " + proof);
+        } else {
+            final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
+            assertEquals(expectedSignature, proof.blockSignature(), "Signature mismatch for " + proof);
+        }
     }
 
     private Map<String, String> hashesFor(@NonNull final MerkleNode state) {

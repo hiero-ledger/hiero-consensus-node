@@ -127,10 +127,10 @@ public class HintsServiceImpl implements HintsService {
     @Override
     public void removeSigning(final Bytes bytes) {
         component.signings().remove(bytes);
-        logger.info(
-                "Removed signing {} - map {}",
-                bytes.toString(),
-                component.signings().keySet());
+        //        logger.info(
+        //                "Removed signing {} - map {}",
+        //                bytes.toString(),
+        //                component.signings().keySet());
     }
 
     @Override

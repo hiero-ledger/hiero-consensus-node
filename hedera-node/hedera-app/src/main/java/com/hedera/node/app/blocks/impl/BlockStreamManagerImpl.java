@@ -37,6 +37,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.DiskNetworkExport;
@@ -116,6 +117,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private StreamingTreeHasher inputTreeHasher;
     private StreamingTreeHasher outputTreeHasher;
     private BlockStreamManagerTask worker;
+    private Configuration config;
     // If not null, the part of the block preceding a possible first transaction
     @Nullable
     private PreTxnItems preTxnItems;
@@ -127,7 +129,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * <b>Important:</b> This first timestamp may be different from the first platform-assigned user transaction
      * time because of synthetic preceding transactions.
      *
-     * @param headerBuilder the block header builder
+     * @param headerBuilder   the block header builder
      * @param postHeaderItems the post-header items
      */
     private record PreTxnItems(@NonNull BlockHeader.Builder headerBuilder, @NonNull List<BlockItem> postHeaderItems) {}
@@ -135,10 +137,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     /**
      * Represents a block pending completion by the block hash signature needed for its block proof.
      *
-     * @param number the block number
-     * @param blockHash the block hash
-     * @param proofBuilder the block proof builder
-     * @param writer the block item writer
+     * @param number        the block number
+     * @param blockHash     the block hash
+     * @param proofBuilder  the block proof builder
+     * @param writer        the block item writer
      * @param siblingHashes the sibling hashes needed for an indirect block proof of an earlier block
      */
     private record PendingBlock(
@@ -197,7 +199,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.platformStateFacade = platformStateFacade;
         requireNonNull(configProvider);
-        final var config = configProvider.getConfiguration();
+        this.config = configProvider.getConfiguration();
         this.hapiVersion = hapiVersionFrom(config);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
@@ -255,6 +257,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
             pendingWork = classifyPendingWork(blockStreamInfo, version);
+            final var tssConfig = config.getConfigData(TssConfig.class);
+            if (tssConfig.hintsEnabled() && pendingWork == POST_UPGRADE_WORK) {
+                // On upgrade, we need to gossip the signatures for the freeze block
+                blockHashSigner
+                        .signFuture(lastBlockHash)
+                        .thenAcceptAsync(signature -> finishProofWithSignature(lastBlockHash, signature));
+            }
             lastHandleTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
             lastIntervalProcessTime = asInstant(blockStreamInfo.lastIntervalProcessTimeOrElse(EPOCH));
             blockHashManager.startBlock(blockStreamInfo, lastBlockHash);
@@ -384,9 +393,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Update in-memory state to prepare for the next block
             lastBlockHash = blockHash;
             writer = null;
-            blockHashSigner
-                    .signFuture(blockHash)
-                    .thenAcceptAsync(signature -> finishProofWithSignature(blockHash, signature));
+            if (roundNum != freezeRoundNumber) {
+                //                log.info("Requested signature for {} on {}", blockNumber, blockHash);
+                blockHashSigner
+                        .signFuture(blockHash)
+                        .thenAcceptAsync(signature -> finishProofWithSignature(blockHash, signature));
+            } else {
+                pendingBlocks.forEach(block -> block.writer().closeBlock());
+            }
 
             final var exportNetworkToDisk =
                     switch (diskNetworkExport) {
@@ -447,7 +461,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * Synchronized to ensure that block proofs are always written in order, even in edge cases where multiple
      * pending block proofs become available at the same time.
      *
-     * @param blockHash the block hash to finish the block proof for
+     * @param blockHash      the block hash to finish the block proof for
      * @param blockSignature the signature to use in the block proof
      */
     private synchronized void finishProofWithSignature(
@@ -479,11 +493,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             block.writer().writePbjItem(BlockItem.PROTOBUF.toBytes(proofItem));
-            if (streamWriterType == BlockStreamWriterMode.FILE
-                    || streamWriterType == BlockStreamWriterMode.GRPC
-                    || streamWriterType == BlockStreamWriterMode.FILE_AND_GRPC) {
-                block.writer().closeBlock();
-            }
+            block.writer().closeBlock();
             if (block.number() != blockNumber) {
                 siblingHashes.removeFirst();
             }
@@ -508,7 +518,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * software version.
      *
      * @param blockStreamInfo the block stream info
-     * @param version the version
+     * @param version         the version
      * @return the type of pending work given the block stream info and version
      */
     @VisibleForTesting
