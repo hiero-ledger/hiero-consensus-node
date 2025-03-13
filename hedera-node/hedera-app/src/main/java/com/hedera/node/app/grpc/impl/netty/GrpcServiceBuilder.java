@@ -99,6 +99,8 @@ final class GrpcServiceBuilder {
      * @param serviceName The name of the service. Cannot be null or blank.
      * @param ingestWorkflow The workflow to use for handling all transaction ingestion API calls
      * @param queryWorkflow The workflow to use for handling all queries
+     * @param marshaller The marshaller to use for reading/writing byte arrays to/from InputStreams
+     * @param jumboMarshaller The marshaller to use for handling jumbo transactions
      * @throws NullPointerException if any of the parameters are null
      * @throws IllegalArgumentException if the serviceName is blank
      */
