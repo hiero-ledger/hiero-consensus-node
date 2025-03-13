@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.io.TempDir;
@@ -43,24 +44,23 @@ class HashListByteBufferTest {
     private static final int LARGE_MAX_HASHES = 1_000_000;
     private static final int LARGE_HASHES_PER_BUFFER = 10_000;
 
-    public HashList createHashList(final int numHashesPerBuffer, final long maxHashes, final boolean offHeap) {
+    public HashListByteBuffer createHashList(final int hashesPerBuffer, final long capacity, final boolean offHeap) {
         final Configuration config = ConfigurationBuilder.create()
                 .withConfigDataType(MerkleDbConfig.class)
-                .withSource(new SimpleConfigSource("merkleDb.hashStoreRamBufferSize", numHashesPerBuffer))
+                .withSource(new SimpleConfigSource("merkleDb.hashStoreRamBufferSize", hashesPerBuffer))
                 .withSource(new SimpleConfigSource("merkleDb.hashStoreRamOffHeapBuffers", offHeap))
                 .build();
-        return new HashListByteBuffer(maxHashes, config);
+        return new HashListByteBuffer(capacity, config);
     }
 
     public HashList createHashList(
-            final Path file, final int numHashesPerBuffer, final long maxHashes, final boolean offHeap)
-            throws IOException {
+            final Path file, final int hashesPerBuffer, final long capacity, final boolean offHeap) throws IOException {
         final Configuration config = ConfigurationBuilder.create()
                 .withConfigDataType(MerkleDbConfig.class)
-                .withSource(new SimpleConfigSource("merkleDb.hashStoreRamBufferSize", numHashesPerBuffer))
+                .withSource(new SimpleConfigSource("merkleDb.hashStoreRamBufferSize", hashesPerBuffer))
                 .withSource(new SimpleConfigSource("merkleDb.hashStoreRamOffHeapBuffers", offHeap))
                 .build();
-        return new HashListByteBuffer(file, maxHashes, config);
+        return new HashListByteBuffer(file, capacity, config);
     }
 
     /**
@@ -94,14 +94,14 @@ class HashListByteBufferTest {
     void createInstance(final boolean offHeap) {
         // If this is created with no exceptions, then we will declare victory
         try (final HashList hashList = createHashList(10, 100, offHeap)) {
-            assertEquals(100, hashList.capacity(), "Capacity should match maxHashes arg");
+            assertEquals(100, hashList.capacity(), "Capacity should match capacity arg");
         }
     }
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    @DisplayName("Creating an instance with a negative for maxHashes throws IAE")
-    void createInstanceWithNegativeMaxHashesThrows(final boolean offHeap) {
+    @DisplayName("Creating an instance with a negative for capacity throws IAE")
+    void createInstanceWithNegativeCapacityThrows(final boolean offHeap) {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> createHashList(10, -1, offHeap),
@@ -110,8 +110,8 @@ class HashListByteBufferTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    @DisplayName("Creating an instance with a zero for maxHashes is fine")
-    void createInstanceWithZeroMaxHashesIsOk(final boolean offHeap) {
+    @DisplayName("Creating an instance with a zero for capacity is fine")
+    void createInstanceWithZeroCapacityIsOk(final boolean offHeap) {
         assertDoesNotThrow(() -> createHashList(10, 0, offHeap), "Should be legal to create a permanently empty list");
     }
 
@@ -204,6 +204,24 @@ class HashListByteBufferTest {
             assertEquals(hashCount, hashList.size());
             for (int i = 0; i < hashCount; i++) {
                 assertEquals(hash(hashCount - i), hashList.get(i), "Unexpected hash at index " + i);
+            }
+        }
+    }
+
+    @RepeatedTest(100)
+    void concurrentPuts() throws IOException {
+        final int hashCount = 10_000;
+        final int hashesPerBuffer = 20;
+        try (final HashListByteBuffer hashList = createHashList(hashesPerBuffer, hashCount, true)) {
+            final int threadCount = 5;
+            IntStream.range(0, threadCount).parallel().forEach(t -> {
+                for (int i = t; i < hashCount; i += threadCount) {
+                    hashList.put(i, hash(i + 1));
+                }
+            });
+            assertEquals(hashCount / hashesPerBuffer, hashList.getCurrentBufferCount());
+            for (int i = 0; i < hashCount; i++) {
+                assertEquals(hash(i + 1), hashList.get(i), "Unexpected hash at index " + i);
             }
         }
     }

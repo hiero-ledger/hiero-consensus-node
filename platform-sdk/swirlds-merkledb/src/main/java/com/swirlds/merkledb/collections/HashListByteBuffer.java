@@ -266,9 +266,14 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
 
         // Expand data if needed
         long currentMaxIndex = (long) data.size() * hashesPerBuffer - 1;
-        while (currentMaxIndex < index) { // need to expand
-            data.add(offHeap ? allocateDirect(memoryBufferSize) : allocate(memoryBufferSize));
-            currentMaxIndex += hashesPerBuffer;
+        if (currentMaxIndex < index) {
+            synchronized (this) {
+                currentMaxIndex = (long) data.size() * hashesPerBuffer - 1;
+                while (currentMaxIndex < index) { // need to expand
+                    data.add(offHeap ? allocateDirect(memoryBufferSize) : allocate(memoryBufferSize));
+                    currentMaxIndex += hashesPerBuffer;
+                }
+            }
         }
         // update number of hashes stored
         size.updateAndGet(currentValue -> Math.max(currentValue, index + 1));
@@ -328,7 +333,9 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
                 } else {
                     dataBuffer.limit(memoryBufferSize);
                 }
-                if (MerkleDbFileUtils.completelyWrite(fc, dataBuffer) != dataBuffer.limit()) {
+                final int toWrite = dataBuffer.limit();
+                final int written = MerkleDbFileUtils.completelyWrite(fc, dataBuffer);
+                if (written != toWrite) {
                     throw new IOException("Failed to write hash list data buffer to file");
                 }
             }
@@ -375,6 +382,11 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
         buffer.position(offset);
         buffer.limit(offset + HASH_SIZE_BYTES);
         return buffer;
+    }
+
+    // For testing purposes. Not thread safe, don't use it in parallel with put()
+    int getCurrentBufferCount() {
+        return data.size();
     }
 
     /**
