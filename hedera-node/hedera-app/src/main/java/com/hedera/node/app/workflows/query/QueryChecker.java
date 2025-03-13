@@ -93,7 +93,7 @@ public class QueryChecker {
             throw new PreCheckException(INSUFFICIENT_TX_FEE);
         }
         final var txBody = transactionInfo.txBody();
-        final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher, transactionChecker);
+        final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
         cryptoTransferHandler.pureChecks(pureChecksContext);
     }
 

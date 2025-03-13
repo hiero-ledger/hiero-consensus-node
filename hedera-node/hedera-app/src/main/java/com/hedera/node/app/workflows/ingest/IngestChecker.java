@@ -213,7 +213,7 @@ public final class IngestChecker {
         }
 
         // 4a. Run pure checks
-        final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher, transactionChecker);
+        final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
         dispatcher.dispatchPureChecks(pureChecksContext);
 
         // 5. Get payer account

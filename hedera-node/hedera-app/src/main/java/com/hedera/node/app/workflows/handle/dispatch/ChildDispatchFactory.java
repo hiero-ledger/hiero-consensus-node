@@ -336,7 +336,7 @@ public class ChildDispatchFactory {
             @NonNull final Configuration config,
             @NonNull final ReadableStoreFactory readableStoreFactory) {
         try {
-            final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher, transactionChecker);
+            final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             final var preHandleContext = new PreHandleContextImpl(
                     readableStoreFactory, txBody, syntheticPayerId, config, dispatcher, transactionChecker);
