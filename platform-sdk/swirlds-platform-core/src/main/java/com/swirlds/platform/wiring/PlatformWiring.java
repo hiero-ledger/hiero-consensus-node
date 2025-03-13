@@ -132,7 +132,6 @@ public class PlatformWiring {
     private final ComponentWiring<SavedStateController, StateAndRound> savedStateControllerWiring;
     private final ComponentWiring<StateHasher, StateAndRound> stateHasherWiring;
     private final PlatformCoordinator platformCoordinator;
-    private final ComponentWiring<BirthRoundMigrationShim, PlatformEvent> birthRoundMigrationShimWiring;
     private final ComponentWiring<AppNotifier, Void> notifierWiring;
     private final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring;
     private final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring;
@@ -166,17 +165,6 @@ public class PlatformWiring {
         this.model = Objects.requireNonNull(model);
 
         config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
-
-        final AncientMode ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
-        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-            birthRoundMigrationShimWiring =
-                    new ComponentWiring<>(model, BirthRoundMigrationShim.class, DIRECT_THREADSAFE_CONFIGURATION);
-        } else {
-            birthRoundMigrationShimWiring = null;
-        }
 
         eventHasherWiring = new ComponentWiring<>(model, EventHasher.class, config.eventHasher());
 
@@ -356,19 +344,6 @@ public class PlatformWiring {
 
         final InputWire<PlatformEvent> hasherInputWire = eventHasherWiring.getInputWire(EventHasher::hashEvent);
         gossipWiring.getEventOutput().solderTo(hasherInputWire);
-
-        if (birthRoundMigrationShimWiring != null) {
-            eventHasherWiring
-                    .getOutputWire()
-                    .solderTo(birthRoundMigrationShimWiring.getInputWire(BirthRoundMigrationShim::migrateEvent));
-            birthRoundMigrationShimWiring
-                    .getOutputWire()
-                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
-        } else {
-            eventHasherWiring
-                    .getOutputWire()
-                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
-        }
 
         internalEventValidatorWiring
                 .getOutputWire()
@@ -698,8 +673,31 @@ public class PlatformWiring {
         issDetectorWiring.bind(builder::buildIssDetector);
         issHandlerWiring.bind(builder::buildIssHandler);
         hashLoggerWiring.bind(builder::buildHashLogger);
-        if (birthRoundMigrationShimWiring != null && birthRoundMigrationShim != null) {
-            birthRoundMigrationShimWiring.bind(birthRoundMigrationShim);
+        final AncientMode ancientMode = platformContext
+                .getConfiguration()
+                .getConfigData(EventConfig.class)
+                .getAncientMode();
+        final ComponentWiring<BirthRoundMigrationShim, PlatformEvent> birthRoundMigrationShimWiring;
+        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
+            birthRoundMigrationShimWiring =
+                    new ComponentWiring<>(model, BirthRoundMigrationShim.class, DIRECT_THREADSAFE_CONFIGURATION);
+        } else {
+            birthRoundMigrationShimWiring = null;
+        }
+
+        if (birthRoundMigrationShimWiring != null) {
+            eventHasherWiring
+                    .getOutputWire()
+                    .solderTo(birthRoundMigrationShimWiring.getInputWire(BirthRoundMigrationShim::migrateEvent));
+            birthRoundMigrationShimWiring
+                    .getOutputWire()
+                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
+            birthRoundMigrationShimWiring.bind(Objects.requireNonNull(birthRoundMigrationShim));
+
+        } else {
+            eventHasherWiring
+                    .getOutputWire()
+                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
         }
         latestCompleteStateNotifierWiring.bind(builder::buildLatestCompleteStateNotifier);
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
