@@ -10,6 +10,7 @@ import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Collection;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
@@ -38,7 +39,7 @@ public interface IssDetector {
     @InputWireLabel("post consensus state signatures")
     @Nullable
     List<IssNotification> handleStateSignatureTransactions(
-            @NonNull Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions);
+            @NonNull Collection<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions);
 
     @InputWireLabel("hashed states")
     @Nullable

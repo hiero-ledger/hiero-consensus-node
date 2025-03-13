@@ -10,6 +10,7 @@ import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
@@ -30,7 +31,7 @@ public class IssDetectorTestHelper {
     }
 
     public void handleStateSignatureTransactions(
-            @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {
+            @NonNull final Collection<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {
         trackIssNotifications(issDetector.handleStateSignatureTransactions(systemTransactions));
     }
 
