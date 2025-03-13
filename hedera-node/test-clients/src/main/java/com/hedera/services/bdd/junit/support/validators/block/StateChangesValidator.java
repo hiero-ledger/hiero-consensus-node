@@ -53,7 +53,6 @@ import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
-import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -138,7 +137,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("config.txt"),
                 node0Dir.resolve("data/config/application.properties"),
-                node0Dir.resolve("data/config"));
+                node0Dir.resolve("data/config"),
+                true);
         final var blocks =
                 BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-0.0.3"));
         validator.validateBlocks(blocks);
@@ -182,12 +182,14 @@ public class StateChangesValidator implements BlockStreamValidator {
             final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
             final var genesisConfigTxt = node0.metadata().workingDirOrThrow().resolve("genesis-config.txt");
             Files.writeString(genesisConfigTxt, subProcessNetwork.genesisConfigTxt());
+            final var isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
             return new StateChangesValidator(
                     rootHash,
                     node0.getExternalPath(SWIRLDS_LOG),
                     genesisConfigTxt,
                     node0.getExternalPath(APPLICATION_PROPERTIES),
-                    node0.getExternalPath(DATA_CONFIG_DIR));
+                    node0.getExternalPath(DATA_CONFIG_DIR),
+                    isHintsEnabled);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -198,7 +200,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             @NonNull final Path pathToNode0SwirldsLog,
             @NonNull final Path pathToAddressBook,
             @NonNull final Path pathToOverrideProperties,
-            @NonNull final Path pathToUpgradeSysFilesLoc) {
+            @NonNull final Path pathToUpgradeSysFilesLoc,
+            final boolean isHintsEnabled) {
         this.expectedRootHash = requireNonNull(expectedRootHash);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
 
@@ -221,7 +224,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 state, GENESIS, DiskStartupNetworks.fromLegacyAddressBook(addressBook), platformConfig);
         final var stateToBeCopied = state;
         state = state.copy();
-        isHintsEnabled = bootstrapConfig.getConfigData(TssConfig.class).hintsEnabled();
+        this.isHintsEnabled = isHintsEnabled;
         // get the state hash before applying the state changes from current block
         this.genesisStateHash = CRYPTO.digestTreeSync(stateToBeCopied.getRoot());
 
@@ -236,7 +239,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
         final int n = blocks.size();
         Bytes verificationKey = null;
-        if (true || isHintsEnabled) {
+        if (isHintsEnabled) {
             // scan through blocks and see the state changes where the construction is set in
             // ACTIVE_HINT_CONSTRUCTION state
             for (int i = 0; i < n; i++) {
