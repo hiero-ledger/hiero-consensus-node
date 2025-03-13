@@ -698,8 +698,8 @@ public class PlatformWiring {
         issDetectorWiring.bind(builder::buildIssDetector);
         issHandlerWiring.bind(builder::buildIssHandler);
         hashLoggerWiring.bind(builder::buildHashLogger);
-        if (birthRoundMigrationShimWiring != null) {
-            birthRoundMigrationShimWiring.bind(Objects.requireNonNull(birthRoundMigrationShim));
+        if (birthRoundMigrationShimWiring != null && birthRoundMigrationShim != null) {
+            birthRoundMigrationShimWiring.bind(birthRoundMigrationShim);
         }
         latestCompleteStateNotifierWiring.bind(builder::buildLatestCompleteStateNotifier);
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
