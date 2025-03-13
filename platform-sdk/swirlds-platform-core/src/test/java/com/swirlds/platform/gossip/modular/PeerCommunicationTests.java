@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 public class PeerCommunicationTests {
 
     private static final int MAX_NODES = 10;
-    private static final int CHECK_LOOPS = 10;
+    private static final int CHECK_LOOPS = 30;
     private static final int LOOP_WAIT = 200;
 
     private Map<NodeId, KeysAndCerts> perNodeCerts;

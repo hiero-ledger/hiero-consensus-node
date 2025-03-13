@@ -34,7 +34,7 @@ public class PeerConnectionServer implements InterruptableRunnable {
     /** responsible for creating and binding the server socket */
     private final SocketFactory socketFactory;
     /** handles newly established connections */
-    private InboundConnectionHandler newConnectionHandler;
+    private volatile InboundConnectionHandler newConnectionHandler;
     /** a thread pool used to handle incoming connections - we need it, as ssl handshake takes long */
     private final ExecutorService incomingConnPool;
 
