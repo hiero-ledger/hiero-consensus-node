@@ -3,7 +3,6 @@ package com.swirlds.platform.test.fixtures.event.emitter;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
@@ -96,7 +95,6 @@ public class EventEmitterFactory {
                 commonSeed, // standard seed must be the same across all generators
                 eventSources,
                 roster);
-
     }
 
     private ShuffledEventEmitter newShuffledEmitter(final List<EventSource> eventSources) {

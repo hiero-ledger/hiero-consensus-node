@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.emitter;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -15,14 +16,12 @@ public class EventEmitterCreator {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final Roster roster = RandomRosterBuilder.create(random).withSize(numNodes).build();
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(numNodes).build();
 
         final EventSourceFactory eventSourceFactory = new EventSourceFactory(numNodes);
 
-        return new StandardEventEmitter(new StandardGraphGenerator(
-                platformContext,
-                randomSeed,
-                eventSourceFactory.generateSources(),
-                roster));
+        return new StandardEventEmitter(
+                new StandardGraphGenerator(platformContext, randomSeed, eventSourceFactory.generateSources(), roster));
     }
 }
