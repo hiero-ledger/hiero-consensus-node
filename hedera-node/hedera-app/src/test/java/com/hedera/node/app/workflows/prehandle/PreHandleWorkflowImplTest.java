@@ -682,9 +682,8 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var txBytes = asByteArray(batchTxInfo.transaction());
             final Transaction platformTx = createAppPayloadWrapper(txBytes);
             when(sigFuture.get(anyLong(), any())).thenReturn(new SignatureVerificationImpl(payerKey, null, true));
-            when(transactionChecker.parseAndCheck(any(Bytes.class)))
-                    .thenReturn(batchTxInfo)
-                    .thenReturn(innerTxInfo);
+            when(transactionChecker.parseAndCheck(any(Bytes.class))).thenReturn(batchTxInfo);
+            when(transactionChecker.parseSignedAndCheck(any(Bytes.class))).thenReturn(innerTxInfo);
             when(signatureVerifier.verify(any(), any())).thenReturn(Map.of(payerKey, sigFuture));
             final var previousResult = new PreHandleResult(
                     payerAccount,
