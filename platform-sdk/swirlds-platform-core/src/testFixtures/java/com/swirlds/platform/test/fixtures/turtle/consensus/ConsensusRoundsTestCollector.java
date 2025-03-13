@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * A test component collecting consensus rounds produced by the ConsensusEngine
  */
-public interface ConsensusRoundsHolder {
+public interface ConsensusRoundsTestCollector {
 
     /**
      * Intercept the consensus rounds produced by the ConsensusEngine and adds them to a collection.
