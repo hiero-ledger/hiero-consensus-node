@@ -20,11 +20,16 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.res
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Signature;
 import com.hedera.hapi.node.base.SignatureList;
 import com.hedera.hapi.node.base.SignatureMap;
@@ -33,6 +38,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
+import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
@@ -41,6 +47,7 @@ import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -188,6 +195,7 @@ final class TransactionCheckerTest extends AppTestBase {
     @Nested
     @DisplayName("Tests for Parsing")
     class ParseTest {
+
         @Test
         @SuppressWarnings("ConstantConditions")
         @DisplayName("`parseAndCheck` requires Bytes")
@@ -317,6 +325,132 @@ final class TransactionCheckerTest extends AppTestBase {
             assertThatThrownBy(() -> checker.parseAndCheck(inputBuffer))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(TRANSACTION_HAS_UNKNOWN_FIELDS));
+        }
+
+        @Test
+        void doesNotPassIfMoreThenMaxJumboSizeWithEnabledJumbo() {
+            // Enabled jumbo transactions
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("jumboTransactions.isEnabled", true)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+
+            int maxJumboTxnSize = props.getConfiguration()
+                    .getConfigData(JumboTransactionsConfig.class)
+                    .maxTxnSize();
+
+            // assert that passing more than maxJumboTxnSize will fail
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxJumboTxnSize + 1)))
+                    .isInstanceOf(PreCheckException.class)
+                    .is(responseCode(TRANSACTION_OVERSIZE));
+        }
+
+        @Test
+        void passedWithMoreThen6KbWithJumboEnabled() {
+            // Enabled jumbo transactions
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("jumboTransactions.isEnabled", true)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+
+            // assert that even if we are sending a transaction with more than 6KB,
+            // it will not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1)))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+        }
+    }
+
+    @Nested
+    @DisplayName("Test jumbo transaction body")
+    class CheckJumboTransactionBody {
+
+        @Test
+        void happyPath() {
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("jumboTransactions.isEnabled", true)
+                            .withValue("jumboTransactions.maxTxnSize", 1024 * 10) // 10 KB
+                            .withValue("hedera.transaction.maxBytes", 1024 * 6) // 6 KB
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+
+            final var maxJumboEthereumCallDataSize = props.getConfiguration()
+                    .getConfigData(JumboTransactionsConfig.class)
+                    .ethereumMaxCallDataSize();
+
+            TransactionInfo txInfo = mock(TransactionInfo.class);
+            when(txInfo.serializedTransaction()).thenReturn(Bytes.wrap(new byte[maxJumboEthereumCallDataSize]));
+            when(txInfo.functionality()).thenReturn(HederaFunctionality.ETHEREUM_TRANSACTION);
+
+            var transactionBodyMock = mock(TransactionBody.class);
+            when(txInfo.txBody()).thenReturn(transactionBodyMock);
+            when(transactionBodyMock.hasEthereumTransaction()).thenReturn(true);
+
+            var mockEthTransactionBody = mock(EthereumTransactionBody.class);
+            when(transactionBodyMock.ethereumTransaction()).thenReturn(mockEthTransactionBody);
+            when(mockEthTransactionBody.ethereumData()).thenReturn(Bytes.wrap(new byte[maxJumboEthereumCallDataSize]));
+
+            assertDoesNotThrow(() -> checker.checkJumboTransactionBody(txInfo));
+        }
+
+        @Test
+        void withEnabledJumboSizeBiggerThenMaxTxnSizeWithNotSupportedFunctionality() {
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("jumboTransactions.isEnabled", true)
+                            .withValue("jumboTransactions.maxTxnSize", 1024 * 10) // 10 KB
+                            .withValue("hedera.transaction.maxBytes", 1024 * 6) // 6 KB
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+
+            TransactionInfo txInfo = mock(TransactionInfo.class);
+            when(txInfo.serializedTransaction()).thenReturn(Bytes.wrap(new byte[1024 * 7])); // 7 KB
+            when(txInfo.functionality()).thenReturn(HederaFunctionality.TOKEN_MINT);
+
+            assertThrows(PreCheckException.class, () -> checker.checkJumboTransactionBody(txInfo));
+        }
+
+        @Test
+        void withEthereumDataBiggerThenTheConfig() {
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("jumboTransactions.isEnabled", true)
+                            .withValue("jumboTransactions.maxTxnSize", 1024 * 10) // 10 KB
+                            .withValue("hedera.transaction.maxBytes", 1024 * 6) // 6 KB
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+
+            final var maxJumboEthereumCallDataSize = props.getConfiguration()
+                    .getConfigData(JumboTransactionsConfig.class)
+                    .ethereumMaxCallDataSize();
+
+            TransactionInfo txInfo = mock(TransactionInfo.class);
+            when(txInfo.serializedTransaction()).thenReturn(Bytes.wrap(new byte[maxJumboEthereumCallDataSize + 1]));
+            when(txInfo.functionality()).thenReturn(HederaFunctionality.ETHEREUM_TRANSACTION);
+
+            var transactionBodyMock = mock(TransactionBody.class);
+            when(txInfo.txBody()).thenReturn(transactionBodyMock);
+            when(transactionBodyMock.hasEthereumTransaction()).thenReturn(true);
+
+            var mockEthTransactionBody = mock(EthereumTransactionBody.class);
+            when(transactionBodyMock.ethereumTransaction()).thenReturn(mockEthTransactionBody);
+            when(mockEthTransactionBody.ethereumData())
+                    .thenReturn(Bytes.wrap(new byte[maxJumboEthereumCallDataSize + 1]));
+
+            assertThrows(PreCheckException.class, () -> checker.checkJumboTransactionBody(txInfo));
         }
     }
 
