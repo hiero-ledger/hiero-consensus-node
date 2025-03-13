@@ -8,7 +8,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -47,11 +46,5 @@ public class PureChecksContextImpl implements PureChecksContext {
     public void dispatchPureChecks(@NonNull TransactionBody body) throws PreCheckException {
         final var pureChecksContext = new PureChecksContextImpl(body, dispatcher, transactionChecker);
         dispatcher.dispatchPureChecks(pureChecksContext);
-    }
-
-    @NonNull
-    @Override
-    public TransactionBody parseSignedTransactionBytes(@NonNull Bytes bodyBytes) throws PreCheckException {
-        return transactionChecker.parseSignedAndCheck(bodyBytes).txBody();
     }
 }

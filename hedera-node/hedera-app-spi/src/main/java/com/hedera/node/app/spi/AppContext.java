@@ -12,6 +12,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.validation.TransactionParser;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -207,6 +208,8 @@ public interface AppContext {
      * @return the fee charging strategy
      */
     Supplier<FeeCharging> feeChargingSupplier();
+
+    Supplier<TransactionParser> transactionParserSupplier();
 
     /**
      * The application's strategy for creating entity ids.

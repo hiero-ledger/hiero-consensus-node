@@ -5,31 +5,23 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.validation.TransactionParser;
+import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import javax.inject.Inject;
-import javax.inject.Singleton;
 
-@Singleton
 public class InnerTxnCache {
     private static final int INNER_TXN_CACHE_TIMEOUT = 15;
-
     private final LoadingCache<Bytes, TransactionBody> transactionsCache;
 
-    /**
-     * Default constructor for injection
-     */
-    @Inject
-    public InnerTxnCache(Function<Bytes, TransactionBody> transactionParser) {
+    public InnerTxnCache(TransactionParser transactionParser) {
         transactionsCache = CacheBuilder.newBuilder()
-                .maximumSize(1000)
                 .expireAfterWrite(INNER_TXN_CACHE_TIMEOUT, TimeUnit.SECONDS)
                 .build(new CacheLoader<>() {
                     @Override
-                    public @NonNull TransactionBody load(@NonNull Bytes key) {
-                        return transactionParser.apply(key);
+                    public @NonNull TransactionBody load(@NonNull Bytes key) throws PreCheckException {
+                        return transactionParser.parseSigned(key);
                     }
                 });
     }

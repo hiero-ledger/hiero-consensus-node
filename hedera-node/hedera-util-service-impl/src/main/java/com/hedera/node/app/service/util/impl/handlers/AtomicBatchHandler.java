@@ -56,7 +56,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -68,7 +67,7 @@ import javax.inject.Singleton;
 @Singleton
 public class AtomicBatchHandler implements TransactionHandler {
     private final Supplier<FeeCharging> appFeeCharging;
-    private InnerTxnCache innerTxnCache;
+    private final InnerTxnCache innerTxnCache;
 
     private static final AccountID ATOMIC_BATCH_NODE_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).shardNum(0).realmNum(0).build();
@@ -80,6 +79,8 @@ public class AtomicBatchHandler implements TransactionHandler {
     public AtomicBatchHandler(@NonNull final AppContext appContext) {
         requireNonNull(appContext);
         this.appFeeCharging = appContext.feeChargingSupplier();
+        this.innerTxnCache =
+                new InnerTxnCache(appContext.transactionParserSupplier().get());
     }
 
     /**
@@ -90,7 +91,6 @@ public class AtomicBatchHandler implements TransactionHandler {
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         requireNonNull(context);
-        initCache(context);
         final List<Bytes> innerTxs = context.body().atomicBatchOrThrow().transactions();
         if (innerTxs.isEmpty()) {
             throw new PreCheckException(BATCH_LIST_EMPTY);
@@ -330,18 +330,5 @@ public class AtomicBatchHandler implements TransactionHandler {
                         .amount(entry.getValue())
                         .build())
                 .toList());
-    }
-
-    private void initCache(PureChecksContext context) {
-        if (innerTxnCache == null) {
-            final Function<Bytes, TransactionBody> callback = b -> {
-                try {
-                    return context.parseSignedTransactionBytes(b);
-                } catch (PreCheckException e) {
-                    throw new HandleException(e.responseCode());
-                }
-            };
-            innerTxnCache = new InnerTxnCache(callback);
-        }
     }
 }

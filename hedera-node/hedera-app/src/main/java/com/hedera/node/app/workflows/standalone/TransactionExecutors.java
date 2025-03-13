@@ -252,6 +252,7 @@ public enum TransactionExecutors {
                         ThrottleAccumulator::new,
                         softwareVersionFactory),
                 () -> componentRef.get().appFeeCharging(),
+                () -> componentRef.get().transactionParser(),
                 entityIdFactory);
         final var contractService = new ContractServiceImpl(
                 appContext, NO_OP_METRICS, NOOP_VERIFICATION_STRATEGIES, tracerBinding, customOps);

@@ -41,6 +41,7 @@ import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.throttle.ThrottleServiceModule;
+import com.hedera.node.app.validation.TransactionParserImpl;
 import com.hedera.node.app.workflows.FacilityInitModule;
 import com.hedera.node.app.workflows.WorkflowsInjectionModule;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
@@ -109,6 +110,8 @@ public interface HederaInjectionComponent {
     NetworkInfo networkInfo();
 
     AppFeeCharging appFeeCharging();
+
+    TransactionParserImpl transactionParser();
 
     PreHandleWorkflow preHandleWorkflow();
 
