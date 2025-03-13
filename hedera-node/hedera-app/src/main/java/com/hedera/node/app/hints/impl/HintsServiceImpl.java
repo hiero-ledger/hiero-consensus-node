@@ -144,9 +144,12 @@ public class HintsServiceImpl implements HintsService {
         }
         final var signing = component.signings().computeIfAbsent(blockHash, b -> component
                 .signingContext()
-                .newSigning(b, requireNonNull(currentRoster.get()), () -> component
-                        .signings()
-                        .remove(blockHash)));
+                .newSigning(b, requireNonNull(currentRoster.get()), () -> {
+                    component.signings().remove(blockHash);
+                    logger.info(
+                            "Removed signing, size left {}",
+                            component.signings().size());
+                }));
         component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
             logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
             return null;
