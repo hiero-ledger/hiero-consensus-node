@@ -83,7 +83,7 @@ public class OrderedServiceMigrator implements ServiceMigrator {
 
         final Map<String, Object> sharedValues = new HashMap<>();
         final var migrationStateChanges = new MigrationStateChanges(state, appConfig, storeMetricsService);
-        logger.info("Migrating Entity ID Service as pre-requisite for other services");
+        logger.info("Migrating Entity ID Service as pre-requisite for other services (previousVersion={}, currentVersion={})", previousVersion, currentVersion);
         final var entityIdRegistration = servicesRegistry.registrations().stream()
                 .filter(service -> EntityIdService.NAME.equals(service.service().getServiceName()))
                 .findFirst()
@@ -92,6 +92,7 @@ public class OrderedServiceMigrator implements ServiceMigrator {
         final var deserializedPbjVersion = Optional.ofNullable(previousVersion)
                 .map(SoftwareVersion::getPbjSemanticVersion)
                 .orElse(null);
+		logger.info("OSM: deserializedPbjVersion: {}", deserializedPbjVersion);
         entityIdRegistry.migrate(
                 state,
                 deserializedPbjVersion,

@@ -718,6 +718,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             @Nullable final Network genesisNetwork,
             @NonNull final Configuration platformConfig) {
         final var previousVersion = deserializedVersion == null ? null : deserializedVersion.getPbjSemanticVersion();
+		logger.info("Migrating schemas with deserialized version {}, determined previous version {}", deserializedVersion, previousVersion);
         final var isUpgrade = version.compareTo(deserializedVersion) > 0;
         logger.info(
                 "{} from Services version {} @ current {} with trigger {}",
