@@ -37,7 +37,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,8 +50,6 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
  */
 public enum TransactionExecutors {
     TRANSACTION_EXECUTORS;
-
-    public static final String MAX_SIGNED_TXN_SIZE_PROPERTY = "executor.maxSignedTxnSize";
 
     /**
      * A strategy to bind and retrieve {@link OperationTracer} scoped to a thread.
@@ -273,12 +270,6 @@ public enum TransactionExecutors {
                 .historyService(historyService)
                 .metrics(NO_OP_METRICS)
                 .throttleFactory(appContext.throttleFactory())
-                .maxSignedTxnSize(Optional.ofNullable(properties.get(MAX_SIGNED_TXN_SIZE_PROPERTY))
-                        .map(Integer::parseInt)
-                        .orElseGet(() -> configProvider
-                                .getConfiguration()
-                                .getConfigData(HederaConfig.class)
-                                .transactionMaxBytes()))
                 .build();
         componentRef.set(component);
         return component;
