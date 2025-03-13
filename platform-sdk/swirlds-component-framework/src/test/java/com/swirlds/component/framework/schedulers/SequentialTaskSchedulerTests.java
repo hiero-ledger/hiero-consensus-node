@@ -1224,12 +1224,13 @@ class SequentialTaskSchedulerTests {
         };
 
         final AtomicInteger exceptionCount = new AtomicInteger();
+        final AtomicBoolean isLastXTheMinValueWhenProcessingException = new AtomicBoolean();
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
                 .withUncaughtExceptionHandler((t, e) -> {
                     // check that is never called before the task that threw the exception.
-                    assertTrue(lastX.get() >= 50);
+                    isLastXTheMinValueWhenProcessingException.set(lastX.get() >= 50);
                     exceptionCount.incrementAndGet();
                 })
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
@@ -1250,6 +1251,11 @@ class SequentialTaskSchedulerTests {
         }
 
         assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
+        // We cannot guarantee that the exception handling will be executed immediately after the task that throws the
+        // exception
+        // so we check a) that it was at least after that task, and b) give some time for it to finish so we check that
+        // it was executed.
+        assertTrue(isLastXTheMinValueWhenProcessingException.get());
         assertEventuallyEquals(
                 1, exceptionCount::get, Duration.ofSeconds(1), "Exception handler did not update the expected value");
 

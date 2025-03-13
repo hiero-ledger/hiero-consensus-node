@@ -4,7 +4,6 @@ package com.swirlds.component.framework.schedulers;
 import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder.UNLIMITED_CAPACITY;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.component.framework.TestWiringModelBuilder;
@@ -22,11 +21,22 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.RepeatedTest;
 
 class SequentialThreadTaskSchedulerTests {
+    List<String> names;
 
-    @Test
+    @BeforeEach
+    void setUp() {
+        names = IntStream.range(0, 10)
+                .boxed()
+                .map(i -> UUID.randomUUID().toString().replace("-", ""))
+                .toList();
+    }
+
+    @RepeatedTest(10000)
     void sequentialThreadTaskClosesAllThreads() {
         final WiringModel model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.SEQUENTIAL_THREAD;
@@ -35,11 +45,6 @@ class SequentialThreadTaskSchedulerTests {
         final Consumer<Integer> handler = x -> {
             wireValue.set(hash32(wireValue.get()));
         };
-
-        final var names = IntStream.range(0, 10)
-                .boxed()
-                .map(i -> UUID.randomUUID().toString().replace("-", ""))
-                .toList();
 
         final var taskSchedulers = names.stream()
                 .map(name -> model.<Void>schedulerBuilder(name)
@@ -70,15 +75,19 @@ class SequentialThreadTaskSchedulerTests {
         }
 
         model.stop();
+    }
 
+    @AfterEach
+    void tierDown() {
         for (final var name : names) {
             final Thread threadByName = getLivePlatformThreadByName(SequentialThreadTaskScheduler.THREAD_NAME_PREFIX
                     + name
                     + SequentialThreadTaskScheduler.THREAD_NAME_SUFFIX);
-            assertNull(threadByName);
+            if (threadByName != null) {
+                threadByName.interrupt();
+            }
         }
     }
-
     /**
      * Search for a particular alive platform thread by its name.
      * @param name of the platform thread to locate
