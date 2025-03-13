@@ -18,6 +18,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.inject.Inject;
@@ -40,6 +42,8 @@ public class HintsContext {
 
     @Nullable
     private Map<Long, Integer> nodePartyIds;
+
+    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     @Inject
     public HintsContext(@NonNull final HintsLibrary library) {
@@ -99,7 +103,8 @@ public class HintsContext {
      * @param currentRoster the current roster
      * @return the signing process
      */
-    public @NonNull Signing newSigning(@NonNull final Bytes blockHash, final Roster currentRoster) {
+    public @NonNull Signing newSigning(
+            @NonNull final Bytes blockHash, final Roster currentRoster, Runnable onCompletion) {
         requireNonNull(blockHash);
         throwIfNotReady();
         final var preprocessedKeys =
@@ -115,7 +120,8 @@ public class HintsContext {
                 preprocessedKeys.aggregationKey(),
                 requireNonNull(nodePartyIds),
                 verificationKey,
-                currentRoster);
+                currentRoster,
+                onCompletion);
     }
 
     /**
@@ -159,7 +165,8 @@ public class HintsContext {
                 @NonNull final Bytes aggregationKey,
                 @NonNull final Map<Long, Integer> partyIds,
                 @NonNull final Bytes verificationKey,
-                final Roster currentRoster) {
+                final Roster currentRoster,
+                final Runnable onCompletion) {
             this.constructionId = constructionId;
             this.thresholdWeight = thresholdWeight;
             this.message = requireNonNull(message);
@@ -167,6 +174,7 @@ public class HintsContext {
             this.partyIds = requireNonNull(partyIds);
             this.verificationKey = requireNonNull(verificationKey);
             this.currentRoster = requireNonNull(currentRoster);
+            executor.schedule(onCompletion, 10, java.util.concurrent.TimeUnit.SECONDS);
         }
 
         /**

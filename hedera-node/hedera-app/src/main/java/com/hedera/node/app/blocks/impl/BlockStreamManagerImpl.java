@@ -394,7 +394,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             lastBlockHash = blockHash;
             writer = null;
             if (roundNum != freezeRoundNumber) {
-                //                log.info("Requested signature for {} on {}", blockNumber, blockHash);
+                log.info("Requested signature for {} on {}", blockNumber, blockHash);
                 blockHashSigner
                         .signFuture(blockHash)
                         .thenAcceptAsync(signature -> finishProofWithSignature(blockHash, signature));

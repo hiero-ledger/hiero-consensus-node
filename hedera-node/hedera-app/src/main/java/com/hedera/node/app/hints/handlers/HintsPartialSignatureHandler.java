@@ -63,7 +63,12 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         final var creator = context.creatorInfo().nodeId();
         final var hintsStore = context.storeFactory().writableStore(WritableHintsStore.class);
         final var crs = hintsStore.getCrsState().crs();
-        signings.computeIfAbsent(op.message(), b -> hintsContext.newSigning(b, requireNonNull(currentRoster.get())))
+        signings.computeIfAbsent(
+                        op.message(),
+                        b -> hintsContext.newSigning(b, requireNonNull(currentRoster.get()), () -> {
+                            signings.remove(op.message());
+                            logger.info("Removed signing, size left {}", signings.size());
+                        }))
                 .incorporate(crs, op.constructionId(), creator, op.partialSignature());
     }
 }

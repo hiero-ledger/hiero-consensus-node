@@ -126,8 +126,6 @@ public interface HintsService extends Service, BlockHashSigner {
      */
     HintsHandlers handlers();
 
-    void removeSigning(Bytes bytes);
-
     @Override
     default int migrationOrder() {
         return MIGRATION_ORDER;

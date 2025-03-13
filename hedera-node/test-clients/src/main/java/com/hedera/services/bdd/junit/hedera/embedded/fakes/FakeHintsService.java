@@ -50,11 +50,6 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void removeSigning(final Bytes bytes) {
-        delegate.removeSigning(bytes);
-    }
-
-    @Override
     public void stop() {
         delegate.stop();
     }

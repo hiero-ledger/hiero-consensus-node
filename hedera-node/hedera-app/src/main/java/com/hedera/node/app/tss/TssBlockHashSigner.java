@@ -111,11 +111,6 @@ public class TssBlockHashSigner implements BlockHashSigner {
                 result = hintsService.signFuture(blockHash);
             }
         }
-        return hintsService == null
-                ? result
-                : result.thenApply(bytes -> {
-                    hintsService.removeSigning(blockHash);
-                    return bytes;
-                });
+        return result;
     }
 }

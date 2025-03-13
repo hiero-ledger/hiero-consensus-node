@@ -125,15 +125,6 @@ public class HintsServiceImpl implements HintsService {
     }
 
     @Override
-    public void removeSigning(final Bytes bytes) {
-        component.signings().remove(bytes);
-        //        logger.info(
-        //                "Removed signing {} - map {}",
-        //                bytes.toString(),
-        //                component.signings().keySet());
-    }
-
-    @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
         registry.register(new V059HintsSchema(component.signingContext()));
@@ -153,7 +144,9 @@ public class HintsServiceImpl implements HintsService {
         }
         final var signing = component.signings().computeIfAbsent(blockHash, b -> component
                 .signingContext()
-                .newSigning(b, requireNonNull(currentRoster.get())));
+                .newSigning(b, requireNonNull(currentRoster.get()), () -> component
+                        .signings()
+                        .remove(blockHash)));
         component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
             logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
             return null;
