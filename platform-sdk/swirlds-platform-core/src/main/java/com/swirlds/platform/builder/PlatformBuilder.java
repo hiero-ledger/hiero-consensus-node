@@ -472,7 +472,8 @@ public final class PlatformBuilder {
             randomBuilder = new RandomBuilder();
         }
 
-        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks);
+        final PlatformWiring platformWiring = new PlatformWiring(
+                platformContext, model, callbacks, initialState.get().isGenesisState());
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformWiring,
