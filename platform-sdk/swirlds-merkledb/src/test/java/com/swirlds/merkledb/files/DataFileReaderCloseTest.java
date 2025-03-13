@@ -43,8 +43,8 @@ class DataFileReaderCloseTest {
     void readerIsOpenTest() throws Exception {
         final int COUNT = 100;
         collection.startWriting();
-        final LongList index = new LongListOffHeap(COUNT / 10, COUNT, COUNT / 10);
-        index.updateValidRange(0, COUNT - 1);
+        final LongList index = new LongListOffHeap();
+        index.updateValidRange(0, COUNT);
         for (int i = 0; i < COUNT; i++) {
             final int fi = i;
             index.put(
@@ -100,8 +100,7 @@ class DataFileReaderCloseTest {
         final Path tmpDir =
                 LegacyTemporaryFileBuilder.buildTemporaryDirectory("readWhileFinishWritingTest", CONFIGURATION);
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        final int COUNT = 100;
-        for (int i = 0; i < COUNT; i++) {
+        for (int i = 0; i < 100; i++) {
             Path filePath = null;
             final int fi = i;
             try {
@@ -109,7 +108,7 @@ class DataFileReaderCloseTest {
                         new DataFileWriter("test", tmpDir, i, Instant.now(), INITIAL_COMPACTION_LEVEL);
                 filePath = writer.getPath();
                 final DataFileMetadata metadata = writer.getMetadata();
-                final LongList index = new LongListOffHeap(COUNT / 10, COUNT, COUNT / 10);
+                final LongList index = new LongListOffHeap();
                 index.updateValidRange(0, i);
                 index.put(
                         0,
