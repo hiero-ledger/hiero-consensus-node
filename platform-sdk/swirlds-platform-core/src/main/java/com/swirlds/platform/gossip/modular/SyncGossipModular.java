@@ -74,7 +74,7 @@ public class SyncGossipModular implements Gossip {
      *
      * @param platformContext               the platform context
      * @param threadManager                 the thread manager
-     * @param keysAndCerts                  private keys and public certificates
+     * @param ownKeysAndCerts               private keys and public certificates for this node
      * @param roster                        the current roster
      * @param selfId                        this node's ID
      * @param appVersion                    the version of the app
@@ -88,7 +88,7 @@ public class SyncGossipModular implements Gossip {
     public SyncGossipModular(
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
-            @NonNull final KeysAndCerts keysAndCerts,
+            @NonNull final KeysAndCerts ownKeysAndCerts,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final SoftwareVersion appVersion,
@@ -117,7 +117,7 @@ public class SyncGossipModular implements Gossip {
         }
         final PeerInfo selfPeer = Utilities.toPeerInfo(selfEntry);
 
-        this.network = new PeerCommunication(platformContext, peers, selfPeer, keysAndCerts);
+        this.network = new PeerCommunication(platformContext, peers, selfPeer, ownKeysAndCerts);
 
         final Shadowgraph shadowgraph = new Shadowgraph(platformContext, peers.size() + 1, intakeEventCounter);
 

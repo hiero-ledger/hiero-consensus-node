@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.metrics;
 
-import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.common.units.TimeUnit;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.LongAccumulator;
@@ -9,7 +8,6 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Collection of metrics related to reconnects
@@ -37,10 +35,6 @@ public class ReconnectMetrics {
                     RECONNECT_CATEGORY, "endsReconnectAsReceiver")
             .withDescription("number of times a node ends reconnect as a receiver");
     private final Counter receiverEndTimes;
-    /**
-     * Number of reconnect rejections per second per peer in the address book.
-     */
-    private final ConcurrentHashMap<Long, CountPerSecond> rejectionFrequency = new ConcurrentHashMap<>();
 
     private static final LongAccumulator.Config SENDER_DURATION_CONFIG = new LongAccumulator.Config(
                     RECONNECT_CATEGORY, "senderReconnectDurationSeconds")

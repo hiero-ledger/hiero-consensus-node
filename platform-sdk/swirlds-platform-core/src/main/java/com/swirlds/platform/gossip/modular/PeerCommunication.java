@@ -48,7 +48,7 @@ public class PeerCommunication implements ConnectionTracker {
     private final AutoClosableLock peerLock = Locks.createAutoLock();
     private final NetworkMetrics networkMetrics;
     private StaticTopology topology;
-    private final KeysAndCerts keysAndCerts;
+    private final KeysAndCerts ownKeysAndCerts;
     private final PlatformContext platformContext;
     private ImmutableList<PeerInfo> peers;
     private final PeerInfo selfPeer;
@@ -70,15 +70,15 @@ public class PeerCommunication implements ConnectionTracker {
      * @param platformContext the platform context
      * @param peers           the current list of peers
      * @param selfPeer        this node's data
-     * @param keysAndCerts    private keys and public certificates
+     * @param ownKeysAndCerts    private keys and public certificates for this node
      */
     public PeerCommunication(
             @NonNull final PlatformContext platformContext,
             @NonNull final List<PeerInfo> peers,
             @NonNull final PeerInfo selfPeer,
-            @NonNull final KeysAndCerts keysAndCerts) {
+            @NonNull final KeysAndCerts ownKeysAndCerts) {
 
-        this.keysAndCerts = Objects.requireNonNull(keysAndCerts);
+        this.ownKeysAndCerts = Objects.requireNonNull(ownKeysAndCerts);
         this.platformContext = Objects.requireNonNull(platformContext);
         this.peers = ImmutableList.copyOf(Objects.requireNonNull(peers));
         this.selfPeer = Objects.requireNonNull(selfPeer);
@@ -97,14 +97,17 @@ public class PeerCommunication implements ConnectionTracker {
      * @param handshakeProtocols list of handshake protocols for new connections
      * @param protocols          list of peer protocols for handling data for established connection
      */
-    void initialize(ThreadManager threadManager, List<ProtocolRunnable> handshakeProtocols, List<Protocol> protocols) {
+    void initialize(
+            @NonNull final ThreadManager threadManager,
+            @NonNull final List<ProtocolRunnable> handshakeProtocols,
+            @NonNull final List<Protocol> protocols) {
 
         this.threadManager = threadManager;
         this.handshakeProtocols = handshakeProtocols;
         this.protocolList = protocols;
 
         this.connectionManagers =
-                new DynamicConnectionManagers(selfId, peers, platformContext, this, keysAndCerts, topology);
+                new DynamicConnectionManagers(selfId, peers, platformContext, this, ownKeysAndCerts, topology);
 
         this.connectionServer = createConnectionServer();
 
@@ -278,7 +281,7 @@ public class PeerCommunication implements ConnectionTracker {
         // using the AddressBook would never have listened on a port associated with the external endpoint,
         // thus not allowing anyone to connect to the node from outside the local network, which we'd have noticed.
         var socketFactory =
-                NetworkUtils.createSocketFactory(selfId, peers, keysAndCerts, platformContext.getConfiguration());
+                NetworkUtils.createSocketFactory(selfId, peers, ownKeysAndCerts, platformContext.getConfiguration());
         return new PeerConnectionServer(
                 threadManager,
                 selfPeer.port(),

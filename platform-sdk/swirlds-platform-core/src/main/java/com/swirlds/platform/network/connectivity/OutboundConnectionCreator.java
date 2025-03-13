@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.connectivity;
 
-import static com.swirlds.logging.legacy.LogMarker.*;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.NETWORK;
+import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
+import static com.swirlds.logging.legacy.LogMarker.TCP_CONNECT_EXCEPTIONS;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
@@ -9,15 +12,25 @@ import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
-import com.swirlds.platform.network.*;
+import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.network.ConnectionTracker;
+import com.swirlds.platform.network.NetworkUtils;
+import com.swirlds.platform.network.PeerInfo;
+import com.swirlds.platform.network.SocketConfig;
+import com.swirlds.platform.network.SocketConnection;
 import com.swirlds.platform.network.connection.NotConnectedConnection;
 import com.swirlds.platform.roster.RosterEntryNotFoundException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -35,7 +48,7 @@ public class OutboundConnectionCreator {
     private final ConnectionTracker connectionTracker;
     private final SocketFactory socketFactory;
     private final PlatformContext platformContext;
-    private final ConcurrentHashMap<NodeId, PeerInfo> peers = new ConcurrentHashMap<>();
+    private final Map<NodeId, PeerInfo> peers = new HashMap<>();
 
     public OutboundConnectionCreator(
             @NonNull final PlatformContext platformContext,
@@ -131,22 +144,5 @@ public class OutboundConnectionCreator {
         }
 
         return NotConnectedConnection.getSingleton();
-    }
-
-    /**
-     * Update information about possible peers;
-     * In the case data for the same peer changes (one with the same nodeId), it should be present in both removed and added lists,
-     * with old data in removed and fresh data in added.
-     * @param added peers to add
-     * @param removed peers to remove
-     */
-    public void addRemovePeers(List<PeerInfo> added, List<PeerInfo> removed) {
-        for (PeerInfo peerInfo : removed) {
-            peers.remove(peerInfo.nodeId());
-        }
-
-        for (PeerInfo peerInfo : added) {
-            peers.put(peerInfo.nodeId(), peerInfo);
-        }
     }
 }
