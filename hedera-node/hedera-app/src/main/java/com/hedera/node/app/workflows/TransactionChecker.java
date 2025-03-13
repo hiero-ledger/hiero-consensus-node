@@ -131,19 +131,19 @@ public class TransactionChecker {
      */
     @NonNull
     public TransactionInfo parseAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
-        validateTheBufferSize(buffer);
+        validateTheBufferSize(buffer.length());
         final var tx = parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
         return check(tx, buffer);
     }
 
-    private void validateTheBufferSize(Bytes buffer) throws PreCheckException {
+    private void validateTheBufferSize(long bufferSize) throws PreCheckException {
         final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
         final var jumboMaxTxnSize = jumboTransactionsConfig.maxTxnSize();
         final var transactionMaxBytes = hederaConfig.transactionMaxBytes();
 
         // Fail fast if there are too many transaction bytes
         final var maxSize = jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
-        if (buffer.length() > maxSize) {
+        if (bufferSize > maxSize) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
     }
@@ -316,7 +316,8 @@ public class TransactionChecker {
         }
     }
 
-    private void checkJumboTransactionBody(TransactionInfo txInfo) throws PreCheckException {
+    @VisibleForTesting
+    void checkJumboTransactionBody(TransactionInfo txInfo) throws PreCheckException {
         final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
         final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
         final var maxJumboEthereumCallDataSize = jumboTransactionsConfig.ethereumMaxCallDataSize();
@@ -327,7 +328,8 @@ public class TransactionChecker {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
 
-        if (txInfo.txBody().hasEthereumTransaction()
+        if (txInfo.txBody() != null
+                && txInfo.txBody().hasEthereumTransaction()
                 && txInfo.txBody().ethereumTransaction().ethereumData().length() > maxJumboEthereumCallDataSize) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
