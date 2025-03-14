@@ -94,9 +94,6 @@ public class ConsensusGetTopicInfoHandler extends PaidQueryHandler {
             // The topic must exist
             final var topic = topicStore.getTopic(op.topicIDOrElse(TopicID.DEFAULT));
             mustExist(topic, INVALID_TOPIC_ID);
-            if (topic.deleted()) {
-                throw new PreCheckException(INVALID_TOPIC_ID);
-            }
         } else {
             throw new PreCheckException(INVALID_TOPIC_ID);
         }
@@ -153,6 +150,7 @@ public class ConsensusGetTopicInfoHandler extends PaidQueryHandler {
             if (meta.hasFeeScheduleKey()) info.feeScheduleKey(meta.feeScheduleKey());
             if (!meta.feeExemptKeyList().isEmpty()) info.feeExemptKeyList(meta.feeExemptKeyList());
             if (!meta.customFees().isEmpty()) info.customFees(meta.customFees());
+            info.deleted(meta.deleted());
 
             info.ledgerId(config.id());
             return Optional.of(info.build());
