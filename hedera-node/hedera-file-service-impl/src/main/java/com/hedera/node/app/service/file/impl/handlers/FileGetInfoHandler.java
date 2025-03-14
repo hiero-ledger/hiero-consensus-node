@@ -33,7 +33,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -57,7 +57,7 @@ public class FileGetInfoHandler extends FileQueryBase {
     @Inject
     public FileGetInfoHandler(final FileOpsUsage fileOpsUsage) {
         this.fileOpsUsage = fileOpsUsage;
-        cryptography = CryptographyFactory.create();
+        cryptography = CryptographyProvider.getInstance();
     }
 
     @Override
