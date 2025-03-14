@@ -86,6 +86,7 @@ import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import com.swirlds.platform.wiring.components.StateAndRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
@@ -384,7 +385,11 @@ public class PlatformWiring {
         splitOrphanBufferOutput.solderTo(pcesInlineWriterWiring.getInputWire(InlinePcesWriter::writeEvent));
         // make sure that an event is persisted before being sent to consensus, this avoids the situation where we
         // reach consensus with events that might be lost due to a crash
-        pcesInlineWriterWiring.getOutputWire().solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
+        pcesInlineWriterWiring
+                .getOutputWire()
+                .solderTo(consensusEngineWiring
+                        .getInputWire(ConsensusEngine::addEvent)
+                        .doSquelch());
         // make sure events are persisted before being gossipped, this prevents accidental branching in the case
         // where an event is created, gossipped, and then the node crashes before the event is persisted.
         // after restart, a node will not be aware of this event, so it can create a branch
@@ -392,7 +397,9 @@ public class PlatformWiring {
         // avoid using events as parents before they are persisted
         pcesInlineWriterWiring
                 .getOutputWire()
-                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
+                .solderTo(eventCreationManagerWiring
+                        .getInputWire(EventCreationManager::registerEvent)
+                        .doSquelch());
 
         model.getHealthMonitorWire()
                 .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::reportUnhealthyDuration));
@@ -410,7 +417,11 @@ public class PlatformWiring {
                 .getConfigData(EventCreationConfig.class)
                 .creationAttemptRate();
         model.buildHeartbeatWire(eventCreationHeartbeatFrequency)
-                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent), OFFER);
+                .solderTo(
+                        eventCreationManagerWiring
+                                .<Instant>getInputWire(EventCreationManager::maybeCreateEvent)
+                                .doSquelch(),
+                        OFFER);
         model.buildHeartbeatWire(platformContext
                         .getConfiguration()
                         .getConfigData(PlatformStatusConfig.class)
@@ -502,15 +513,18 @@ public class PlatformWiring {
                 .doneStreamingPcesOutputWire()
                 .solderTo(pcesInlineWriterWiring.getInputWire(InlinePcesWriter::beginStreamingNewEvents));
         // with inline PCES, the round bypasses the round durability buffer and goes directly to the round handler
-        consensusRoundOutputWire.solderTo(
-                transactionHandlerWiring.getInputWire(TransactionHandler::handleConsensusRound));
+        consensusRoundOutputWire.solderTo(transactionHandlerWiring
+                .getInputWire(TransactionHandler::handleConsensusRound)
+                .doSquelch());
 
         consensusRoundOutputWire.solderTo(
                 eventWindowManagerWiring.getInputWire(EventWindowManager::extractEventWindow));
 
         consensusEngineWiring
                 .getSplitAndTransformedOutput(ConsensusEngine::getCesEvents)
-                .solderTo(consensusEventStreamWiring.getInputWire(ConsensusEventStream::addEvents));
+                .solderTo(consensusEventStreamWiring
+                        .getInputWire(ConsensusEventStream::addEvents)
+                        .doSquelch());
 
         final OutputWire<StateAndRound> transactionHandlerStateAndRoundOutput = transactionHandlerWiring
                 .getOutputWire()
@@ -565,8 +579,9 @@ public class PlatformWiring {
                         "postSigner_encode_systemTransactions",
                         "system transactions from signer",
                         systemTransactionEncoder);
-        systemTransactionEncoderOutputWireForStateSigner.solderTo(
-                transactionPoolWiring.getInputWire(TransactionPool::submitSystemTransaction));
+        systemTransactionEncoderOutputWireForStateSigner.solderTo(transactionPoolWiring
+                .getInputWire(TransactionPool::submitSystemTransaction)
+                .doSquelch());
 
         // FUTURE WORK: combine the signedStateHasherWiring State and Round outputs into a single StateAndRound output.
         // FUTURE WORK: Split the single StateAndRound output into separate State and Round wires.
@@ -587,10 +602,14 @@ public class PlatformWiring {
 
         runningEventHashOverrideWiring
                 .runningHashUpdateOutput()
-                .solderTo(transactionHandlerWiring.getInputWire(TransactionHandler::updateLegacyRunningEventHash));
+                .solderTo(transactionHandlerWiring
+                        .getInputWire(TransactionHandler::updateLegacyRunningEventHash)
+                        .doSquelch());
         runningEventHashOverrideWiring
                 .runningHashUpdateOutput()
-                .solderTo(consensusEventStreamWiring.getInputWire(ConsensusEventStream::legacyHashOverride));
+                .solderTo(consensusEventStreamWiring
+                        .getInputWire(ConsensusEventStream::legacyHashOverride)
+                        .doSquelch());
 
         final OutputWire<IssNotification> splitIssDetectorOutput = issDetectorWiring.getSplitOutput();
         splitIssDetectorOutput.solderTo(issHandlerWiring.getInputWire(IssHandler::issObserved));

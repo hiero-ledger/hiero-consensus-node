@@ -35,7 +35,6 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
      * @param offRamp                  an object counter that is decremented when data is removed from the scheduler
      * @param capacity                 the maximum desired capacity for this scheduler
      * @param flushEnabled             if true, then {@link #flush()} will be enabled, otherwise it will throw.
-     * @param squelchingEnabled        if true, then squelching will be enabled, otherwise trying to squelch will throw
      * @param insertionIsBlocking      when data is inserted into this scheduler, will it block until capacity is
      *                                 available?
      */
@@ -48,10 +47,9 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
             @NonNull final ObjectCounter offRamp,
             final long capacity,
             final boolean flushEnabled,
-            final boolean squelchingEnabled,
             final boolean insertionIsBlocking) {
 
-        super(model, name, TaskSchedulerType.CONCURRENT, flushEnabled, squelchingEnabled, insertionIsBlocking);
+        super(model, name, TaskSchedulerType.CONCURRENT, flushEnabled, insertionIsBlocking);
 
         this.pool = Objects.requireNonNull(pool);
         this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);

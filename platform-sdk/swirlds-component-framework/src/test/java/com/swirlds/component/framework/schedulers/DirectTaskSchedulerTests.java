@@ -155,10 +155,8 @@ class DirectTaskSchedulerTests {
         final Thread mainThread = Thread.currentThread();
         final TaskSchedulerType type = threadsafe ? TaskSchedulerType.DIRECT_THREADSAFE : TaskSchedulerType.DIRECT;
 
-        final TaskScheduler<Integer> scheduler = model.<Integer>schedulerBuilder("A")
-                .withType(type)
-                .withSquelchingEnabled(true)
-                .build();
+        final TaskScheduler<Integer> scheduler =
+                model.<Integer>schedulerBuilder("A").withType(type).build();
         final BindableInputWire<Integer, Integer> inputWire = scheduler.buildInputWire("input");
 
         final AtomicInteger handleCount = new AtomicInteger(0);
@@ -167,6 +165,7 @@ class DirectTaskSchedulerTests {
             handleCount.incrementAndGet();
             return -x;
         });
+        inputWire.doSquelch();
 
         for (int i = 0; i < 5; i++) {
             inputWire.put(i);
@@ -175,7 +174,7 @@ class DirectTaskSchedulerTests {
         }
         assertEquals(15, handleCount.get(), "Tasks added before squelching should be handled");
 
-        scheduler.startSquelching();
+        inputWire.startSquelching();
         for (int i = 0; i < 5; i++) {
             inputWire.put(i);
             inputWire.offer(i);
@@ -183,7 +182,7 @@ class DirectTaskSchedulerTests {
         }
         assertEquals(15, handleCount.get(), "Tasks added after starting to squelch should not be handled");
 
-        scheduler.stopSquelching();
+        inputWire.stopSquelching();
         for (int i = 0; i < 5; i++) {
             inputWire.put(i);
             inputWire.offer(i);

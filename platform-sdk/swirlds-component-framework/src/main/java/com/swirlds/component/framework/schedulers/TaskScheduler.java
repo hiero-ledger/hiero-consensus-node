@@ -5,9 +5,6 @@ import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.component.framework.schedulers.internal.DefaultSquelcher;
-import com.swirlds.component.framework.schedulers.internal.Squelcher;
-import com.swirlds.component.framework.schedulers.internal.ThrowingSquelcher;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.input.TaskSchedulerInput;
@@ -42,19 +39,12 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
     private final boolean insertionIsBlocking;
 
     /**
-     * Handles squelching for this task scheduler. Will be a valid object whether or not squelching is enabled for this
-     * task scheduler.
-     */
-    private final Squelcher squelcher;
-
-    /**
      * Constructor.
      *
      * @param model               the wiring model containing this task scheduler
      * @param name                the name of the task scheduler
      * @param type                the type of task scheduler
      * @param flushEnabled        if true, then {@link #flush()} will be enabled, otherwise it will throw.
-     * @param squelchingEnabled   if true, then squelching will be enabled, otherwise trying to squelch will throw.
      * @param insertionIsBlocking when data is inserted into this task scheduler, will it block until capacity is
      *                            available?
      */
@@ -63,20 +53,12 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
             @NonNull final String name,
             @NonNull final TaskSchedulerType type,
             final boolean flushEnabled,
-            final boolean squelchingEnabled,
             final boolean insertionIsBlocking) {
 
         this.model = Objects.requireNonNull(model);
         this.name = Objects.requireNonNull(name);
         this.type = Objects.requireNonNull(type);
         this.flushEnabled = flushEnabled;
-
-        if (squelchingEnabled) {
-            this.squelcher = new DefaultSquelcher();
-        } else {
-            this.squelcher = new ThrowingSquelcher();
-        }
-
         primaryOutputWire = buildPrimaryOutputWire(model, name);
         this.insertionIsBlocking = insertionIsBlocking;
     }
@@ -216,35 +198,6 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
         if (!flushEnabled) {
             throw new UnsupportedOperationException("Flushing is not enabled for the task scheduler " + name);
         }
-    }
-
-    /**
-     * Start squelching, and continue doing so until {@link #stopSquelching()} is called.
-     *
-     * @throws UnsupportedOperationException if squelching is not supported by this scheduler
-     * @throws IllegalStateException         if scheduler is already squelching
-     */
-    public void startSquelching() {
-        squelcher.startSquelching();
-    }
-
-    /**
-     * Stop squelching.
-     *
-     * @throws UnsupportedOperationException if squelching is not supported by this scheduler
-     * @throws IllegalStateException         if scheduler is not currently squelching
-     */
-    public void stopSquelching() {
-        squelcher.stopSquelching();
-    }
-
-    /**
-     * Get whether or not this task scheduler is currently squelching.
-     *
-     * @return true if this task scheduler is currently squelching, false otherwise
-     */
-    public final boolean currentlySquelching() {
-        return squelcher.shouldSquelch();
     }
 
     /**

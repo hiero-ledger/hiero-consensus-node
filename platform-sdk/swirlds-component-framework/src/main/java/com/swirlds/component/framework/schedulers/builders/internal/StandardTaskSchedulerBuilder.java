@@ -120,7 +120,6 @@ public class StandardTaskSchedulerBuilder<OUT> extends AbstractTaskSchedulerBuil
                             counters.offRamp(),
                             unhandledTaskCapacity,
                             flushingEnabled,
-                            squelchingEnabled,
                             insertionIsBlocking);
                     case SEQUENTIAL -> new SequentialTaskScheduler<>(
                             model,
@@ -132,7 +131,6 @@ public class StandardTaskSchedulerBuilder<OUT> extends AbstractTaskSchedulerBuil
                             busyFractionTimer,
                             unhandledTaskCapacity,
                             flushingEnabled,
-                            squelchingEnabled,
                             insertionIsBlocking);
                     case SEQUENTIAL_THREAD -> new SequentialThreadTaskScheduler<>(
                             model,
@@ -144,7 +142,6 @@ public class StandardTaskSchedulerBuilder<OUT> extends AbstractTaskSchedulerBuil
                             busyFractionTimer,
                             unhandledTaskCapacity,
                             flushingEnabled,
-                            squelchingEnabled,
                             insertionIsBlocking);
                     case DIRECT, DIRECT_THREADSAFE -> new DirectTaskScheduler<>(
                             model,
@@ -152,10 +149,9 @@ public class StandardTaskSchedulerBuilder<OUT> extends AbstractTaskSchedulerBuil
                             buildUncaughtExceptionHandler(),
                             counters.onRamp(),
                             counters.offRamp(),
-                            squelchingEnabled,
                             busyFractionTimer,
                             type == DIRECT_THREADSAFE);
-                    case NO_OP -> new NoOpTaskScheduler<>(model, name, type, flushingEnabled, squelchingEnabled);
+                    case NO_OP -> new NoOpTaskScheduler<>(model, name, type, flushingEnabled);
                 };
 
         if (type != NO_OP) {

@@ -2389,11 +2389,10 @@ class SequentialTaskSchedulerTests {
                 .withType(type)
                 .withUnhandledTaskCapacity(100)
                 .withFlushingEnabled(true)
-                .withSquelchingEnabled(true)
                 .build();
         final BindableInputWire<Integer, Void> inputWire = taskScheduler.buildInputWire("channel");
+        inputWire.doSquelch();
         inputWire.bindConsumer(handler);
-
         model.start();
 
         for (int i = 0; i < 10; i++) {
@@ -2405,7 +2404,7 @@ class SequentialTaskSchedulerTests {
         assertEventuallyTrue(() -> handleCount.get() > 5, Duration.ofSeconds(1), "Some tasks should get handled");
         assertTrue(taskScheduler.getUnprocessedTaskCount() > 10, "There should be some unprocessed tasks");
 
-        taskScheduler.startSquelching();
+        inputWire.startSquelching();
         final int countAtSquelchStart = handleCount.get();
 
         // add more tasks, which will be squelched
@@ -2426,7 +2425,7 @@ class SequentialTaskSchedulerTests {
         assertTrue(countAtSquelchEnd == countAtSquelchStart || countAtSquelchEnd == countAtSquelchStart + 1);
 
         // stop squelching, and add some more tasks to be handled
-        taskScheduler.stopSquelching();
+        inputWire.stopSquelching();
         for (int i = 0; i < 2; i++) {
             inputWire.put(i);
             inputWire.offer(i);

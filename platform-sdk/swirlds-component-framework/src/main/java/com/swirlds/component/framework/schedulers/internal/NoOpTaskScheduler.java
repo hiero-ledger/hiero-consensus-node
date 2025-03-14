@@ -31,15 +31,13 @@ public class NoOpTaskScheduler<OUT> extends TaskScheduler<OUT> {
      * @param name              the name of the task scheduler
      * @param type              the type of task scheduler
      * @param flushEnabled      if true, then {@link #flush()} will be enabled, otherwise it will throw.
-     * @param squelchingEnabled if true, then squelching will be enabled, otherwise trying to squelch will throw.
      */
     public NoOpTaskScheduler(
             @NonNull final TraceableWiringModel model,
             @NonNull final String name,
             @NonNull final TaskSchedulerType type,
-            final boolean flushEnabled,
-            final boolean squelchingEnabled) {
-        super(model, name, type, flushEnabled, squelchingEnabled, false);
+            final boolean flushEnabled) {
+        super(model, name, type, flushEnabled, false);
 
         this.model = Objects.requireNonNull(model);
     }

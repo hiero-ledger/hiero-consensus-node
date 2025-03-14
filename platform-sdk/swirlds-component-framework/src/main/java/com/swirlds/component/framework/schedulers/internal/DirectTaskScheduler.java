@@ -33,7 +33,6 @@ public class DirectTaskScheduler<OUT> extends TaskScheduler<OUT> {
      * @param uncaughtExceptionHandler the uncaught exception handler
      * @param onRamp                   an object counter that is incremented when data is added to the task scheduler
      * @param offRamp                  an object counter that is decremented when data is removed from the task
-     * @param squelchingEnabled        if true, then squelching will be enabled, otherwise trying to squelch will throw
      * @param busyTimer                a timer that tracks the amount of time the task scheduler is busy
      * @param threadsafe               true if the work scheduled by this object is threadsafe
      */
@@ -43,16 +42,9 @@ public class DirectTaskScheduler<OUT> extends TaskScheduler<OUT> {
             @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler,
             @NonNull final ObjectCounter onRamp,
             @NonNull final ObjectCounter offRamp,
-            final boolean squelchingEnabled,
             @NonNull final FractionalTimer busyTimer,
             final boolean threadsafe) {
-        super(
-                model,
-                name,
-                threadsafe ? TaskSchedulerType.DIRECT_THREADSAFE : TaskSchedulerType.DIRECT,
-                false,
-                squelchingEnabled,
-                true);
+        super(model, name, threadsafe ? TaskSchedulerType.DIRECT_THREADSAFE : TaskSchedulerType.DIRECT, false, true);
 
         this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);
         this.onRamp = Objects.requireNonNull(onRamp);

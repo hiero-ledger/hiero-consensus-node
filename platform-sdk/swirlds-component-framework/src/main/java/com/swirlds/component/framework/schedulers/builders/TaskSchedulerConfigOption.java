@@ -17,11 +17,7 @@ public enum TaskSchedulerConfigOption {
     /**
      * If present, the scheduler will be capable of being flushed.
      */
-    FLUSHABLE,
-    /**
-     * If present, the scheduler will be capable of squelching.
-     */
-    SQUELCHABLE;
+    FLUSHABLE;
 
     /**
      * This is not defined as an enum constant because it is used in a special way. To specify the capacity,

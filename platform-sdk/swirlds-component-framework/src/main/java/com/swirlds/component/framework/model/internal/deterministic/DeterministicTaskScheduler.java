@@ -32,7 +32,6 @@ public class DeterministicTaskScheduler<OUT> extends TaskScheduler<OUT> {
      * @param offRamp             counts when things are handled by this scheduler
      * @param capacity            the maximum desired capacity for this task scheduler
      * @param flushEnabled        if true, then {@link #flush()} will be enabled, otherwise it will throw.
-     * @param squelchingEnabled   if true, then squelching will be enabled, otherwise trying to squelch will throw.
      * @param insertionIsBlocking when data is inserted into this task scheduler, will it block until capacity is
      *                            available?
      * @param submitWork          a method where all work should be submitted
@@ -45,10 +44,9 @@ public class DeterministicTaskScheduler<OUT> extends TaskScheduler<OUT> {
             @NonNull final ObjectCounter offRamp,
             final long capacity,
             final boolean flushEnabled,
-            final boolean squelchingEnabled,
             final boolean insertionIsBlocking,
             @NonNull final Consumer<Runnable> submitWork) {
-        super(model, name, type, flushEnabled, squelchingEnabled, insertionIsBlocking);
+        super(model, name, type, flushEnabled, insertionIsBlocking);
 
         this.onRamp = Objects.requireNonNull(onRamp);
         this.offRamp = Objects.requireNonNull(offRamp);
