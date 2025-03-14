@@ -23,7 +23,9 @@ import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
+import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
@@ -275,13 +277,22 @@ public enum TransactionExecutors {
                 .throttleFactory(appContext.throttleFactory())
                 .maxSignedTxnSize(Optional.ofNullable(properties.get(MAX_SIGNED_TXN_SIZE_PROPERTY))
                         .map(Integer::parseInt)
-                        .orElseGet(() -> configProvider
-                                .getConfiguration()
-                                .getConfigData(HederaConfig.class)
-                                .transactionMaxBytes()))
+                        .orElseGet(fromConfig(configProvider)))
                 .build();
         componentRef.set(component);
         return component;
+    }
+
+    private Supplier<Integer> fromConfig(ConfigProvider configProvider) {
+        return () -> {
+            final var jumboTxnConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
+            final var jumboTxnIsEnabled = jumboTxnConfig.isEnabled();
+            final var transactionSize = configProvider
+                    .getConfiguration()
+                    .getConfigData(HederaConfig.class)
+                    .transactionMaxBytes();
+            return jumboTxnIsEnabled ? jumboTxnConfig.maxTxnSize() : transactionSize;
+        };
     }
 
     /**
