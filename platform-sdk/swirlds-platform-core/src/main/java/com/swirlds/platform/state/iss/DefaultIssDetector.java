@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.iss;
 
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.SIGNED_STATE;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -9,10 +14,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.throttle.RateLimiter;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.SIGNED_STATE;
-import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 import com.swirlds.logging.legacy.payload.IssPayload;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.config.StateConfig;
@@ -139,8 +140,8 @@ public class DefaultIssDetector implements IssDetector {
 
         this.roundData = new ConcurrentSequenceMap<>(
                 -consensusConfig.roundsNonAncient(), consensusConfig.roundsNonAncient(), x -> x);
-        this.savedSignatures = new ConcurrentSequenceSet<>(0, consensusConfig.roundsNonAncient(),
-                s -> s.transaction().round());
+        this.savedSignatures = new ConcurrentSequenceSet<>(
+                0, consensusConfig.roundsNonAncient(), s -> s.transaction().round());
 
         this.ignorePreconsensusSignatures = ignorePreconsensusSignatures;
         if (ignorePreconsensusSignatures) {
@@ -266,14 +267,8 @@ public class DefaultIssDetector implements IssDetector {
 
             final List<IssNotification> issNotifications = new ArrayList<>(shiftRoundDataWindow(roundNumber));
 
-            if (roundNumber != savedSignatures.getFirstSequenceNumberInWindow()) {
-                System.out.println("dummy");
-            }
-
             // Apply any signatures we collected previously that are for this round
-            issNotifications.addAll(
-                    handlePostconsensusSignatures(savedSignatures.getEntriesWithSequenceNumber(roundNumber)));
-            savedSignatures.shiftWindow(roundNumber + 1);
+            issNotifications.addAll(applySignaturesAndShiftWindow(roundNumber));
 
             final IssNotification selfHashCheckResult =
                     checkSelfStateHash(roundNumber, state.getState().getHash());
@@ -283,6 +278,16 @@ public class DefaultIssDetector implements IssDetector {
 
             return issNotifications.isEmpty() ? null : issNotifications;
         }
+    }
+
+    private List<IssNotification> applySignaturesAndShiftWindow(final long roundNumber) {
+
+        // Apply any signatures we collected previously that are for the current round
+        final List<IssNotification> issNotifications = new ArrayList<>(
+                handlePostconsensusSignatures(savedSignatures.getEntriesWithSequenceNumber(roundNumber)));
+        savedSignatures.shiftWindow(roundNumber + 1);
+
+        return issNotifications;
     }
 
     /**
@@ -443,12 +448,10 @@ public class DefaultIssDetector implements IssDetector {
             // signed, so any ISSs in the past should be ignored. so we will ignore any ISSs from removed rounds
             shiftRoundDataWindow(roundNumber);
 
-            // Apply any signatures we collected previously that are for this round. Again, it is practically
-            // not possible for there to be any signatures stored up for this state, but there is no harm in
-            // applying any that exist.
-            final List<IssNotification> issNotifications = handlePostconsensusSignatures(
-                    savedSignatures.getEntriesWithSequenceNumber(roundNumber));
-            savedSignatures.shiftWindow(roundNumber + 1);
+            // Apply any signatures we collected previously that are for this round. It is not practically
+            // possible for there to be any signatures stored up for this state, but there is no harm in
+            // applying any that exist since we are now tracking this state.
+            final List<IssNotification> issNotifications = applySignaturesAndShiftWindow(roundNumber);
 
             final Hash stateHash = state.get().getState().getHash();
             final IssNotification issNotification = checkSelfStateHash(roundNumber, stateHash);
@@ -459,7 +462,8 @@ public class DefaultIssDetector implements IssDetector {
             if (issNotifications.isEmpty()) {
                 return null;
             } else {
-                logger.warn(SIGNED_STATE.getMarker(),
+                logger.warn(
+                        SIGNED_STATE.getMarker(),
                         "An ISS was detected for an overriding state for round {}. This should not be possible.",
                         roundNumber);
                 return issNotifications;

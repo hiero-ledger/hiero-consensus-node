@@ -12,7 +12,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collection;
 import java.util.List;
-import java.util.Queue;
 import java.util.Set;
 
 /**

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.state.notifications;
 
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.notification.AbstractNotification;
 import com.swirlds.common.notification.Notification;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**

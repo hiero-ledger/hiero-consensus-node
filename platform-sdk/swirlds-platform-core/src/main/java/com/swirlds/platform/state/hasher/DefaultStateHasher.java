@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.hasher;
 
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -45,8 +46,7 @@ public class DefaultStateHasher implements StateHasher {
         final Instant start = Instant.now();
         try {
             merkleCryptography
-                    .digestTreeAsync(
-                            reservedSignedState.get().getState().getRoot())
+                    .digestTreeAsync(reservedSignedState.get().getState().getRoot())
                     .get();
             metrics.reportHashingTime(Duration.between(start, Instant.now()));
 

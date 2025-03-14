@@ -33,7 +33,7 @@ public record StateWithHashComplexityToStateReserver(@NonNull String name)
     @NonNull
     @Override
     public ReservedSignedState transform(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
-//        return stateWithHashComplexity.makeAdditionalReservation(name);
+        //        return stateWithHashComplexity.makeAdditionalReservation(name);
         return stateWithHashComplexity.state().getAndReserve(name);
     }
 

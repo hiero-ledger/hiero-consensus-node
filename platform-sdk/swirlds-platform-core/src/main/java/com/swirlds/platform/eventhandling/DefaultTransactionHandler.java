@@ -290,8 +290,9 @@ public class DefaultTransactionHandler implements TransactionHandler {
             signedState.init(platformContext);
 
             reservedSignedState = signedState.reserve("transaction handler output");
-            return new TransactionHandlerResult(new StateWithHashComplexity(reservedSignedState,
-                    consensusRound.getNumAppTransactions()), systemTransactions);
+            return new TransactionHandlerResult(
+                    new StateWithHashComplexity(reservedSignedState, consensusRound.getNumAppTransactions()),
+                    systemTransactions);
         } else {
             return new TransactionHandlerResult(null, systemTransactions);
         }

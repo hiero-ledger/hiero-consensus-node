@@ -273,5 +273,4 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         savedSignatures.clear();
         lastStateRound = ConsensusConstants.ROUND_UNDEFINED;
     }
-
 }

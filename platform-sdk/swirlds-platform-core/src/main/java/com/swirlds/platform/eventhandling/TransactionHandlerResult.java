@@ -3,7 +3,6 @@ package com.swirlds.platform.eventhandling;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Queue;
@@ -23,5 +22,4 @@ import java.util.Queue;
  */
 public record TransactionHandlerResult(
         @Nullable StateWithHashComplexity stateWithHashComplexity,
-        @NonNull Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {
-}
+        @NonNull Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {}

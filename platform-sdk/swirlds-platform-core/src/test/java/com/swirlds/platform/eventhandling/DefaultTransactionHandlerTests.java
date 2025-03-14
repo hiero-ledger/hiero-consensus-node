@@ -97,8 +97,8 @@ class DefaultTransactionHandlerTests {
         final TransactionHandlerTester tester = new TransactionHandlerTester(addressBook);
         final ConsensusRound consensusRound = newConsensusRound(pcesRound);
 
-        final TransactionHandlerResult handlerOutput = tester.getTransactionHandler()
-                .handleConsensusRound(consensusRound);
+        final TransactionHandlerResult handlerOutput =
+                tester.getTransactionHandler().handleConsensusRound(consensusRound);
         assertNotEquals(null, handlerOutput, "new state should have been created");
         assertEquals(
                 1,
@@ -158,8 +158,8 @@ class DefaultTransactionHandlerTests {
         when(tester.getPlatformStateFacade().freezeTimeOf(tester.getConsensusState()))
                 .thenReturn(consensusRound.getConsensusTimestamp());
 
-        final TransactionHandlerResult handlerOutput = tester.getTransactionHandler()
-                .handleConsensusRound(consensusRound);
+        final TransactionHandlerResult handlerOutput =
+                tester.getTransactionHandler().handleConsensusRound(consensusRound);
         assertNotNull(handlerOutput, "new state should have been created");
         assertEquals(
                 1,

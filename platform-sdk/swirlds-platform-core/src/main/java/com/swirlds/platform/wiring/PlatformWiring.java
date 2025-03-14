@@ -53,6 +53,7 @@ import com.swirlds.platform.event.validation.RosterUpdate;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
+import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.pool.TransactionPool;
@@ -84,7 +85,6 @@ import com.swirlds.platform.system.transaction.TransactionWrapper;
 import com.swirlds.platform.wiring.components.GossipWiring;
 import com.swirlds.platform.wiring.components.PcesReplayerWiring;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
-import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -215,9 +215,7 @@ public class PlatformWiring {
                 model,
                 StateHasher.class,
                 config.stateHasher(),
-                data -> data instanceof final StateWithHashComplexity swhc
-                        ? Math.max(swhc.hashComplexity(), 1)
-                        : 1);
+                data -> data instanceof final StateWithHashComplexity swhc ? Math.max(swhc.hashComplexity(), 1) : 1);
 
         gossipWiring = new GossipWiring(platformContext, model);
 
@@ -514,32 +512,33 @@ public class PlatformWiring {
                 .solderTo(consensusEventStreamWiring.getInputWire(ConsensusEventStream::addEvents));
 
         // The TransactionHandler output is split into two types: system transactions, and state with complexity.
-        final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>> transactionHandlerSysTxnsOutputWire =
-                transactionHandlerWiring
+        final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
+                transactionHandlerSysTxnsOutputWire = transactionHandlerWiring
                         .getOutputWire()
                         .buildTransformer(
                                 "getSystemTransactions",
                                 "transaction handler result",
                                 TransactionHandlerResult::systemTransactions);
-        transactionHandlerSysTxnsOutputWire.solderTo(stateSignatureCollectorWiring.getInputWire(
-                StateSignatureCollector::handlePostconsensusSignatures));
+        transactionHandlerSysTxnsOutputWire.solderTo(
+                stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::handlePostconsensusSignatures));
         transactionHandlerSysTxnsOutputWire.solderTo(
                 issDetectorWiring.getInputWire(IssDetector::handleStateSignatureTransactions));
 
-        final OutputWire<StateWithHashComplexity> transactionHandlerStateWithComplexityOutput =
-                transactionHandlerWiring
-                        .getOutputWire()
-                        .buildFilter("notNullStateFilter", "transaction handler result",
-                                thr -> thr.stateWithHashComplexity() != null)
-                        .buildAdvancedTransformer(
-                                new StateWithHashComplexityReserver("postHandler_stateWithHashComplexityReserver"));
+        final OutputWire<StateWithHashComplexity> transactionHandlerStateWithComplexityOutput = transactionHandlerWiring
+                .getOutputWire()
+                .buildFilter(
+                        "notNullStateFilter",
+                        "transaction handler result",
+                        thr -> thr.stateWithHashComplexity() != null)
+                .buildAdvancedTransformer(
+                        new StateWithHashComplexityReserver("postHandler_stateWithHashComplexityReserver"));
 
         transactionHandlerStateWithComplexityOutput.solderTo(
                 savedStateControllerWiring.getInputWire(SavedStateController::markSavedState));
 
         final OutputWire<ReservedSignedState> transactionHandlerStateOnlyOutput =
-                transactionHandlerStateWithComplexityOutput
-                        .buildAdvancedTransformer(new StateWithHashComplexityToStateReserver(
+                transactionHandlerStateWithComplexityOutput.buildAdvancedTransformer(
+                        new StateWithHashComplexityToStateReserver(
                                 "postHandler_stateWithHashComplexityToStateReserver"));
 
         transactionHandlerStateOnlyOutput.solderTo(
