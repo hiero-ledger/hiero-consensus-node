@@ -17,7 +17,6 @@ mainModuleInfo {
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
-    runtimeOnly("com.hedera.cryptography.altbn128")
 }
 
 testModuleInfo {
