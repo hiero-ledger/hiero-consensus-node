@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2025 Hedera Hashgraph, LLC
+ * Copyright (C) 2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,11 +83,10 @@ public class MigrationTestingToolState extends PlatformMerkleStateRoot {
      */
     private static class ChildIndices {
         public static final int UNUSED_PLATFORM_STATE = 0;
-        public static final int MERKLE_MAP = 1;
-        public static final int VIRTUAL_MAP = 2;
-
-        public static final int UNUSED_ROSTERS = 3;
-        public static final int UNUSED_ROSTER_STATE = 4;
+        public static final int UNUSED_ROSTERS = 1;
+        public static final int UNUSED_ROSTER_STATE = 2;
+        public static final int MERKLE_MAP = 3;
+        public static final int VIRTUAL_MAP = 4;
 
         public static final int CHILD_COUNT = 5;
 
@@ -97,7 +96,6 @@ public class MigrationTestingToolState extends PlatformMerkleStateRoot {
 
     public MigrationTestingToolState(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
         super(versionFactory);
-        allocateSpaceForChild(ChildIndices.CHILD_COUNT);
     }
 
     private MigrationTestingToolState(final MigrationTestingToolState that) {
@@ -222,6 +220,7 @@ public class MigrationTestingToolState extends PlatformMerkleStateRoot {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public MigrationTestingToolState copy() {
         throwIfImmutable();
