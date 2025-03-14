@@ -83,7 +83,7 @@ class PlatformWiringTests {
 
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 
-        final PlatformWiring wiring = new PlatformWiring(platformContext, model, applicationCallbacks);
+        final PlatformWiring wiring = new PlatformWiring(platformContext, model, applicationCallbacks, true);
 
         final PlatformComponentBuilder componentBuilder =
                 new PlatformComponentBuilder(mock(PlatformBuildingBlocks.class));

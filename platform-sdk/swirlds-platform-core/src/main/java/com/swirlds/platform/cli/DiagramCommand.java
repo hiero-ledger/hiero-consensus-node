@@ -107,7 +107,7 @@ public final class DiagramCommand extends AbstractCommand {
 
         final WiringModel model = WiringModelBuilder.create(platformContext).build();
 
-        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks);
+        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, true);
 
         final String diagramString = platformWiring
                 .getModel()

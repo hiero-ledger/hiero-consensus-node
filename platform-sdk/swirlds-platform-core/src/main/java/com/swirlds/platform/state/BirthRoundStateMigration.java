@@ -51,6 +51,13 @@ public final class BirthRoundStateMigration {
         }
 
         final MerkleNodeState state = initialState.getState();
+        final boolean isGenesis = platformStateFacade.isGenesisStateOf(state);
+        if (isGenesis) {
+            // Genesis state, no action needed.
+            logger.info(STARTUP.getMarker(), "Birth round state migration is not needed for genesis state.");
+            return;
+        }
+
         final boolean alreadyMigrated = platformStateFacade.firstVersionInBirthRoundModeOf(state) != null;
         if (alreadyMigrated) {
             // Birth round migration was completed at a prior time, no action needed.
