@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.streaming;
 
-import com.hedera.hapi.block.protoc.PublishStreamRequest;
+import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;

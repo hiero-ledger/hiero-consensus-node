@@ -10,9 +10,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.block.protoc.BlockItemSet;
+import com.hedera.hapi.block.BlockItemSet;
+import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
-import com.hedera.hapi.block.protoc.PublishStreamRequest;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
@@ -108,26 +108,17 @@ class BlockNodeConnectionManagerTest {
         assertEquals(2, requests.size(), "Should create 2 batches");
 
         // Verify first batch contains 2 items
-        BlockItemSet firstBatch = requests.get(0).getBlockItems();
-        assertEquals(2, firstBatch.getBlockItemsCount(), "First batch should contain 2 items");
+        BlockItemSet firstBatch = requests.get(0).blockItems();
+        assertEquals(2, firstBatch.blockItems().size(), "First batch should contain 2 items");
 
         // Verify second batch contains 1 item
-        BlockItemSet secondBatch = requests.get(1).getBlockItems();
-        assertEquals(1, secondBatch.getBlockItemsCount(), "Second batch should contain 1 item");
+        BlockItemSet secondBatch = requests.get(1).blockItems();
+        assertEquals(1, secondBatch.blockItems().size(), "Second batch should contain 1 item");
 
         // Verify the items in batches
-        assertEquals(
-                item1,
-                BlockItem.PROTOBUF.parse(Bytes.wrap(firstBatch.getBlockItems(0).toByteArray())),
-                "First item in first batch should be item1");
-        assertEquals(
-                item2,
-                BlockItem.PROTOBUF.parse(Bytes.wrap(firstBatch.getBlockItems(1).toByteArray())),
-                "Second item in first batch should be item2");
-        assertEquals(
-                item3,
-                BlockItem.PROTOBUF.parse(Bytes.wrap(secondBatch.getBlockItems(0).toByteArray())),
-                "First item in second batch should be item3");
+        assertEquals(item1, firstBatch.blockItems().get(0), "First item in first batch should be item1");
+        assertEquals(item2, firstBatch.blockItems().get(1), "Second item in first batch should be item2");
+        assertEquals(item3, secondBatch.blockItems().get(0), "First item in second batch should be item3");
     }
 
     @Test

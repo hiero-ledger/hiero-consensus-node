@@ -3,13 +3,16 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.protoc.BlockItemSet;
+import com.hedera.hapi.block.BlockItemSet;
+import com.hedera.hapi.block.PublishStreamRequest;
+import com.hedera.hapi.block.PublishStreamResponse;
 import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
-import com.hedera.hapi.block.protoc.PublishStreamRequest;
-import com.hedera.hapi.block.protoc.PublishStreamResponse;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.grpc.GrpcClient;
@@ -17,7 +20,6 @@ import io.helidon.webclient.grpc.GrpcClientMethodDescriptor;
 import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
 import io.helidon.webclient.grpc.GrpcServiceClient;
 import io.helidon.webclient.grpc.GrpcServiceDescriptor;
-import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -183,21 +185,19 @@ public class BlockNodeConnectionManager {
         for (int i = 0; i < totalItems; i += blockItemBatchSize) {
             int end = Math.min(i + blockItemBatchSize, totalItems);
             List<byte[]> batch = block.itemBytes().subList(i, end);
-            List<com.hedera.hapi.block.stream.protoc.BlockItem> protocBlockItems = new ArrayList<>(batch.size());
+            List<BlockItem> blockItems = new ArrayList<>(batch.size());
             batch.forEach(batchItem -> {
                 try {
-                    protocBlockItems.add(com.hedera.hapi.block.stream.protoc.BlockItem.parseFrom(batchItem));
-                } catch (IOException e) {
+                    blockItems.add(BlockItem.PROTOBUF.parse(Bytes.wrap(batchItem)));
+                } catch (ParseException e) {
                     throw new RuntimeException(e);
                 }
             });
 
             // Create BlockItemSet by adding all items at once
-            BlockItemSet itemSet =
-                    BlockItemSet.newBuilder().addAllBlockItems(protocBlockItems).build();
-
-            batchRequests.add(
-                    PublishStreamRequest.newBuilder().setBlockItems(itemSet).build());
+            batchRequests.add(PublishStreamRequest.newBuilder()
+                    .blockItems(new BlockItemSet(blockItems))
+                    .build());
         }
         return batchRequests;
     }

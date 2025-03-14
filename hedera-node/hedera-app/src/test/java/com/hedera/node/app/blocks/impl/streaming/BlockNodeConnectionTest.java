@@ -13,9 +13,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.block.protoc.PublishStreamRequest;
-import com.hedera.hapi.block.protoc.PublishStreamResponse;
-import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
+import com.hedera.hapi.block.Acknowledgement;
+import com.hedera.hapi.block.BlockAcknowledgement;
+import com.hedera.hapi.block.EndOfStream;
+import com.hedera.hapi.block.PublishStreamRequest;
+import com.hedera.hapi.block.PublishStreamResponse;
+import com.hedera.hapi.block.PublishStreamResponseCode;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
@@ -78,7 +81,7 @@ class BlockNodeConnectionTest {
         blockNodeConnection.establishStream();
         assertTrue(blockNodeConnection.isActive());
 
-        blockNodeConnection.sendRequest(PublishStreamRequest.getDefaultInstance());
+        blockNodeConnection.sendRequest(PublishStreamRequest.DEFAULT);
 
         verify(requestObserver, times(1)).onNext(any());
     }
@@ -87,7 +90,7 @@ class BlockNodeConnectionTest {
     void testSendRequest_NotActiveConnection() {
         assertFalse(blockNodeConnection.isActive());
 
-        blockNodeConnection.sendRequest(PublishStreamRequest.getDefaultInstance());
+        blockNodeConnection.sendRequest(PublishStreamRequest.DEFAULT);
 
         verifyNoInteractions(requestObserver);
     }
@@ -124,14 +127,16 @@ class BlockNodeConnectionTest {
         assertNotNull(capturedObserver);
 
         final var response = PublishStreamResponse.newBuilder()
-                .setAcknowledgement(PublishStreamResponse.Acknowledgement.newBuilder()
-                        .setBlockAck(PublishStreamResponse.BlockAcknowledgement.newBuilder()
-                                .setBlockNumber(1234)
+                .acknowledgement(Acknowledgement.newBuilder()
+                        .blockAck(BlockAcknowledgement.newBuilder()
+                                .blockNumber(1234)
                                 .build()))
                 .build();
         capturedObserver.onNext(response);
 
-        assertThat(logCaptor.infoLogs()).contains("Block acknowledgment received for a full block: block_number: 1234");
+        assertThat(logCaptor.infoLogs())
+                .contains(
+                        "Block acknowledgment received for a full block: BlockAcknowledgement[blockNumber=1234, blockRootHash=, blockAlreadyExists=false]");
     }
 
     @Test
@@ -145,16 +150,16 @@ class BlockNodeConnectionTest {
         assertNotNull(capturedObserver);
 
         final var response = PublishStreamResponse.newBuilder()
-                .setEndStream(PublishStreamResponse.EndOfStream.newBuilder()
-                        .setStatus(PublishStreamResponseCode.STREAM_ITEMS_TIMEOUT)
-                        .setBlockNumber(1234)
+                .endStream(EndOfStream.newBuilder()
+                        .status(PublishStreamResponseCode.STREAM_ITEMS_TIMEOUT)
+                        .blockNumber(1234)
                         .build())
                 .build();
         capturedObserver.onNext(response);
 
         assertThat(logCaptor.infoLogs())
                 .contains(
-                        "Error returned from block node at block number 1234: status: STREAM_ITEMS_TIMEOUT\nblock_number: 1234");
+                        "Error returned from block node at block number 1234: EndOfStream[status=STREAM_ITEMS_TIMEOUT, blockNumber=1234]");
     }
 
     @Test
