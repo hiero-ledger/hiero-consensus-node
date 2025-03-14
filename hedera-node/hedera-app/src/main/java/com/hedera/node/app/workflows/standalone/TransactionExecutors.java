@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.standalone;
 
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
+import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 import static com.hedera.node.app.workflows.standalone.impl.NoopVerificationStrategies.NOOP_VERIFICATION_STRATEGIES;
 import static java.util.Objects.requireNonNull;
 
@@ -53,6 +54,7 @@ public enum TransactionExecutors {
     TRANSACTION_EXECUTORS;
 
     public static final String MAX_SIGNED_TXN_SIZE_PROPERTY = "executor.maxSignedTxnSize";
+    public static final String DISABLE_THROTTLES_PROPERTY = "executor.disableThrottles";
 
     /**
      * A strategy to bind and retrieve {@link OperationTracer} scoped to a thread.
@@ -234,6 +236,9 @@ public enum TransactionExecutors {
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();
 
         var defaultNodeInfo = new NodeInfoImpl(0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY);
+        final var disableThrottles = Optional.ofNullable(properties.get(DISABLE_THROTTLES_PROPERTY))
+                .map(Boolean::parseBoolean)
+                .orElse(false);
 
         final var appContext = new AppContextImpl(
                 InstantSource.system(),
@@ -249,7 +254,11 @@ public enum TransactionExecutors {
                         configProvider::getConfiguration,
                         () -> state,
                         () -> componentRef.get().throttleServiceManager().activeThrottleDefinitionsOrThrow(),
-                        ThrottleAccumulator::new,
+                        (configSupplier, capacitySplitSource, throttleType, versionFactory) -> disableThrottles
+                                ? new ThrottleAccumulator(
+                                        configSupplier, capacitySplitSource, NOOP_THROTTLE, versionFactory)
+                                : new ThrottleAccumulator(
+                                        configSupplier, capacitySplitSource, throttleType, versionFactory),
                         softwareVersionFactory),
                 () -> componentRef.get().appFeeCharging(),
                 entityIdFactory);
@@ -264,6 +273,7 @@ public enum TransactionExecutors {
         final var component = DaggerExecutorComponent.builder()
                 .appContext(appContext)
                 .configProviderImpl(configProvider)
+                .disableThrottles(disableThrottles)
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileService)
                 .scheduleService(scheduleService)
