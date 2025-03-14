@@ -4,7 +4,6 @@ package com.swirlds.component.framework.model.internal.deterministic;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT_THREADSAFE;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.NO_OP;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.extensions.FractionalTimer;
 import com.swirlds.common.metrics.extensions.NoOpFractionalTimer;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
@@ -13,6 +12,7 @@ import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.internal.AbstractTaskSchedulerBuilder;
 import com.swirlds.component.framework.schedulers.internal.DirectTaskScheduler;
 import com.swirlds.component.framework.schedulers.internal.NoOpTaskScheduler;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
@@ -30,18 +30,18 @@ public class DeterministicTaskSchedulerBuilder<OUT> extends AbstractTaskSchedule
     /**
      * Constructor.
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics
      * @param model           the wiring model
      * @param name            the name of the task scheduler. Used for metrics and debugging. Must be unique. Must only
      *                        contain alphanumeric characters and underscores.
      * @param submitWork      a method where all work should be submitted
      */
     public DeterministicTaskSchedulerBuilder(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Metrics metrics,
             @NonNull final TraceableWiringModel model,
             @NonNull final String name,
             @NonNull final Consumer<Runnable> submitWork) {
-        super(platformContext, model, name, ForkJoinPool.commonPool());
+        super(metrics, model, name, ForkJoinPool.commonPool());
         this.submitWork = Objects.requireNonNull(submitWork);
     }
 
