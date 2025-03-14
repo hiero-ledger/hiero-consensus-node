@@ -54,7 +54,7 @@ public class HintsSubmissions extends TssSubmissions {
             final int partyId, final int numParties, @NonNull final Bytes hintsKey) {
         requireNonNull(hintsKey);
         final var op = new HintsKeyPublicationTransactionBody(partyId, numParties, hintsKey);
-        return submit(b -> b.hintsKeyPublication(op), onFailure);
+        return submitIfActive(b -> b.hintsKeyPublication(op), onFailure);
     }
 
     /**
@@ -70,7 +70,7 @@ public class HintsSubmissions extends TssSubmissions {
                 .newCrs(crs)
                 .proof(proof)
                 .build();
-        return submit(b -> b.crsPublication(op), onFailure);
+        return submitIfActive(b -> b.crsPublication(op), onFailure);
     }
 
     /**
@@ -88,7 +88,7 @@ public class HintsSubmissions extends TssSubmissions {
                         .congruentNodeId(congruentNodeId)
                         .build())
                 .build();
-        return submit(b -> b.hintsPreprocessingVote(op), onFailure);
+        return submitIfActive(b -> b.hintsPreprocessingVote(op), onFailure);
     }
 
     /**
@@ -106,7 +106,7 @@ public class HintsSubmissions extends TssSubmissions {
                         .preprocessedKeys(preprocessedKeys)
                         .build())
                 .build();
-        return submit(b -> b.hintsPreprocessingVote(op), onFailure);
+        return submitIfActive(b -> b.hintsPreprocessingVote(op), onFailure);
     }
 
     /**
@@ -118,7 +118,7 @@ public class HintsSubmissions extends TssSubmissions {
     public CompletableFuture<Void> submitPartialSignature(@NonNull final Bytes message) {
         requireNonNull(message);
         final long constructionId = context.constructionIdOrThrow();
-        return submit(
+        return submitIfActive(
                 b -> {
                     final var signature = keyAccessor.signWithBlsPrivateKey(constructionId, message);
                     b.hintsPartialSignature(new HintsPartialSignatureTransactionBody(

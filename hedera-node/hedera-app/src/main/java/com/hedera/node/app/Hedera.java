@@ -835,6 +835,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         return platform.sign(ledgerId);
     }
 
+    @Override
+    public boolean isAvailable() {
+        return daggerApp != null && daggerApp.currentPlatformStatus().get() == ACTIVE;
+    }
+
     /**
      * Called to perform orderly close record streams.
      */

@@ -136,8 +136,7 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
     }
 
     @Override
-    public Map<Long, CrsPublicationTransactionBody> getOrderedCrsPublicationsByNodeIds(
-            @NonNull final Set<Long> nodeIds) {
+    public Map<Long, CrsPublicationTransactionBody> getOrderedCrsPublications(@NonNull final Set<Long> nodeIds) {
         final Map<Long, CrsPublicationTransactionBody> publications = new HashMap<>();
         for (final var nodeId : nodeIds) {
             final var publication = crsPublications.get(new NodeId(nodeId));

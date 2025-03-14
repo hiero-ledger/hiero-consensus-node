@@ -18,8 +18,6 @@ import javax.inject.Singleton;
 
 @Singleton
 public class HintsKeyPublicationHandler implements TransactionHandler {
-    private static final org.apache.logging.log4j.Logger log =
-            org.apache.logging.log4j.LogManager.getLogger(HintsKeyPublicationHandler.class);
     private static final int INVALID_PARTY_ID = -1;
 
     private final HintsControllers controllers;

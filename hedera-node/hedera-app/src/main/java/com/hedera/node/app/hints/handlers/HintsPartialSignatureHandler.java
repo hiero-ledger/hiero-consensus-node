@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.impl.HintsContext;
-import com.hedera.node.app.hints.impl.HintsControllers;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -32,17 +31,14 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
     private final AtomicReference<Roster> currentRoster;
 
     private final HintsContext hintsContext;
-    private final HintsControllers controllers;
 
     @Inject
     public HintsPartialSignatureHandler(
-            @NonNull ConcurrentMap<Bytes, HintsContext.Signing> signings,
+            @NonNull final ConcurrentMap<Bytes, HintsContext.Signing> signings,
             final HintsContext context,
-            final HintsControllers controllers,
             final AtomicReference<Roster> currentRoster) {
         this.signings = requireNonNull(signings);
         this.hintsContext = requireNonNull(context);
-        this.controllers = requireNonNull(controllers);
         this.currentRoster = requireNonNull(currentRoster);
     }
 
@@ -65,10 +61,8 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         final var crs = hintsStore.getCrsState().crs();
         signings.computeIfAbsent(
                         op.message(),
-                        b -> hintsContext.newSigning(b, requireNonNull(currentRoster.get()), () -> {
-                            signings.remove(op.message());
-                            logger.info("Removed signing, size left {}", signings.size());
-                        }))
+                        b -> hintsContext.newSigning(
+                                b, requireNonNull(currentRoster.get()), () -> signings.remove(op.message())))
                 .incorporate(crs, op.constructionId(), creator, op.partialSignature());
     }
 }

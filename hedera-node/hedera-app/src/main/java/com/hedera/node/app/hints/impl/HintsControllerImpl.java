@@ -135,7 +135,7 @@ public class HintsControllerImpl implements HintsController {
 
         final var crsState = hintsStore.getCrsState();
         if (crsState.stage() == GATHERING_CONTRIBUTIONS) {
-            final var crsPublications = hintsStore.getOrderedCrsPublicationsByNodeIds(weights.sourceNodeIds());
+            final var crsPublications = hintsStore.getOrderedCrsPublications(weights.sourceNodeIds());
             crsPublications.forEach((nodeId, publication) -> {
                 if (publication != null) {
                     verifyCrsUpdate(publication, hintsStore, nodeId);

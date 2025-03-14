@@ -117,7 +117,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private StreamingTreeHasher inputTreeHasher;
     private StreamingTreeHasher outputTreeHasher;
     private BlockStreamManagerTask worker;
-    private Configuration config;
+    private final boolean hintsEnabled;
     // If not null, the part of the block preceding a possible first transaction
     @Nullable
     private PreTxnItems preTxnItems;
@@ -199,7 +199,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.platformStateFacade = platformStateFacade;
         requireNonNull(configProvider);
-        this.config = configProvider.getConfiguration();
+        final var config = configProvider.getConfiguration();
+        this.hintsEnabled = config.getConfigData(TssConfig.class).hintsEnabled();
         this.hapiVersion = hapiVersionFrom(config);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
@@ -240,7 +241,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             return;
         }
 
-        // If the platform handled this round, it must eventually hash its end state
+        // In case we hash this round, include a future for the end-of-round state hash
         endRoundStateHashes.put(round.getRoundNum(), new CompletableFuture<>());
 
         if (platformStateFacade.isFreezeRound(state, round)) {
@@ -257,8 +258,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
             pendingWork = classifyPendingWork(blockStreamInfo, version);
-            final var tssConfig = config.getConfigData(TssConfig.class);
-            if (tssConfig.hintsEnabled() && pendingWork == POST_UPGRADE_WORK) {
+            if (pendingWork == POST_UPGRADE_WORK && hintsEnabled) {
                 // On upgrade, we need to gossip the signatures for the freeze block
                 blockHashSigner
                         .signFuture(lastBlockHash)
@@ -343,10 +343,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     inputTreeHasher.rootHash().orTimeout(5, TimeUnit.SECONDS).join();
             // This block's starting state hash is the end state hash of the last non-empty round
             final var blockStartStateHash = requireNonNull(endRoundStateHashes.get(lastNonEmptyRoundNumber))
-                    .orTimeout(5, TimeUnit.SECONDS)
                     .join();
-            // Now forget that hash, since it's been used
-            endRoundStateHashes.remove(lastNonEmptyRoundNumber);
+            // Now clean up hash futures for rounds before the one closing this block
+            for (long i = lastNonEmptyRoundNumber; i < roundNum; i++) {
+                endRoundStateHashes.remove(i);
+            }
             // And update the last non-empty round number to this round
             lastNonEmptyRoundNumber = roundNum;
             final var outputTreeStatus = outputTreeHasher.status();
@@ -393,13 +394,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Update in-memory state to prepare for the next block
             lastBlockHash = blockHash;
             writer = null;
-            if (roundNum != freezeRoundNumber) {
-                log.info("Requested signature for {} on {}", blockNumber, blockHash);
+            // Special case when signing with hinTS and this is the freeze round; we will have to wait until
+            // after restart to gossip partial signatures and sign this block
+            if (hintsEnabled && roundNum == freezeRoundNumber) {
+                pendingBlocks.forEach(block -> block.writer().closeBlock());
+            } else {
                 blockHashSigner
                         .signFuture(blockHash)
                         .thenAcceptAsync(signature -> finishProofWithSignature(blockHash, signature));
-            } else {
-                pendingBlocks.forEach(block -> block.writer().closeBlock());
             }
 
             final var exportNetworkToDisk =

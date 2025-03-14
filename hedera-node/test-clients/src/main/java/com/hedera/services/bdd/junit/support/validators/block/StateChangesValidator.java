@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_HINTS_CONSTRUCTION;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
-import static com.hedera.hapi.node.state.hints.HintsConstruction.PreprocessingStateOneOfType.HINTS_SCHEME;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
@@ -39,7 +38,7 @@ import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
-import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -123,8 +122,8 @@ public class StateChangesValidator implements BlockStreamValidator {
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
     private MerkleNodeState state;
-    private HintsLibrary hintsLibrary = new HintsLibraryImpl();
-    private boolean isHintsEnabled;
+    private final boolean isHintsEnabled;
+    private final HintsLibrary hintsLibrary = new HintsLibraryImpl();
 
     public static void main(String[] args) {
         final var node0Dir = Paths.get("hedera-node/test-clients")
@@ -133,7 +132,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 .normalize();
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
-                        "4bb15909af8dde81e396c72c2137a608eaad772f56b9f66d79238ee29da9a7d4b1b2f2380c1343e1ed6a117fd95c925e"),
+                        "63fb5b8a8e40a5afaab12906f71a264d5cb7fcdc636bdb67268055831f73fb6edb3f2bc5199b7f56aca614f07c643cd1"),
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("config.txt"),
                 node0Dir.resolve("data/config/application.properties"),
@@ -238,38 +237,19 @@ public class StateChangesValidator implements BlockStreamValidator {
         var startOfStateHash = requireNonNull(genesisStateHash).getBytes();
 
         final int n = blocks.size();
-        Bytes verificationKey = null;
-        if (isHintsEnabled) {
-            // scan through blocks and see the state changes where the construction is set in
-            // ACTIVE_HINT_CONSTRUCTION state
-            for (int i = 0; i < n; i++) {
-                final var block = blocks.get(i);
-                for (final var item : block.items()) {
-                    if (item.hasStateChanges()) {
-                        final var changes = item.stateChangesOrThrow();
-                        for (final var stateChange : changes.stateChanges()) {
-                            final var stateName = stateNameOf(stateChange.stateId());
-                            if (stateName.contains(ACTIVE_HINT_CONSTRUCTION_KEY)) {
-                                final var construction =
-                                        stateChange.singletonUpdateOrThrow().hintsConstructionValue();
-                                if (construction != null
-                                        && construction
-                                                .preprocessingState()
-                                                .kind()
-                                                .equals(HINTS_SCHEME)) {
-                                    final HintsScheme hintsScheme = (HintsScheme)
-                                            construction.preprocessingState().value();
-                                    if (hintsScheme.preprocessedKeys() != null) {
-                                        verificationKey =
-                                                hintsScheme.preprocessedKeys().verificationKey();
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        final var verificationKey = isHintsEnabled
+                ? blocks.stream()
+                        .flatMap(b -> b.items().stream())
+                        .filter(BlockItem::hasStateChanges)
+                        .flatMap(b -> b.stateChangesOrThrow().stateChanges().stream())
+                        .filter(change -> change.stateId() == STATE_ID_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal())
+                        .map(change -> change.singletonUpdateOrThrow().hintsConstructionValueOrThrow())
+                        .filter(HintsConstruction::hasHintsScheme)
+                        .map(c ->
+                                c.hintsSchemeOrThrow().preprocessedKeysOrThrow().verificationKey())
+                        .findFirst()
+                        .orElseThrow()
+                : null;
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
             final var shouldVerifyProof = i == 0 || i == n - 2 || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
@@ -449,7 +429,7 @@ public class StateChangesValidator implements BlockStreamValidator {
     }
 
     private void validateBlockProof(
-            @NonNull final BlockProof proof, @NonNull final Bytes blockHash, final Bytes verificationKey) {
+            @NonNull final BlockProof proof, @NonNull final Bytes blockHash, @Nullable final Bytes verificationKey) {
         var provenHash = blockHash;
         final var siblingHashes = proof.siblingHashes();
         if (!siblingHashes.isEmpty()) {
@@ -458,7 +438,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 provenHash = combine(provenHash, siblingHash.siblingHash());
             }
         }
-        if (verificationKey != null && !verificationKey.equals(Bytes.EMPTY)) {
+        if (verificationKey != null) {
             final var signature = proof.blockSignature();
             final var verified = hintsLibrary.verifyAggregate(signature, blockHash, verificationKey, 1, 3);
             assertTrue(verified, "Block proof signature verification failed for " + proof);

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
-import static com.hedera.node.app.hints.impl.WritableHintsStoreImplTest.WITH_ENABLED_HINTS_AND_CRS;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
@@ -68,7 +67,7 @@ class HintsServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        subject = new HintsServiceImpl(WITH_ENABLED_HINTS_AND_CRS, component, library);
+        subject = new HintsServiceImpl(component, library);
     }
 
     @Test

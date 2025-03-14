@@ -533,7 +533,7 @@ class HintsControllerImplTest {
                 .when(store.getCrsPublications())
                 .thenReturn(List.of(CrsPublicationTransactionBody.newBuilder().build()));
         lenient()
-                .when(store.getOrderedCrsPublicationsByNodeIds(any()))
+                .when(store.getOrderedCrsPublications(any()))
                 .thenReturn(
                         Map.of(0L, CrsPublicationTransactionBody.DEFAULT, 1L, CrsPublicationTransactionBody.DEFAULT));
         subject = new HintsControllerImpl(

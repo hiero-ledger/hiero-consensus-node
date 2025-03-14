@@ -61,6 +61,18 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
         }
     }
 
+    @Override
+    public void onFileChange(File file) {
+        switch (typeOf(file)) {
+            case RECORD_STREAM_FILE -> retryExposingVia(this::exposeItems, "record", file);
+            case SIDE_CAR_FILE -> retryExposingVia(this::exposeSidecars, "sidecar", file);
+            case BLOCK_FILE -> retryExposingVia(this::exposeBlock, "block", file);
+            case OTHER -> {
+                // Nothing to expose
+            }
+        }
+    }
+
     private void retryExposingVia(
             @NonNull final Consumer<File> exposure, @NonNull final String fileType, @NonNull final File f) {
         var retryCount = 0;
@@ -117,6 +129,10 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
     }
 
     private FileType typeOf(final File file) {
+        // Ignore empty files, which are likely to be in the process of being written
+        if (file.length() == 0L) {
+            return FileType.OTHER;
+        }
         if (isRecordFile(file.getName())) {
             return FileType.RECORD_STREAM_FILE;
         } else if (isSidecarFile(file.getName())) {
