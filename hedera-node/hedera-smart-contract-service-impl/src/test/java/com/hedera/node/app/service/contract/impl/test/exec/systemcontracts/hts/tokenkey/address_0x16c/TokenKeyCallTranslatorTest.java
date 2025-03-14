@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.tokenkey;
+package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.tokenkey.address_0x16c;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_16C_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator.BURN_TOKEN_V2;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyTranslator.TOKEN_KEY;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.address_0x16c.TokenKeyTranslator.TOKEN_KEY_16C;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelector;
+import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorWithContractID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
@@ -17,10 +18,10 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategi
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyCall;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyCommons;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.address_0x16c.TokenKeyTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,8 +63,9 @@ class TokenKeyTranslatorTest {
 
     @Test
     void matchesTokenKeyTranslatorTest() {
-        attempt = prepareHtsAttemptWithSelector(
-                TOKEN_KEY,
+        attempt = prepareHtsAttemptWithSelectorWithContractID(
+                HTS_16C_CONTRACT_ID,
+                TOKEN_KEY_16C,
                 subject,
                 enhancement,
                 addressIdConverter,
@@ -75,7 +77,8 @@ class TokenKeyTranslatorTest {
 
     @Test
     void matchesFailsIfIncorrectSelectorTest() {
-        attempt = prepareHtsAttemptWithSelector(
+        attempt = prepareHtsAttemptWithSelectorWithContractID(
+                HTS_16C_CONTRACT_ID,
                 BURN_TOKEN_V2,
                 subject,
                 enhancement,
@@ -89,11 +92,10 @@ class TokenKeyTranslatorTest {
     @Test
     void callFromTest() {
         final Tuple tuple = Tuple.of(FUNGIBLE_TOKEN_HEADLONG_ADDRESS, BigInteger.ZERO);
-        final var inputBytes = org.apache.tuweni.bytes.Bytes.wrapByteBuffer(TOKEN_KEY.encodeCall(tuple));
+        final var inputBytes = org.apache.tuweni.bytes.Bytes.wrapByteBuffer(TOKEN_KEY_16C.encodeCall(tuple));
         given(attempt.input()).willReturn(inputBytes);
         given(attempt.enhancement()).willReturn(enhancement);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-        given(attempt.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
 
         final var call = subject.callFrom(attempt);
         assertThat(call).isInstanceOf(TokenKeyCall.class);
@@ -113,7 +115,7 @@ class TokenKeyTranslatorTest {
                 .metadataKey(keyBuilder("metadataKey"))
                 .build();
 
-        final Key result = subject.getTokenKey(token, keyType, true);
+        final Key result = TokenKeyCommons.getTokenKey(token, keyType, HTS_16C_CONTRACT_ID);
         assertThat(result).isNotNull();
     }
 
