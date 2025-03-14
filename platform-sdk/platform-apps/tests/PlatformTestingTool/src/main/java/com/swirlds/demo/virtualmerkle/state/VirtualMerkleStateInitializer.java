@@ -78,8 +78,7 @@ public final class VirtualMerkleStateInitializer {
             logger.info(LOGM_DEMO_INFO, "total accounts = {}", totalAccounts);
             if (state.getVirtualMap() == null && totalAccounts > 0) {
                 logger.info(LOGM_DEMO_INFO, "Creating virtualmap for {} accounts.", totalAccounts);
-                final VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> virtualMap =
-                        createAccountsVM(totalAccounts);
+                final VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> virtualMap = createAccountsVM();
                 logger.info(LOGM_DEMO_INFO, "accounts VM = {}, DS = {}", virtualMap, virtualMap.getDataSource());
                 virtualMap.registerMetrics(platform.getContext().getMetrics());
                 state.setVirtualMap(virtualMap);
@@ -92,8 +91,7 @@ public final class VirtualMerkleStateInitializer {
                         LOGM_DEMO_INFO,
                         "Creating virtualmap for max {} key value pairs.",
                         maximumNumberOfKeyValuePairs);
-                final VirtualMap<SmartContractMapKey, SmartContractMapValue> virtualMap =
-                        createSmartContractsVM(maximumNumberOfKeyValuePairs);
+                final VirtualMap<SmartContractMapKey, SmartContractMapValue> virtualMap = createSmartContractsVM();
                 logger.info(LOGM_DEMO_INFO, "SC VM = {}, DS = {}", virtualMap, virtualMap.getDataSource());
                 virtualMap.registerMetrics(platform.getContext().getMetrics());
                 state.setVirtualMapForSmartContracts(virtualMap);
@@ -104,7 +102,7 @@ public final class VirtualMerkleStateInitializer {
             if (state.getVirtualMapForSmartContractsByteCode() == null && totalSmartContracts > 0) {
                 logger.info(LOGM_DEMO_INFO, "Creating virtualmap for {} bytecodes.", totalSmartContracts);
                 final VirtualMap<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue> virtualMap =
-                        createSmartContractByteCodeVM(totalSmartContracts);
+                        createSmartContractByteCodeVM();
                 logger.info(LOGM_DEMO_INFO, "SCBC VM = {}, DS = {}", virtualMap, virtualMap.getDataSource());
                 virtualMap.registerMetrics(platform.getContext().getMetrics());
                 state.setVirtualMapForSmartContractsByteCode(virtualMap);
@@ -112,8 +110,7 @@ public final class VirtualMerkleStateInitializer {
         }
     }
 
-    private static VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> createAccountsVM(final long numOfKeys) {
-        TABLE_CONFIG.maxNumberOfKeys(numOfKeys);
+    private static VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> createAccountsVM() {
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(TABLE_CONFIG, CONFIGURATION);
         return new VirtualMap<>(
                 "accounts",
@@ -123,8 +120,7 @@ public final class VirtualMerkleStateInitializer {
                 CONFIGURATION);
     }
 
-    private static VirtualMap<SmartContractMapKey, SmartContractMapValue> createSmartContractsVM(final long numOfKeys) {
-        TABLE_CONFIG.maxNumberOfKeys(numOfKeys);
+    private static VirtualMap<SmartContractMapKey, SmartContractMapValue> createSmartContractsVM() {
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(TABLE_CONFIG, CONFIGURATION);
         return new VirtualMap<>(
                 "smartContracts",
@@ -134,9 +130,8 @@ public final class VirtualMerkleStateInitializer {
                 CONFIGURATION);
     }
 
-    private static VirtualMap<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue> createSmartContractByteCodeVM(
-            final long numOfKeys) {
-        TABLE_CONFIG.maxNumberOfKeys(numOfKeys);
+    private static VirtualMap<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue>
+            createSmartContractByteCodeVM() {
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(TABLE_CONFIG, CONFIGURATION);
         return new VirtualMap<>(
                 "smartContractByteCode",
