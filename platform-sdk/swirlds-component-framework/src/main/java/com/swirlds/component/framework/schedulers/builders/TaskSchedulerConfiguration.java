@@ -80,7 +80,6 @@ public record TaskSchedulerConfiguration(
         Boolean unhandledTaskMetricEnabled = null;
         Boolean busyFractionMetricEnabled = null;
         Boolean flushingEnabled = null;
-        Boolean squelchingEnabled = null;
 
         final String[] parts = string.split(" ");
         for (final String part : parts) {
