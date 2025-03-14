@@ -2,10 +2,11 @@
 package com.swirlds.platform.internal;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.system.events.ConsensusEvent;
@@ -191,7 +192,7 @@ public class ConsensusRound implements Round {
      */
     @Override
     public @NonNull Instant getConsensusTimestamp() {
-        return snapshot.consensusTimestamp();
+        return Objects.requireNonNull(PbjConverter.fromPbjTimestamp(snapshot.consensusTimestamp()));
     }
 
     /**

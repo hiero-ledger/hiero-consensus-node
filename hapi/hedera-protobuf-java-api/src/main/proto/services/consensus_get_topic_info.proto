@@ -1,0 +1,73 @@
+/**
+ * # Get Topic
+ * Query a topic in the Hedera Consensus Service (HCS).
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.consensus">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+import "services/consensus_topic_info.proto";
+
+/**
+ * Retrieve the latest state of a topic.
+ *
+ * This method is unrestricted and allowed on any topic by any payer
+ * account.<br/>
+ * A query for a deleted topic MAY succeed if the topic is within the
+ * "autorenew grace period".<br/>
+ * A query for a topic removed from state SHALL NOT succeed.
+ */
+message ConsensusGetTopicInfoQuery {
+    /**
+     * Standard information sent with every query operation.<br/>
+     * This includes the signed payment and what kind of response is requested
+     * (cost, state proof, both, or neither).
+     */
+    QueryHeader header = 1;
+
+    /**
+     * A topic ID.
+     * <p>
+     * The network SHALL return information for this topic, if successful.
+     */
+    TopicID topicID = 2;
+}
+
+/**
+ * Query response to describe the current state of a topic in the Hedera
+ * Consensus Service(HCS).
+ */
+message ConsensusGetTopicInfoResponse {
+    /**
+     * The standard response information for queries.<br/>
+     * This includes the values requested in the `QueryHeader`
+     * (cost, state proof, both, or neither).
+     */
+    ResponseHeader header = 1;
+
+    /**
+     * The ID of the topic requested in the query.
+     */
+    TopicID topicID = 2;
+
+
+    /**
+     * Information describing the current state of the topic.
+     */
+    ConsensusTopicInfo topicInfo = 5;
+}

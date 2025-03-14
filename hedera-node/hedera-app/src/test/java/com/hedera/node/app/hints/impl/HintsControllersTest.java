@@ -42,9 +42,6 @@ class HintsControllersTest {
     private HintsLibrary library;
 
     @Mock
-    private HintsLibraryCodec codec;
-
-    @Mock
     private HintsSubmissions submissions;
 
     @Mock
@@ -70,7 +67,6 @@ class HintsControllersTest {
                 executor,
                 keyAccessor,
                 library,
-                codec,
                 submissions,
                 context,
                 selfNodeInfoSupplier,

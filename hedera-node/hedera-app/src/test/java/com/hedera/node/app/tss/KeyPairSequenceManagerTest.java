@@ -3,40 +3,47 @@ package com.hedera.node.app.tss;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.hedera.cryptography.asciiarmored.AsciiArmoredFiles;
-import com.hedera.cryptography.bls.BlsKeyPair;
-import com.hedera.cryptography.bls.BlsPrivateKey;
-import com.hedera.cryptography.bls.BlsPublicKey;
-import com.hedera.cryptography.bls.GroupAssignment;
-import com.hedera.cryptography.bls.SignatureSchema;
-import com.hedera.cryptography.pairings.api.Curve;
+import com.hedera.cryptography.hints.HintsLibraryBridge;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
+import java.util.SplittableRandom;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class KeyPairSequenceManagerTest {
-    private static final SignatureSchema SIGNATURE_SCHEMA =
-            SignatureSchema.create(Curve.ALT_BN128, GroupAssignment.SHORT_SIGNATURES);
     private static final String PRIVATE_KEY_FILE_NAME = "hinTS.bls";
+
+    private record HintsKeyPair(byte[] privateKey, byte[] extendedPublicKey) {}
+
+    private static final SplittableRandom RANDOM = new SplittableRandom();
+    private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
+
+    private static final byte[] CRS;
+
+    static {
+        CRS = BRIDGE.initCRS(8);
+    }
 
     @TempDir
     private Path tempDir;
 
-    private KeyPairSequenceManager<BlsPrivateKey, BlsPublicKey, BlsKeyPair> subject;
+    private KeyPairSequenceManager<byte[], byte[], HintsKeyPair> subject;
 
     @BeforeEach
     void setUp() {
         subject = new KeyPairSequenceManager<>(
                 tempDir,
                 PRIVATE_KEY_FILE_NAME,
-                KeyPairSequenceManagerTest::newPrivateKey,
-                AsciiArmoredFiles::readPrivateKey,
-                (privateKey, path) -> AsciiArmoredFiles.writeKey(path, privateKey),
-                BlsPrivateKey::createPublicKey,
-                BlsKeyPair::new);
+                () -> {
+                    final var bytes = new byte[32];
+                    RANDOM.nextBytes(bytes);
+                    return BRIDGE.generateSecretKey(bytes);
+                },
+                Files::readAllBytes,
+                (bytes, p) -> Files.write(p, bytes),
+                privateKey -> BRIDGE.computeHints(CRS, privateKey, 1, 2),
+                HintsKeyPair::new);
     }
 
     @Test
@@ -52,7 +59,6 @@ class KeyPairSequenceManagerTest {
         // The returned pair should be valid
         assertNotNull(keyPair);
         assertNotNull(keyPair.privateKey());
-        assertNotNull(keyPair.publicKey());
     }
 
     @Test
@@ -62,13 +68,13 @@ class KeyPairSequenceManagerTest {
         final var secondPair = subject.getOrCreateKeyPairFor(5);
 
         // then
-        assertEquals(
+        assertArrayEquals(
                 firstPair.privateKey(),
                 secondPair.privateKey(),
                 "Should return the same private key for repeated calls at the same ID");
-        assertEquals(
-                firstPair.publicKey(),
-                secondPair.publicKey(),
+        assertArrayEquals(
+                firstPair.extendedPublicKey(),
+                secondPair.extendedPublicKey(),
                 "Should return the same public key for repeated calls at the same ID");
     }
 
@@ -85,16 +91,16 @@ class KeyPairSequenceManagerTest {
 
         // then
         // For ID=3, the largest existing directory <= 3 is "2"
-        assertEquals(
+        assertArrayEquals(
                 pair2.privateKey(), pairForId3.privateKey(), "Should reuse the directory for ID=2 when asked for ID=3");
         // For ID=5, we exactly match "5"
-        assertEquals(
+        assertArrayEquals(
                 pair5.privateKey(),
                 pairForId5Again.privateKey(),
                 "Should reuse the directory for ID=5 when asked for ID=5 again");
         // For ID=10, the largest existing directory <= 10 is still "5"
         // so we do not create a "10" directory
-        assertEquals(
+        assertArrayEquals(
                 pair5.privateKey(),
                 pairForId10.privateKey(),
                 "Should reuse the directory for ID=5 when asked for ID=10");
@@ -134,13 +140,5 @@ class KeyPairSequenceManagerTest {
                 () -> subject.getOrCreateKeyPairFor(7), "Should handle re-creating base directory if it was removed");
         final var newDir = originalDir.resolve("7");
         assertTrue(Files.isDirectory(newDir), "Directory should be re-created");
-    }
-
-    private static BlsPrivateKey newPrivateKey() {
-        try {
-            return BlsKeyPair.generate(SIGNATURE_SCHEMA).privateKey();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
     }
 }

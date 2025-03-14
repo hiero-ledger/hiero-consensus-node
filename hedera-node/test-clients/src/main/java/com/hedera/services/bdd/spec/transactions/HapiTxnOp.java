@@ -228,10 +228,10 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                         throw new HapiTxnCheckStateException("Unable to resolve txn status");
                     }
                 }
+            } finally {
+                /* Used by superclass to perform standard housekeeping. */
+                txnSubmitted = txn;
             }
-
-            /* Used by superclass to perform standard housekeeping. */
-            txnSubmitted = txn;
 
             actualPrecheck = response.getNodeTransactionPrecheckCode();
             if (retryPrechecks.isPresent()

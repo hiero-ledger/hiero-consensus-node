@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.has;
 
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static java.util.Objects.requireNonNull;
 
@@ -22,6 +22,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
+import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -137,23 +138,16 @@ public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
      */
     public @Nullable Account linkedAccount(@NonNull final Address accountAddress) {
         requireNonNull(accountAddress);
-        return linkedAccount(accountAddress.toArray());
-    }
-
-    /**
-     * Returns the account at the given EVM address, if it exists.
-     *
-     * @param evmAddress the headlong address of the account to look up
-     * @return the account that is the target of this redirect, or null if it didn't exist
-     */
-    public @Nullable Account linkedAccount(@NonNull final byte[] evmAddress) {
-        requireNonNull(evmAddress);
-        if (isLongZeroAddress(evmAddress)) {
-            return enhancement.nativeOperations().getAccount(numberOfLongZero(evmAddress));
+        if (isLongZero(enhancement().nativeOperations().entityIdFactory(), accountAddress)) {
+            return enhancement.nativeOperations().getAccount(numberOfLongZero(accountAddress.toArray()));
         } else {
+            final var config = configuration().getConfigData(HederaConfig.class);
             final var addressNum = enhancement
                     .nativeOperations()
-                    .resolveAlias(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(evmAddress));
+                    .resolveAlias(
+                            config.shard(),
+                            config.realm(),
+                            com.hedera.pbj.runtime.io.buffer.Bytes.wrap(accountAddress.toArray()));
             return enhancement.nativeOperations().getAccount(addressNum);
         }
     }

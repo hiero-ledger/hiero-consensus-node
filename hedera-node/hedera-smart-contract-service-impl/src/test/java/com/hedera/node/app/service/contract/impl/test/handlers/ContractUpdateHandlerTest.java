@@ -62,6 +62,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -118,11 +119,14 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     @Mock
     private HandleContext.SavepointStack stack;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     private ContractUpdateHandler subject;
 
     @BeforeEach
     public void setUp() {
-        subject = new ContractUpdateHandler();
+        subject = new ContractUpdateHandler(entityIdFactory);
     }
 
     @Test
@@ -224,6 +228,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     void handleWithNonExistingContractIdFails() {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(accountStore.getContractById(targetContract)).willReturn(null);
         final var txn = TransactionBody.newBuilder()
                 .contractUpdateInstance(
                         ContractUpdateTransactionBody.newBuilder().contractID(targetContract))

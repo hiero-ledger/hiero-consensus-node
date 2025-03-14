@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service.schemas;
 
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -26,12 +25,7 @@ public class V059RosterLifecycleTransitionSchema extends Schema {
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
         requireNonNull(ctx);
-        final var stateSingleton = ctx.newStates().<PlatformState>getSingleton(PLATFORM_STATE_KEY);
-        final var state = requireNonNull(stateSingleton.get());
-        // Null out the legacy address book fields
-        stateSingleton.put(state.copyBuilder()
-                .previousAddressBook((com.hedera.hapi.platform.state.AddressBook) null)
-                .addressBook(((com.hedera.hapi.platform.state.AddressBook) null))
-                .build());
+        // AddressBooks have been removed from the PlatformState, and so this migrate() is now a no-op.
+        // The Services team may remove this schema when and how appropriate.
     }
 }

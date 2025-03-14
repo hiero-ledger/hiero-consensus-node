@@ -18,11 +18,13 @@ import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFu
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUtf8Bytes;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -45,6 +47,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.PAYER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ALIAS_ALREADY_ASSIGNED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
@@ -98,6 +101,60 @@ public class CryptoCreateSuite {
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
         return hapiTest(submitModified(
                 withSuccessivelyVariedBodyIds(), () -> cryptoCreate("account").stakedAccountId(STAKED_ACCOUNT_ID)));
+    }
+
+    @HapiTest
+    public Stream<DynamicTest> cantCreateTwoAccountsWithSameAlias() {
+        final String ecKey = "ecKey";
+        final String key1 = "key1";
+        final String key2 = "key2";
+
+        return hapiTest(
+                newKeyNamed(ecKey).shape(SECP_256K1_SHAPE),
+                newKeyNamed(key1),
+                newKeyNamed(key2),
+                cryptoCreate(PAYER).balance(10 * ONE_HBAR),
+                withOpContext((spec, opLog) -> {
+                    final var registry = spec.registry();
+                    final var key = registry.getKey(ecKey);
+                    final var evmAddress = ByteString.copyFrom(
+                            recoverAddressFromPubKey(key.getECDSASecp256K1().toByteArray()));
+                    final var op1 = cryptoCreate("account1")
+                            .balance(ONE_HBAR)
+                            .key(key1)
+                            .alias(key.toByteString())
+                            .signedBy(key1, PAYER)
+                            .payingWith(PAYER)
+                            .hasKnownStatus(INVALID_ALIAS_KEY);
+                    final var op2 = cryptoCreate("evmAccount")
+                            .balance(ONE_HBAR)
+                            .key(key2)
+                            .signedBy(key2, ecKey, PAYER)
+                            .alias(evmAddress)
+                            .sigMapPrefixes(uniqueWithFullPrefixesFor(ecKey))
+                            .payingWith(PAYER)
+                            .via("creation");
+                    final var op4 = getAccountBalance("evmAccount").hasTinyBars(ONE_HBAR);
+                    final var op5 = scheduleCreate(
+                                    "createKeyAliasAccount",
+                                    cryptoCreate("account1")
+                                            .balance(ONE_HBAR)
+                                            .key(key1)
+                                            .alias(key.toByteString())
+                                            .payingWith(PAYER))
+                            .alsoSigningWith(key1, ecKey, PAYER)
+                            .via("scheduleCreate")
+                            .recordingScheduledTxn();
+
+                    final var op6 = getTxnRecord("scheduleCreate")
+                            .scheduled()
+                            .hasPriority(recordWith().status(ALIAS_ALREADY_ASSIGNED))
+                            .logged();
+                    final var op7 = getScheduleInfo("createKeyAliasAccount")
+                            .isExecuted()
+                            .hasRecordedScheduledTxn();
+                    allRunFor(spec, op1, op2, op4, op5, op6, op7);
+                }));
     }
 
     @HapiTest

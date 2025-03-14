@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.state;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallOperation;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -359,4 +360,11 @@ public interface EvmFrameState {
      */
     @NonNull
     RentFactors getRentFactorsFor(ContractID contractID);
+
+    /**
+     * Returns the entity id factory.
+     * @return the entity id factory
+     */
+    @NonNull
+    EntityIdFactory entityIdFactory();
 }

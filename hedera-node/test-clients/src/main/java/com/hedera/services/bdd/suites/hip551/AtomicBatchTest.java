@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord.nonStakingRecordsFrom;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -53,7 +54,7 @@ import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollow
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACTION_NOT_IN_WHITELIST;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACTION_IN_BLACKLIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -101,7 +102,7 @@ public class AtomicBatchTest {
                 cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
                 usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
                 // Since the inner txn is not normalized, it should fail
-                atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(BATCH_TRANSACTION_NOT_IN_WHITELIST));
+                atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(BATCH_TRANSACTION_IN_BLACKLIST));
     }
 
     @HapiTest
@@ -126,7 +127,7 @@ public class AtomicBatchTest {
                 cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
                 usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
                 // Since the inner txn is not normalized, it should fail
-                atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(BATCH_TRANSACTION_NOT_IN_WHITELIST));
+                atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(BATCH_TRANSACTION_IN_BLACKLIST));
     }
 
     @HapiTest
@@ -441,8 +442,12 @@ public class AtomicBatchTest {
                         .payingWith(basicPayer)
                         .via("basicTxn")
                         .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
-                getAccountRecords(batchPayer).exposingTo(records -> assertEquals(1, records.size())),
-                getAccountRecords(basicPayer).exposingTo(records -> assertEquals(1, records.size())),
+                getAccountRecords(batchPayer)
+                        .exposingTo(records ->
+                                assertEquals(1, nonStakingRecordsFrom(records).size())),
+                getAccountRecords(basicPayer)
+                        .exposingTo(records ->
+                                assertEquals(1, nonStakingRecordsFrom(records).size())),
                 validateChargedUsd("batchTxn", 0.001),
                 validateChargedUsd("basicTxn", 0.05, 10));
     }

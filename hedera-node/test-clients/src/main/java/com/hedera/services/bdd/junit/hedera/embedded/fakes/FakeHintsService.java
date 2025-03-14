@@ -22,12 +22,11 @@ import java.util.concurrent.CompletableFuture;
 
 public class FakeHintsService implements HintsService {
     private final HintsService delegate;
-    private final HintsLibraryImpl operations = new HintsLibraryImpl();
     private final Queue<Runnable> pendingHintsSubmissions = new ArrayDeque<>();
 
     public FakeHintsService(@NonNull final AppContext appContext, @NonNull final Configuration bootstrapConfig) {
         delegate = new HintsServiceImpl(
-                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, operations, bootstrapConfig);
+                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, new HintsLibraryImpl(), bootstrapConfig);
     }
 
     @Override
@@ -60,8 +59,15 @@ public class FakeHintsService implements HintsService {
             @NonNull final ActiveRosters activeRosters,
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
-        delegate.reconcile(activeRosters, hintsStore, now, tssConfig);
+            @NonNull final TssConfig tssConfig,
+            final boolean currentPlatformStatus) {
+        delegate.reconcile(activeRosters, hintsStore, now, tssConfig, currentPlatformStatus);
+    }
+
+    @Override
+    public void executeCrsWork(
+            @NonNull final WritableHintsStore hintsStore, @NonNull final Instant now, final boolean isActive) {
+        delegate.executeCrsWork(hintsStore, now, isActive);
     }
 
     @Override

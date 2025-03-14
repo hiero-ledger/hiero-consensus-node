@@ -13,6 +13,10 @@ import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.handlers.HintsKeyPublicationHandler;
 import com.hedera.node.app.hints.handlers.HintsPartialSignatureHandler;
 import com.hedera.node.app.hints.handlers.HintsPreprocessingVoteHandler;
+import com.hedera.node.app.history.handlers.HistoryHandlers;
+import com.hedera.node.app.history.handlers.HistoryProofKeyPublicationHandler;
+import com.hedera.node.app.history.handlers.HistoryProofSignatureHandler;
+import com.hedera.node.app.history.handlers.HistoryProofVoteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.AddressBookHandlers;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeDeleteHandler;
@@ -113,6 +117,15 @@ class HandleWorkflowModuleTest {
 
     @Mock
     private HintsKeyPublicationHandler hintsKeyPublicationHandler;
+
+    @Mock
+    private HistoryProofKeyPublicationHandler proofKeyPublicationHandler;
+
+    @Mock
+    private HistoryProofSignatureHandler proofSignatureHandler;
+
+    @Mock
+    private HistoryProofVoteHandler proofVoteHandler;
 
     @Mock
     private CrsPublicationHandler crsPublicationHandler;
@@ -335,6 +348,8 @@ class HandleWorkflowModuleTest {
 
         final var hintsHandlers = new HintsHandlers(
                 hintsKeyPublicationHandler, preprocessingVoteHandler, partialSignatureHandler, crsPublicationHandler);
+        final var historyHandlers =
+                new HistoryHandlers(proofSignatureHandler, proofKeyPublicationHandler, proofVoteHandler);
         final var handlers = HandleWorkflowModule.provideTransactionHandlers(
                 networkAdminHandlers,
                 consensusHandlers,
@@ -344,7 +359,8 @@ class HandleWorkflowModuleTest {
                 tokenHandlers,
                 utilHandlers,
                 addressBookHandlers,
-                hintsHandlers);
+                hintsHandlers,
+                historyHandlers);
         assertInstanceOf(TransactionHandlers.class, handlers);
     }
 }

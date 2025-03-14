@@ -1,0 +1,410 @@
+/**
+ * # Get Account Details
+ * A standard query to inspect the full detail of an account.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/timestamp.proto";
+import "services/duration.proto";
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+
+/**
+ * Request detail information about an account.
+ *
+ * The returned information SHALL include balance and allowances.<br/>
+ * The returned information SHALL NOT include a list of account records.
+ *
+ * #### Important
+ * This query is a _privileged_ query. Only "system" accounts SHALL be
+ * permitted to submit this query.
+ */
+message GetAccountDetailsQuery {
+    /**
+     * Standard information sent with every query operation.<br/>
+     * This includes the signed payment and what kind of response is requested
+     * (cost, state proof, both, or neither).
+     */
+    QueryHeader header = 1;
+
+    /**
+     * An account ID for which information is requested
+     * <p>
+     * This value SHALL identify the account to be queried.<br/>
+     * This value MUST identify a valid account.<br/>
+     * This field is REQUIRED.
+     */
+    AccountID account_id = 2;
+}
+
+/**
+ * A response to a `GetAccountDetailsQuery`.
+ *
+ * This SHALL contain the account details if requested and successful.
+ */
+message GetAccountDetailsResponse {
+    /**
+     * The standard response information for queries.<br/>
+     * This includes the values requested in the `QueryHeader`
+     * (cost, state proof, both, or neither).
+     */
+    ResponseHeader header = 1;
+
+    /**
+     * Information describing a single Account in the Hedera distributed ledger.
+     *
+     * #### Attributes
+     * Each Account may have a unique three-part identifier, a Key, and one or
+     * more token balances. Accounts also have an alias, which has multiple
+     * forms, and may be set automatically. Several additional items are
+     * associated with the Account to enable full functionality.
+     *
+     * #### Expiration
+     * Accounts, as most items in the network, have an expiration time, recorded
+     * as a `Timestamp`, and must be "renewed" for a small fee at expiration.
+     * This helps to reduce the amount of inactive accounts retained in state.
+     * Another account may be designated to pay any renewal fees and
+     * automatically renew the account for (by default) 30-90 days at a time as
+     * a means to optionally ensure important accounts remain active.
+     *
+     * ### Staking
+     * Accounts may participate in securing the network by "staking" the account
+     * balances to a particular network node, and receive a portion of network
+     * fees as a reward. An account may optionally decline these rewards but
+     * still stake its balances.
+     *
+     * #### Transfer Restrictions
+     * An account may optionally require that inbound transfer transactions be
+     * signed by that account as receiver (in addition to any other signatures
+     * required, including sender).
+     *
+     */
+    message AccountDetails {
+        /**
+         * The unique ID of this account.
+         * <p>
+         * An account ID, when assigned to this field, SHALL be of
+         * the form `shard.realm.number`.<br/>
+         * Transactions MAY reference the account by alias, but the account
+         * itself MUST always have a purely numeric identifier. This numeric
+         * ID is the value used to reference the account in query responses,
+         * transaction receipts, transaction records, and the block stream.
+         */
+        AccountID account_id = 1;
+
+        /**
+         * A Solidity ID.<br/>
+         * This identifies the contract instance, and the `Account` associated
+         * with that contract instance.
+         * <p>
+         * This SHALL be populated if this account is a smart contract, and
+         * SHALL NOT be populated otherwise.<br/>
+         * This SHALL be formatted as a string according to Solidity ID
+         * standards.
+         */
+        string contract_account_id = 2;
+
+        /**
+         * A boolean indicating that this account is deleted.
+         */
+        bool deleted = 3;
+
+        /**
+         * Replaced by StakingInfo.<br/>
+         * ID of the account to which this account is staking its balances. If
+         * this account is not currently staking its balances, then this field,
+         * if set, SHALL be the sentinel value of `0.0.0`.
+         */
+        AccountID proxy_account_id = 4 [deprecated = true];
+
+        /**
+         * The total amount of tinybar proxy staked to this account.
+         */
+        int64 proxy_received = 5;
+
+        /**
+         * The key to be used to sign transactions from this account, if any.
+         * <p>
+         * This key SHALL NOT be set for hollow accounts until the account
+         * is finalized.<br/>
+         * This key SHALL be set on all other accounts, except for certain
+         * immutable accounts (0.0.800 and 0.0.801) necessary for network
+         * function and otherwise secured by the governing council.
+         */
+        Key key = 6;
+
+        /**
+         * The HBAR balance of this account, in tinybar (10<sup>-8</sup> HBAR).
+         * <p>
+         * This value SHALL always be a whole number.
+         */
+        uint64 balance = 7;
+
+        /**
+         * A boolean indicating that the account requires a receiver signature
+         * for inbound token transfer transactions.
+         * <p>
+         * If this value is `true` then a transaction to transfer tokens to this
+         * account SHALL NOT succeed unless this account has signed the
+         * transfer transaction.
+         */
+        bool receiver_sig_required = 8;
+
+        /**
+         * The current expiration time for this account.
+         * <p>
+         * This account SHALL be due standard renewal fees when the network
+         * consensus time exceeds this time.<br/>
+         * If rent and expiration are enabled for the network, and automatic
+         * renewal is enabled for this account, renewal fees SHALL be charged
+         * after this time, and, if charged, the expiration time SHALL be
+         * extended for another renewal period.<br/>
+         * This account MAY be expired and removed from state at any point
+         * after this time if not renewed.<br/>
+         * An account holder MAY extend this time by submitting an account
+         * update transaction to modify expiration time, subject to the current
+         * maximum expiration time for the network.
+         */
+        Timestamp expiration_time = 9;
+
+        /**
+         * A duration to extend this account's expiration.
+         * <p>
+         * The network SHALL extend the account's expiration by this
+         * duration, if funds are available, upon automatic renewal.<br/>
+         * This SHALL NOT apply if the account is already deleted
+         * upon expiration.<br/>
+         * If this is not provided in an allowed range on account creation, the
+         * transaction SHALL fail with INVALID_AUTO_RENEWAL_PERIOD. The default
+         * values for the minimum period and maximum period are currently
+         * 30 days and 90 days, respectively.
+         */
+        Duration auto_renew_period = 10;
+
+        /**
+         * As of `HIP-367`, which enabled unlimited token associations, the
+         * potential scale for this value requires that users consult a mirror
+         * node for this information. Only the top `maxRelsPerInfoQuery`
+         * (default 1000) relationships will be returned by this query.<br/>
+         * A list of tokens to which this account is "associated", enabling the
+         * transfer of that token type by this account.
+         */
+        repeated TokenRelationship token_relationships = 11;
+
+        /**
+         * A short description of this account.
+         * <p>
+         * This value, if set, MUST NOT exceed `transaction.maxMemoUtf8Bytes`
+         * (default 100) bytes when encoded as UTF-8.
+         */
+        string memo = 12;
+
+        /**
+         * The total number of non-fungible/unique tokens owned by this account.
+         */
+        int64 owned_nfts = 13;
+
+        /**
+         * The maximum number of tokens that can be auto-associated with the
+         * account.
+         * <p>
+         * If this is less than or equal to `used_auto_associations` (or 0),
+         * then this account MUST manually associate with a token before
+         * transacting in that token.<br/>
+         * Following HIP-904 This value may also be `-1` to indicate no
+         * limit.<br/>
+         * This value MUST NOT be less than `-1`.
+         */
+        int32 max_automatic_token_associations = 14;
+
+        /**
+         * An account EVM alias.<br/>
+         * This is a value used in some contexts to reference an account when
+         * the tripartite account identifier is not available.
+         * <p>
+         * This field, when set to a non-default value, is immutable and
+         * SHALL NOT be changed.
+         */
+        bytes alias = 15;
+
+        /**
+         * The ledger ID of the network that generated this response.
+         * <p>
+         * This value SHALL identify the distributed ledger that responded to
+         * this query.
+         */
+        bytes ledger_id = 16;
+
+        /**
+         * A list of crypto (HBAR) allowances approved by this account.
+         * <p>
+         * If this is not empty, each allowance SHALL permit a specified
+         * "spender" account to spend this account's HBAR balance, up
+         * to a designated limit.<br/>
+         * This field SHALL permit spending only HBAR balance, not other
+         * tokens the account may hold.<br/>
+         * Allowances for other tokens SHALL be listed in the
+         * `token_allowances` field or the
+         * `approve_for_all_nft_allowances` field.
+         */
+        repeated GrantedCryptoAllowance granted_crypto_allowances = 17;
+
+        /**
+         * A list of non-fungible token (NFT) allowances approved by
+         * this account.
+         * <p>
+         * If this is not empty, each allowance SHALL permit a specified
+         * "spender" account to transfer _all_ of this account's
+         * non-fungible/unique tokens from a particular collection.<br/>
+         * Allowances for a specific serial number MUST be directly
+         * associated with that specific non-fungible/unique token, rather
+         * than the holding account.
+         */
+        repeated GrantedNftAllowance granted_nft_allowances = 18;
+
+        /**
+         * A list of fungible token allowances approved by this account.
+         * <p>
+         * If this is not empty, each allowance SHALL permit a specified
+         * "spender" to spend this account's fungible tokens, of the
+         * designated type, up to a designated limit.
+         */
+        repeated GrantedTokenAllowance granted_token_allowances = 19;
+
+    }
+
+    /**
+     * Details of the account.
+     * <p>
+     * A state proof MAY be generated for this field.
+     */
+    AccountDetails account_details = 2;
+}
+
+/**
+ * Permission granted by one account (the "funding" account) to another
+ * account (the "spender" account) that allows the spender to spend a
+ * specified amount of HBAR owned by the funding account.
+ *
+ * An allowance SHALL NOT transfer any HBAR directly, it only permits
+ * transactions signed only by the spender account to transfer HBAR, up
+ * to the amount specified, from the funding account.
+ *
+ * Once the specified amount is spent, the allowance SHALL be consumed
+ * and a new allowance SHALL be required before that spending account
+ * may spend additional HBAR from the funding account.
+ */
+message GrantedCryptoAllowance {
+    /**
+     * The identifier for the spending account associated with this allowance.
+     * <p>
+     * This account SHALL be permitted to sign transactions to spend
+     * HBAR from the funding/allowing account.<br/>
+     * This permission SHALL be limited to no more than the specified `amount`.
+     */
+    AccountID spender = 1;
+
+    /**
+     * The maximum amount that the spender account may transfer within
+     * the scope of this allowance.
+     * <p>
+     * This allowance SHALL be consumed if any combination of transfers
+     * authorized via this allowance meet this value in total.<br/>
+     * This value MUST be specified in tinybar (i.e. 10<sup>-8</sup> HBAR).
+     */
+    int64 amount = 2;
+}
+
+/**
+ * Permission granted by one account (the "funding" account) to another
+ * account (the "spender" account) that allows the spender to transfer
+ * all serial numbers of a specific non-fungible/unique token (NFT)
+ * collection owned by the funding account.<br/>
+ * This is a broad permission, as it does not matter how many NFTs of the
+ * specified collection the funding account owns, the spender MAY dispose
+ * of any or all of them with this allowance.<br/>
+ * Each token type (typically a collection of NFTs) SHALL require
+ * a separate allowance.<br/>
+ * Allowances for a specific serial number MUST be directly associated
+ * with that specific non-fungible/unique token, rather than
+ * the holding account.
+ *
+ * An allowance SHALL NOT transfer any tokens directly, it only permits
+ * transactions signed only by the spender account to transfer any
+ * non-fungible/unique tokens of the specified type owned by
+ * the funding account.
+ */
+message GrantedNftAllowance {
+    /**
+     * The identifier for the token associated with this allowance.
+     * <p>
+     * This token MUST be a non-fungible/unique token.
+     */
+    TokenID token_id = 1;
+
+    /**
+     * The identifier for the spending account associated with this allowance.
+     * <p>
+     * This account SHALL be permitted to sign transactions to spend
+     * tokens of the associated token type from the funding/allowing account.
+     */
+    AccountID spender = 2;
+}
+
+/**
+ * Permission granted by one account (the "funding" account) to another
+ * account (the "spender" account) that allows the spender to spend a
+ * specified amount of a specific non-HBAR fungible token from the
+ * balance owned by the funding account.
+ *
+ * An allowance SHALL NOT transfer any tokens directly, it only permits
+ * transactions signed only by the spender account to transfer tokens
+ * of the specified type, up to the amount specified, from the funding account.
+ *
+ * Once the specified amount is spent, the allowance SHALL be consumed
+ * and a new allowance SHALL be required before that spending account
+ * may spend additional tokens from the funding account.
+ */
+message GrantedTokenAllowance {
+    /**
+     * The identifier for the token associated with this allowance.
+     * <p>
+     * This token MUST be a fungible/common token.
+     */
+    TokenID token_id = 1;
+
+    /**
+     * The identifier for the spending account associated with this allowance.
+     * <p>
+     * This account SHALL be permitted to sign transactions to spend tokens
+     * of the associated token type from the funding/allowing account.<br/>
+     * This permission SHALL be limited to no more than the specified `amount`.
+     */
+    AccountID spender = 2;
+
+    /*
+     * The maximum amount that the spender account may transfer within
+     * the scope of this allowance.
+     * <p>
+     * This allowance SHALL be consumed if any combination of transfers
+     * authorized via this allowance meet this value in total.<br/>
+     * This value MUST be specified in the smallest units of the relevant
+     * token (i.e. 10<sup>-decimals</sup> whole tokens).
+     */
+    int64 amount = 3;
+}

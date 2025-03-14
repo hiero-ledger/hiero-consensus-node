@@ -3,7 +3,6 @@ package com.swirlds.platform.proof.algorithms;
 
 import static com.swirlds.common.crypto.DigestType.SHA_384;
 
-import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.proof.SignatureVerifier;
 import com.swirlds.platform.proof.tree.StateProofInternalNode;
@@ -78,12 +77,10 @@ public final class StateProofUtils {
     /**
      * Compute the root hash of a state proof tree.
      *
-     * @param cryptography provides cryptographic primitives
-     * @param root         the root of the state proof tree
+     * @param root the root of the state proof tree
      * @return the computed root hash
      */
-    public static byte[] computeStateProofTreeHash(
-            @NonNull final Cryptography cryptography, @NonNull final StateProofNode root) {
+    public static byte[] computeStateProofTreeHash(@NonNull final StateProofNode root) {
 
         final MessageDigest digest = SHA_384.buildDigest();
 
@@ -98,7 +95,7 @@ public final class StateProofUtils {
                 if (internal.hasBeenVisited()) {
                     // The second time we visit an internal node.
                     // We will have already visited all descendants of this node.
-                    node.computeHashableBytes(cryptography, digest);
+                    node.computeHashableBytes(digest);
                 } else {
                     // The first time we visit an internal node.
                     // We need to visit its descendants before we can compute its hashable bytes.
@@ -109,7 +106,7 @@ public final class StateProofUtils {
                     internal.markAsVisited();
                 }
             } else {
-                node.computeHashableBytes(cryptography, digest);
+                node.computeHashableBytes(digest);
             }
         }
 

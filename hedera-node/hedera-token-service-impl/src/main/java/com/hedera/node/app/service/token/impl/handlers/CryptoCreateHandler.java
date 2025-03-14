@@ -322,8 +322,9 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
 
         // If there is an alias, then we need to make sure no other account or contract account is using that alias.
         if (hasAlias) {
+            final var config = context.configuration().getConfigData(HederaConfig.class);
             // find account by alias and check if it was deleted
-            var accountId = accountStore.getAccountIDByAlias(alias);
+            var accountId = accountStore.getAccountIDByAlias(config.shard(), config.realm(), alias);
             var account = accountId != null ? accountStore.getAccountById(accountId) : null;
             var isDeleted = account == null || account.deleted();
             validateTrue(accountId == null || isDeleted, ALIAS_ALREADY_ASSIGNED);

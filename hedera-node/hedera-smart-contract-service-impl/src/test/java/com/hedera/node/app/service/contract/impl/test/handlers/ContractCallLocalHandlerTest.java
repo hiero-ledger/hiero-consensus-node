@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.handlers;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -29,6 +30,7 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextQueryProcessor;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallLocalHandler;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
@@ -39,6 +41,7 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.InstantSource;
 import java.util.function.Function;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -98,6 +101,12 @@ class ContractCallLocalHandlerTest {
     @Mock
     private GasCalculator gasCalculator;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
+    @Mock
+    private ProxyWorldUpdater proxyWorldUpdater;
+
     private final ContractID invalidContract =
             ContractID.newBuilder().evmAddress(Bytes.fromHex("abcdabcd")).build();
 
@@ -107,7 +116,7 @@ class ContractCallLocalHandlerTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ContractCallLocalHandler(() -> factory, gasCalculator, instantSource);
+        subject = new ContractCallLocalHandler(() -> factory, gasCalculator, instantSource, entityIdFactory);
     }
 
     @Test
@@ -246,7 +255,9 @@ class ContractCallLocalHandlerTest {
         given(factory.create(any(), any(), eq(HederaFunctionality.CONTRACT_CALL_LOCAL)))
                 .willReturn(component);
         given(component.contextQueryProcessor()).willReturn(processor);
-        final var expectedResult = SUCCESS_RESULT.asQueryResult();
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+
+        final var expectedResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
         final var expectedOutcome = new CallOutcome(
                 expectedResult, SUCCESS_RESULT.finalStatus(), null, SUCCESS_RESULT.gasPrice(), null, null);
         given(processor.call()).willReturn(expectedOutcome);

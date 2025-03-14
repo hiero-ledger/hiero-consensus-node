@@ -4,7 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.NOT_SUPPORTED;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -25,7 +25,10 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 public class HasSystemContract extends AbstractNativeSystemContract implements HederaSystemContract {
     public static final String HAS_SYSTEM_CONTRACT_NAME = "HAS";
     public static final String HAS_EVM_ADDRESS = "0x16a";
-    public static final ContractID HAS_CONTRACT_ID = asNumberedContractId(Address.fromHexString(HAS_EVM_ADDRESS));
+    // The system contract ID always uses shard 0 and realm 0 so we cannot use ConversionUtils methods for this
+    public static final ContractID HAS_CONTRACT_ID = ContractID.newBuilder()
+            .contractNum(numberOfLongZero(Address.fromHexString(HAS_EVM_ADDRESS)))
+            .build();
 
     @Inject
     public HasSystemContract(

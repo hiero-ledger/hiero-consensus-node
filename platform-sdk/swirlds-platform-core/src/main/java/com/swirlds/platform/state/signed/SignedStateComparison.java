@@ -3,7 +3,7 @@ package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.merkle.iterators.MerkleIterationOrder.PRE_ORDERED_DEPTH_FIRST;
 
-import com.swirlds.common.crypto.CryptographyHolder;
+import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.merkle.MerkleInternal;
@@ -21,7 +21,6 @@ import java.util.function.Predicate;
  * Utilities for comparing states.
  */
 public final class SignedStateComparison {
-
     private SignedStateComparison() {}
 
     /**
@@ -36,7 +35,7 @@ public final class SignedStateComparison {
             }
             return hash;
         } else {
-            return CryptographyHolder.get().getNullHash();
+            return Cryptography.NULL_HASH;
         }
     }
 

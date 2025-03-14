@@ -2,7 +2,7 @@
 package com.hedera.node.app.hints.impl;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.hints.impl.WritableHintsStoreImplTest.WITH_ENABLED_HINTS;
+import static com.hedera.node.app.hints.impl.WritableHintsStoreImplTest.WITH_ENABLED_HINTS_AND_CRS;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
@@ -69,7 +69,7 @@ class HintsServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        subject = new HintsServiceImpl(WITH_ENABLED_HINTS, component, library);
+        subject = new HintsServiceImpl(WITH_ENABLED_HINTS_AND_CRS, component, library);
     }
 
     @Test
@@ -101,7 +101,7 @@ class HintsServiceImplTest {
     void callPurgeAfterHandoff() {
         given(activeRosters.phase()).willReturn(ActiveRosters.Phase.HANDOFF);
 
-        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
 
         verify(hintsStore).updateForHandoff(activeRosters);
     }
@@ -114,7 +114,7 @@ class HintsServiceImplTest {
         given(hintsStore.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
                 .willReturn(construction);
 
-        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
 
         verifyNoInteractions(component);
     }
@@ -129,9 +129,9 @@ class HintsServiceImplTest {
         given(controllers.getOrCreateFor(activeRosters, construction, hintsStore))
                 .willReturn(controller);
 
-        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
 
-        verify(controller).advanceConstruction(CONSENSUS_NOW, hintsStore);
+        verify(controller).advanceConstruction(CONSENSUS_NOW, hintsStore, true);
     }
 
     @Test

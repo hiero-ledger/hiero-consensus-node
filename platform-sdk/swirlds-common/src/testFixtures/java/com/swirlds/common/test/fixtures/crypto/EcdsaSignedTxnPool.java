@@ -6,6 +6,7 @@ import static com.swirlds.common.crypto.engine.EcdsaSecp256k1Verifier.ECDSA_UNCO
 import static com.swirlds.common.test.fixtures.crypto.EcdsaUtils.asRawEcdsaSecp256k1Key;
 import static com.swirlds.common.test.fixtures.crypto.EcdsaUtils.signDigestWithEcdsaSecp256k1;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import java.security.KeyPair;
@@ -88,15 +89,11 @@ public class EcdsaSignedTxnPool {
         }
 
         final SignedTxn signedTxn = signedTxns.get(nextIdx);
-
+        final byte[] content = signedTxn.txn;
         return new TransactionSignature(
-                signedTxn.txn,
-                ECDSA_KECCAK_256_SIZE + PUBLIC_KEY_LEN,
-                signedTxn.sigLen,
-                ECDSA_KECCAK_256_SIZE,
-                PUBLIC_KEY_LEN,
-                0,
-                ECDSA_KECCAK_256_SIZE,
+                Bytes.wrap(content, 0, ECDSA_KECCAK_256_SIZE),
+                Bytes.wrap(content, ECDSA_KECCAK_256_SIZE, PUBLIC_KEY_LEN),
+                Bytes.wrap(content, ECDSA_KECCAK_256_SIZE + PUBLIC_KEY_LEN, signedTxn.sigLen),
                 SignatureType.ECDSA_SECP256K1);
     }
 

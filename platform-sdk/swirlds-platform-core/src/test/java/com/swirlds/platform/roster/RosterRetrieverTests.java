@@ -162,7 +162,6 @@ public class RosterRetrieverTests {
         lenient().doReturn(platfromReadableStates).when(state).getReadableStates("PlatformStateService");
         lenient().doReturn(readablePlatformState).when(platfromReadableStates).getSingleton("PLATFORM_STATE");
         lenient().doReturn(platformState).when(readablePlatformState).get();
-        lenient().doReturn(ADDRESS_BOOK).when(platformState).addressBook();
         lenient().doReturn(consensusSnapshot).when(platformState).consensusSnapshot();
         lenient().doReturn(666L).when(consensusSnapshot).round();
         lenient().doReturn(rosterReadableStates).when(state).getReadableStates("RosterService");
@@ -230,7 +229,7 @@ public class RosterRetrieverTests {
 
     private static Stream<Arguments> provideArgumentsForRetrieveActiveOrGenesisActiveParametrizedRoster() {
         return Stream.of(
-                Arguments.of(554L, ROSTER_FROM_ADDRESS_BOOK),
+                Arguments.of(554L, (Roster) null),
                 Arguments.of(555L, ROSTER_555),
                 Arguments.of(556L, ROSTER_555),
                 Arguments.of(665L, ROSTER_555),
@@ -271,18 +270,14 @@ public class RosterRetrieverTests {
     void testRetrieveActiveOrGenesisActiveAddressBookRoster() {
         // First try a very old round for which there's not a roster
         doReturn(554L).when(consensusSnapshot).round();
-        assertEquals(
-                ROSTER_FROM_ADDRESS_BOOK,
-                RosterRetriever.retrieveActiveOrGenesisRoster(state, TEST_PLATFORM_STATE_FACADE));
+        assertEquals(null, RosterRetriever.retrieveActiveOrGenesisRoster(state, TEST_PLATFORM_STATE_FACADE));
 
         // Then try a newer round, but remove the roster from the RosterMap
         doReturn(666L).when(consensusSnapshot).round();
         doReturn(null)
                 .when(rosterMap)
                 .get(eq(ProtoBytes.newBuilder().value(HASH_666).build()));
-        assertEquals(
-                ROSTER_FROM_ADDRESS_BOOK,
-                RosterRetriever.retrieveActiveOrGenesisRoster(state, TEST_PLATFORM_STATE_FACADE));
+        assertEquals(null, RosterRetriever.retrieveActiveOrGenesisRoster(state, TEST_PLATFORM_STATE_FACADE));
     }
 
     public static X509Certificate randomX509Certificate() {

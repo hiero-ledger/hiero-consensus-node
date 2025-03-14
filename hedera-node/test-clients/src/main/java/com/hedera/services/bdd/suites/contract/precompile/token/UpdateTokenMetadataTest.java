@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.contract.precompile.token;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
@@ -38,7 +39,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class UpdateTokenMetadataTest {
 
-    @Contract(contract = "UpdateTokenMetadata", creationGas = 4_000_000L)
+    @Contract(contract = "UpdateTokenMetadata", creationGas = 4_000_000L, variant = VARIANT_16C)
     static SpecContract updateTokenMetadata;
 
     @NonFungibleToken(

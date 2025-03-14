@@ -94,10 +94,6 @@ public record ContractsConfig(
                 boolean systemContractUpdateCustomFeesEnabled,
         @ConfigProperty(value = "systemContract.tokenInfo.v2.enabled", defaultValue = "false") @NetworkProperty
                 boolean systemContractTokenInfoV2Enabled,
-        @ConfigProperty(value = "systemContract.precisionLossFixForGas.enabled", defaultValue = "true") @NetworkProperty
-                boolean isGasPrecisionLossFixEnabled,
-        @ConfigProperty(value = "systemContract.canonicalViewGas.enabled", defaultValue = "true") @NetworkProperty
-                boolean isCanonicalViewGasEnabled,
         @ConfigProperty(value = "systemContract.updateNFTsMetadata.enabled", defaultValue = "false") @NetworkProperty
                 boolean systemContractUpdateNFTsMetadataEnabled,
         @ConfigProperty(value = "systemContract.airdropTokens.enabled", defaultValue = "true") @NetworkProperty

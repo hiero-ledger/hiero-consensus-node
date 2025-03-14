@@ -1,0 +1,104 @@
+/**
+ * # Schedule Service
+ * gRPC service definitions for the Schedule Service.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.service.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.scheduled">>> This comment is special code for setting PBJ Compiler java package
+
+import "services/query.proto";
+import "services/response.proto";
+import "services/transaction_response.proto";
+import "services/transaction.proto";
+
+/**
+ * Transactions and queries for the Schedule Service.<br/>
+ * The Schedule Service enables transactions to be submitted without all
+ * required signatures and offers a `scheduleSign` transaction to provide
+ * additional signatures independently after the schedule is created. The
+ * scheduled transaction may be executed immediately when all required
+ * signatures are present, or at expiration if "long term" schedules
+ * are enabled in network configuration.
+ *
+ * ### Execution
+ * Scheduled transactions SHALL be executed under the following conditions.
+ * 1. If "long term" schedules are enabled and `wait_for_expiry` is set for
+ *    that schedule then the transaction SHALL NOT be executed before the
+ *    network consensus time matches or exceeds the `expiration_time` field
+ *    for that schedule.
+ * 1. If "long term" schedules are enabled and `wait_for_expiry` is _not_ set
+ *    for that schedule, then the transaction SHALL be executed when all
+ *    signatures required by the scheduled transaction are active for that
+ *    schedule. This MAY be immediately after the `scheduleCreate` or a
+ *    subsequent `scheduleSign` transaction, or MAY be at expiration if
+ *    the signature requirements are met at that time.
+ * 1. If "long term" schedules are _disabled_, then the scheduled transaction
+ *    SHALL be executed immediately after all signature requirements for the
+ *    scheduled transaction are met during the `scheduleCreate` or a subsequent
+ *    `scheduleSign` transaction. The scheduled transaction SHALL NOT be
+ *    on expiration when "long term" schedules are disabled.
+ *
+ * A schedule SHALL remain in state and MAY be queried with a `getScheduleInfo`
+ * transaction after execution, until the schedule expires.<br/>
+ * When network consensus time matches or exceeds the `expiration_time` for
+ * a schedule, that schedule SHALL be removed from state, whether it has
+ * executed or not.<br/>
+ * If "long term" schedules are _disabled_, the maximum expiration time SHALL
+ * be the consensus time of the `scheduleCreate` transaction extended by
+ * the network configuration value `ledger.scheduleTxExpiryTimeSecs`.
+ *
+ * ### Block Stream Effects
+ * When a scheduled transaction is executed, the timestamp in the transaction
+ * identifier for that transaction SHALL be 1 nanosecond after the consensus
+ * timestamp for the transaction that resulted in its execution. If execution
+ * occurred at expiration, that transaction may be almost any transaction,
+ * including another scheduled transaction that executed at expiration.<br/>
+ * The transaction identifier for a scheduled transaction that is executed
+ * SHALL have the `scheduled` flag set and SHALL inherit the `accountID` and
+ * `transactionValidStart` values from the `scheduleCreate` that created the
+ * schedule.<br/>
+ * The `scheduleRef` property of the record for a scheduled transaction SHALL
+ * be populated with the schedule identifier of the schedule that executed.
+ */
+service ScheduleService {
+  /**
+   * Create a new Schedule.
+   * <p>
+   * If all signature requirements are met with this transaction, the
+   * scheduled transaction MAY execute immediately.
+   */
+  rpc createSchedule (Transaction) returns (TransactionResponse);
+
+  /**
+   * Add signatures to an existing schedule.
+   * <p>
+   * Signatures on this transaction SHALL be added to the set of active
+   * signatures on the schedule, and MAY result in execution of the
+   * scheduled transaction if all signature requirements are met.
+   */
+  rpc signSchedule (Transaction) returns (TransactionResponse);
+
+  /**
+   * Mark an existing schedule deleted.
+   * <p>
+   * Once deleted a schedule SHALL NOT be executed and any subsequent
+   * `scheduleSign` transaction SHALL fail.
+   */
+  rpc deleteSchedule (Transaction) returns (TransactionResponse);
+
+  /**
+   * Retrieve the metadata for a schedule.
+   */
+  rpc getScheduleInfo (Query) returns (Response);
+}

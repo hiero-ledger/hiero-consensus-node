@@ -6,6 +6,7 @@ import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLA
 import com.swirlds.cli.commands.StateCommand;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
@@ -54,10 +55,11 @@ public class ValidateAddressBookStateCommand extends AbstractCommand {
     public Integer call() throws IOException, ExecutionException, InterruptedException, ParseException {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
         BootstrapUtils.setupConstructableRegistry();
+        final PlatformContext platformContext = PlatformContext.create(configuration);
 
         System.out.printf("Reading state from %s %n", statePath.toAbsolutePath());
         final DeserializedSignedState deserializedSignedState =
-                SignedStateFileReader.readStateFile(configuration, statePath, DEFAULT_PLATFORM_STATE_FACADE);
+                SignedStateFileReader.readStateFile(statePath, DEFAULT_PLATFORM_STATE_FACADE, platformContext);
 
         System.out.printf("Reading address book from %s %n", addressBookPath.toAbsolutePath());
         final String addressBookString = Files.readString(addressBookPath);

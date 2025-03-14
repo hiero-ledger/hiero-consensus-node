@@ -6,7 +6,6 @@ module com.swirlds.state.impl {
     exports com.swirlds.state.merkle.disk;
     exports com.swirlds.state.merkle;
 
-    requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
@@ -14,6 +13,7 @@ module com.swirlds.state.impl {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.virtualmap;
+    requires com.hedera.node.hapi;
     requires com.swirlds.fcqueue;
     requires com.swirlds.logging;
     requires org.apache.logging.log4j;

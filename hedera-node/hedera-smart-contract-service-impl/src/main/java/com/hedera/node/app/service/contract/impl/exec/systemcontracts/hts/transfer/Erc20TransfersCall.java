@@ -98,9 +98,7 @@ public class Erc20TransfersCall extends AbstractCall {
     public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
         // https://eips.ethereum.org/EIPS/eip-20
         final var syntheticTransfer = syntheticTransferOrTransferFrom(senderId);
-        final var selector = (from == null) ? ERC_20_TRANSFER.selector() : ERC_20_TRANSFER_FROM.selector();
-        final var gasRequirement =
-                transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId, selector);
+        final var gasRequirement = transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId);
         if (tokenId == null) {
             return reversionWith(INVALID_TOKEN_ID, gasRequirement);
         }

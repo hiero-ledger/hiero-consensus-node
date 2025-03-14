@@ -1,0 +1,95 @@
+/**
+ * # File Update
+ * A message to modify the metadata for a file and/or _replace_ the contents.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.file">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+/**
+ * Update the metadata, and/or replace the content, of a file in the
+ * Hedera File Service (HFS).
+ *
+ * Any field which is not set (i.e. is null) in this message, other than
+ * `fileID`, SHALL be ignored.<br/>
+ * If the `keys` list for the identified file is an empty `KeyList`, then
+ * this message MUST NOT set any field except `expirationTime`.
+ *
+ * #### Signature Requirements
+ * Every `Key` in the `keys` list for the identified file MUST sign this
+ * transaction, if any field other than `expirationTime` is to be updated.<br/>
+ * If the `keys` list for the identified file is an empty `KeyList` (because
+ * this file was previously created or updated to have an empty `KeyList`),
+ * then the file is considered immutable and this message MUST NOT set any
+ * field except `expirationTime`.<br/>
+ * See the [File Service](#FileService) specification for a detailed
+ * explanation of the signature requirements for all file transactions.
+ *
+ * ### Block Stream Effects
+ * None
+ */
+message FileUpdateTransactionBody {
+    /**
+     * A file identifier for the file to update.
+     * <p>
+     * This field is REQUIRED.
+     */
+    FileID fileID = 1;
+
+    /**
+     * An expiration timestamp.
+     * <p>
+     * If set, this value MUST be strictly later than the existing
+     * `expirationTime` value, or else it will be ignored.<br/>
+     * If set, this value SHALL replace the existing `expirationTime`.<br/>
+     * If this field is the only field set, then this transaction SHALL NOT
+     * require any signature other than the `payer` for the transaction.<br/>
+     * When the network consensus time exceeds the then-current
+     * `expirationTime`, the network SHALL expire the file.
+     */
+    Timestamp expirationTime = 2;
+
+    /**
+     * The new list of keys that "own" this file.
+     * <p>
+     * If set, every key in this `KeyList` MUST sign this transaction.<br/>
+     * If set, every key in the _previous_ `KeyList` MUST _also_
+     * sign this transaction.<br/>
+     * If this value is an empty `KeyList`, then the file SHALL be immutable
+     * after completion of this transaction.
+     */
+    KeyList keys = 3;
+
+    /**
+     * An array of bytes.
+     * <p>
+     * This value, if set, SHALL _replace_ the existing file content.
+     * If this value is set to an empty byte array, the content of the file
+     * SHALL be unchanged.
+     */
+    bytes contents = 4;
+
+    /**
+     * A short description of this file.
+     * <p>
+     * This value, if set, MUST NOT exceed `transaction.maxMemoUtf8Bytes`
+     * (default 100) bytes when encoded as UTF-8.
+     */
+    google.protobuf.StringValue memo = 5;
+}

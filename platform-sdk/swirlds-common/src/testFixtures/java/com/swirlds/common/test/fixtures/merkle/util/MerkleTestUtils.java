@@ -15,7 +15,6 @@ import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
@@ -25,6 +24,7 @@ import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyCustomReconnectRoot;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleExternalLeaf;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
@@ -1039,6 +1039,7 @@ public final class MerkleTestUtils {
                                 streams.getLearnerOutput(),
                                 startingTree,
                                 streams::disconnect,
+                                TestMerkleCryptoFactory.getInstance(),
                                 reconnectConfig,
                                 metrics) {
 
@@ -1283,10 +1284,10 @@ public final class MerkleTestUtils {
         System.out.println("desired: " + desiredTree);
 
         if (startingTree != null && startingTree.getHash() == null) {
-            MerkleCryptoFactory.getInstance().digestTreeSync(startingTree);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(startingTree);
         }
         if (desiredTree != null && desiredTree.getHash() == null) {
-            MerkleCryptoFactory.getInstance().digestTreeSync(desiredTree);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(desiredTree);
         }
         return testSynchronization(startingTree, desiredTree, 0, reconnectConfig);
     }

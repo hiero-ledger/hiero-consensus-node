@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.state;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -67,6 +68,7 @@ class ScheduleEvmAccountTest {
 
     @Test
     void doesSupportGettingContractId() {
+        given(state.entityIdFactory()).willReturn(entityIdFactory);
         final var tokenNum = ConversionUtils.numberOfLongZero(SCHEDULE_ADDRESS);
         assertEquals(ContractID.newBuilder().contractNum(tokenNum).build(), subject.hederaContractId());
     }

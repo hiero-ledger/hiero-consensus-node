@@ -16,6 +16,7 @@ import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import java.time.InstantSource;
@@ -45,6 +46,9 @@ class ContractServiceImplTest {
     @Mock
     private ContractsConfig contractsConfig;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     private ContractServiceImpl subject;
 
     @BeforeEach
@@ -52,6 +56,7 @@ class ContractServiceImplTest {
         // given
         when(appContext.instantSource()).thenReturn(instantSource);
         when(appContext.signatureVerifier()).thenReturn(signatureVerifier);
+        when(appContext.idFactory()).thenReturn(entityIdFactory);
 
         subject = new ContractServiceImpl(appContext, metrics);
     }

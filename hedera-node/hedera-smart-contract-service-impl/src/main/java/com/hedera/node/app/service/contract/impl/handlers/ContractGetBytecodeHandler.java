@@ -25,6 +25,7 @@ import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
@@ -36,12 +37,15 @@ import javax.inject.Singleton;
 @Singleton
 public class ContractGetBytecodeHandler extends PaidQueryHandler {
     private final SmartContractFeeBuilder feeBuilder = new SmartContractFeeBuilder();
+    private final EntityIdFactory entityIdFactory;
 
     /**
      * Default constructor for injection.
      */
     @Inject
-    public ContractGetBytecodeHandler() {}
+    public ContractGetBytecodeHandler(@NonNull final EntityIdFactory entityIdFactory) {
+        this.entityIdFactory = requireNonNull(entityIdFactory);
+    }
 
     @Override
     public QueryHeader extractHeader(@NonNull final Query query) {
@@ -109,8 +113,9 @@ public class ContractGetBytecodeHandler extends PaidQueryHandler {
 
     private Bytes bytecodeFrom(@NonNull final QueryContext context, @NonNull Account contract) {
         final var store = context.createStore(ContractStateStore.class);
-        var contractNumber = contract.accountIdOrThrow().accountNumOrThrow();
-        var contractId = ContractID.newBuilder().contractNum(contractNumber).build();
+        var accountId = contract.accountIdOrThrow();
+        var contractNumber = accountId.accountNumOrThrow();
+        var contractId = entityIdFactory.newContractId(contractNumber);
         final var bytecode = store.getBytecode(contractId);
         return bytecode.code();
     }

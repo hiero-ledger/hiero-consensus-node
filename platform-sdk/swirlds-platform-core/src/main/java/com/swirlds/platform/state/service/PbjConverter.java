@@ -10,9 +10,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
-import com.swirlds.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -49,7 +47,7 @@ public final class PbjConverter {
         return new PlatformState(
                 accessor.getCreationSoftwareVersion().getPbjSemanticVersion(),
                 accessor.getRoundsNonAncient(),
-                toPbjConsensusSnapshot(accessor.getSnapshot()),
+                accessor.getSnapshot(),
                 toPbjTimestamp(accessor.getFreezeTime()),
                 toPbjTimestamp(accessor.getLastFrozenTime()),
                 Optional.ofNullable(accessor.getLegacyRunningEventHash())
@@ -59,9 +57,7 @@ public final class PbjConverter {
                 accessor.getLastRoundBeforeBirthRoundMode(),
                 Optional.ofNullable(accessor.getFirstVersionInBirthRoundMode())
                         .map(SoftwareVersion::getPbjSemanticVersion)
-                        .orElse(null),
-                toPbjAddressBook(accessor.getAddressBook()),
-                toPbjAddressBook(accessor.getPreviousAddressBook()));
+                        .orElse(null));
     }
 
     /**
@@ -87,8 +83,7 @@ public final class PbjConverter {
 
         com.hedera.hapi.platform.state.ConsensusSnapshot.Builder consensusSnapshotBuilder;
         if (accumulator.isSnapshotUpdated()) {
-            consensusSnapshotBuilder =
-                    toPbjConsensusSnapshot(accumulator.getSnapshot()).copyBuilder();
+            consensusSnapshotBuilder = accumulator.getSnapshot().copyBuilder();
         } else {
             consensusSnapshotBuilder = previousState
                     .consensusSnapshotOrElse(com.hedera.hapi.platform.state.ConsensusSnapshot.DEFAULT)
@@ -140,14 +135,6 @@ public final class PbjConverter {
             }
         }
 
-        if (accumulator.isAddressBookUpdated()) {
-            builder.addressBook(toPbjAddressBook(accumulator.getAddressBook()));
-        }
-
-        if (accumulator.isPreviousAddressBookUpdated()) {
-            builder.previousAddressBook(toPbjAddressBook(accumulator.getPreviousAddressBook()));
-        }
-
         return builder.build();
     }
 
@@ -195,41 +182,6 @@ public final class PbjConverter {
             result.setNextNodeId(NodeId.of(addressBook.nextNodeId().id()));
         }
         return result;
-    }
-
-    @Nullable
-    public static com.hedera.hapi.platform.state.ConsensusSnapshot toPbjConsensusSnapshot(
-            @Nullable final ConsensusSnapshot consensusSnapshot) {
-        if (consensusSnapshot == null) {
-            return null;
-        }
-        return new com.hedera.hapi.platform.state.ConsensusSnapshot(
-                consensusSnapshot.round(),
-                consensusSnapshot.judgeHashes().stream().map(Hash::getBytes).collect(toList()),
-                consensusSnapshot.getMinimumJudgeInfoList().stream()
-                        .map(PbjConverter::toPbjMinimumJudgeInfo)
-                        .collect(toList()),
-                consensusSnapshot.nextConsensusNumber(),
-                toPbjTimestamp(consensusSnapshot.consensusTimestamp()));
-    }
-
-    @Nullable
-    public static ConsensusSnapshot fromPbjConsensusSnapshot(
-            @Nullable final com.hedera.hapi.platform.state.ConsensusSnapshot consensusSnapshot) {
-        if (consensusSnapshot == null) {
-            return null;
-        }
-        Instant consensusTimestamp = fromPbjTimestamp(consensusSnapshot.consensusTimestamp());
-        requireNonNull(consensusTimestamp);
-
-        return new ConsensusSnapshot(
-                consensusSnapshot.round(),
-                consensusSnapshot.judgeHashes().stream().map(Hash::new).collect(toList()),
-                consensusSnapshot.minimumJudgeInfoList().stream()
-                        .map(PbjConverter::fromPbjMinimumJudgeInfo)
-                        .collect(toList()),
-                consensusSnapshot.nextConsensusNumber(),
-                consensusTimestamp);
     }
 
     @Nullable
@@ -298,18 +250,6 @@ public final class PbjConverter {
                 fromPbjX509Certificate(address.signingCertificate()),
                 fromPbjX509Certificate(address.agreementCertificate()),
                 address.memo());
-    }
-
-    @NonNull
-    private static MinimumJudgeInfo fromPbjMinimumJudgeInfo(
-            @NonNull final com.hedera.hapi.platform.state.MinimumJudgeInfo v) {
-        return new MinimumJudgeInfo(v.round(), v.minimumJudgeAncientThreshold());
-    }
-
-    @NonNull
-    private static com.hedera.hapi.platform.state.MinimumJudgeInfo toPbjMinimumJudgeInfo(
-            @NonNull final MinimumJudgeInfo v) {
-        return new com.hedera.hapi.platform.state.MinimumJudgeInfo(v.round(), v.minimumJudgeAncientThreshold());
     }
 
     @Nullable

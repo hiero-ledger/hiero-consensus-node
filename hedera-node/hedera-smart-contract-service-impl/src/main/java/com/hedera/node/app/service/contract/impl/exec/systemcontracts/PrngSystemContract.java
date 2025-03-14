@@ -5,7 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.ValidationUtils.validateTrue;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.systemContractGasCalculatorOf;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.successResultOfZeroValueTraceable;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FAIL_INVALID;
@@ -48,8 +48,10 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
     // random256BitGenerator(uint256)
     static final int PSEUDORANDOM_SEED_GENERATOR_SELECTOR = 0xd83bf9a1;
     public static final String PRNG_PRECOMPILE_ADDRESS = "0x169";
-    public static final ContractID PRNG_CONTRACT_ID =
-            asNumberedContractId(Address.fromHexString(PRNG_PRECOMPILE_ADDRESS));
+    // The system contract ID always uses shard 0 and realm 0 so we cannot use ConversionUtils methods for this
+    public static final ContractID PRNG_CONTRACT_ID = ContractID.newBuilder()
+            .contractNum(numberOfLongZero(Address.fromHexString(PRNG_PRECOMPILE_ADDRESS)))
+            .build();
     private long gasRequirement;
 
     @Inject

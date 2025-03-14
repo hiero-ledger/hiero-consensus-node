@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.platform.state.service.PbjConverter.fromPbjAddressBook;
-import static com.swirlds.platform.state.service.PbjConverter.fromPbjConsensusSnapshot;
 import static com.swirlds.platform.state.service.PbjConverter.fromPbjTimestamp;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
@@ -67,24 +64,6 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
     @NonNull
     public SoftwareVersion getCreationSoftwareVersion() {
         return versionFactory.apply(stateOrThrow().creationSoftwareVersionOrThrow());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @Nullable
-    public AddressBook getAddressBook() {
-        return fromPbjAddressBook(stateOrThrow().addressBook());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @Nullable
-    public AddressBook getPreviousAddressBook() {
-        return fromPbjAddressBook(stateOrThrow().previousAddressBook());
     }
 
     /**
@@ -152,7 +131,7 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
     @Override
     @Nullable
     public ConsensusSnapshot getSnapshot() {
-        return fromPbjConsensusSnapshot(stateOrThrow().consensusSnapshot());
+        return stateOrThrow().consensusSnapshot();
     }
 
     /**

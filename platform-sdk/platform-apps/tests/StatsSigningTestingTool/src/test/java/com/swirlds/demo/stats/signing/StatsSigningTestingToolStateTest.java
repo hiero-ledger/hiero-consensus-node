@@ -11,11 +11,11 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.demo.stats.signing.algorithms.X25519SigningAlgorithm;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
@@ -35,13 +35,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mockito;
 
 class StatsSigningTestingToolStateTest {
 
     private static final int transactionSize = 100;
     private Random random;
     private StatsSigningTestingToolState state;
-    private StatsSigningTestingToolStateLifecycles stateLifecycles;
+    private StatsSigningTestingToolConsensusStateEventHandler consensusStateEventHandler;
     private StatsSigningTestingToolMain main;
     private Round round;
     private PlatformEvent event;
@@ -55,7 +56,7 @@ class StatsSigningTestingToolStateTest {
         final SttTransactionPool transactionPool = mock(SttTransactionPool.class);
         final Supplier<SttTransactionPool> transactionPoolSupplier = mock(Supplier.class);
         state = new StatsSigningTestingToolState();
-        stateLifecycles = new StatsSigningTestingToolStateLifecycles(transactionPoolSupplier);
+        consensusStateEventHandler = new StatsSigningTestingToolConsensusStateEventHandler(transactionPoolSupplier);
         main = new StatsSigningTestingToolMain();
         random = new Random();
         event = mock(PlatformEvent.class);
@@ -63,7 +64,8 @@ class StatsSigningTestingToolStateTest {
         final var eventWindow = new EventWindow(10, 5, 20, AncientMode.BIRTH_ROUND_THRESHOLD);
         final var roster = new Roster(Collections.EMPTY_LIST);
         when(event.transactionIterator()).thenReturn(Collections.emptyIterator());
-        round = new ConsensusRound(roster, List.of(event), eventWindow, new ConsensusSnapshot(), false, Instant.now());
+        round = new ConsensusRound(
+                roster, List.of(event), eventWindow, Mockito.mock(ConsensusSnapshot.class), false, Instant.now());
 
         consumedSystemTransactions = new ArrayList<>();
         consumer = systemTransaction -> consumedSystemTransactions.add(systemTransaction);
@@ -94,7 +96,7 @@ class StatsSigningTestingToolStateTest {
         when(consensusTransaction.getApplicationTransaction()).thenReturn(transactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isZero();
@@ -109,7 +111,7 @@ class StatsSigningTestingToolStateTest {
         when(consensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isEqualTo(1);
@@ -132,7 +134,7 @@ class StatsSigningTestingToolStateTest {
         when(thirdConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
-        stateLifecycles.onHandleConsensusRound(round, state, consumer);
+        consensusStateEventHandler.onHandleConsensusRound(round, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isEqualTo(3);
@@ -152,7 +154,7 @@ class StatsSigningTestingToolStateTest {
         event = new PlatformEvent(gossipEvent);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isZero();
@@ -170,7 +172,7 @@ class StatsSigningTestingToolStateTest {
         event = new PlatformEvent(gossipEvent);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isEqualTo(1);
@@ -195,7 +197,7 @@ class StatsSigningTestingToolStateTest {
         event = new PlatformEvent(gossipEvent);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isEqualTo(3);
@@ -214,7 +216,7 @@ class StatsSigningTestingToolStateTest {
         event = new PlatformEvent(gossipEvent);
 
         // When
-        stateLifecycles.onPreHandle(event, state, consumer);
+        consensusStateEventHandler.onPreHandle(event, state, consumer);
 
         // Then
         assertThat(consumedSystemTransactions.size()).isZero();
@@ -225,7 +227,7 @@ class StatsSigningTestingToolStateTest {
         // Given (empty)
 
         // When
-        final boolean result = stateLifecycles.onSealConsensusRound(round, state);
+        final boolean result = consensusStateEventHandler.onSealConsensusRound(round, state);
 
         // Then
         assertThat(result).isTrue();

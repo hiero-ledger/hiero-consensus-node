@@ -18,6 +18,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PERMITTED_ADDRESS_CALLER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PERMITTED_CALLERS_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -181,6 +182,7 @@ class FrameUtilsTest {
 
         given(proxyWorldUpdater.getHederaAccount(EIP_1014_ADDRESS)).willReturn(proxyEvmContract);
         given(proxyEvmContract.isTokenFacade()).willReturn(false);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         assertEquals(UNQUALIFIED_DELEGATE, FrameUtils.callTypeOf(frame, EntityType.TOKEN));
     }
@@ -199,6 +201,7 @@ class FrameUtilsTest {
         given(initialFrame.getContractAddress()).willReturn(PERMITTED_ADDRESS_CALLER);
 
         given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(PERMITTED_CALLERS_CONFIG);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         assertEquals(QUALIFIED_DELEGATE, FrameUtils.callTypeOf(frame, EntityType.TOKEN));
     }
@@ -246,6 +249,7 @@ class FrameUtilsTest {
 
         given(proxyWorldUpdater.getHederaAccount(EIP_1014_ADDRESS)).willReturn(proxyEvmContract);
         given(proxyEvmContract.isRegularAccount()).willReturn(false);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         assertEquals(UNQUALIFIED_DELEGATE, FrameUtils.callTypeOf(frame, EntityType.REGULAR_ACCOUNT));
     }
@@ -293,6 +297,7 @@ class FrameUtilsTest {
 
         given(proxyWorldUpdater.getHederaAccount(EIP_1014_ADDRESS)).willReturn(proxyEvmContract);
         given(proxyEvmContract.isScheduleTxnFacade()).willReturn(false);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         assertEquals(UNQUALIFIED_DELEGATE, FrameUtils.callTypeOf(frame, EntityType.SCHEDULE_TXN));
     }
@@ -352,7 +357,9 @@ class FrameUtilsTest {
     void checkContractRequired() {
         givenNonInitialFrame();
         given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         assertTrue(FrameUtils.contractRequired(frame, EIP_1014_ADDRESS, featureFlags));
         verify(featureFlags).isAllowCallsToNonContractAccountsEnabled(DEFAULT_CONTRACTS_CONFIG, null);
     }
@@ -361,7 +368,9 @@ class FrameUtilsTest {
     void checkContractRequiredLongZero() {
         givenNonInitialFrame();
         given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         assertTrue(FrameUtils.contractRequired(frame, NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS, featureFlags));
         verify(featureFlags)
                 .isAllowCallsToNonContractAccountsEnabled(
@@ -375,7 +384,9 @@ class FrameUtilsTest {
     void checkContractRequiredLongZeroTooBig() {
         givenNonInitialFrame();
         given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         assertTrue(FrameUtils.contractRequired(frame, Address.fromHexString("0xFFFFFFFFFFFFFFFF"), featureFlags));
         verify(featureFlags).isAllowCallsToNonContractAccountsEnabled(DEFAULT_CONTRACTS_CONFIG, null);
     }

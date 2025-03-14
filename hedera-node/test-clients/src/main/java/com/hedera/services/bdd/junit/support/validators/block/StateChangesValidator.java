@@ -56,10 +56,10 @@ import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -96,7 +96,7 @@ import org.junit.jupiter.api.Assertions;
 public class StateChangesValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(StateChangesValidator.class);
     private static final SplittableRandom RANDOM = new SplittableRandom(System.currentTimeMillis());
-    private static final MerkleCryptography CRYPTO = MerkleCryptoFactory.getInstance();
+    private static final MerkleCryptography CRYPTO = TestMerkleCryptoFactory.getInstance();
 
     private static final int HASH_SIZE = 48;
     private static final int VISUALIZATION_HASH_DEPTH = 5;
@@ -285,11 +285,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                 previousBlockHash = expectedBlockHash;
             } else {
                 previousBlockHash = i < n - 1
-                        ? blocks.get(i + 1)
-                                .items()
-                                .getFirst()
-                                .blockHeaderOrThrow()
-                                .previousBlockHash()
+                        ? requireNonNull(blocks.get(i + 1).items().getLast().blockProof())
+                                .previousBlockRootHash()
                         : Bytes.EMPTY;
             }
         }
@@ -752,6 +749,9 @@ public class StateChangesValidator implements BlockStreamValidator {
             case HINTS_KEY_SET_VALUE -> mapChangeValue.hintsKeySetValueOrThrow();
             case PREPROCESSING_VOTE_VALUE -> mapChangeValue.preprocessingVoteValueOrThrow();
             case CRS_PUBLICATION_VALUE -> mapChangeValue.crsPublicationValueOrThrow();
+            case HISTORY_PROOF_VOTE_VALUE -> mapChangeValue.historyProofVoteValue();
+            case HISTORY_SIGNATURE_VALUE -> mapChangeValue.historySignatureValue();
+            case PROOF_KEY_SET_VALUE -> mapChangeValue.proofKeySetValue();
         };
     }
 

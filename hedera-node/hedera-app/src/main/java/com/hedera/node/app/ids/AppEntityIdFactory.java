@@ -83,6 +83,15 @@ public class AppEntityIdFactory implements EntityIdFactory {
     }
 
     @Override
+    public ContractID newContractIdWithEvmAddress(@NonNull Bytes evmAddress) {
+        return ContractID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .evmAddress(evmAddress)
+                .build();
+    }
+
+    @Override
     public String hexLongZero(long number) {
         final byte[] evmAddress = new byte[20];
         final var shardBytes = Ints.toByteArray((int) shard);

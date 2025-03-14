@@ -162,7 +162,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
 
         assertEquals(
@@ -206,7 +205,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
 
         assertEquals(
@@ -241,7 +239,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
 
         // the ReconnectController must be running in order to provide permits
@@ -293,7 +290,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 Time.getCurrent(),
                 TEST_PLATFORM_STATE_FACADE);
         final SignedState signedState = spy(new RandomSignedStateGenerator().build());
@@ -315,7 +311,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 Time.getCurrent(),
                 TEST_PLATFORM_STATE_FACADE);
 
@@ -361,7 +356,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertTrue(peerProtocol.shouldInitiate());
@@ -406,7 +400,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
 
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
@@ -445,7 +438,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertFalse(peerProtocol.shouldAccept());
@@ -476,7 +468,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
                 () -> PlatformStatus.CHECKING,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertFalse(peerProtocol.shouldAccept());
@@ -503,7 +494,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 mock(FallenBehindManager.class),
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertTrue(peerProtocol.shouldAccept());
@@ -550,7 +540,6 @@ class ReconnectPeerProtocolTests {
                 mock(SignedStateValidator.class),
                 mock(FallenBehindManager.class),
                 () -> ACTIVE,
-                configuration,
                 TEST_PLATFORM_STATE_FACADE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertFalse(peerProtocol.shouldAccept());

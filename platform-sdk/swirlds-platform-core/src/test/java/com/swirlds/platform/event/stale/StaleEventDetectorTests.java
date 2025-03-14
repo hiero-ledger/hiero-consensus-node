@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
@@ -15,7 +16,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.transformers.RoutableData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig_;
@@ -117,7 +117,9 @@ class StaleEventDetectorTests {
         final StaleEventDetector detector = new DefaultStaleEventDetector(platformContext, selfId);
 
         final long ancientThreshold = randotron.nextPositiveLong() + 100;
-        final long eventBirthRound = ancientThreshold - randotron.nextLong(100);
+        final long eventBirthRound = ancientThreshold
+                - (randotron.nextLong(100)
+                        + 1); // +1, because birthRound==ancientThreshold is not yet considered ancient
 
         final PlatformEvent event = new TestingEventBuilder(randotron)
                 .setCreatorId(selfId)

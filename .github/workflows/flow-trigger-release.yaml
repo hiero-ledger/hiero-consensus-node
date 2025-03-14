@@ -1,0 +1,177 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "[Main] Create New Release"
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "Build Number (ex: 43 = build-00043):"
+        type: string
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+jobs:
+  create-new-release:
+    name: Create New Release
+    runs-on: hiero-network-node-linux-medium
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
+        with:
+          egress-policy: audit
+
+      - name: Build Input Validation
+        id: validate
+        run: |
+          echo "The input is ${{ inputs.build_number }}"
+          if ! [[ "${{ inputs.build_number }}" =~ ^[0-9]+$ ]]; then
+            echo "Input is not a valid integer"
+            exit 1
+          fi
+          echo "Input is a valid integer: $(( ${{ inputs.build_number }} ))"
+
+          # 5-digit padding
+          padded_number="$(printf "%05d" "${{ inputs.build_number }}")"
+          echo "Padded number is: ${padded_number}"
+
+          # Add "build_" prefix to the padded number
+          build_tag="build-${padded_number}"
+          echo "Prefixed number is: ${build_tag}"
+
+          # Export to Github output and Github summary
+          echo "build-tag=${build_tag}" >> ${GITHUB_OUTPUT}
+          echo "Build Tag to Release: ${build_tag}" >> ${GITHUB_STEP_SUMMARY}
+
+      - name: Checkout Code
+        id: checkout_code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ steps.validate.outputs.build-tag }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Import GPG Key
+        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        with:
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+          git_user_signingkey: true
+          gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
+
+      - name: Setup Node
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 20
+
+      - name: Calculate Temporary Semantic Release Branch Name
+        id: branch
+        run: |
+          echo "name=ci/release/prep/${{ steps.validate.outputs.build-tag }}" >> ${GITHUB_OUTPUT}
+          echo "The temp branch name is: ${BRANCH_NAME}"
+
+      - name: Print Temporary Branch Name
+        run: |
+          echo "The temporary branch name is: ${{ steps.branch.outputs.name }}"
+          echo "Temporary Branch Name: ${{ steps.branch.outputs.name }}" >> ${GITHUB_STEP_SUMMARY}
+
+      # Need to create a temporary branch so we can use the git-semver tool to create a release.
+      # Semantic versioning only works off branches, not tags.
+      - name: Create a Temporary Semantic Release Branch
+        run: git checkout -b ${{ steps.branch.outputs.name }}
+
+      - name: Echo Current Branch Name
+        run: |
+          current_branch="$(git symbolic-ref --short HEAD)"
+          echo "Currently on branch: ${current_branch}"
+
+      - name: Push Temporary Branch to Origin
+        run: git push --set-upstream origin "${{ steps.branch.outputs.name }}"
+
+      - name: Git-Semver Setup Action
+        uses: DJ-BBot/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
+
+      - name: Identify Current Version Number
+        run: |
+          echo "Find the current version number"
+          current_version="$(git-semver latest)"
+          echo "Current version is: ${current_version}"
+
+      # IF HIERO/HEDERA TRANSITIONS TO A MAJOR RELEASE NUMBER (1.0.0+)
+      # stable = false WILL NO LONGER BE VALID
+      - name: Compute Next Version Number
+        id: next-release
+        run: |
+          echo "Compute next version number using git-semver"
+          OUTPUT="$(git-semver next --stable=false 2>&1)" || STATUS="${?}"
+          echo "${OUTPUT}"
+          if [[ -n "${STATUS}" ]]; then
+            echo "git-semver failed with status ${STATUS}"
+            exit "${STATUS}"
+          fi
+          echo "version=${OUTPUT}" >> ${GITHUB_OUTPUT}
+          echo "Next release version is: ${OUTPUT}"
+
+      - name: Apply Tag with Calculated Next Version
+        run: |
+          echo "Applying computed version tag"
+          git tag --annotate "v${{ steps.next-release.outputs.version }}" --message "v${{ steps.next-release.outputs.version }}"
+          echo "Applied tag v${{ steps.next-release.outputs.version }}"
+          current_version="$(git-semver latest)"
+          echo "Version Tag Applied: v${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
+          echo "Current Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
+
+      - name: Push Release Tag to Remote
+        run: |
+          echo "Pushing release tag to remote"
+          git push origin tag "v${{ steps.next-release.outputs.version }}"
+          echo "Pushed new release tag to remote"
+
+      - name: Create Release Notes with Markdown
+        run: |
+          echo git-semver log --markdown "${{ steps.next-release.outputs.version }}"
+          git-semver log --markdown "${{ steps.next-release.outputs.version }}"
+
+      - name: Clean Up git-semver
+        run: |
+          echo "Deleting git-semver directory"
+          rm -rf ./git-semver
+          echo "Successfully removed git-semver directory"
+
+      - name: View Status After Running Semantic Release
+        run: git status
+
+      - name: Ensure Branch Not in Use and Delete Worktree
+        if: always()
+        run: |
+          # Switch to main
+          git checkout main
+
+          # Check if the branch is associated with a worktree and remove the worktree if it exists
+          worktree_path="$(git worktree list | grep "${{ steps.branch.outputs.name }}" || true)"
+
+          if [ -n "${worktree_path}" ]; then
+            echo "Removing worktree at ${worktree_path}"
+            git worktree remove "${worktree_path}"
+          else
+            echo "No worktree found for branch ${{ steps.branch.outputs.name }}"
+          fi
+
+      - name: Delete the Temporary Semantic Release Branch
+        if: always()
+        run: |
+          echo "Deleting the temporary semantic release branch"
+          echo "Deleting local branch now:"
+          git branch -d "${{ steps.branch.outputs.name }}"
+          echo "Deleted Temporary Branch from Local Runner" >> ${GITHUB_STEP_SUMMARY}
+
+          echo "Deleting remote branch now:"
+          git push -d origin "${{ steps.branch.outputs.name }}"
+          echo "Deleted Temporary Branch from Remote" >> ${GITHUB_STEP_SUMMARY}

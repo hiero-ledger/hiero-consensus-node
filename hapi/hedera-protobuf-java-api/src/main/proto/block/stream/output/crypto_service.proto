@@ -1,0 +1,87 @@
+/**
+ * # Crypto Service
+ * Block stream messages that report the results of transactions handled by
+ * the `Crypto` service. This service primarily handles account management
+ * and HBAR transfers.
+ *
+ * > Note
+ * >> Tokens other than HBAR, including all NFTs, are managed by the `Token` Service.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.block.stream.output;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.block.stream.output.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.stream.output">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * Block Stream data for a `approveAllowances` transaction.
+ *
+ * This message SHALL NOT duplicate information already contained in
+ * the original transaction.
+ */
+message ApproveAllowanceOutput {}
+
+/**
+ * Block Stream data for a `deleteAllowances` transaction.
+ *
+ * This message SHALL NOT duplicate information already contained in
+ * the original transaction.
+ */
+message DeleteAllowanceOutput {}
+
+/**
+ * Block Stream data for a `createAccount` transaction.
+ *
+ * This message SHALL NOT duplicate information already contained in
+ * the original transaction.
+ */
+message CreateAccountOutput {
+    /**
+     * A newly created account identifier.<br/>
+     * This is the account identifier for the account created as part of
+     * any transaction that creates a new account.<br/>
+     * This value is necessary due to the difficulty of otherwise identifying
+     * created accounts versus the other account updates necessary for every
+     * transaction (e.g. fee payment).
+     * <p>
+     * This value SHALL be set for every account creation.
+     * This value SHALL NOT be set if no account is created.
+     */
+    proto.AccountID created_account_id = 1;
+}
+
+/**
+ * Block Stream data for a `cryptoDelete` transaction.
+ *
+ * This message SHALL NOT duplicate information already contained in
+ * the original transaction.
+ */
+message DeleteAccountOutput {}
+
+/**
+ * Block Stream data for a `cryptoTransfer` transaction.
+ *
+ * This message SHALL NOT duplicate information already contained in
+ * the original transaction.
+ */
+message CryptoTransferOutput {}
+
+/**
+ * Block Stream data for a `updateAccount` transaction.
+ *
+ * This message SHALL NOT duplicate information already contained in
+ * the original transaction.
+ */
+message UpdateAccountOutput {}

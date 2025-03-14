@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -18,6 +19,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AbiCon
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.LogBuilder;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -65,11 +67,11 @@ public class ClassicGrantApprovalCall extends AbstractGrantApprovalCall {
         if (status != SUCCESS) {
             return reversionWith(gasRequirement, recordBuilder);
         } else {
-            final var tokenAddress = asLongZeroAddress(tokenId.tokenNum());
+            final var tokenAddress = asLongZeroAddress(entityIdFactory(frame), tokenId.tokenNum());
             if (tokenType.equals(TokenType.FUNGIBLE_COMMON)) {
-                frame.addLog(getLogForFungibleAdjustAllowance(tokenAddress));
+                frame.addLog(getLogForFungibleAdjustAllowance(entityIdFactory(frame), tokenAddress));
             } else {
-                frame.addLog(getLogForNftAdjustAllowance(tokenAddress));
+                frame.addLog(getLogForNftAdjustAllowance(entityIdFactory(frame), tokenAddress));
             }
             final var encodedOutput = tokenType.equals(TokenType.FUNGIBLE_COMMON)
                     ? GrantApprovalTranslator.GRANT_APPROVAL.getOutputs().encode(Tuple.of(status.protoOrdinal(), true))
@@ -80,22 +82,22 @@ public class ClassicGrantApprovalCall extends AbstractGrantApprovalCall {
         }
     }
 
-    private Log getLogForFungibleAdjustAllowance(final Address logger) {
+    private Log getLogForFungibleAdjustAllowance(@NonNull final EntityIdFactory entityIdFactory, final Address logger) {
         return LogBuilder.logBuilder()
                 .forLogger(logger)
                 .forEventSignature(AbiConstants.APPROVAL_EVENT)
-                .forIndexedArgument(asLongZeroAddress(senderId.accountNumOrThrow()))
-                .forIndexedArgument(asLongZeroAddress(spenderId.accountNumOrThrow()))
+                .forIndexedArgument(asLongZeroAddress(entityIdFactory, senderId.accountNumOrThrow()))
+                .forIndexedArgument(asLongZeroAddress(entityIdFactory, spenderId.accountNumOrThrow()))
                 .forDataItem(amount)
                 .build();
     }
 
-    private Log getLogForNftAdjustAllowance(final Address logger) {
+    private Log getLogForNftAdjustAllowance(@NonNull final EntityIdFactory entityIdFactory, final Address logger) {
         return LogBuilder.logBuilder()
                 .forLogger(logger)
                 .forEventSignature(AbiConstants.APPROVAL_EVENT)
-                .forIndexedArgument(asLongZeroAddress(senderId.accountNumOrThrow()))
-                .forIndexedArgument(asLongZeroAddress(spenderId.accountNumOrThrow()))
+                .forIndexedArgument(asLongZeroAddress(entityIdFactory, senderId.accountNumOrThrow()))
+                .forIndexedArgument(asLongZeroAddress(entityIdFactory, spenderId.accountNumOrThrow()))
                 .forIndexedArgument(amount)
                 .build();
     }

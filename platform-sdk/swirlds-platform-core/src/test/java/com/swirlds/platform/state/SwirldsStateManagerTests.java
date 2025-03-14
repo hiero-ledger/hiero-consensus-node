@@ -2,7 +2,7 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -51,7 +51,7 @@ class SwirldsStateManagerTests {
                 NodeId.of(0L),
                 mock(StatusActionSubmitter.class),
                 new BasicSoftwareVersion(1),
-                FAKE_MERKLE_STATE_LIFECYCLES,
+                FAKE_CONSENSUS_STATE_EVENT_HANDLER,
                 platformStateFacade);
         swirldStateManager.setInitialState(initialState);
     }
@@ -128,7 +128,7 @@ class SwirldsStateManagerTests {
 
     private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {
         final MerkleNodeState state = new TestMerkleStateRoot();
-        FAKE_MERKLE_STATE_LIFECYCLES.initPlatformState(state);
+        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
 
         platformStateFacade.setCreationSoftwareVersionTo(state, new BasicSoftwareVersion(nextInt(1, 100)));
 

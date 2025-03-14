@@ -113,6 +113,8 @@ public abstract class AbstractProxyEvmAccount extends AbstractMutableEvmAccount 
     @Override
     public @NonNull ContractID hederaContractId() {
         return ContractID.newBuilder()
+                .shardNum(accountID.shardNum())
+                .realmNum(accountID.realmNum())
                 .contractNum(accountID.accountNumOrThrow())
                 .build();
     }

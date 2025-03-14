@@ -18,8 +18,6 @@ import java.util.Objects;
  */
 public class TinybarValues {
     private final ExchangeRate exchangeRate;
-    private final boolean isGasPrecisionLossFixEnabled;
-    private final boolean isCanonicalViewGasEnabled;
     private final FunctionalityResourcePrices topLevelResourcePrices;
     // Only non-null for a top-level transaction, since queries cannot have child transactions
     @Nullable
@@ -64,8 +62,6 @@ public class TinybarValues {
         this.exchangeRate = Objects.requireNonNull(exchangeRate);
         this.topLevelResourcePrices = Objects.requireNonNull(topLevelResourcePrices);
         this.childTransactionResourcePrices = childTransactionResourcePrices;
-        this.isGasPrecisionLossFixEnabled = contractsConfig.isGasPrecisionLossFixEnabled();
-        this.isCanonicalViewGasEnabled = contractsConfig.isCanonicalViewGasEnabled();
     }
 
     /**
@@ -113,9 +109,6 @@ public class TinybarValues {
      * @return the tinycents gas price
      */
     public long topLevelTinycentGasPrice() {
-        if (!isGasPrecisionLossFixEnabled) {
-            return topLevelTinybarGasPrice();
-        }
         return topLevelResourcePrices.basePrices().servicedataOrThrow().gas()
                 * topLevelResourcePrices.congestionMultiplier();
     }
@@ -161,29 +154,7 @@ public class TinybarValues {
      * @return the tinybar/tinycent-denominated price of a rbh for the current operation
      */
     public long topLevelTinycentRbhPrice() {
-        if (!isGasPrecisionLossFixEnabled) {
-            return asTinybars(
-                    topLevelResourcePrices.basePrices().servicedataOrThrow().rbh()
-                            / FEE_SCHEDULE_UNITS_PER_TINYCENT
-                            * topLevelResourcePrices.congestionMultiplier());
-        }
         return topLevelResourcePrices.basePrices().servicedataOrThrow().rbh()
                 * topLevelResourcePrices.congestionMultiplier();
-    }
-
-    /**
-     * This can be removed after integrity of the fix is confirmed.
-     * We have it as a temporary measure to allow for easy rollback in case of issues.
-     */
-    public boolean isGasPrecisionLossFixEnabled() {
-        return isGasPrecisionLossFixEnabled;
-    }
-
-    /**
-     * This can be removed after the dynamic gas for view operations is confirmed.
-     * We have it as a temporary measure to allow for easy rollback in case of issues.
-     */
-    public boolean isCanonicalViewGasEnabled() {
-        return isCanonicalViewGasEnabled;
     }
 }

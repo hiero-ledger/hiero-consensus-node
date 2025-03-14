@@ -11,7 +11,7 @@ import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.StateLifecycles;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.address.AddressBookInitializer;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -234,7 +234,7 @@ public class AddressBookUtils {
             @NonNull final ReservedSignedState initialState,
             @NonNull final AddressBook bootstrapAddressBook,
             @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycles<?> stateLifecycles,
+            @NonNull final ConsensusStateEventHandler<?> consensusStateEventHandler,
             @NonNull final PlatformStateFacade platformStateFacade) {
         final boolean softwareUpgrade = detectSoftwareUpgrade(version, initialState.get(), platformStateFacade);
         // Initialize the address book from the configuration and platform saved state.
@@ -245,7 +245,7 @@ public class AddressBookUtils {
                 initialState.get(),
                 bootstrapAddressBook.copy(),
                 platformContext,
-                stateLifecycles,
+                consensusStateEventHandler,
                 platformStateFacade);
         final State state = initialState.get().getState();
 
@@ -259,7 +259,7 @@ public class AddressBookUtils {
                 final Roster previousRoster =
                         RosterRetriever.buildRoster(addressBookInitializer.getPreviousAddressBook());
                 if (!previousRoster.equals(RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade))
-                        && !previousRoster.equals(RosterRetriever.retrievePreviousRoster(state, platformStateFacade))) {
+                        && !previousRoster.equals(RosterRetriever.retrievePreviousRoster(state))) {
                     throw new IllegalStateException(
                             "The previousRoster in the AddressBookInitializer doesn't match either the active or previous roster in state."
                                     + " AddressBookInitializer previousRoster = " + RosterUtils.toString(previousRoster)
@@ -267,8 +267,7 @@ public class AddressBookUtils {
                                     + RosterUtils.toString(
                                             RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade))
                                     + ", state previousRoster = "
-                                    + RosterUtils.toString(
-                                            RosterRetriever.retrievePreviousRoster(state, platformStateFacade)));
+                                    + RosterUtils.toString(RosterRetriever.retrievePreviousRoster(state)));
                 }
             }
 

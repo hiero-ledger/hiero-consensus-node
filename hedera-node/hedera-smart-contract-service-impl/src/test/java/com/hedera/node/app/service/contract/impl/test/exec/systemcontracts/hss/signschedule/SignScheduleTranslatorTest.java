@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_BESU_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.bytesForRedirectScheduleTxn;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHssAttemptWithBytesAndCustomConfig;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHssAttemptWithBytesAndCustomConfigAndDelegatableContractKeys;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHssAttemptWithSelectorAndCustomConfig;
@@ -43,6 +44,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
 import java.util.Random;
@@ -220,6 +222,7 @@ class SignScheduleTranslatorTest {
         given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
         given(verificationStrategies.activatingOnlyContractKeysFor(OWNER_BESU_ADDRESS, false, nativeOperations))
                 .willReturn(verificationStrategy);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         // when:
         attempt = prepareHssAttemptWithBytesAndCustomConfig(
@@ -251,6 +254,7 @@ class SignScheduleTranslatorTest {
         given(verificationStrategies.activatingOnlyContractKeysFor(OWNER_BESU_ADDRESS, false, nativeOperations))
                 .willReturn(verificationStrategy);
         given(systemContractOperations.maybeEthSenderKey()).willReturn(key);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         // when:
         attempt = prepareHssAttemptWithBytesAndCustomConfig(
@@ -276,6 +280,7 @@ class SignScheduleTranslatorTest {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
         given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         // when:
         attempt = prepareHssAttemptWithBytesAndCustomConfig(
@@ -302,7 +307,8 @@ class SignScheduleTranslatorTest {
         given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
         given(verificationStrategies.activatingOnlyContractKeysFor(OWNER_BESU_ADDRESS, false, nativeOperations))
                 .willReturn(verificationStrategy);
-
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         // when:
         final var input = Bytes.wrapByteBuffer(
                 SignScheduleTranslator.AUTHORIZE_SCHEDULE.encodeCall(Tuple.singleton(APPROVED_HEADLONG_ADDRESS)));
@@ -332,7 +338,8 @@ class SignScheduleTranslatorTest {
         given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
         given(verificationStrategies.activatingOnlyContractKeysFor(OWNER_BESU_ADDRESS, true, nativeOperations))
                 .willReturn(verificationStrategy);
-
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         // when:
         final var input = Bytes.wrapByteBuffer(
                 SignScheduleTranslator.AUTHORIZE_SCHEDULE.encodeCall(Tuple.singleton(APPROVED_HEADLONG_ADDRESS)));
@@ -378,6 +385,7 @@ class SignScheduleTranslatorTest {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.getSchedule(anyLong())).willReturn(schedule);
         given(schedule.scheduleId()).willReturn(scheduleID);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         attempt = prepareHssAttemptWithBytesAndCustomConfig(
                 bytesForRedirectScheduleTxn(

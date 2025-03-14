@@ -12,8 +12,8 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.StateLifecycles;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -51,7 +51,7 @@ class TransactionPrehandlerTests {
         when(signedState.getState()).thenReturn(stateRoot);
 
         final SignedStateNexus latestImmutableStateNexus = mock(SignedStateNexus.class);
-        final StateLifecycles stateLifecycles = mock(StateLifecycles.class);
+        final ConsensusStateEventHandler consensusStateEventHandler = mock(ConsensusStateEventHandler.class);
         // return null until returnValidState is set to true. keep track of when the first state retrieval is attempted,
         // so we can assert that prehandle hasn't happened before the state is available
         when(latestImmutableStateNexus.getState(any())).thenAnswer(i -> {
@@ -62,7 +62,7 @@ class TransactionPrehandlerTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final TransactionPrehandler transactionPrehandler = new DefaultTransactionPrehandler(
-                platformContext, () -> latestImmutableStateNexus.getState("test"), stateLifecycles);
+                platformContext, () -> latestImmutableStateNexus.getState("test"), consensusStateEventHandler);
 
         final PlatformEvent platformEvent = new TestingEventBuilder(random).build();
 

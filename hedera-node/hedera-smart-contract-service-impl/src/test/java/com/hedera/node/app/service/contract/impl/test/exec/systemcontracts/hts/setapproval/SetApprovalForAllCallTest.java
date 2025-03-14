@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBL
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.UNAUTHORIZED_SPENDER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asBytesResult;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.readableRevertReason;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -19,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval.SetApprovalForAllCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval.SetApprovalForAllTranslator;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import java.math.BigInteger;
 import org.apache.tuweni.bytes.Bytes;
@@ -46,6 +48,9 @@ public class SetApprovalForAllCallTest extends CallTestBase {
     @Mock
     private SystemContractGasCalculator gasCalculator;
 
+    @Mock
+    private ProxyWorldUpdater worldUpdater;
+
     private SetApprovalForAllCall subject;
 
     @BeforeEach
@@ -72,6 +77,8 @@ public class SetApprovalForAllCallTest extends CallTestBase {
     void setApprovalForAllCall_works() {
         // Given
         given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         // When
         final var result = subject.execute(frame).fullResult().result();

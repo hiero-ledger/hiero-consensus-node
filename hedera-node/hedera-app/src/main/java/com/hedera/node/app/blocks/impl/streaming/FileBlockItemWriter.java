@@ -127,7 +127,9 @@ public class FileBlockItemWriter implements BlockItemWriter {
         }
 
         state = State.OPEN;
-        logger.info("Started new block in FileBlockItemWriter {}", blockNumber);
+        if (logger.isDebugEnabled()) {
+            logger.debug("Started new block in FileBlockItemWriter {}", blockNumber);
+        }
     }
 
     @Override
@@ -158,7 +160,9 @@ public class FileBlockItemWriter implements BlockItemWriter {
         try {
             writableStreamingData.close();
             state = State.CLOSED;
-            logger.info("Closed block in FileBlockItemWriter {}", blockNumber);
+            if (logger.isDebugEnabled()) {
+                logger.debug("Closed block in FileBlockItemWriter {}", blockNumber);
+            }
 
             // Write a .mf file to indicate that the block file is complete.
             final Path markerFile = getBlockFilePath(blockNumber).resolveSibling(longToFileName(blockNumber) + ".mf");

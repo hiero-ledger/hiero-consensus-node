@@ -126,7 +126,7 @@ public class ClassicTransfersCall extends AbstractCall {
                     false);
         }
         // When unlimited associations are enabled, will be updated with additional charges for any auto-associations
-        var gasRequirement = transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId, selector);
+        var gasRequirement = transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId);
         if (preemptingFailureStatus != null) {
             return reversionWith(preemptingFailureStatus, gasRequirement);
         }
@@ -176,19 +176,17 @@ public class ClassicTransfersCall extends AbstractCall {
      * Simulates the mono-service gas calculation for a classic transfer, which is significantly complicated by our
      * current strategy for setting the minimum tinycent price based on the canonical prices of various operations.
      *
-     * @param body the transaction body to be dispatched
+     * @param body                        the transaction body to be dispatched
      * @param systemContractGasCalculator the gas calculator to use
-     * @param enhancement the enhancement to use
-     * @param payerId the payer of the transaction
-     * @param selector the selector of the call
+     * @param enhancement                 the enhancement to use
+     * @param payerId                     the payer of the transaction
      * @return the gas requirement for the transaction to be dispatched
      */
     public static long transferGasRequirement(
             @NonNull final TransactionBody body,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator,
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final AccountID payerId,
-            @NonNull final byte[] selector) {
+            @NonNull final AccountID payerId) {
         final var op = body.cryptoTransferOrThrow();
         final var hasCustomFees = enhancement.nativeOperations().checkForCustomFees(op);
         // For fungible there are always at least two operations, so only charge half for each
@@ -213,8 +211,7 @@ public class ClassicTransfersCall extends AbstractCall {
                 baseAdjustTinycentsPrice,
                 baseNftTransferTinycentsPrice,
                 baseLazyCreationPrice,
-                extantAccounts,
-                selector);
+                extantAccounts);
         return systemContractGasCalculator.gasRequirementWithTinycents(body, payerId, minimumTinycentPrice);
     }
 
@@ -224,8 +221,7 @@ public class ClassicTransfersCall extends AbstractCall {
             final long baseAdjustTinyCentsPrice,
             final long baseNftTransferTinyCentsPrice,
             final long baseLazyCreationPrice,
-            @NonNull final ReadableAccountStore extantAccounts,
-            @NonNull final byte[] selector) {
+            @NonNull final ReadableAccountStore extantAccounts) {
         long minimumTinycentPrice = 0L;
         final var numTinyCentsAdjusts =
                 op.transfersOrElse(TransferList.DEFAULT).accountAmounts().size();
@@ -237,8 +233,10 @@ public class ClassicTransfersCall extends AbstractCall {
             for (final var unitAdjust : unitAdjusts) {
                 if (unitAdjust.amount() > 0
                         && unitAdjust.accountIDOrElse(AccountID.DEFAULT).hasAlias()) {
+                    final var accountId = unitAdjust.accountIDOrThrow();
                     final var alias = unitAdjust.accountIDOrThrow().aliasOrThrow();
-                    final var extantAccount = extantAccounts.getAccountIDByAlias(alias);
+                    final var extantAccount =
+                            extantAccounts.getAccountIDByAlias(accountId.shardNum(), accountId.realmNum(), alias);
                     if (extantAccount == null) {
                         aliasesToLazyCreate.add(alias);
                     }
@@ -248,8 +246,10 @@ public class ClassicTransfersCall extends AbstractCall {
             minimumTinycentPrice += nftTransfers.size() * baseNftTransferTinyCentsPrice;
             for (final var nftTransfer : nftTransfers) {
                 if (nftTransfer.receiverAccountIDOrElse(AccountID.DEFAULT).hasAlias()) {
-                    final var alias = nftTransfer.receiverAccountIDOrThrow().aliasOrThrow();
-                    final var extantAccount = extantAccounts.getAccountIDByAlias(alias);
+                    final var receiverAccountId = nftTransfer.receiverAccountIDOrThrow();
+                    final var alias = receiverAccountId.aliasOrThrow();
+                    final var extantAccount = extantAccounts.getAccountIDByAlias(
+                            receiverAccountId.shardNum(), receiverAccountId.realmNum(), alias);
                     if (extantAccount == null) {
                         aliasesToLazyCreate.add(alias);
                     }

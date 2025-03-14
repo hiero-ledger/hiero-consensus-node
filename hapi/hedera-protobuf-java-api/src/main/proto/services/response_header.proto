@@ -1,0 +1,70 @@
+/**
+ * # Response Header
+ * A standard header for all query responses.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.base">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/query_header.proto";
+import "services/response_code.proto";
+
+/**
+ * A standard header returned with every query response.
+ *
+ * The fields for `cost` or `stateProof` MAY be unset if the requested
+ * `ResponseType` does not request those values.<br/>
+ * The `responseType` SHALL match the request response type.<br/>
+ * The `nodeTransactionPrecheckCode` field SHALL contain the result code
+ * for the query.
+ */
+message ResponseHeader {
+    /**
+     * The result code for this query.
+     * <p>
+     * This value SHALL indicate either success or the reason for failure.
+     */
+    ResponseCodeEnum nodeTransactionPrecheckCode = 1;
+
+    /**
+     * The response type requested for this query.
+     * <p>
+     * This SHALL be the response type requested in the query header.
+     */
+    ResponseType responseType = 2;
+
+    /**
+     * Requested cost estimate.<br/>
+     * This is the fee that _would be_ charged if the query was executed.
+     * <p>
+     * This value SHALL be set if the response type requested requires cost
+     * information, and SHALL NOT be set otherwise.<br/>
+     * This value SHALL include the query fee, but SHALL NOT include the
+     * transfer fee required to execute the fee payment transaction.
+     */
+    uint64 cost = 3;
+
+    /**
+     * A state proof for the information requested.
+     *
+     * This field SHALL NOT be set if the response type does not require
+     * a state proof.<br/>
+     * This field SHALL NOT be set if a state proof is not available for
+     * the query type.<br/>
+     * This field SHALL be set if the response type requested a state proof
+     * and a state proof is available.
+     */
+    bytes stateProof = 4;
+}

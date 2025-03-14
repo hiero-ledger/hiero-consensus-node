@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has.
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorized.IsAuthorizedTranslator.IS_AUTHORIZED;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVED_HEADLONG_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.message;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.signature;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHasAttemptWithSelectorAndCustomConfig;
@@ -81,6 +82,7 @@ public class IsAuthorizedTranslatorTest {
 
     @Test
     void matchesIsAuthorizedWhenEnabled() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHasAttemptWithSelectorAndCustomConfig(
                 IS_AUTHORIZED,
                 subject,
@@ -96,6 +98,7 @@ public class IsAuthorizedTranslatorTest {
 
     @Test
     void doesNotMatchIsAuthorizedWhenDisabled() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHasAttemptWithSelectorAndCustomConfig(
                 IS_AUTHORIZED,
                 subject,
@@ -111,6 +114,7 @@ public class IsAuthorizedTranslatorTest {
 
     @Test
     void failsOnInvalidSelector() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHasAttemptWithSelectorAndCustomConfig(
                 HBAR_ALLOWANCE_PROXY,
                 subject,

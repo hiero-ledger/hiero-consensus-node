@@ -19,6 +19,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_DURATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.SUPPRESSING_TRANSACTION_CUSTOMIZER;
@@ -129,7 +130,8 @@ class HandleHederaOperationsTest {
                 DEFAULT_HEDERA_CONFIG,
                 HederaFunctionality.CONTRACT_CALL,
                 pendingCreationMetadataRef,
-                DEFAULT_ACCOUNTS_CONFIG);
+                DEFAULT_ACCOUNTS_CONFIG,
+                entityIdFactory);
     }
 
     @Test
@@ -497,7 +499,8 @@ class HandleHederaOperationsTest {
                 DEFAULT_HEDERA_CONFIG,
                 ETHEREUM_TRANSACTION,
                 pendingCreationMetadataRef,
-                DEFAULT_ACCOUNTS_CONFIG);
+                DEFAULT_ACCOUNTS_CONFIG,
+                entityIdFactory);
         final var someBody = ContractCreateTransactionBody.newBuilder()
                 .adminKey(AN_ED25519_KEY)
                 .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)

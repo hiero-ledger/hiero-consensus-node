@@ -9,7 +9,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static java.util.Objects.requireNonNull;
 
@@ -41,7 +41,7 @@ public class EvmAddressAliasCall extends AbstractCall {
         final var explicitAddress = explicitFromHeadlong(address);
 
         // If the address is not a long zero then return fail
-        if (!isLongZeroAddress(explicitAddress)) {
+        if (!isLongZero(enhancement.nativeOperations().entityIdFactory(), address)) {
             return gasOnly(fullResultsFor(INVALID_ACCOUNT_ID, ZERO_ADDRESS), INVALID_ACCOUNT_ID, true);
         }
 

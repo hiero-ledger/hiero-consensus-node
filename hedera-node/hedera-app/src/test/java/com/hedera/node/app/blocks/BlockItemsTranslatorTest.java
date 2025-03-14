@@ -24,7 +24,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.hedera.hapi.block.stream.output.CallContractOutput;
 import com.hedera.hapi.block.stream.output.CreateContractOutput;
 import com.hedera.hapi.block.stream.output.CreateScheduleOutput;
-import com.hedera.hapi.block.stream.output.CryptoTransferOutput;
 import com.hedera.hapi.block.stream.output.EthereumOutput;
 import com.hedera.hapi.block.stream.output.SignScheduleOutput;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
@@ -534,16 +533,17 @@ class BlockItemsTranslatorTest {
     }
 
     @Test
-    void cryptoTransferUsesCustomFeesOutputIfPresent() {
-        final var output = TransactionOutput.newBuilder()
-                .cryptoTransfer(new CryptoTransferOutput(ASSESSED_CUSTOM_FEES))
+    void cryptoTransferUsesCustomFeesIfPresent() {
+        final var resultWithCustomFees = TRANSACTION_RESULT
+                .copyBuilder()
+                .assessedCustomFees(ASSESSED_CUSTOM_FEES)
                 .build();
         final var context = new BaseOpContext(MEMO, RATES, TXN_ID, Transaction.DEFAULT, CRYPTO_TRANSFER);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT);
         assertEquals(EXPECTED_BASE_RECORD, actualRecordNoOutput);
 
-        final var actualRecordWithOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, output);
+        final var actualRecordWithOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, resultWithCustomFees);
         assertEquals(
                 EXPECTED_BASE_RECORD
                         .copyBuilder()

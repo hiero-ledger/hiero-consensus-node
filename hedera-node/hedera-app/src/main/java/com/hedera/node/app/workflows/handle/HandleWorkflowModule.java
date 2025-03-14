@@ -6,6 +6,8 @@ import static com.hedera.node.app.info.DiskStartupNetworks.tryToExport;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
+import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.service.addressbook.impl.handlers.AddressBookHandlers;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusHandlers;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
@@ -55,6 +57,12 @@ public interface HandleWorkflowModule {
     @Singleton
     static HintsHandlers provideHintsHandlers(@NonNull final HintsService hintsService) {
         return hintsService.handlers();
+    }
+
+    @Provides
+    @Singleton
+    static HistoryHandlers provideHistoryHandlers(@NonNull final HistoryService historyService) {
+        return historyService.handlers();
     }
 
     @Provides
@@ -111,7 +119,8 @@ public interface HandleWorkflowModule {
             @NonNull final TokenHandlers tokenHandlers,
             @NonNull final UtilHandlers utilHandlers,
             @NonNull final AddressBookHandlers addressBookHandlers,
-            @NonNull final HintsHandlers hintsHandlers) {
+            @NonNull final HintsHandlers hintsHandlers,
+            @NonNull final HistoryHandlers historyHandlers) {
         return new TransactionHandlers(
                 consensusHandlers.consensusCreateTopicHandler(),
                 consensusHandlers.consensusUpdateTopicHandler(),
@@ -170,6 +179,9 @@ public interface HandleWorkflowModule {
                 hintsHandlers.preprocessingVoteHandler(),
                 hintsHandlers.partialSignatureHandler(),
                 utilHandlers.prngHandler(),
-                utilHandlers.atomicBatchHandler());
+                utilHandlers.atomicBatchHandler(),
+                historyHandlers.historyProofKeyPublicationHandler(),
+                historyHandlers.historyProofSignatureHandler(),
+                historyHandlers.historyProofVoteHandler());
     }
 }

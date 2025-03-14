@@ -8,6 +8,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.standardized;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval.SetApprovalForAllTranslator.ERC721_SET_APPROVAL_FOR_ALL;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval.SetApprovalForAllTranslator.SET_APPROVAL_FOR_ALL;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.fromHeadlongAddress;
 
@@ -22,6 +23,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.LogBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -36,7 +38,6 @@ public class SetApprovalForAllCall extends AbstractCall {
     private final Address token;
     private final Address spender;
     private final boolean approved;
-    private final boolean isERC;
 
     public SetApprovalForAllCall(
             @NonNull final HtsCallAttempt attempt,
@@ -46,14 +47,14 @@ public class SetApprovalForAllCall extends AbstractCall {
         super(attempt.systemContractGasCalculator(), attempt.enhancement(), false);
         this.transactionBody = transactionBody;
         this.dispatchGasCalculator = gasCalculator;
-        this.isERC = isERC;
         this.verificationStrategy = attempt.defaultVerificationStrategy();
         this.sender = attempt.addressIdConverter().convertSender(attempt.senderAddress());
         Tuple call;
         if (isERC) {
             call = ERC721_SET_APPROVAL_FOR_ALL.decodeCall(attempt.inputBytes());
-            this.token =
-                    ConversionUtils.asLongZeroAddress(attempt.redirectTokenId().tokenNum());
+            this.token = ConversionUtils.asLongZeroAddress(
+                    attempt.nativeOperations().entityIdFactory(),
+                    attempt.redirectTokenId().tokenNum());
             this.spender = fromHeadlongAddress(call.get(0));
             this.approved = call.get(1);
         } else {
@@ -93,17 +94,17 @@ public class SetApprovalForAllCall extends AbstractCall {
         final var result = execute();
 
         if (result.responseCode().equals(ResponseCodeEnum.SUCCESS)) {
-            frame.addLog(getLogForSetApprovalForAll(token));
+            frame.addLog(getLogForSetApprovalForAll(entityIdFactory(frame), token));
         }
 
         return result;
     }
 
-    private Log getLogForSetApprovalForAll(final Address logger) {
+    private Log getLogForSetApprovalForAll(@NonNull final EntityIdFactory entityIdFactory, final Address logger) {
         return LogBuilder.logBuilder()
                 .forLogger(logger)
                 .forEventSignature(APPROVAL_FOR_ALL_EVENT)
-                .forIndexedArgument(asLongZeroAddress(sender.accountNum()))
+                .forIndexedArgument(asLongZeroAddress(entityIdFactory, sender.accountNumOrThrow()))
                 .forIndexedArgument(spender)
                 .forDataItem(approved)
                 .build();

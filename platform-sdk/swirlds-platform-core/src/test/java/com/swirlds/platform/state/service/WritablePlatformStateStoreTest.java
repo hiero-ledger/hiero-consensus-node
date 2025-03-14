@@ -4,7 +4,6 @@ package com.swirlds.platform.state.service;
 import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
-import static com.swirlds.platform.state.service.PbjConverterTest.randomAddressBook;
 import static com.swirlds.platform.state.service.PbjConverterTest.randomPlatformState;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,11 +51,11 @@ class WritablePlatformStateStoreTest {
         assertEquals(
                 platformState.getCreationSoftwareVersion().getPbjSemanticVersion(),
                 store.getCreationSoftwareVersion().getPbjSemanticVersion());
-        assertEquals(platformState.getAddressBook(), store.getAddressBook());
-        assertEquals(platformState.getPreviousAddressBook(), store.getPreviousAddressBook());
         assertEquals(platformState.getSnapshot().round(), store.getRound());
         assertEquals(platformState.getLegacyRunningEventHash(), store.getLegacyRunningEventHash());
-        assertEquals(platformState.getSnapshot().consensusTimestamp(), store.getConsensusTimestamp());
+        assertEquals(
+                PbjConverter.fromPbjTimestamp(platformState.getSnapshot().consensusTimestamp()),
+                store.getConsensusTimestamp());
         assertEquals(platformState.getRoundsNonAncient(), store.getRoundsNonAncient());
         assertEquals(platformState.getSnapshot(), store.getSnapshot());
         assertEquals(platformState.getFreezeTime(), store.getFreezeTime());
@@ -76,20 +75,6 @@ class WritablePlatformStateStoreTest {
         assertEquals(
                 version,
                 store.getCreationSoftwareVersion().getPbjSemanticVersion().major());
-    }
-
-    @Test
-    void verifyAddressBook() {
-        final var addressBook = randomAddressBook(randotron);
-        store.setAddressBook(addressBook);
-        assertEquals(addressBook, store.getAddressBook());
-    }
-
-    @Test
-    void verifyPreviousAddressBook() {
-        final var addressBook = randomAddressBook(randotron);
-        store.setPreviousAddressBook(addressBook);
-        assertEquals(addressBook, store.getPreviousAddressBook());
     }
 
     @Test

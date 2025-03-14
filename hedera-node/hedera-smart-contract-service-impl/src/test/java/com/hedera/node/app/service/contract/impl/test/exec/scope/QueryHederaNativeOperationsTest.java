@@ -29,6 +29,7 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,9 @@ class QueryHederaNativeOperationsTest {
     @Mock
     private ReadableTokenRelationStore relationStore;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     private QueryHederaNativeOperations subject;
 
     private AccountID deletedAccount;
@@ -65,7 +69,7 @@ class QueryHederaNativeOperationsTest {
 
     @BeforeEach
     void setUp() {
-        subject = new QueryHederaNativeOperations(context);
+        subject = new QueryHederaNativeOperations(context, entityIdFactory);
         deletedAccount = AccountID.newBuilder().accountNum(1L).build();
         fromAccount = AccountID.newBuilder().accountNum(3L).build();
         beneficiaryAccount = AccountID.newBuilder().accountNum(2L).build();
@@ -99,15 +103,15 @@ class QueryHederaNativeOperationsTest {
     @Test
     void resolveAliasReturnsMissingNumIfNotPresent() {
         given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
-        assertEquals(MISSING_ENTITY_NUMBER, subject.resolveAlias(tuweniToPbjBytes(EIP_1014_ADDRESS)));
+        assertEquals(MISSING_ENTITY_NUMBER, subject.resolveAlias(0, 0, tuweniToPbjBytes(EIP_1014_ADDRESS)));
     }
 
     @Test
     void resolveAliasReturnsNumIfPresent() {
         final var alias = tuweniToPbjBytes(EIP_1014_ADDRESS);
         given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
-        given(accountStore.getAccountIDByAlias(alias)).willReturn(NON_SYSTEM_ACCOUNT_ID);
-        assertEquals(NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(), subject.resolveAlias(alias));
+        given(accountStore.getAccountIDByAlias(0, 0, alias)).willReturn(NON_SYSTEM_ACCOUNT_ID);
+        assertEquals(NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(), subject.resolveAlias(0, 0, alias));
     }
 
     @Test

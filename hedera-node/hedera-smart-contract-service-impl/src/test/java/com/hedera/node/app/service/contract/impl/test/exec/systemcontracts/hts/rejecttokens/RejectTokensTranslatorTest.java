@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorAndCustomConfig;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorForRedirectWithConfig;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -142,6 +143,7 @@ public class RejectTokensTranslatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(true);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHtsAttemptWithSelectorForRedirectWithConfig(
                 RejectTokensTranslator.HRC_TOKEN_REJECT_FT,
                 subject,
@@ -159,6 +161,7 @@ public class RejectTokensTranslatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(false);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHtsAttemptWithSelectorForRedirectWithConfig(
                 RejectTokensTranslator.HRC_TOKEN_REJECT_FT,
                 subject,
@@ -176,6 +179,7 @@ public class RejectTokensTranslatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(true);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHtsAttemptWithSelectorForRedirectWithConfig(
                 RejectTokensTranslator.HRC_TOKEN_REJECT_NFT,
                 subject,
@@ -193,6 +197,7 @@ public class RejectTokensTranslatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(false);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHtsAttemptWithSelectorForRedirectWithConfig(
                 RejectTokensTranslator.HRC_TOKEN_REJECT_NFT,
                 subject,

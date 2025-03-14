@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.migration;
 
-import static com.swirlds.platform.test.fixtures.state.FakeStateLifecycles.FAKE_MERKLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.crypto.DigestType;
@@ -66,11 +66,10 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
      */
     private static class ChildIndices {
         public static final int UNUSED_PLATFORM_STATE = 0;
-        public static final int MERKLE_MAP = 1;
-        public static final int VIRTUAL_MAP = 2;
-
-        public static final int UNUSED_ROSTERS = 3;
-        public static final int UNUSED_ROSTER_STATE = 4;
+        public static final int UNUSED_ROSTERS = 1;
+        public static final int UNUSED_ROSTER_STATE = 2;
+        public static final int MERKLE_MAP = 3;
+        public static final int VIRTUAL_MAP = 4;
 
         public static final int CHILD_COUNT = 5;
 
@@ -78,9 +77,7 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
         public static final int OLD_CHILD_COUNT = 3;
     }
 
-    public MigrationTestingToolState() {
-        allocateSpaceForChild(ChildIndices.CHILD_COUNT);
-    }
+    public MigrationTestingToolState() {}
 
     private MigrationTestingToolState(final MigrationTestingToolState that) {
         super(that);
@@ -127,7 +124,7 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
     @Override
     public MerkleNode migrate(int version) {
         if (version == ClassVersion.VIRTUAL_MAP) {
-            FAKE_MERKLE_STATE_LIFECYCLES.initRosterState(this);
+            FAKE_CONSENSUS_STATE_EVENT_HANDLER.initRosterState(this);
             return this;
         }
 

@@ -14,6 +14,7 @@ import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.WAITING
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
@@ -125,7 +126,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
                 .roundsNonAncient();
         this.handlerMetrics = new RoundHandlingMetrics(platformContext);
 
-        previousRoundLegacyRunningEventHash = platformContext.getCryptography().getNullHash();
+        previousRoundLegacyRunningEventHash = Cryptography.NULL_HASH;
         this.platformStateFacade = platformStateFacade;
 
         final PlatformSchedulersConfig schedulersConfig =
@@ -250,8 +251,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
             platformStateFacade.setLegacyRunningEventHashTo(consensusState, previousRoundLegacyRunningEventHash);
         } else {
-            platformStateFacade.setLegacyRunningEventHashTo(
-                    consensusState, platformContext.getCryptography().getNullHash());
+            platformStateFacade.setLegacyRunningEventHashTo(consensusState, Cryptography.NULL_HASH);
         }
     }
 
@@ -288,6 +288,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
                     true,
                     consensusRound.isPcesRound(),
                     platformStateFacade);
+            signedState.init(platformContext);
 
             reservedSignedState = signedState.reserve("transaction handler output");
         } else {

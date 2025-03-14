@@ -15,12 +15,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal2;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -43,12 +42,7 @@ import org.junit.jupiter.api.Test;
 @DisplayName("Merkle Hash Tests")
 class MerkleHashTests {
 
-    private static MerkleCryptography cryptography;
-
-    @BeforeAll
-    public static void setUp() {
-        cryptography = MerkleCryptoFactory.getInstance();
-    }
+    private static final MerkleCryptography merkleCryptography = TestMerkleCryptoFactory.getInstance();
 
     /**
      * Two merkle trees with the same topology should have the same hash.
@@ -71,9 +65,9 @@ class MerkleHashTests {
                 }
 
                 if (i == j) {
-                    assertEquals(cryptography.digestTreeSync(nodeI), cryptography.digestTreeSync(nodeJ));
+                    assertEquals(merkleCryptography.digestTreeSync(nodeI), merkleCryptography.digestTreeSync(nodeJ));
                 } else {
-                    assertNotEquals(cryptography.digestTreeSync(nodeI), cryptography.digestTreeSync(nodeJ));
+                    assertNotEquals(merkleCryptography.digestTreeSync(nodeI), merkleCryptography.digestTreeSync(nodeJ));
                 }
             }
         }
@@ -100,12 +94,12 @@ class MerkleHashTests {
 
                 if (i == j) {
                     assertEquals(
-                            cryptography.digestTreeSync(nodeI),
-                            cryptography.digestTreeAsync(nodeJ).get());
+                            merkleCryptography.digestTreeSync(nodeI),
+                            merkleCryptography.digestTreeAsync(nodeJ).get());
                 } else {
                     assertNotEquals(
-                            cryptography.digestTreeSync(nodeI),
-                            cryptography.digestTreeAsync(nodeJ).get());
+                            merkleCryptography.digestTreeSync(nodeI),
+                            merkleCryptography.digestTreeAsync(nodeJ).get());
                 }
             }
         }
@@ -124,8 +118,8 @@ class MerkleHashTests {
         MerkleTestUtils.printTreeStats(tree1);
 
         assertEquals(
-                cryptography.digestTreeSync(tree1),
-                cryptography.digestTreeAsync(tree2).get());
+                merkleCryptography.digestTreeSync(tree1),
+                merkleCryptography.digestTreeAsync(tree2).get());
     }
 
     /**
@@ -139,7 +133,7 @@ class MerkleHashTests {
         final MerkleNode subtree = MerkleTestUtils.buildLessSimpleTree();
 
         // Hash the subtree. This subtree should not allow itself to be hashed twice.
-        cryptography.digestTreeSync(subtree);
+        merkleCryptography.digestTreeSync(subtree);
 
         final Map<Integer, Hash> hashes = new HashMap<>();
         subtree.forEachNode((node) -> {
@@ -153,7 +147,7 @@ class MerkleHashTests {
         treeRoot.setChild(treeRoot.getNumberOfChildren(), subtree);
 
         // Hash the tree. Should not need to hash the already hashed subtree.
-        cryptography.digestTreeSync(tree);
+        merkleCryptography.digestTreeSync(tree);
 
         // If a node is rehashed then the hash will be an equivalent but distinct object
         tree.forEachNode((node) -> {
@@ -176,8 +170,8 @@ class MerkleHashTests {
         final DummyMerkleInternal2 node2 = new DummyMerkleInternal2();
 
         // Compare two nodes without leaves
-        cryptography.digestTreeSync(node1);
-        cryptography.digestTreeSync(node2);
+        merkleCryptography.digestTreeSync(node1);
+        merkleCryptography.digestTreeSync(node2);
         assertNotEquals(node1.getHash(), node2.getHash());
 
         // Compare two nodes with leaves
@@ -195,8 +189,8 @@ class MerkleHashTests {
         node1.setChild(2, C);
         node2.setChild(2, C);
 
-        cryptography.digestTreeSync(node1);
-        cryptography.digestTreeSync(node2);
+        merkleCryptography.digestTreeSync(node1);
+        merkleCryptography.digestTreeSync(node2);
         assertNotEquals(node1.getHash(), node2.getHash());
         assertNotEquals(node1.getHash(), node2.getHash());
     }
@@ -206,7 +200,7 @@ class MerkleHashTests {
     @DisplayName("Test Merkle Hash Checker")
     void testMerkleHashChecker() {
         final DummyMerkleNode tree = MerkleTestUtils.buildLessSimpleTreeExtended();
-        cryptography.digestTreeSync(tree);
+        merkleCryptography.digestTreeSync(tree);
 
         final MerkleInternal root = tree.cast();
 
@@ -223,7 +217,7 @@ class MerkleHashTests {
         mod3.setHash(null);
 
         // check the hashes and add the mismatch to the list
-        final List<MerkleNode> mismatch = getNodesWithInvalidHashes(root);
+        final List<MerkleNode> mismatch = getNodesWithInvalidHashes(merkleCryptography, root);
 
         // assert it works
         assertEquals(4, mismatch.size(), "3 nodes plus the root have invalid hash");
@@ -232,7 +226,7 @@ class MerkleHashTests {
         assertSame(mod3, mismatch.get(2), "mod3 set its hash to null");
         assertSame(root, mismatch.get(3), "root's hash is invalid due to invalid children's hash");
 
-        assertFalse(checkHashAndLog(root, "unit test", 3), "hash should be invalid");
+        assertFalse(checkHashAndLog(merkleCryptography, root, "unit test", 3), "hash should be invalid");
     }
 
     @Test
@@ -241,7 +235,7 @@ class MerkleHashTests {
     void hashTreeWithSelfHashingNode() {
         final DummyMerkleNode tree = MerkleTestUtils.buildLessSimpleTreeExtended();
         tree.asInternal().setChild(3, new SelfHashingDummyMerkleLeaf("asdf"));
-        cryptography.digestTreeSync(tree);
+        merkleCryptography.digestTreeSync(tree);
         tree.forEachNode((node) -> assertNotNull(node.getHash(), "all nodes should be hashed"));
 
         final DummyMerkleNode tree2 = MerkleTestUtils.buildLessSimpleTreeExtended();
@@ -251,7 +245,7 @@ class MerkleHashTests {
 
         assertThrows(
                 UnsupportedOperationException.class,
-                () -> cryptography.digestTreeSync(tree2),
+                () -> merkleCryptography.digestTreeSync(tree2),
                 "if a self hashing node returns null then we should fail");
     }
 
@@ -269,7 +263,7 @@ class MerkleHashTests {
         tree.setChild(3, new NoTraversalDummyMerkleInternal());
         tree.getChild(3).asInternal().setChild(0, new DummyMerkleInternal("should not appear"));
 
-        MerkleCryptoFactory.getInstance().digestTreeAsync(tree).get();
+        merkleCryptography.digestTreeAsync(tree).get();
 
         final String debugString = new MerkleTreeVisualizer(tree).setDepth(2).render();
 
@@ -293,7 +287,7 @@ class MerkleHashTests {
         ((DummyMerkleLeaf) tree.getChild(0)).setThrowWhenHashed(true);
 
         // This should not throw and should complete in a reasonable amount of time.
-        final Future<Hash> future = MerkleCryptoFactory.getInstance().digestTreeAsync(tree);
+        final Future<Hash> future = merkleCryptography.digestTreeAsync(tree);
 
         // This should throw the internal exception that was encountered
         assertThrows(ExecutionException.class, future::get, "expected hashing to fail");

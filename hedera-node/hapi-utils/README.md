@@ -9,35 +9,35 @@ There are five primary service families, which inter-operate on entities control
 Ed25519 keypairs:
 
 1. The
-   [cryptocurrency service](https://github.com/hashgraph/hedera-protobufs-java/blob/main/src/main/proto/crypto_service.proto),
+   [cryptocurrency service](../../hapi/hedera-protobuf-java-api/src/main/proto/services/crypto_service.proto),
    for cryptocurrency accounts with transfers denominated in
    [hBar (ℏ)](https://help.hedera.com/hc/en-us/articles/360000674317-What-are-the-official-HBAR-cryptocurrency-denominations-).
 2. The
-   [consensus service](https://github.com/hashgraph/hedera-protobufs-java/blob/main/src/main/proto/consensus_service.proto),
+   [consensus service](../../hapi/hedera-protobuf-java-api/src/main/proto/services/consensus_service.proto),
    for fast and unbiased ordering of opaque binary messages exchanged on arbitrary topics.
 3. The
-   [smart contract service](https://github.com/hashgraph/hedera-protobufs-java/blob/main/src/main/proto/smart_contract_service.proto),
+   [smart contract service](../../hapi/hedera-protobuf-java-api/src/main/proto/services/smart_contract_service.proto),
    for execution of Solidity contract creations and calls; contract may both possess ℏ themselves
    and exchange it with non-contract accounts.
 4. The
-   [file service](https://github.com/hashgraph/hedera-protobufs-java/blob/main/src/main/proto/file_service.proto),
+   [file service](../../hapi/hedera-protobuf-java-api/src/main/proto/services/file_service.proto),
    for storage and retrieval of opaque binary data.
 5. The
-   [token service](https://github.com/hashgraph/hedera-protobufs-java/blob/main/src/main/proto/token_service.proto),
-   for token related operations such as create, update, mint, burn, transfer etc..
+   [token service](../../hapi/hedera-protobuf-java-api/src/main/proto/services/token_service.proto),
+   for token related operations such as create, update, mint, burn, transfer etc...
 
 There are also three secondary service families:
 
 1. The
-   [network service](https://github.com/hashgraph/hedera-protobufs-java/blob/main/src/main/proto/network_service.proto),
+   [network service](../../hapi/hedera-protobuf-java-api/src/main/proto/services/network_service.proto),
    for operations scoped to the network or its constituent nodes rather user-controlled entities as
    above.
 2. The
-   [scheduling service](https://github.com/hashgraph/hedera-protobufs-java/blob/main/src/main/proto/schedule_service.proto),
+   [scheduling service](../../hapi/hedera-protobuf-java-api/src/main/proto/services/schedule_service.proto),
    for scheduling a transaction to be executed when the ledger has received enough prequisite
    signatures.
 3. The
-   [freeze service](https://github.com/hashgraph/hedera-protobufs-java/blob/main/src/main/proto/freeze_service.proto),
+   [freeze service](../../hapi/hedera-protobuf-java-api/src/main/proto/services/freeze_service.proto),
    for use by privileged accounts to suspend network operations during a maintenance window.
 
 It is important to note that most network services are gated by fees which must be paid **in ℏ from

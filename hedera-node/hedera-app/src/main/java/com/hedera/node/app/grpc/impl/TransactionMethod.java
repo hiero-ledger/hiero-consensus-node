@@ -25,13 +25,15 @@ public final class TransactionMethod extends MethodBase {
      * @param serviceName a non-null reference to the service name
      * @param methodName a non-null reference to the method name
      * @param workflow a non-null {@link IngestWorkflow}
+     * @param maxMessageSize the maximum message size
      */
     public TransactionMethod(
             @NonNull final String serviceName,
             @NonNull final String methodName,
             @NonNull final IngestWorkflow workflow,
-            @NonNull final Metrics metrics) {
-        super(serviceName, methodName, metrics);
+            @NonNull final Metrics metrics,
+            final int maxMessageSize) {
+        super(serviceName, methodName, metrics, maxMessageSize);
         this.workflow = Objects.requireNonNull(workflow);
     }
 

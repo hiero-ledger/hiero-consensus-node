@@ -10,20 +10,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
-import java.util.Random;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 class VirtualLeafNodeTest {
-
-    private static final Random RANDOM = new Random(223);
-    private static final Cryptography CRYPTO = CryptographyHolder.get();
 
     @BeforeAll
     public static void globalSetup() throws ConstructableRegistryException {

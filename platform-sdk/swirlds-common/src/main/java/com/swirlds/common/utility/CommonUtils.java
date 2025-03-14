@@ -225,6 +225,10 @@ public class CommonUtils {
         return new String(out);
     }
 
+    public static String hex(final Bytes bytes) {
+        return hex(bytes, bytes == null ? 0 : Math.toIntExact(bytes.length()));
+    }
+
     /**
      * Equivalent to calling {@link #hex(byte[], int)} with length set to bytes.length
      *

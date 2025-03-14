@@ -5,7 +5,7 @@ import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticT
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.getInitialState;
-import static com.swirlds.platform.turtle.runner.TurtleStateLifecycles.TURTLE_STATE_LIFECYCLES;
+import static com.swirlds.platform.turtle.runner.TurtleConsensusStateEventHandler.TURTLE_CONSENSUS_STATE_EVENT_HANDLER;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
@@ -118,7 +118,6 @@ public class TurtleNode {
                 RecycleBin.create(metrics, configuration, getStaticThreadManager(), time, fileSystemManager, nodeId);
 
         final var reservedState = getInitialState(
-                configuration,
                 recycleBin,
                 version,
                 TurtleTestingToolState::getStateRootNode,
@@ -126,7 +125,8 @@ public class TurtleNode {
                 "bar",
                 nodeId,
                 addressBook,
-                platformStateFacade);
+                platformStateFacade,
+                platformContext);
         final var initialState = reservedState.state();
 
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
@@ -134,7 +134,7 @@ public class TurtleNode {
                         "bar",
                         softwareVersion,
                         initialState,
-                        TURTLE_STATE_LIFECYCLES,
+                        TURTLE_CONSENSUS_STATE_EVENT_HANDLER,
                         nodeId,
                         AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
                         RosterUtils.buildRosterHistory(initialState.get().getState(), platformStateFacade),

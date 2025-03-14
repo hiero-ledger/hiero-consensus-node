@@ -1,0 +1,63 @@
+/**
+ * # State Common
+ * Two older messages used in rare cases.
+ * - EntityNumber is used to store The last used entity number in state, so
+ *   that all entities in state have unique entity numbers, even across types.
+ * - EntityIDPair is used to store a Token/Account pair in certain rare cases.
+ *
+ * Where possible, these messages SHOULD NOT be used.  A primitive `int64` or
+ * `google.protobuf.Int64Value` wrapper is preferred instead of `EntityNumber
+ * and `TokenAssociation` is preferred instead of `EntityIDPair`.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in [RFC2119](https://www.ietf.org/rfc/rfc2119)
+ * and clarified in [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.common">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * A single 64-bit number identifying a Hedera native entity.
+ *
+ * Deprecated.<br/>
+ * A primitive `int64` or `google.protobuf.Int64Value` wrapper is preferred.
+ */
+message EntityNumber {
+    option deprecated = true;
+
+    /**
+     * The entity number to store.
+     */
+    int64 number = 1;
+}
+
+/**
+ * A Pair of AccountID and TokenID.<br/>
+ * This is used as a key in certain cases.
+ *
+ * Deprecated.<br/>
+ * The TokenAssociation message should be used instead of this message.
+ */
+message EntityIDPair {
+    option deprecated = true;
+
+    /**
+     * An account identifier for the associated account.
+     */
+    AccountID account_id = 1;
+
+    /**
+     * A token identifier for the associated token.
+     */
+    TokenID token_id = 2;
+}

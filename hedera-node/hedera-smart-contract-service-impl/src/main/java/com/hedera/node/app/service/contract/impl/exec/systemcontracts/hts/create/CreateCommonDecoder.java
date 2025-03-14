@@ -170,7 +170,7 @@ public class CreateCommonDecoder {
         final var isSupplyTypeFinite = (Boolean) tokenCreateStruct.get(SUPPLY_TYPE);
         final var maxSupply = (long) tokenCreateStruct.get(MAX_SUPPLY);
         final var isFreezeDefault = (Boolean) tokenCreateStruct.get(FREEZE_DEFAULT);
-        final var tokenKeys = decodeTokenKeys(tokenCreateStruct.get(TOKEN_KEYS), addressIdConverter);
+        final var tokenKeys = decodeTokenKeys(tokenCreateStruct.get(TOKEN_KEYS), addressIdConverter, nativeOperations);
         final var tokenExpiry = decodeTokenExpiry(tokenCreateStruct.get(TOKEN_EXPIRY), addressIdConverter);
 
         final var tokenCreateWrapper = new TokenCreateWrapper(
@@ -191,7 +191,9 @@ public class CreateCommonDecoder {
     }
 
     protected List<TokenKeyWrapper> decodeTokenKeys(
-            @NonNull final Tuple[] tokenKeysTuples, @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final Tuple[] tokenKeysTuples,
+            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HederaNativeOperations nativeOperations) {
 
         // TokenKey
         final int KEY_TYPE = 0;
@@ -208,11 +210,13 @@ public class CreateCommonDecoder {
             final var keyType = ((BigInteger) tokenKeyTuple.get(KEY_TYPE)).intValue();
             final Tuple keyValueTuple = tokenKeyTuple.get(KEY_VALUE_TYPE);
             final var inheritAccountKey = (Boolean) keyValueTuple.get(INHERIT_ACCOUNT_KEY);
-            final var contractId = asNumericContractId(addressIdConverter.convert(keyValueTuple.get(CONTRACT_ID)));
+            final var contractId = asNumericContractId(
+                    nativeOperations.entityIdFactory(), addressIdConverter.convert(keyValueTuple.get(CONTRACT_ID)));
             final var ed25519 = (byte[]) keyValueTuple.get(ED25519);
             final var ecdsaSecp256K1 = (byte[]) keyValueTuple.get(ECDSA_SECP_256K1);
-            final var delegatableContractId =
-                    asNumericContractId(addressIdConverter.convert(keyValueTuple.get(DELEGATABLE_CONTRACT_ID)));
+            final var delegatableContractId = asNumericContractId(
+                    nativeOperations.entityIdFactory(),
+                    addressIdConverter.convert(keyValueTuple.get(DELEGATABLE_CONTRACT_ID)));
 
             tokenKeys.add(new TokenKeyWrapper(
                     keyType,

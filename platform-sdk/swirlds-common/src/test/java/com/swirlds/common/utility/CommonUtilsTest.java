@@ -26,7 +26,7 @@ class CommonUtilsTest {
 
     @Test
     void hexTest() {
-        assertTrue(hex(null).contains("null"), "the output of a null input should indicate its null");
+        assertTrue(hex((byte[]) null).contains("null"), "the output of a null input should indicate its null");
         assertEquals("", hex(new byte[0]), "for an empty array we should get an empty string");
 
         assertEquals(HEX_STRING, hex(HEX_BYTES), "hex value should match");

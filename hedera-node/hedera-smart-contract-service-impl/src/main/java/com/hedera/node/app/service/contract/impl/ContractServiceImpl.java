@@ -79,7 +79,8 @@ public class ContractServiceImpl implements ContractService {
                         addOnTracers,
                         contractMetrics,
                         systemContractMethodRegistry,
-                        customOps);
+                        customOps,
+                        appContext.idFactory());
     }
 
     @Override

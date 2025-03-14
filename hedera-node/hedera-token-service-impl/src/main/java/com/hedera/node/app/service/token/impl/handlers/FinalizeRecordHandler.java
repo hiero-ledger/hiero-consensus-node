@@ -126,9 +126,10 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
         }
         // If the function is not a crypto transfer, then we filter all zero amounts from token transfer list.
         // To be compatible with mono-service records, we _don't_ filter zero token transfers in the record
-        final var isCryptoTransfer = functionality == HederaFunctionality.CRYPTO_TRANSFER;
+        final var isCryptoTransfer =
+                functionality == HederaFunctionality.CRYPTO_TRANSFER ? IsCryptoTransfer.YES : IsCryptoTransfer.NO;
         // get all the token relation changes for fungible and non-fungible tokens
-        final var tokenRelChanges = tokenRelChangesFrom(writableTokenRelStore, !isCryptoTransfer);
+        final var tokenRelChanges = tokenRelChangesFrom(writableTokenRelStore, isCryptoTransfer);
         // get all the NFT changes. Go through the nft changes and see if there are any token relation changes
         // for the sender and receiver of the NFTs. If there are, then reduce the balance change for that relation
         // by 1 for receiver and increment the balance change for sender by 1. This is to ensure that the NFT
@@ -148,7 +149,7 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
         }
         final var hasTokenTransferLists = !tokenRelChanges.isEmpty() || !nftChanges.isEmpty();
         if (hasTokenTransferLists) {
-            final var tokenTransferLists = asTokenTransferListFrom(tokenRelChanges, !isCryptoTransfer);
+            final var tokenTransferLists = asTokenTransferListFrom(tokenRelChanges, isCryptoTransfer);
             final var nftTokenTransferLists = asTokenTransferListFromNftChanges(nftChanges);
             tokenTransferLists.addAll(nftTokenTransferLists);
             tokenTransferLists.sort(TOKEN_TRANSFER_LIST_COMPARATOR);

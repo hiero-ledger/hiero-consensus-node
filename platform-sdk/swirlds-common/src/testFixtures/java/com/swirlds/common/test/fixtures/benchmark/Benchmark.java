@@ -3,7 +3,7 @@ package com.swirlds.common.test.fixtures.benchmark;
 
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import java.time.Duration;
 import java.time.Instant;
@@ -356,7 +356,7 @@ public class Benchmark<S extends MerkleNode, M extends BenchmarkMetadata> {
                 runWithStatistics(
                         () -> {
                             final Future<Hash> future =
-                                    MerkleCryptoFactory.getInstance().digestTreeAsync(stateToHash);
+                                    TestMerkleCryptoFactory.getInstance().digestTreeAsync(stateToHash);
                             future.get();
                         },
                         hashStatistics);

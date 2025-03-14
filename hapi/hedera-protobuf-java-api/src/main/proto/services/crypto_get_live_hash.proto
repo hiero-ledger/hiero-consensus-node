@@ -1,0 +1,75 @@
+/**
+ * # Get Live Hash
+ * Standard query to inspect associations between content and accounts
+ * via SHA-384 hashes.
+ *
+ * > Important
+ * >> This query is obsolete and not supported.<br/>
+ * >> Any query of this type that is submitted SHALL fail with a `PRE_CHECK`
+ * >> result of `NOT_SUPPORTED`.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+import "services/crypto_add_live_hash.proto";
+
+/**
+ * Request detail for a specific live hash associated to a specific account.
+ */
+message CryptoGetLiveHashQuery {
+    /**
+     * Standard information sent with every query operation.<br/>
+     * This includes the signed payment and what kind of response is requested
+     * (cost, state proof, both, or neither).
+     */
+    QueryHeader header = 1;
+
+    /**
+     * An account ID.<br/>
+     * The network SHALL return live hash information for this account,
+         * if successful.
+     */
+    AccountID accountID = 2;
+
+    /**
+     * The specific SHA-384 live hash to inspect
+     */
+    bytes hash = 3;
+}
+
+/**
+ * Return the full live hash associated to an account, if it is present.
+ *
+ * > Note that to generate a state proof of the _absence_ of a live hash from
+ * > an account a transaction MUST retrieve a state proof of the `Account`
+ * > with its list of live hashes.
+ */
+message CryptoGetLiveHashResponse {
+    /**
+     * The standard response information for queries.<br/>
+     * This includes the values requested in the `QueryHeader`
+     * (cost, state proof, both, or neither).
+     */
+    ResponseHeader header = 1;
+
+    /**
+     * The requested live hash, if found.
+     */
+    LiveHash liveHash = 2;
+}

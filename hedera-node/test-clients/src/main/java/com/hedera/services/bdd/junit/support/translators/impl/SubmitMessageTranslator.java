@@ -4,7 +4,6 @@ package com.hedera.services.bdd.junit.support.translators.impl;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
@@ -31,9 +30,7 @@ public class SubmitMessageTranslator implements BlockTransactionPartsTranslator 
             @NonNull final List<StateChange> remainingStateChanges) {
         return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> {
             if (parts.status() == SUCCESS) {
-                parts.outputIfPresent(TransactionOutput.TransactionOneOfType.SUBMIT_MESSAGE)
-                        .ifPresent(output -> recordBuilder.assessedCustomFees(
-                                output.submitMessageOrThrow().assessedCustomFees()));
+                recordBuilder.assessedCustomFees(parts.assessedCustomFees());
                 receiptBuilder.topicRunningHashVersion(RUNNING_HASH_VERSION);
                 final var iter = remainingStateChanges.listIterator();
                 while (iter.hasNext()) {

@@ -1,0 +1,197 @@
+/**
+ * # Transaction Receipt
+ * The receipt returned when the results of a transaction are requested via
+ * `TransactionGetReceiptQuery`.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/response_code.proto";
+import "services/exchange_rate.proto";
+
+/**
+ * The summary of a transaction's result so far.<br/>
+ * If the transaction has not reached consensus, this result will
+ * be necessarily incomplete.
+ *
+ * Most items in this object are only set for specific transactions.
+ * Those values SHALL be unset for all other transactions.
+ */
+message TransactionReceipt {
+    /**
+     * The consensus status of the transaction.
+     * <p>
+     * This SHALL be `UNKNOWN` if consensus has not been reached.<br/>
+     * This SHALL be `UNKNOWN` if the associated transaction did not have
+     * a valid payer signature.
+     */
+    ResponseCodeEnum status = 1;
+
+    /**
+     * In the receipt of a `CryptoCreate`, the id of the newly created account.
+     */
+    AccountID accountID = 2;
+
+    /**
+     * In the receipt of a `FileCreate`, the id of the newly created file.
+     */
+    FileID fileID = 3;
+
+    /**
+     * In the receipt of a `ContractCreate`, the id of the newly created
+     * contract.
+     */
+    ContractID contractID = 4;
+
+    /**
+     * The exchange rates in effect when the transaction reached consensus.
+     */
+    ExchangeRateSet exchangeRate = 5;
+
+    /**
+     * In the receipt of a `ConsensusCreateTopic`, the id of the newly
+     * created topic.
+     */
+    TopicID topicID = 6;
+
+    /**
+     * In the receipt of a `ConsensusSubmitMessage`, the new sequence
+     * number for the topic that received the message.
+     */
+    uint64 topicSequenceNumber = 7;
+
+    /**
+     * In the receipt of a `ConsensusSubmitMessage`, the new running hash of
+     * the topic that received the message.<br/>
+     * <p>
+     * The inputs to the topic running hash have changed over time.<br/>
+     * This 48-byte field is the output of a SHA-384 digest with input data
+     * determined by the value of the `topicRunningHashVersion` field.<br/>
+     * All new transactions SHALL use `topicRunningHashVersion` `3`.<br/>
+     * The bytes of each uint64 or uint32 encoded for the hash input MUST be
+     * in Big-Endian format.
+     * <p>
+     * <hr style="margin: 0.2em 5em 0.2em 5em; height: 0.5em; border-style: solid none solid none; border-width: 2px;"/>
+     * <p>
+     * The most recent version is denoted by `topicRunningHashVersion = 3`.
+     * <p>
+     * This version SHALL include, in order
+     * <ol>
+     *  <li>The previous running hash of the topic (48 bytes)</li>
+     *  <li>The `topic_running_hash_version` field (8 bytes)</li>
+     *  <li>The payer account's shard (8 bytes)</li>
+     *  <li>The payer account's realm (8 bytes)</li>
+     *  <li>The payer account's number (8 bytes)</li>
+     *  <li>The topic's shard (8 bytes)</li>
+     *  <li>The topic's realm (8 bytes)</li>
+     *  <li>The topic's number (8 bytes)</li>
+     *  <li>The number of seconds since the epoch when the
+     *      `ConsensusSubmitMessage` reached consensus (8 bytes)</li>
+     *  <li>The number of nanoseconds within the second when the
+     *      `ConsensusSubmitMessage` reached consensus (4 bytes)</li>
+     *  <li>The `topic_sequence_number` field (8 bytes)</li>
+     *  <li>The output of a SHA-384 digest of the message bytes from the
+     *      `ConsensusSubmitMessage` (48 bytes)</li>
+     * </ol>
+     * <hr style="margin: 0.2em 5em 0.2em 5em; height: 0.5em; border-style: solid none solid none; border-width: 2px;"/>
+     * <p>
+     * The next older version is denoted by `topicRunningHashVersion = 2`.
+     * <p>
+     * This version SHALL include, in order
+     * <ol>
+     *  <li>The previous running hash of the topic (48 bytes)</li>
+     *  <li>The `topic_running_hash_version` field (8 bytes)</li>
+     *  <li>The topic's shard (8 bytes)</li>
+     *  <li>The topic's realm (8 bytes)</li>
+     *  <li>The topic's number (8 bytes)</li>
+     *  <li>The number of seconds since the epoch when the
+     *      `ConsensusSubmitMessage` reached consensus (8 bytes)</li>
+     *  <li>The number of nanoseconds within the second when the
+     *      `ConsensusSubmitMessage` reached consensus (4 bytes)</li>
+     *  <li>The `topic_sequence_number` field (8 bytes)</li>
+     *  <li>The output of a SHA-384 digest of the message bytes from the
+     *      `ConsensusSubmitMessage` (48 bytes)</li>
+     * </ol>
+     * <hr style="margin: 0.2em 5em 0.2em 5em; height: 0.5em; border-style: solid none solid none; border-width: 2px;"/>
+     * <p>
+     * The original version, used at genesis, is denoted
+     * by `topicRunningHashVersion = 1` or `topicRunningHashVersion = 0`.
+     * <p>
+     * This version SHALL include, in order
+     * <ol>
+     *  <li>The previous running hash of the topic (48 bytes)</li>
+     *  <li>The topic's shard (8 bytes)</li>
+     *  <li>The topic's realm (8 bytes)</li>
+     *  <li>The topic's number (8 bytes)</li>
+     *  <li>The number of seconds since the epoch when the
+     *      `ConsensusSubmitMessage` reached consensus (8 bytes)</li>
+     *  <li>The number of nanoseconds within the second when the
+     *      `ConsensusSubmitMessage` reached consensus (4 bytes)</li>
+     *  <li>The `topic_sequence_number` field (8 bytes)</li>
+     *  <li>The message bytes from the `ConsensusSubmitMessage`
+     *      (variable)</li>
+     * </ol>
+     */
+    bytes topicRunningHash = 8;
+
+    /**
+     * In the receipt of a `ConsensusSubmitMessage`, the version of the
+     * SHA-384 digest inputs used to update the running hash.
+     */
+    uint64 topicRunningHashVersion = 9;
+
+    /**
+     * In the receipt of a `CreateToken`, the id of the newly created token
+     */
+    TokenID tokenID = 10;
+
+    /**
+     * In the receipt of `TokenMint`, `TokenWipe`, or `TokenBurn`.<br/>
+     * For non-unique tokens, the current total supply of that token.<br/>
+     * For unique tokens,the total number of NFTs issued for that token.
+     */
+    uint64 newTotalSupply = 11;
+
+    /**
+     * In the receipt of a `ScheduleCreate`, the id of the newly created
+     * Scheduled Entity
+     */
+    ScheduleID scheduleID = 12;
+
+    /**
+     * In the receipt of a `ScheduleCreate` or `ScheduleSign` that enables the
+     * scheduled transaction to execute immediately, the `TransactionID` that
+     * should be used to query for the receipt or record of the scheduled
+     * transaction that was executed.
+     */
+    TransactionID scheduledTransactionID = 13;
+
+    /**
+     * In the receipt of a `TokenMint` for non-fungible/unique tokens,
+     * the serial numbers of the newly created tokens.
+     */
+    repeated int64 serialNumbers = 14;
+
+    /**
+     * An affected node identifier.<br/>
+     * In the receipt of a NodeCreate, the id of the newly created node.
+     * <p>
+     * This value SHALL be set following a `createNode` transaction.<br/>
+     * This value SHALL NOT be set following any other transaction.
+     */
+    uint64 node_id = 15;
+}

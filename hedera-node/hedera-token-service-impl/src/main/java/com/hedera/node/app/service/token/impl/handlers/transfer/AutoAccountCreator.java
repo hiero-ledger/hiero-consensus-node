@@ -25,6 +25,7 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -88,10 +89,11 @@ public class AutoAccountCreator {
         // If the child transaction failed, we should fail the parent transaction as well and propagate the failure.
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
 
+        final var config = handleContext.configuration().getConfigData(HederaConfig.class);
         // Since we succeeded, we can now look up the account ID of the created account. This really should always
         // work, since the child transaction succeeded. If it did not work for some reason, we have a bug in our
         // code (rather than a bad transaction), so we will fail with FAIL_INVALID.
-        final var createdAccountId = accountStore.getAccountIDByAlias(alias);
+        final var createdAccountId = accountStore.getAccountIDByAlias(config.shard(), config.realm(), alias);
         validateTrue(createdAccountId != null, FAIL_INVALID);
         return createdAccountId;
     }

@@ -37,6 +37,7 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.InstantSource;
 import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,6 +88,9 @@ class ContractGetInfoHandlerTest {
     @Mock
     private Configuration configuration;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     private final Account smartContractAccount = Account.newBuilder()
             .smartContract(true)
             .accountId(AccountID.newBuilder().accountNum(1).build())
@@ -99,7 +103,7 @@ class ContractGetInfoHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = new ContractGetInfoHandler(instantSource);
+        handler = new ContractGetInfoHandler(instantSource, entityIdFactory);
     }
 
     @Test

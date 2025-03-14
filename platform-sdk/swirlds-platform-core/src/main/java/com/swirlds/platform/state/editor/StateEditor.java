@@ -9,7 +9,6 @@ import com.swirlds.cli.utility.CommandBuilder;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.interfaces.MerkleTraversable;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteFactory;
@@ -53,14 +52,15 @@ public class StateEditor {
         platformContext = PlatformContext.create(configuration);
 
         final DeserializedSignedState deserializedSignedState =
-                SignedStateFileReader.readStateFile(configuration, statePath, DEFAULT_PLATFORM_STATE_FACADE);
+                SignedStateFileReader.readStateFile(statePath, DEFAULT_PLATFORM_STATE_FACADE, platformContext);
 
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
             System.out.println("\nLoading state from " + statePath);
             signedState.set(reservedSignedState.get(), "StateEditor constructor");
             System.out.println("Hashing state");
             try {
-                MerkleCryptoFactory.getInstance()
+                platformContext
+                        .getMerkleCryptography()
                         .digestTreeAsync(reservedSignedState.get().getState().getRoot())
                         .get();
             } catch (final InterruptedException | ExecutionException e) {
@@ -201,6 +201,7 @@ public class StateEditor {
                     false,
                     false,
                     DEFAULT_PLATFORM_STATE_FACADE);
+            newSignedState.init(platformContext);
 
             signedState.set(newSignedState, "StateEditor.getSignedStateCopy() 2");
 

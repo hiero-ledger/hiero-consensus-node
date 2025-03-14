@@ -14,7 +14,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersCall;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -61,11 +60,7 @@ class ClassicTransfersGasCalcTest extends CallTestBase {
                 .willReturn(expectedGasRequirement);
 
         final var actualGasRequirement = ClassicTransfersCall.transferGasRequirement(
-                body,
-                systemContractGasCalculator,
-                mockEnhancement(),
-                AccountID.DEFAULT,
-                ClassicTransfersTranslator.TRANSFER_NFTS.selector());
+                body, systemContractGasCalculator, mockEnhancement(), AccountID.DEFAULT);
         assertEquals(expectedGasRequirement, actualGasRequirement);
     }
 
@@ -73,7 +68,7 @@ class ClassicTransfersGasCalcTest extends CallTestBase {
     void doesNotChargeForExtantAliases() {
         givenPretendPricesWithoutCustomFees();
         given(nativeOperations.readableAccountStore()).willReturn(accountStore);
-        given(accountStore.getAccountIDByAlias(TestHelpers.ALIASED_RECEIVER_ID.aliasOrThrow()))
+        given(accountStore.getAccountIDByAlias(0, 0, TestHelpers.ALIASED_RECEIVER_ID.aliasOrThrow()))
                 .willReturn(AccountID.DEFAULT);
 
         final var expectedFtMinimumPrice = PRETEND_FUNGIBLE_TRANSFER_TINYBAR_PRICE / 2;
@@ -87,11 +82,7 @@ class ClassicTransfersGasCalcTest extends CallTestBase {
                 .willReturn(expectedGasRequirement);
 
         final var actualGasRequirement = ClassicTransfersCall.transferGasRequirement(
-                body,
-                systemContractGasCalculator,
-                mockEnhancement(),
-                AccountID.DEFAULT,
-                ClassicTransfersTranslator.CRYPTO_TRANSFER.selector());
+                body, systemContractGasCalculator, mockEnhancement(), AccountID.DEFAULT);
         assertEquals(expectedGasRequirement, actualGasRequirement);
     }
 

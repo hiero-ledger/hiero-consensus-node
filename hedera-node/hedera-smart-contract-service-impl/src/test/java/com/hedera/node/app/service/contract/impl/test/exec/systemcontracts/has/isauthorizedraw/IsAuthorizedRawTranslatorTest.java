@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has.
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawTranslator.IS_AUTHORIZED_RAW;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVED_HEADLONG_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.messageHash;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.signature;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHasAttemptWithSelectorAndCustomConfig;
@@ -81,6 +82,7 @@ public class IsAuthorizedRawTranslatorTest {
     @Test
     void matchesIsAuthorizedRawWhenEnabled() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHasAttemptWithSelectorAndCustomConfig(
                 IS_AUTHORIZED_RAW,
                 subject,
@@ -97,6 +99,7 @@ public class IsAuthorizedRawTranslatorTest {
     @Test
     void doesNotMatchIsAuthorizedRawWhenDisabled() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHasAttemptWithSelectorAndCustomConfig(
                 IS_AUTHORIZED_RAW,
                 subject,
@@ -113,6 +116,7 @@ public class IsAuthorizedRawTranslatorTest {
     @Test
     void failsOnInvalidSelector() {
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = prepareHasAttemptWithSelectorAndCustomConfig(
                 HBAR_ALLOWANCE_PROXY,
                 subject,

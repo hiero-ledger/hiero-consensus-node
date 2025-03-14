@@ -98,12 +98,22 @@ public class DefaultBirthRoundMigrationShim implements BirthRoundMigrationShim {
             if (event.getGeneration() >= lowestJudgeGenerationBeforeBirthRoundMode) {
                 // Any event with a generation greater than or equal to the lowest pre-migration judge generation
                 // is given a birth round that will be non-ancient at migration time.
-                event.overrideBirthRound(lastRoundBeforeBirthRoundMode);
+                logger.debug(
+                        STARTUP.getMarker(),
+                        "Event migrated to use birth rounds prev={} new={} (non-ancient)",
+                        event.getBirthRound(),
+                        lastRoundBeforeBirthRoundMode);
+                event.overrideBirthRound(lastRoundBeforeBirthRoundMode, lowestJudgeGenerationBeforeBirthRoundMode);
                 shimBarelyNonAncientEvents.cycle();
             } else {
                 // All other pre-migration events are given a birth round that will
                 // cause them to be immediately ancient.
-                event.overrideBirthRound(ROUND_FIRST);
+                logger.debug(
+                        STARTUP.getMarker(),
+                        "Event migrated to use birth rounds prev={} new={} (ancient)",
+                        event.getBirthRound(),
+                        ROUND_FIRST);
+                event.overrideBirthRound(ROUND_FIRST, lowestJudgeGenerationBeforeBirthRoundMode);
                 shimAncientEvents.cycle();
             }
         }

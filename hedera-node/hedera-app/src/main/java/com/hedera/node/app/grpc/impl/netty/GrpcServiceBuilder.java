@@ -49,10 +49,9 @@ final class GrpcServiceBuilder {
     private static final Logger logger = LogManager.getLogger(GrpcServiceBuilder.class);
 
     /**
-     * Create a single JVM-wide Marshaller instance that simply reads/writes byte arrays to/from
-     * {@link InputStream}s. This class is thread safe.
+     * The marshaller to use to read/write byte arrays to/from {@link InputStream}s. This class is thread safe.
      */
-    private static final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller();
+    private final DataBufferMarshaller marshaller;
 
     /** The name of the service we are building. For example, the TokenService. */
     private final String serviceName;
@@ -77,7 +76,7 @@ final class GrpcServiceBuilder {
      * The set of transaction method names that need corresponding service method definitions generated.
      *
      * <p>Initially this set is empty, and is populated by calls to {@link #transaction(String)}. Then,
-     * when {@link #build(Metrics, boolean)} is called, the set is used to create the transaction service method definitions.
+     * when {@link #build(Metrics, int)} is called, the set is used to create the transaction service method definitions.
      */
     private final Set<String> txMethodNames = new HashSet<>();
 
@@ -85,7 +84,7 @@ final class GrpcServiceBuilder {
      * The set of query method names that need corresponding service method definitions generated.
      *
      * <p>Initially this set is empty, and is populated by calls to {@link #query(String)}. Then,
-     * when {@link #build(Metrics, boolean)} is called, the set is used to create the query service method definitions.
+     * when {@link #build(Metrics, int)} is called, the set is used to create the query service method definitions.
      */
     private final Set<String> queryMethodNames = new HashSet<>();
 
@@ -101,13 +100,15 @@ final class GrpcServiceBuilder {
     public GrpcServiceBuilder(
             @NonNull final String serviceName,
             @NonNull final IngestWorkflow ingestWorkflow,
-            @NonNull final QueryWorkflow queryWorkflow) {
+            @NonNull final QueryWorkflow queryWorkflow,
+            @NonNull final DataBufferMarshaller marshaller) {
         this.ingestWorkflow = requireNonNull(ingestWorkflow);
         this.queryWorkflow = requireNonNull(queryWorkflow);
         this.serviceName = requireNonNull(serviceName);
         if (serviceName.isBlank()) {
             throw new IllegalArgumentException("serviceName cannot be blank");
         }
+        this.marshaller = requireNonNull(marshaller);
     }
 
     /**
@@ -150,19 +151,20 @@ final class GrpcServiceBuilder {
      * Build a grpc {@link ServerServiceDefinition} for each transaction and query method registered with this builder.
      *
      * @param metrics Used for recording metrics for the transaction or query methods
+     * @param maxMessageSize The maximum message size allowed for the gRPC server
      * @return A {@link ServerServiceDefinition} that can be registered with a gRPC server
      */
     @NonNull
-    public ServerServiceDefinition build(@NonNull final Metrics metrics) {
+    public ServerServiceDefinition build(@NonNull final Metrics metrics, final int maxMessageSize) {
         final var builder = ServerServiceDefinition.builder(serviceName);
         txMethodNames.forEach(methodName -> {
             logger.debug("Registering gRPC transaction method {}.{}", serviceName, methodName);
-            final var method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics);
+            final var method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, maxMessageSize);
             addMethod(builder, serviceName, methodName, method);
         });
         queryMethodNames.forEach(methodName -> {
             logger.debug("Registering gRPC query method {}.{}", serviceName, methodName);
-            final var method = new QueryMethod(serviceName, methodName, queryWorkflow, metrics);
+            final var method = new QueryMethod(serviceName, methodName, queryWorkflow, metrics, maxMessageSize);
             addMethod(builder, serviceName, methodName, method);
         });
         return builder.build();
@@ -183,8 +185,8 @@ final class GrpcServiceBuilder {
         final var methodDescriptor = MethodDescriptor.<BufferedData, BufferedData>newBuilder()
                 .setType(MethodType.UNARY)
                 .setFullMethodName(serviceName + "/" + methodName)
-                .setRequestMarshaller(MARSHALLER)
-                .setResponseMarshaller(MARSHALLER)
+                .setRequestMarshaller(marshaller)
+                .setResponseMarshaller(marshaller)
                 .build();
 
         builder.addMethod(

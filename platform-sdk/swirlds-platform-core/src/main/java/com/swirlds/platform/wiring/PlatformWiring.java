@@ -9,6 +9,7 @@ import static com.swirlds.platform.event.stale.StaleEventDetectorOutput.SELF_EVE
 import static com.swirlds.platform.event.stale.StaleEventDetectorOutput.STALE_SELF_EVENT;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
@@ -30,7 +31,6 @@ import com.swirlds.platform.components.appcomm.CompleteStateNotificationWithClea
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
@@ -347,20 +347,28 @@ public class PlatformWiring {
      * Wire the components together.
      */
     private void wire() {
-        final InputWire<PlatformEvent> pipelineInputWire;
+        /*
+         * When the birth round migration shim is active, the path should be:
+         *   -> EventHasher -> BirthRoundMigrationShim -> InternalEventValidator ->
+         * When the shim is not active, the path should be:
+         *   -> EventHasher -> InternalEventValidator ->
+         */
+
+        final InputWire<PlatformEvent> hasherInputWire = eventHasherWiring.getInputWire(EventHasher::hashEvent);
+        gossipWiring.getEventOutput().solderTo(hasherInputWire);
+
         if (birthRoundMigrationShimWiring != null) {
+            eventHasherWiring
+                    .getOutputWire()
+                    .solderTo(birthRoundMigrationShimWiring.getInputWire(BirthRoundMigrationShim::migrateEvent));
             birthRoundMigrationShimWiring
                     .getOutputWire()
-                    .solderTo(eventHasherWiring.getInputWire(EventHasher::hashEvent));
-            pipelineInputWire = birthRoundMigrationShimWiring.getInputWire(BirthRoundMigrationShim::migrateEvent);
+                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
         } else {
-            pipelineInputWire = eventHasherWiring.getInputWire(EventHasher::hashEvent);
+            eventHasherWiring
+                    .getOutputWire()
+                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
         }
-
-        gossipWiring.getEventOutput().solderTo(pipelineInputWire);
-        eventHasherWiring
-                .getOutputWire()
-                .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
 
         internalEventValidatorWiring
                 .getOutputWire()
@@ -484,7 +492,7 @@ public class PlatformWiring {
 
         solderEventWindow();
 
-        pcesReplayerWiring.eventOutput().solderTo(pipelineInputWire);
+        pcesReplayerWiring.eventOutput().solderTo(hasherInputWire);
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire = consensusEngineWiring.getSplitOutput();
 

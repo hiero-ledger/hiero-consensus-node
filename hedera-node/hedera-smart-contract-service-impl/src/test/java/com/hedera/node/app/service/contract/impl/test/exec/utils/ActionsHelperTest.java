@@ -115,6 +115,8 @@ class ActionsHelperTest {
         given(operation.getOpcode()).willReturn(0xF1);
         given(frame.getContractAddress()).willReturn(EIP_1014_ADDRESS);
         given(frame.getCurrentOperation()).willReturn(operation);
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         final var expectedAction = ContractAction.newBuilder()
                 .callType(ContractActionType.CALL)

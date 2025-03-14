@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.roster;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/basic_types.proto";
+
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.roster">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A single roster in the network state.
+ * <p>
+ * The roster SHALL be a list of `RosterEntry` objects.
+ */
+message Roster {
+    /**
+     * List of roster entries, one per consensus node.
+     * <p>
+     * This list SHALL contain roster entries in natural order of ascending node ids.
+     * This list SHALL NOT be empty.<br/>
+     */
+    repeated RosterEntry roster_entries = 1;
+}
+
+/**
+ * A single roster entry in the network state.
+ *
+ * Each roster entry SHALL encapsulate the elements required
+ * to manage node participation in the Threshold Signature Scheme (TSS).<br/>
+ * All fields are REQUIRED.
+ */
+message RosterEntry {
+
+    // The tssEncryptionKey field has been reserved because it is no longer
+    // required to be stored in the Roster. The public portion of this key will
+    // continue to be stored in TssBaseService, but will, however, just be
+    // stored as raw bytes.
+    reserved 4;
+
+    /**
+     * A consensus node identifier.
+     * <p>
+     * Node identifiers SHALL be unique _within_ a ledger,
+     * and MUST NOT be repeated _between_ shards and realms.
+     */
+    uint64 node_id = 1;
+
+    /**
+     * A consensus weight.
+     * <p>
+     * Each node SHALL have a weight of zero or more in consensus calculations.<br/>
+     * The sum of the weights of all nodes in the roster SHALL form the total weight of the system,
+     * and each node's individual weight SHALL be proportional to that sum.<br/>
+     */
+    uint64 weight = 2;
+
+    /**
+     * An RSA public certificate used for signing gossip events.
+     * <p>
+     * This value SHALL be a certificate of a type permitted for gossip
+     * signatures.<br/>
+     * This value SHALL be the DER encoding of the certificate presented.<br/>
+     * This field is REQUIRED and MUST NOT be empty.
+     */
+    bytes gossip_ca_certificate = 3;
+
+    /**
+     * A list of service endpoints for gossip.
+     * <p>
+     * These endpoints SHALL represent the published endpoints to which other
+     * consensus nodes may _gossip_ transactions.<br/>
+     * If the network configuration value `gossipFqdnRestricted` is set, then
+     * all endpoints in this list SHALL supply only IP address.<br/>
+     * If the network configuration value `gossipFqdnRestricted` is _not_ set,
+     * then endpoints in this list MAY supply either IP address or FQDN, but
+     * SHALL NOT supply both values for the same endpoint.<br/>
+     * This list SHALL NOT be empty.<br/>
+     */
+    repeated proto.ServiceEndpoint gossip_endpoint = 5;
+}

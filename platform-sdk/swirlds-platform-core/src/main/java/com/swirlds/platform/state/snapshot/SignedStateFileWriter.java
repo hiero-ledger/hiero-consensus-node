@@ -25,7 +25,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.State;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -146,9 +145,6 @@ public final class SignedStateFileWriter {
         Objects.requireNonNull(signedState);
 
         final State state = signedState.getState();
-        if (state instanceof MerkleStateRoot<?> merkleStateRoot) {
-            merkleStateRoot.setTime(platformContext.getTime());
-        }
 
         state.createSnapshot(directory);
         writeSignatureSetFile(directory, signedState);

@@ -92,7 +92,6 @@ public class StateProof implements SelfSerializable {
             @NonNull final Threshold threshold) {
 
         return isValid(
-                cryptography,
                 addressBook,
                 threshold,
                 (signature, bytes, publicKey) ->
@@ -102,7 +101,6 @@ public class StateProof implements SelfSerializable {
     /**
      * Cryptographically validate this state proof using the provided threshold.
      *
-     * @param cryptography      provides cryptographic primitives
      * @param addressBook       the address book to use to validate the state proof
      * @param threshold         the threshold of signatures required to trust this state proof
      * @param signatureVerifier a function that verifies a signature
@@ -110,19 +108,17 @@ public class StateProof implements SelfSerializable {
      * @throws IllegalStateException if this method is called before this object has been fully deserialized
      */
     public boolean isValid(
-            @NonNull final Cryptography cryptography,
             @NonNull final AddressBook addressBook,
             @NonNull final Threshold threshold,
             @NonNull final SignatureVerifier signatureVerifier) {
 
-        Objects.requireNonNull(cryptography);
         Objects.requireNonNull(addressBook);
         Objects.requireNonNull(threshold);
         Objects.requireNonNull(signatureVerifier);
 
         if (hashBytes == null) {
             // we only need to recompute the hash once
-            hashBytes = StateProofUtils.computeStateProofTreeHash(cryptography, root);
+            hashBytes = StateProofUtils.computeStateProofTreeHash(root);
         }
         final long validWeight =
                 StateProofUtils.computeValidSignatureWeight(addressBook, signatures, signatureVerifier, hashBytes);
