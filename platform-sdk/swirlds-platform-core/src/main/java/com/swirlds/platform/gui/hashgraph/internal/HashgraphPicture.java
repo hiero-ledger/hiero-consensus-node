@@ -203,9 +203,9 @@ public class HashgraphPicture extends JPanel {
                             consensus.getRounds().getElectionRound().undecidedWitnesses();
                     it.hasNext(); ) {
                 final CandidateWitness candidateWitnessI = it.next();
-                String vote = String.valueOf(event.getVote(candidateWitnessI));
-                // showing t or f from true/false for readability on the picture
-                s += vote.charAt(0)
+                String vote = event.getVote(candidateWitnessI) ? "T" : "F";
+                // showing T or F from true/false for readability on the picture
+                s += vote
                         // showing first two characters from the hash of the witness
                         // current event is voting on(example H:aa)
                         + candidateWitnessI.getWitness().shortString().substring(5, 10) + "|";
