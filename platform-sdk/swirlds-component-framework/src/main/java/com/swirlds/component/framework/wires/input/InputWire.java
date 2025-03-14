@@ -94,6 +94,10 @@ public abstract class InputWire<IN> {
         taskSchedulerInput.inject(handler, data);
     }
 
+    public void direct(final IN data) {
+        handler.accept(data);
+    }
+
     /**
      * Set the method that will handle data traveling over this wire.
      *
