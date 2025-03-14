@@ -70,7 +70,7 @@ public class PeerCommunication implements ConnectionTracker {
      * @param platformContext the platform context
      * @param peers           the current list of peers
      * @param selfPeer        this node's data
-     * @param ownKeysAndCerts    private keys and public certificates for this node
+     * @param ownKeysAndCerts private keys and public certificates for this node
      */
     public PeerCommunication(
             @NonNull final PlatformContext platformContext,
@@ -186,10 +186,12 @@ public class PeerCommunication implements ConnectionTracker {
 
             threads.addAll(
                     buildProtocolThreads(added.stream().map(PeerInfo::nodeId).toList()));
-        }
 
-        registerDedicatedThreads(threads);
-        applyDedicatedThreadsToModify();
+            // having it inside the locked block is not really helping much, if addRemovePeers is called
+            // concurrently, things WILL get messed up, but at least we won't fail with concurrent modification exc
+            registerDedicatedThreads(threads);
+            applyDedicatedThreadsToModify();
+        }
     }
 
     /**
@@ -321,6 +323,9 @@ public class PeerCommunication implements ConnectionTracker {
             var oldThread = dedicatedThreads.remove(dst.key());
             if (newThread == null) {
                 if (oldThread != null && oldThread.thread() != null) {
+                    // we are doing interrupt here (and below) instead of stop(), because stop() can block forever
+                    // in case of non-cooperating thread blocking in strange place; as future extension, stop()
+                    // behaviour can be extended to do best effort stop only, to avoid locking thread
                     oldThread.thread().interrupt();
                 } else {
                     logger.warn("Dedicated thread {} was not found, but we were asked to stop it", dst.key());
