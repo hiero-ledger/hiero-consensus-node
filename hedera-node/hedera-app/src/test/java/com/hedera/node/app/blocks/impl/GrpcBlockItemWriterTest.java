@@ -46,7 +46,8 @@ class GrpcBlockItemWriterTest {
                 BlockItem.newBuilder().blockProof(proof).build());
 
         assertThatThrownBy(
-                        () -> grpcBlockItemWriter.writePbjItem(blockProof), "Cannot write item before opening a block")
+                        () -> grpcBlockItemWriter.writeItem(blockProof.toByteArray()),
+                        "Cannot write item before opening a block")
                 .isInstanceOf(IllegalStateException.class);
     }
 

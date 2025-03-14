@@ -10,7 +10,6 @@ import com.hedera.hapi.block.protoc.PublishStreamResponse;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.grpc.GrpcClient;
@@ -183,12 +182,11 @@ public class BlockNodeConnectionManager {
         List<PublishStreamRequest> batchRequests = new ArrayList<>(expectedBatchCount);
         for (int i = 0; i < totalItems; i += blockItemBatchSize) {
             int end = Math.min(i + blockItemBatchSize, totalItems);
-            List<Bytes> batch = block.itemBytes().subList(i, end);
+            List<byte[]> batch = block.itemBytes().subList(i, end);
             List<com.hedera.hapi.block.stream.protoc.BlockItem> protocBlockItems = new ArrayList<>(batch.size());
             batch.forEach(batchItem -> {
                 try {
-                    protocBlockItems.add(
-                            com.hedera.hapi.block.stream.protoc.BlockItem.parseFrom(batchItem.toByteArray()));
+                    protocBlockItems.add(com.hedera.hapi.block.stream.protoc.BlockItem.parseFrom(batchItem));
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

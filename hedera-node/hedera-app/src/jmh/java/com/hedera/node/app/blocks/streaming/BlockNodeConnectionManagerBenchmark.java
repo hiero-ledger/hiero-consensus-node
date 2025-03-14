@@ -65,7 +65,7 @@ public class BlockNodeConnectionManagerBenchmark {
      * @return a BlockState with the specified number of items
      */
     private BlockState createTestBlock(int itemCount) {
-        List<Bytes> itemBytes = new ArrayList<>(itemCount);
+        List<byte[]> itemBytes = new ArrayList<>(itemCount);
 
         // Create dummy block items with realistic data
         for (int i = 0; i < itemCount; i++) {
@@ -84,7 +84,7 @@ public class BlockNodeConnectionManagerBenchmark {
 
             // Convert to Bytes
             Bytes bytes = BlockItem.PROTOBUF.toBytes(blockItem);
-            itemBytes.add(bytes);
+            itemBytes.add(bytes.toByteArray());
         }
 
         // Create a BlockState with the items

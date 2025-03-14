@@ -480,7 +480,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .blockSignature(blockSignature)
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
-            block.writer().writePbjItem(BlockItem.PROTOBUF.toBytes(proofItem));
+            block.writer().writeItem(BlockItem.PROTOBUF.toBytes(proofItem).toByteArray());
             if (streamWriterType == BlockStreamWriterMode.FILE
                     || streamWriterType == BlockStreamWriterMode.GRPC
                     || streamWriterType == BlockStreamWriterMode.FILE_AND_GRPC) {
@@ -619,7 +619,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     hash = ByteBuffer.wrap(digest.digest());
                 }
             }
-            out.send(item, hash, bytes);
+            out.send(item, hash, bytes.toByteArray());
             return true;
         }
     }
@@ -628,7 +628,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         SequentialTask next;
         BlockItem item;
-        Bytes serialized;
+        byte[] serialized;
         ByteBuffer hash;
 
         SequentialTask() {
@@ -652,7 +652,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (header != null) {
                 writer.openBlock(header.number());
             }
-            writer.writePbjItem(serialized);
+            writer.writeItem(serialized);
 
             next.send();
             return true;
@@ -663,7 +663,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             send();
         }
 
-        void send(BlockItem item, ByteBuffer hash, Bytes serialized) {
+        void send(BlockItem item, ByteBuffer hash, byte[] serialized) {
             this.item = item;
             this.hash = hash;
             this.serialized = serialized;
@@ -844,7 +844,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final BlockItem finalChanges = boundaryStateChangeListener.flushChanges();
         if (finalChanges != null && finalChanges.hasStateChanges()) {
             log.fatal("Writing final state changes for block {}", blockNumber);
-            writer.writePbjItem(BlockItem.PROTOBUF.toBytes(finalChanges));
+            writer.writeItem(BlockItem.PROTOBUF.toBytes(finalChanges).toByteArray());
         }
         log.fatal("Final state changes written (if any)");
     }
