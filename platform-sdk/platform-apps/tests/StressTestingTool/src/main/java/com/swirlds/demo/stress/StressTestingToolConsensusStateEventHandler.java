@@ -3,6 +3,7 @@ package com.swirlds.demo.stress;
 
 import static com.swirlds.demo.stress.TransactionPool.APPLICATION_TRANSACTION_MARKER;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.ByteUtils;
@@ -11,7 +12,6 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.Event;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
@@ -31,10 +31,10 @@ public class StressTestingToolConsensusStateEventHandler implements ConsensusSta
 
     @Override
     public void onStateInitialized(
-            @NonNull StressTestingToolState state,
-            @NonNull Platform platform,
-            @NonNull InitTrigger trigger,
-            @Nullable SoftwareVersion previousVersion) {
+            @NonNull final StressTestingToolState state,
+            @NonNull final Platform platform,
+            @NonNull final InitTrigger trigger,
+            @Nullable final SemanticVersion previousVersion) {
         this.config = platform.getContext().getConfiguration().getConfigData(StressTestingToolConfig.class);
     }
 

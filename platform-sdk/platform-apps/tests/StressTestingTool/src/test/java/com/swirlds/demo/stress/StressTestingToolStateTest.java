@@ -28,7 +28,6 @@ import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.platform.system.transaction.Transaction;
@@ -92,7 +91,7 @@ class StressTestingToolStateTest {
 
         final var platform = mock(Platform.class);
         final var initTrigger = mock(InitTrigger.class);
-        final var softwareVersion = mock(SoftwareVersion.class);
+        final var softwareVersion = mock(SemanticVersion.class);
         final var platformContext = mock(PlatformContext.class);
         final var config = ConfigurationBuilder.create()
                 .withConfigDataType(StressTestingToolConfig.class)

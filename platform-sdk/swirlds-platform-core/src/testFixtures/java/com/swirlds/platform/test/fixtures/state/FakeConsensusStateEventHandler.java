@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.RosterStateId;
 import com.swirlds.common.config.StateCommonConfig;
@@ -33,7 +34,6 @@ import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.Event;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -210,10 +210,10 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
 
     @Override
     public void onStateInitialized(
-            @NonNull MerkleNodeState state,
-            @NonNull Platform platform,
-            @NonNull InitTrigger trigger,
-            @Nullable SoftwareVersion previousVersion) {
+            @NonNull final MerkleNodeState state,
+            @NonNull final Platform platform,
+            @NonNull final InitTrigger trigger,
+            @Nullable final SemanticVersion previousVersion) {
         // no-op
     }
 

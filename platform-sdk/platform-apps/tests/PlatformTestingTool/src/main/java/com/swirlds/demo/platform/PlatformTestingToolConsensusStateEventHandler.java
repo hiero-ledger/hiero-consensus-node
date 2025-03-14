@@ -63,7 +63,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.events.Event;
@@ -1104,10 +1103,10 @@ public class PlatformTestingToolConsensusStateEventHandler
 
     @Override
     public void onStateInitialized(
-            @NonNull PlatformTestingToolState state,
-            @NonNull Platform platform,
-            @NonNull InitTrigger trigger,
-            @Nullable SoftwareVersion previousVersion) {
+            @NonNull final PlatformTestingToolState state,
+            @NonNull final Platform platform,
+            @NonNull final InitTrigger trigger,
+            @Nullable final SemanticVersion previousVersion) {
         if (trigger == InitTrigger.RESTART) {
             state.rebuildExpectedMapFromState(Instant.EPOCH, true);
             state.rebuildExpirationQueue();

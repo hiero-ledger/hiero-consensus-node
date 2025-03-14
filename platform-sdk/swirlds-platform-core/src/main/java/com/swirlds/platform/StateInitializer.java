@@ -5,8 +5,8 @@ import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndThr
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
-import static com.swirlds.platform.system.SoftwareVersion.NO_VERSION;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -15,7 +15,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ExecutionException;
 import org.apache.logging.log4j.LogManager;
@@ -23,7 +22,7 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * Encapsulates the logic for calling
- * {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SoftwareVersion)}
+ * {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SemanticVersion)}
  * startup time.
  */
 public final class StateInitializer {
@@ -46,11 +45,11 @@ public final class StateInitializer {
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
-        final SoftwareVersion previousSoftwareVersion;
+        final SemanticVersion previousSoftwareVersion;
         final InitTrigger trigger;
 
         if (signedState.isGenesisState()) {
-            previousSoftwareVersion = NO_VERSION;
+            previousSoftwareVersion = null;
             trigger = GENESIS;
         } else {
             previousSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(signedState.getState());

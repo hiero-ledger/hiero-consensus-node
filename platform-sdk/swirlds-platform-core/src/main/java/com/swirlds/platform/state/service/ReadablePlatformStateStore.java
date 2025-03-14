@@ -62,8 +62,8 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
      */
     @Override
     @NonNull
-    public SoftwareVersion getCreationSoftwareVersion() {
-        return versionFactory.apply(stateOrThrow().creationSoftwareVersionOrThrow());
+    public SemanticVersion getCreationSoftwareVersion() {
+        return stateOrThrow().creationSoftwareVersionOrThrow();
     }
 
     /**
@@ -157,9 +157,8 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
      */
     @Nullable
     @Override
-    public SoftwareVersion getFirstVersionInBirthRoundMode() {
-        final var version = stateOrThrow().firstVersionInBirthRoundMode();
-        return version == null ? null : versionFactory.apply(version);
+    public SemanticVersion getFirstVersionInBirthRoundMode() {
+        return stateOrThrow().firstVersionInBirthRoundMode();
     }
 
     /**

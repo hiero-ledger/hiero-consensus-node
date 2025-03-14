@@ -261,7 +261,7 @@ public class Browser {
             ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
             final HashedReservedSignedState reservedState = getInitialState(
                     recycleBin,
-                    appMain.getSoftwareVersion(),
+                    appMain.getSoftwareVersion().getPbjSemanticVersion(),
                     appMain::newStateRoot,
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),

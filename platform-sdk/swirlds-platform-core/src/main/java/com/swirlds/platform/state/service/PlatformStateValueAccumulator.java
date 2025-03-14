@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -48,7 +48,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
     /**
      * The version of the application software that was responsible for creating this state.
      */
-    private SoftwareVersion creationSoftwareVersion;
+    private SemanticVersion creationSoftwareVersion;
 
     private boolean creationSoftwareVersionUpdated;
 
@@ -84,7 +84,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
      * Null if birth round migration has not yet happened, otherwise the software version that was first used when the
      * birth round migration was performed.
      */
-    private SoftwareVersion firstVersionInBirthRoundMode;
+    private SemanticVersion firstVersionInBirthRoundMode;
 
     private boolean firstVersionInBirthRoundModeUpdated;
 
@@ -105,12 +105,12 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
 
     @NonNull
     @Override
-    public SoftwareVersion getCreationSoftwareVersion() {
+    public SemanticVersion getCreationSoftwareVersion() {
         return creationSoftwareVersion;
     }
 
     @Override
-    public void setCreationSoftwareVersion(@NonNull final SoftwareVersion creationVersion) {
+    public void setCreationSoftwareVersion(@NonNull final SemanticVersion creationVersion) {
         this.creationSoftwareVersion = Objects.requireNonNull(creationVersion);
         creationSoftwareVersionUpdated = true;
     }
@@ -304,7 +304,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
      */
     @Override
     @Nullable
-    public SoftwareVersion getFirstVersionInBirthRoundMode() {
+    public SemanticVersion getFirstVersionInBirthRoundMode() {
         return firstVersionInBirthRoundMode;
     }
 
@@ -314,7 +314,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
      * @param firstVersionInBirthRoundMode the first software version where the birth round migration happened
      */
     @Override
-    public void setFirstVersionInBirthRoundMode(final SoftwareVersion firstVersionInBirthRoundMode) {
+    public void setFirstVersionInBirthRoundMode(final SemanticVersion firstVersionInBirthRoundMode) {
         this.firstVersionInBirthRoundMode = firstVersionInBirthRoundMode;
         firstVersionInBirthRoundModeUpdated = true;
     }
