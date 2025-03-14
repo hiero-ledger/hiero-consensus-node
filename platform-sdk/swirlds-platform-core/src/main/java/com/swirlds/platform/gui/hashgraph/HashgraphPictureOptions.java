@@ -22,6 +22,8 @@ public interface HashgraphPictureOptions {
 
     boolean writeVote();
 
+    boolean writeEventHash();
+
     /**
      * @return should round received be written for every event
      */

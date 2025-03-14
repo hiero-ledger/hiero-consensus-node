@@ -210,6 +210,9 @@ public class HashgraphPicture extends JPanel {
                 }
             }
         }
+        if (options.writeEventHash()) {
+            s += " h:" + event.getBaseHash().toString().substring(0, 2);
+        }
         if (options.writeRoundReceived() && event.getRoundReceived() > 0) {
             s += " " + event.getRoundReceived();
         }
