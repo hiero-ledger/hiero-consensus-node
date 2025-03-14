@@ -13,7 +13,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.google.protobuf.ByteString;
 import com.hedera.hapi.block.protoc.PublishStreamRequest;
 import com.hedera.hapi.block.protoc.PublishStreamResponse;
 import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
@@ -136,28 +135,6 @@ class BlockNodeConnectionTest {
     }
 
     @Test
-    void testGrpcClientStreamObserver_OnNext_ItemAckResponse() {
-        when(grpcServiceClient.bidi(any(), any(StreamObserver.class))).thenReturn(requestObserver);
-        blockNodeConnection.establishStream();
-
-        final var captor = ArgumentCaptor.forClass(StreamObserver.class);
-        verify(grpcServiceClient).bidi(any(), captor.capture());
-        final var capturedObserver = captor.getValue();
-        assertNotNull(capturedObserver);
-
-        final var response = PublishStreamResponse.newBuilder()
-                .setAcknowledgement(PublishStreamResponse.Acknowledgement.newBuilder()
-                        .setItemAck(PublishStreamResponse.ItemAcknowledgement.newBuilder()
-                                .setItemsHash(ByteString.fromHex("1234"))
-                                .build()))
-                .build();
-        capturedObserver.onNext(response);
-
-        assertThat(logCaptor.infoLogs())
-                .contains("Item acknowledgement received for a batch of block items: items_hash: \"\\0224\"");
-    }
-
-    @Test
     void testGrpcClientStreamObserver_OnNext_StatusResponseTimeout() {
         when(grpcServiceClient.bidi(any(), any(StreamObserver.class))).thenReturn(requestObserver);
         blockNodeConnection.establishStream();
@@ -168,7 +145,7 @@ class BlockNodeConnectionTest {
         assertNotNull(capturedObserver);
 
         final var response = PublishStreamResponse.newBuilder()
-                .setStatus(PublishStreamResponse.EndOfStream.newBuilder()
+                .setEndStream(PublishStreamResponse.EndOfStream.newBuilder()
                         .setStatus(PublishStreamResponseCode.STREAM_ITEMS_TIMEOUT)
                         .setBlockNumber(1234)
                         .build())
