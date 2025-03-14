@@ -9,29 +9,42 @@ import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.events.EventConstants;
-import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
-public class ConsensusRoundValidation {
-    public static void validateConsensusRounds(final ConsensusOutput output1, final ConsensusOutput output2) {
-        validateIterableRounds(
-                output1.getConsensusRounds().iterator(),
-                output2.getConsensusRounds().iterator());
+/**
+ * This class provides a set of static methods that validate the list of ConsensusRounds
+ * as well as the ConsensusRound internal fields coming from multiple nodes.
+ *
+ */
+public class RoundContentValidation {
+
+    /**
+     * Validates the rounds from two different sources including the internal round information.
+     *
+     * @param output1 the first source of rounds
+     * @param output2 the second source of rounds
+     */
+    public static void validateRounds(final List<ConsensusRound> output1, final List<ConsensusRound> output2) {
+        validateIterableRounds(output1.iterator(), output2.iterator());
 
         assertEquals(
-                output1.getConsensusRounds().size(),
-                output2.getConsensusRounds().size(),
+                output1.size(),
+                output2.size(),
                 String.format(
                         "The number of consensus rounds is not the same."
                                 + "output1 has %d rounds, output2 has %d rounds",
-                        output1.getConsensusRounds().size(),
-                        output2.getConsensusRounds().size()));
-        validateAncientThresholdIncreases(output1.getConsensusRounds());
+                        output1.size(), output2.size()));
+        validateAncientThresholdIncreases(output1);
     }
 
+    /**
+     * Validates that the threshold info of the rounds in the list is increasing for each next round
+     *
+     * @param rounds to validate
+     */
     public static void validateAncientThresholdIncreases(@NonNull final List<ConsensusRound> rounds) {
         long lastAncientThreshold = EventConstants.ANCIENT_THRESHOLD_UNDEFINED;
         for (final ConsensusRound round : rounds) {
@@ -46,6 +59,12 @@ public class ConsensusRoundValidation {
         }
     }
 
+    /**
+     * Validates the rounds from two different sources including the round field values and the nested events content
+     *
+     * @param rndIt1 the first source of rounds
+     * @param rndIt2 the second source of rounds
+     */
     public static void validateIterableRounds(
             final Iterator<ConsensusRound> rndIt1, final Iterator<ConsensusRound> rndIt2) {
         int roundIndex = 0;
