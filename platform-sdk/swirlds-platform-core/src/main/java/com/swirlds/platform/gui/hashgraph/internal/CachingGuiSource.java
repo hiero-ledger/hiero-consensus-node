@@ -48,6 +48,9 @@ public class CachingGuiSource implements HashgraphGuiSource {
         return events != null && addressBook != null && maxGeneration != EventConstants.GENERATION_UNDEFINED;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public GuiEventStorage getEventStorage() {
         return eventStorage;

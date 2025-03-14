@@ -20,8 +20,14 @@ public interface HashgraphPictureOptions {
      */
     boolean writeRoundCreated();
 
+    /**
+     * @return should the vote be written
+     */
     boolean writeVote();
 
+    /**
+     * @return should the event hash be written for every event
+     */
     boolean writeEventHash();
 
     /**

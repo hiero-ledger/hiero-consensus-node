@@ -52,6 +52,11 @@ public interface Consensus {
      */
     long getFameDecidedBelow();
 
+    /**
+     * Retrieves the consensus rounds.
+     *
+     * @return an instance of {@link ConsensusRounds} containing the consensus rounds.
+     */
     ConsensusRounds getRounds();
 
     /**

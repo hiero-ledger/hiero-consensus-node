@@ -65,6 +65,9 @@ public class StandardGuiSource implements HashgraphGuiSource {
         return true;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public GuiEventStorage getEventStorage() {
         return eventStorage;

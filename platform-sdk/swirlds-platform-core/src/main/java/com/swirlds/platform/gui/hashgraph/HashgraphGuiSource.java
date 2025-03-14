@@ -40,5 +40,10 @@ public interface HashgraphGuiSource {
      */
     boolean isReady();
 
+    /**
+     * Get the event storage used by the GUI.
+     *
+     * @return the event storage
+     */
     GuiEventStorage getEventStorage();
 }

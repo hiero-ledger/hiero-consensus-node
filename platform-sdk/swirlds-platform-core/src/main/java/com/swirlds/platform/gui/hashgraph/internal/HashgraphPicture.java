@@ -198,19 +198,21 @@ public class HashgraphPicture extends JPanel {
         if (options.writeRoundCreated()) {
             s += " " + event.getRoundCreated();
         }
-        if (options.writeVote()) {
-            if (event.isWitness()) {
-                for (final Iterator<CandidateWitness> it =
-                                consensus.getRounds().getElectionRound().undecidedWitnesses();
-                        it.hasNext(); ) {
-                    final CandidateWitness candidateWitnessI = it.next();
-                    String vote = String.valueOf(event.getVote(candidateWitnessI));
-                    s += vote.charAt(0)
-                            + candidateWitnessI.getWitness().shortString().substring(5, 10) + "|";
-                }
+        if (options.writeVote() && event.isWitness()) {
+            for (final Iterator<CandidateWitness> it =
+                            consensus.getRounds().getElectionRound().undecidedWitnesses();
+                    it.hasNext(); ) {
+                final CandidateWitness candidateWitnessI = it.next();
+                String vote = String.valueOf(event.getVote(candidateWitnessI));
+                // showing t or f from true/false for readability on the picture
+                s += vote.charAt(0)
+                        // showing first two characters from the hash of the witness
+                        // current event is voting on(example H:aa)
+                        + candidateWitnessI.getWitness().shortString().substring(5, 10) + "|";
             }
         }
         if (options.writeEventHash()) {
+            // showing first two characters from the hash of the event
             s += " h:" + event.getBaseHash().toString().substring(0, 2);
         }
         if (options.writeRoundReceived() && event.getRoundReceived() > 0) {
