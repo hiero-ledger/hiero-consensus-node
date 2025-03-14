@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
+ * Copyright (C) 2024-2025 Hedera Hashgraph, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -287,10 +287,10 @@ public final class RosterUtils {
     @NonNull
     public static RosterHistory createRosterHistory(@NonNull final ReadableRosterStore rosterStore) {
         final var roundRosterPairs = rosterStore.getRosterHistory();
-        final var rosterMap = roundRosterPairs.stream()
-                .collect(Collectors.toMap(
-                        RoundRosterPair::activeRosterHash,
-                        pair -> Objects.requireNonNull(rosterStore.get(pair.activeRosterHash()))));
+        final Map<Bytes, Roster> rosterMap = new HashMap<>();
+        for (final var pair : roundRosterPairs) {
+            rosterMap.put(pair.activeRosterHash(), Objects.requireNonNull(rosterStore.get(pair.activeRosterHash())));
+        }
         return new RosterHistory(roundRosterPairs, rosterMap);
     }
 
