@@ -22,7 +22,6 @@ import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.collections.HashListByteBuffer;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListDisk;
@@ -182,8 +181,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         this.tableConfig = tableConfig;
         this.preferDiskBasedIndices = preferDiskBasedIndices;
 
-        final Configuration config = database.getConfiguration();
-        final MerkleDbConfig merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
+        final MerkleDbConfig merkleDbConfig = database.getConfiguration().getConfigData(MerkleDbConfig.class);
 
         // create thread group with label
         final ThreadGroup threadGroup = new ThreadGroup("MerkleDb-" + tableName);
@@ -233,45 +231,34 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
         saveMetadata(dbPaths);
 
-        // Max number of entities that can be stored
-        final long virtualSize = tableConfig.getMaxNumberOfKeys();
-        // Path to hash and path to KV index capacity. Last leaf path is 2*virtualSize - 2,
-        // so capacity should be 2*virtualSize - 1, but only if virtualSize is greater than 1.
-        // To support virtual sizes 0 and 1, let's set capacity to 2*virtualSize
-        final long pathIndexCapacity = virtualSize * 2;
-
+        // create path to disk location index
         final boolean forceIndexRebuilding = merkleDbConfig.indexRebuildingEnforced();
-        // path to disk location index, hashes
-        final Path pathToHashLocationFile = dbPaths.pathToDiskLocationInternalNodesFile;
-        if (Files.exists(pathToHashLocationFile) && !forceIndexRebuilding) {
-            pathToDiskLocationInternalNodes = preferDiskBasedIndices
-                    ? new LongListDisk(pathToHashLocationFile, pathIndexCapacity, config)
-                    : new LongListOffHeap(pathToHashLocationFile, pathIndexCapacity, config);
+        if (preferDiskBasedIndices) {
+            pathToDiskLocationInternalNodes =
+                    new LongListDisk(dbPaths.pathToDiskLocationInternalNodesFile, database.getConfiguration());
+        } else if (Files.exists(dbPaths.pathToDiskLocationInternalNodesFile) && !forceIndexRebuilding) {
+            pathToDiskLocationInternalNodes =
+                    new LongListOffHeap(dbPaths.pathToDiskLocationInternalNodesFile, database.getConfiguration());
         } else {
-            pathToDiskLocationInternalNodes = preferDiskBasedIndices
-                    ? new LongListDisk(pathIndexCapacity, config)
-                    : new LongListOffHeap(pathIndexCapacity, config);
+            pathToDiskLocationInternalNodes = new LongListOffHeap();
         }
         // path to disk location index, leaf nodes
-        final Path pathToLeafLocationFile = dbPaths.pathToDiskLocationLeafNodesFile;
-        if (Files.exists(pathToLeafLocationFile) && !forceIndexRebuilding) {
-            pathToDiskLocationLeafNodes = preferDiskBasedIndices
-                    ? new LongListDisk(pathToLeafLocationFile, pathIndexCapacity, config)
-                    : new LongListOffHeap(pathToLeafLocationFile, pathIndexCapacity, config);
+        if (preferDiskBasedIndices) {
+            pathToDiskLocationLeafNodes =
+                    new LongListDisk(dbPaths.pathToDiskLocationLeafNodesFile, database.getConfiguration());
+        } else if (Files.exists(dbPaths.pathToDiskLocationLeafNodesFile) && !forceIndexRebuilding) {
+            pathToDiskLocationLeafNodes =
+                    new LongListOffHeap(dbPaths.pathToDiskLocationLeafNodesFile, database.getConfiguration());
         } else {
-            pathToDiskLocationLeafNodes = preferDiskBasedIndices
-                    ? new LongListDisk(pathIndexCapacity, config)
-                    : new LongListOffHeap(pathIndexCapacity, config);
+            pathToDiskLocationLeafNodes = new LongListOffHeap(merkleDbConfig.reservedBufferLengthForLeafList());
         }
 
         // internal node hashes store, RAM
-        final long hashesRamToDiskThreshold = tableConfig.getHashesRamToDiskThreshold();
-        if (hashesRamToDiskThreshold > 0) {
+        if (tableConfig.getHashesRamToDiskThreshold() > 0) {
             if (Files.exists(dbPaths.hashStoreRamFile)) {
-                hashStoreRam = new HashListByteBuffer(dbPaths.hashStoreRamFile, hashesRamToDiskThreshold);
+                hashStoreRam = new HashListByteBuffer(dbPaths.hashStoreRamFile);
             } else {
-                final int hashesPerBuffer = merkleDbConfig.hashStoreRamBufferSize();
-                hashStoreRam = new HashListByteBuffer(hashesPerBuffer, hashesRamToDiskThreshold, true);
+                hashStoreRam = new HashListByteBuffer();
             }
         } else {
             hashStoreRam = null;

@@ -4,6 +4,7 @@ package com.swirlds.merkledb.collections;
 import static com.swirlds.merkledb.collections.AbstractLongListTest.SAMPLE_SIZE;
 import static com.swirlds.merkledb.collections.AbstractLongListTest.checkData;
 import static com.swirlds.merkledb.collections.AbstractLongListTest.populateList;
+import static com.swirlds.merkledb.collections.LongListOffHeap.DEFAULT_RESERVED_BUFFER_LENGTH;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -26,9 +27,9 @@ class LongListAdHocTest {
     @ParameterizedTest
     @MethodSource("provideLongLists")
     void test4089(final AbstractLongList<?> list) {
-        list.updateValidRange(0, list.capacity() - 1);
+        list.updateValidRange(0, list.maxLongs - 1);
         // Issue #4089: ArrayIndexOutOfBoundsException from VirtualMap.put()
-        final long maxLongs = list.capacity();
+        final long maxLongs = list.maxLongs;
         final int defaultValue = -1;
         final AtomicBoolean done = new AtomicBoolean();
 
@@ -47,11 +48,11 @@ class LongListAdHocTest {
     }
 
     static Stream<LongList> provideLongLists() {
-        final int longsPerChunk = 32;
-        final int capacity = longsPerChunk * 4096;
+        final int numLongsPerChunk = 32;
+        final int maxLongs = numLongsPerChunk * 4096;
         return Stream.of(
-                new LongListHeap(longsPerChunk, capacity, 0),
-                new LongListOffHeap(longsPerChunk, capacity, longsPerChunk / 4));
+                new LongListHeap(numLongsPerChunk, maxLongs, 0),
+                new LongListOffHeap(numLongsPerChunk, maxLongs, DEFAULT_RESERVED_BUFFER_LENGTH));
     }
 
     // Tests https://github.com/hashgraph/hedera-services/issues/16860

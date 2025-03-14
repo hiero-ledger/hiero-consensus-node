@@ -24,8 +24,8 @@ import org.apache.logging.log4j.Logger;
  * value for any given index is easily found using modular arithmetic. Note that <br>
  * to reduce memory consumption one can use {@link LongList#updateValidRange(long, long)}.
  * A call to this method discards memory chunks reserved for the indices that are before the index
- * passed as an argument subtracted by {@link AbstractLongList#reservedBufferSize}. The idea is to
- * keep the amount of memory defined by {@link AbstractLongList#reservedBufferSize} reserved even
+ * passed as an argument subtracted by {@link AbstractLongList#reservedBufferLength}. The idea is to
+ * keep the amount of memory defined by {@link AbstractLongList#reservedBufferLength} reserved even
  * though it serves indices that are before the minimal index. It may be a good idea because there
  * is a good chance that the indices in this range may be used (e.g. in case of mass deletion from
  * an instance of {@link com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore})
@@ -36,79 +36,45 @@ import org.apache.logging.log4j.Logger;
 public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implements OffHeapUser {
 
     private static final Logger logger = LogManager.getLogger(LongListOffHeap.class);
-
     /**
-     * Create a new off-heap long list with the specified capacity. Number of longs per chunk and
-     * reserved buffer size are read from the provided configuration.
-     *
-     * @param capacity Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
+     * Construct a new OffHeapLongList with the default 8Mb chunk size and 2Mb of reserved buffer
      */
-    public LongListOffHeap(final long capacity, final Configuration configuration) {
-        super(capacity, configuration);
+    public LongListOffHeap() {
+        this(DEFAULT_NUM_LONGS_PER_CHUNK, DEFAULT_MAX_LONGS_TO_STORE, DEFAULT_RESERVED_BUFFER_LENGTH);
     }
 
     /**
-     * Create a new off-heap long list with the specified chunk size, capacity, and reserved
-     * buffer size.
+     * Construct a new LongListOffHeap with the specified chunk size
      *
-     * @param longsPerChunk Number of longs to store in each chunk of memory allocated
-     * @param capacity Maximum number of longs permissible for this long list
-     * @param reservedBufferSize Reserved buffer length that the list should have before
-     *                           minimal index in the list
+     * @param numLongsPerChunk size for each chunk of memory to allocate. Max 16Gb = 16,384Mb
+     * @param maxLongs the maximum number of longs permissible for this LongList
+     * @param reservedBufferLength the number of indices before the minimal index to keep reserved
      */
-    public LongListOffHeap(final int longsPerChunk, final long capacity, final long reservedBufferSize) {
-        super(longsPerChunk, capacity, reservedBufferSize);
+    LongListOffHeap(final int numLongsPerChunk, final long maxLongs, final long reservedBufferLength) {
+        super(numLongsPerChunk, maxLongs, reservedBufferLength);
     }
 
     /**
-     * Create a new off-heap long list from a file that was saved and the specified capacity. Number of
-     * longs per chunk and reserved buffer size are read from the provided configuration.
-     *
-     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
-     * is thrown.
-     *
-     * @param file The file to load the long list from
-     * @param capacity Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
-     *
-     * @throws IOException If the file doesn't exist or there was a problem reading the file
+     * Construct a new OffHeapLongList with the default 8Mb chunk size and 2Mb of reserved buffer
      */
-    public LongListOffHeap(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
-            throws IOException {
-        super(file, capacity, configuration);
+    public LongListOffHeap(final int reservedBufferLength) {
+        this(DEFAULT_NUM_LONGS_PER_CHUNK, DEFAULT_MAX_LONGS_TO_STORE, reservedBufferLength);
     }
 
     /**
-     * Create a long list from the specified file with the specified chunk size, capacity, and reserved
-     * buffer size. The file must exist.
+     * Create a {@link LongListOffHeap} from a file that was saved.
      *
-     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
-     * is thrown.
-     *
-     * @param path The file to load the long list from
-     * @param longsPerChunk Number of longs to store in each chunk
-     * @param capacity Maximum number of longs permissible for this long list
-     * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
-     * @param configuration Platform configuration
-     *
-     * @throws IOException If the file doesn't exist or there was a problem reading the file
+     * @throws IOException If there was a problem reading the file
      */
-    public LongListOffHeap(
-            @NonNull final Path path,
-            final int longsPerChunk,
-            final long capacity,
-            final long reservedBufferSize,
-            @NonNull final Configuration configuration)
-            throws IOException {
-        super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
+    public LongListOffHeap(final Path file, final Configuration configuration) throws IOException {
+        super(file, DEFAULT_RESERVED_BUFFER_LENGTH, configuration);
     }
 
     /** {@inheritDoc} */
     @Override
     protected ByteBuffer readChunkData(FileChannel fileChannel, int chunkIndex, int startIndex, int endIndex)
             throws IOException {
-        final ByteBuffer chunk = createChunk();
+        ByteBuffer chunk = createChunk();
         readDataIntoBuffer(fileChannel, chunkIndex, startIndex, endIndex, chunk);
         // All chunks (byte buffers) in LongListOffHeap are stored with position == 0 and
         // limit == capacity. When this list is written to a file, the first and the last
@@ -156,7 +122,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
     protected void writeLongsData(final FileChannel fc) throws IOException {
         final int totalNumOfChunks = calculateNumberOfChunks(size());
         final long currentMinValidIndex = minValidIndex.get();
-        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
+        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / numLongsPerChunk);
         // write data
         final ByteBuffer emptyBuffer = createChunk();
         try {
@@ -168,7 +134,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
                 final ByteBuffer buf = nonNullBuffer.slice(0, nonNullBuffer.limit());
                 if (i == firstChunkWithDataIndex) {
                     // writing starts from the first valid index in the first valid chunk
-                    final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
+                    final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % numLongsPerChunk);
                     buf.position(firstValidIndexInChunk * Long.BYTES);
                 } else {
                     buf.position(0);
@@ -233,7 +199,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
             MemoryUtils.setMemory(chunk, 0, entriesToCleanUp * Long.BYTES, (byte) 0);
         } else {
             // cleans up all values on the right side of the last chunk
-            final long offset = (longsPerChunk - entriesToCleanUp) * Long.BYTES;
+            final long offset = (numLongsPerChunk - entriesToCleanUp) * Long.BYTES;
             MemoryUtils.setMemory(chunk, offset, entriesToCleanUp * Long.BYTES, (byte) 0);
         }
     }
