@@ -507,6 +507,16 @@ class BlockStreamManagerImplTest {
         for (int i = 0; i < 8; i++) {
             subject.writeItem(FAKE_RECORD_FILE_ITEM);
         }
+
+        // Immediately resolve to the expected ledger signature
+        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return null;
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
         // End the round
         subject.endRound(state, ROUND_NO);
 
@@ -539,7 +549,10 @@ class BlockStreamManagerImplTest {
         final var proofItem = lastAItem.get();
         assertNotNull(proofItem);
         final var item = BlockItem.PROTOBUF.parse(proofItem);
-        assertFalse(item.hasBlockProof());
+        assertTrue(item.hasBlockProof());
+        final var proof = item.blockProofOrThrow();
+        assertEquals(N_BLOCK_NO, proof.block());
+        assertEquals(FIRST_FAKE_SIGNATURE, proof.blockSignature());
     }
 
     @Test
@@ -714,6 +727,16 @@ class BlockStreamManagerImplTest {
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
+
+        // Set up the signature future to complete immediately and run the callback synchronously
+        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return null;
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
 
         // When starting a round at t=0
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
