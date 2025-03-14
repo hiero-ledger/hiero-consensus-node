@@ -20,6 +20,8 @@ public interface HashgraphPictureOptions {
      */
     boolean writeRoundCreated();
 
+    boolean writeVote();
+
     /**
      * @return should round received be written for every event
      */
