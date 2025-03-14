@@ -118,7 +118,7 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>It is another theorem that the d12 and d2 algorithm have more than two thirds of the
  * population creating unique famous witnesses (judges) in each round. It is a theorem that d1 does,
- * too, for the algorithmn described in 2016, and is conjectured to be true for the 2019 version,
+ * too, for the algorithm described in 2016, and is conjectured to be true for the 2019 version,
  * too.
  *
  * <p>Another new theorem used here:
