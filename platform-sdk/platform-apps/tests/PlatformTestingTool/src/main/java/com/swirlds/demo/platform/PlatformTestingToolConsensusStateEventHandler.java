@@ -846,7 +846,7 @@ public class PlatformTestingToolConsensusStateEventHandler
                         ex,
                         (error) -> logger.error(
                                 EXCEPTION.getMarker(),
-                                "" + "InvalidProtocolBufferException while chekcing signature",
+                                "" + "InvalidProtocolBufferException while checking signature",
                                 error));
             }
         }
