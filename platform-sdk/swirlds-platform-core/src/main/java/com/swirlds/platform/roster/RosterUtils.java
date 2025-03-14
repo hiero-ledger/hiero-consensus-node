@@ -286,10 +286,10 @@ public final class RosterUtils {
     @NonNull
     public static RosterHistory createRosterHistory(@NonNull final ReadableRosterStore rosterStore) {
         final var roundRosterPairs = rosterStore.getRosterHistory();
-        final var rosterMap = roundRosterPairs.stream()
-                .collect(Collectors.toMap(
-                        RoundRosterPair::activeRosterHash,
-                        pair -> Objects.requireNonNull(rosterStore.get(pair.activeRosterHash()))));
+        final Map<Bytes, Roster> rosterMap = new HashMap<>();
+        for (final var pair : roundRosterPairs) {
+            rosterMap.put(pair.activeRosterHash(), Objects.requireNonNull(rosterStore.get(pair.activeRosterHash())));
+        }
         return new RosterHistory(roundRosterPairs, rosterMap);
     }
 
