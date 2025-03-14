@@ -72,7 +72,7 @@ For example
 	
 			java -Dptype=1 -Dtarget=1 -Dlimit=5 -Ddir=0 -Damount=2000  -Dsize=3000 -Drealm=true -jar swirlds.jar
 			
-			Test new file system file creationg, submission speed is 5 transaction per second per node. Each node creating 2000 file,
+			Test new file system file creating, submission speed is 5 transaction per second per node. Each node creating 2000 file,
 			each file is 3000 bytes
 			
 			
@@ -95,7 +95,7 @@ Standalone mode
 java  -Ddebug=1 -Damount=10 -Dseed=100  -classpath  swirlds.jar:data/apps/PlatformTestingDemo.jar com/swirlds/platform/fs/stresstest/FileStressTest
 
 
-supproted parameter
+supported parameter
 
 debug    0 turn off debug message printing,  1 turn on debug message printing
 amount   amount of files or directories created
