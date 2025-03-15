@@ -196,17 +196,20 @@ public class HelloWorldEthereumSuite {
         return hapiTest(
                 newKeyNamed(adminKey),
                 newKeyNamed(maliciousEOA).shape(SECP_256K1_SHAPE),
-                cryptoCreate(RELAYER)
-                        .balance(10 * ONE_MILLION_HBARS)
-                        .exposingCreatedIdTo(
-                                id -> relayerEvmAddress.set(asHexedSolidityAddress(0, 0, id.getAccountNum()))),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, maliciousEOA, maliciousStartBalance))
-                        .via(maliciousAutoCreation),
                 withOpContext((spec, opLog) -> {
+                    final var create = cryptoCreate(RELAYER)
+                            .balance(10 * ONE_MILLION_HBARS)
+                            .exposingCreatedIdTo(id -> relayerEvmAddress.set(asHexedSolidityAddress(
+                                    (int) spec.setup().defaultShard().getShardNum(),
+                                    spec.setup().defaultRealm().getRealmNum(),
+                                    id.getAccountNum())));
+                    final var transfer = cryptoTransfer(
+                                    tinyBarsFromAccountToAlias(GENESIS, maliciousEOA, maliciousStartBalance))
+                            .via(maliciousAutoCreation);
                     final var lookup = getTxnRecord(maliciousAutoCreation)
                             .andAllChildRecords()
                             .logged();
-                    allRunFor(spec, lookup);
+                    allRunFor(spec, create, transfer, lookup);
                     final var childCreation = lookup.getFirstNonStakingChildRecord();
                     maliciousEOAId.set(
                             asAccountString(childCreation.getReceipt().getAccountID()));
@@ -630,12 +633,16 @@ public class HelloWorldEthereumSuite {
 
     @HapiTest
     final Stream<DynamicTest> topLevelLazyCreateOfMirrorAddressReverts() {
-        final var nonExistentMirrorAddress = Utils.asSolidityAddress(0, 0, 666_666);
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(123 * ONE_HUNDRED_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                ethereumCryptoTransferToExplicit(nonExistentMirrorAddress, 123)
+                withOpContext((spec, opLog) -> ethereumCryptoTransferToExplicit(
+                                Utils.asSolidityAddress(
+                                        (int) spec.setup().defaultShard().getShardNum(),
+                                        spec.setup().defaultRealm().getRealmNum(),
+                                        666_666),
+                                123)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .payingWith(RELAYER)
@@ -643,7 +650,7 @@ public class HelloWorldEthereumSuite {
                         .maxFeePerGas(50L)
                         .maxPriorityGas(2L)
                         .gasLimit(1_000_000L)
-                        .hasPrecheck(INVALID_ALIAS_KEY));
+                        .hasPrecheck(INVALID_ALIAS_KEY)));
     }
 
     @HapiTest

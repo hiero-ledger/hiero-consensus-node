@@ -1484,6 +1484,8 @@ public class TransferWithCustomRoyaltyFees {
                                                     .build())
                                             .addTransfers(AccountAmount.newBuilder()
                                                     .setAccountID(AccountID.newBuilder()
+                                                            .setShardNum(shard)
+                                                            .setRealmNum(realm)
                                                             .setAlias(ByteString.copyFrom(asEvmAddress(
                                                                     shard, realm, ownerId.getAccountNum())))
                                                             .build())

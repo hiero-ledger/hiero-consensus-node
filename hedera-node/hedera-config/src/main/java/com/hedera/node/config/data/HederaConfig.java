@@ -10,8 +10,8 @@ import com.swirlds.config.api.ConfigProperty;
 @ConfigData("hedera")
 public record HederaConfig(
         @ConfigProperty(defaultValue = "1001") @NetworkProperty long firstUserEntity,
-        @ConfigProperty(defaultValue = "0") @NodeProperty long realm,
-        @ConfigProperty(defaultValue = "0") @NodeProperty long shard,
+        @ConfigProperty(defaultValue = "5") @NodeProperty long realm,
+        @ConfigProperty(defaultValue = "10") @NodeProperty long shard,
         @ConfigProperty(value = "config.version", defaultValue = "0") @NetworkProperty int configVersion,
         @ConfigProperty(value = "transaction.eip2930.enabled", defaultValue = "true") @NetworkProperty
                 boolean eip2930Enabled,

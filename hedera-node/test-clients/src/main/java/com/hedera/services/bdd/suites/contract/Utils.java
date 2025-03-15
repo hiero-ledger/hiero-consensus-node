@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract;
 
+import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentInWorkingDir;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.NUM_LONG_ZEROS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
@@ -85,6 +86,11 @@ public class Utils {
         final var hexString =
                 Bytes.wrap(asSolidityAddress((int) shard, realm, n)).toHexString();
         return ByteString.copyFrom(Bytes32.fromHexStringLenient(hexString).toArray());
+    }
+
+    public static ByteString parsedToByteString(long n) {
+        return ByteString.copyFrom(
+                Bytes32.fromHexStringLenient(Long.toHexString(n)).toArray());
     }
 
     public static String asHexedAddress(final TokenID id) {
@@ -411,12 +417,12 @@ public class Utils {
     }
 
     public static Address headlongFromHexed(final String addr) {
-        return Address.wrap(Address.toChecksumAddress("0x" + addr));
+        return Address.wrap(toChecksumAddress("0x" + addr));
     }
 
     public static Address mirrorAddrWith(final long num) {
         return Address.wrap(
-                Address.toChecksumAddress(new BigInteger(1, HapiPropertySource.asSolidityAddress(shard, realm, num))));
+                toChecksumAddress(new BigInteger(1, HapiPropertySource.asSolidityAddress(shard, realm, num))));
     }
 
     public static Address nonMirrorAddrWith(final long num) {
@@ -424,8 +430,8 @@ public class Utils {
     }
 
     public static Address nonMirrorAddrWith(final long seed, final long num) {
-        return Address.wrap(Address.toChecksumAddress(
-                new BigInteger(1, HapiPropertySource.asSolidityAddress((int) seed, seed, num))));
+        return Address.wrap(
+                toChecksumAddress(new BigInteger(1, HapiPropertySource.asSolidityAddress((int) seed, seed, num))));
     }
 
     public static long expectedPrecompileGasFor(
@@ -480,15 +486,21 @@ public class Utils {
     /**
      * Converts a long-zero address to a {@link ScheduleID} with id number instead of alias.
      *
-     * @param shard the shard of the Hedera network
-     * @param realm the realm of the Hedera network
      * @param address the EVM address
      * @return the {@link ScheduleID}
      */
     public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
-            final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+            @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+        var addressHex = toChecksumAddress(address.value());
+        addressHex = addressHex.substring(2); // remove 0x
+        var shard = addressHex.substring(0, 8);
+        var realm = addressHex.substring(8, 24);
+        var scheduleNum = addressHex.substring(24, 40);
+
         return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
-                .setScheduleNum(address.value().longValueExact())
+                .setShardNum(new BigInteger(shard, 16).longValue())
+                .setRealmNum(new BigInteger(realm, 16).longValue())
+                .setScheduleNum(new BigInteger(scheduleNum, 16).longValue())
                 .build();
     }
 

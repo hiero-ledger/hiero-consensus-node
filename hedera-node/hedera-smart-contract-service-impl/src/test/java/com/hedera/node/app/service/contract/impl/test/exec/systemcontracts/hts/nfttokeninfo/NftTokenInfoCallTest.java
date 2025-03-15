@@ -52,8 +52,7 @@ class NftTokenInfoCallTest extends CallTestBase {
         when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(LEDGER_ID);
         when(ledgerConfig.id()).thenReturn(expectedLedgerId);
-        when(nativeOperations.getNft(FUNGIBLE_EVERYTHING_TOKEN.tokenId().tokenNum(), 2L))
-                .thenReturn(CIVILIAN_OWNED_NFT);
+        when(nativeOperations.getNft(FUNGIBLE_EVERYTHING_TOKEN.tokenId(), 2L)).thenReturn(CIVILIAN_OWNED_NFT);
 
         when(nativeOperations.getAccount(CIVILIAN_OWNED_NFT.ownerIdOrThrow())).thenReturn(SOMEBODY);
         when(nativeOperations.getAccount(CIVILIAN_OWNED_NFT.spenderIdOrThrow())).thenReturn(OPERATOR);
@@ -111,7 +110,7 @@ class NftTokenInfoCallTest extends CallTestBase {
         when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(LEDGER_ID);
         when(ledgerConfig.id()).thenReturn(expectedLedgerId);
-        when(nativeOperations.getNft(FUNGIBLE_EVERYTHING_TOKEN_16C.tokenId().tokenNum(), 2L))
+        when(nativeOperations.getNft(FUNGIBLE_EVERYTHING_TOKEN_16C.tokenId(), 2L))
                 .thenReturn(CIVILIAN_OWNED_NFT);
 
         when(nativeOperations.getAccount(CIVILIAN_OWNED_NFT.ownerIdOrThrow())).thenReturn(SOMEBODY);

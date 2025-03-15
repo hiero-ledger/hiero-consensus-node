@@ -17,9 +17,11 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ordinal
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.hapi.utils.HederaExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ownerof.OwnerOfCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ownerof.OwnerOfTranslator;
@@ -71,8 +73,8 @@ class OwnerOfCallTest extends CallTestBase {
     @Test
     void revertsWithMissingOwner() {
         subject = new OwnerOfCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, NFT_SERIAL_NO);
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID.tokenNum(), NFT_SERIAL_NO))
-                .willReturn(CIVILIAN_OWNED_NFT);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, NFT_SERIAL_NO)).willReturn(CIVILIAN_OWNED_NFT);
 
         final var result = subject.execute().fullResult().result();
 
@@ -83,10 +85,10 @@ class OwnerOfCallTest extends CallTestBase {
     @Test
     void returnsUnaliasedOwnerLongZeroForPresentTokenAndNonTreasuryNft() {
         subject = new OwnerOfCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, NFT_SERIAL_NO);
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID.tokenNum(), NFT_SERIAL_NO))
-                .willReturn(CIVILIAN_OWNED_NFT);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, NFT_SERIAL_NO)).willReturn(CIVILIAN_OWNED_NFT);
         final long ownerNum = CIVILIAN_OWNED_NFT.ownerIdOrThrow().accountNumOrThrow();
-        given(nativeOperations.getAccount(ownerNum)).willReturn(TestHelpers.SOMEBODY);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(TestHelpers.SOMEBODY);
 
         final var result = subject.execute().fullResult().result();
 
@@ -102,10 +104,10 @@ class OwnerOfCallTest extends CallTestBase {
     @Test
     void returnsAliasedOwnerLongZeroForPresentTokenAndTreasuryNft() {
         subject = new OwnerOfCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, NFT_SERIAL_NO);
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID.tokenNum(), NFT_SERIAL_NO))
-                .willReturn(TREASURY_OWNED_NFT);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, NFT_SERIAL_NO)).willReturn(TREASURY_OWNED_NFT);
         final long ownerNum = NON_FUNGIBLE_TOKEN.treasuryAccountIdOrThrow().accountNumOrThrow();
-        given(nativeOperations.getAccount(ownerNum)).willReturn(TestHelpers.ALIASED_SOMEBODY);
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(TestHelpers.ALIASED_SOMEBODY);
 
         final var result = subject.execute().fullResult().result();
 

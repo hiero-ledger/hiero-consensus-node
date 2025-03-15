@@ -14,6 +14,7 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.SpecEntity;
 import com.hedera.services.bdd.spec.dsl.SpecEntityRegistrar;
 import com.hedera.services.bdd.spec.dsl.operations.deferred.DoWithModelOperation;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -38,6 +39,10 @@ import org.apache.logging.log4j.Logger;
  */
 public abstract class AbstractSpecEntity<O extends SpecOperation, M> implements SpecEntity {
     private static final Logger log = LogManager.getLogger(AbstractSpecEntity.class);
+    protected static final String SHARD =
+            JutilPropertySource.getDefaultInstance().get("default.shard");
+    protected static final String REALM =
+            JutilPropertySource.getDefaultInstance().get("default.realm");
 
     /**
      * Represents the attempt to create an entity.

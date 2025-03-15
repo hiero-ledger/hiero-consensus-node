@@ -29,6 +29,7 @@ import com.hedera.node.app.service.token.records.FinalizeContext;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -1057,9 +1058,13 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
     private void mockEntityIdFactory() {
         long stackingRewardAccount =
                 configuration.getConfigData(AccountsConfig.class).stakingRewardAccount();
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         given(entityIdFactory.newAccountId(stackingRewardAccount))
-                .willReturn(
-                        AccountID.newBuilder().accountNum(stackingRewardAccount).build());
+                .willReturn(AccountID.newBuilder()
+                        .shardNum(hederaConfig.shard())
+                        .realmNum(hederaConfig.realm())
+                        .accountNum(stackingRewardAccount)
+                        .build());
     }
 
     private void randomStakeNodeChanges() {

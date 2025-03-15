@@ -97,7 +97,7 @@ class QueryHederaNativeOperationsTest {
     void getAccountUsesContextReadableStore() {
         given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(Account.DEFAULT);
-        assertSame(Account.DEFAULT, subject.getAccount(NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow()));
+        assertSame(Account.DEFAULT, subject.getAccount(NON_SYSTEM_ACCOUNT_ID));
     }
 
     @Test
@@ -118,23 +118,21 @@ class QueryHederaNativeOperationsTest {
     void getTokenUsesStore() {
         given(context.createStore(ReadableTokenStore.class)).willReturn(tokenStore);
         given(tokenStore.get(FUNGIBLE_TOKEN_ID)).willReturn(FUNGIBLE_TOKEN);
-        assertSame(FUNGIBLE_TOKEN, subject.getToken(FUNGIBLE_TOKEN_ID.tokenNum()));
+        assertSame(FUNGIBLE_TOKEN, subject.getToken(FUNGIBLE_TOKEN_ID));
     }
 
     @Test
     void getRelationshipUsesStore() {
         given(context.createStore(ReadableTokenRelationStore.class)).willReturn(relationStore);
         given(relationStore.get(A_NEW_ACCOUNT_ID, FUNGIBLE_TOKEN_ID)).willReturn(A_FUNGIBLE_RELATION);
-        assertSame(
-                A_FUNGIBLE_RELATION,
-                subject.getTokenRelation(A_NEW_ACCOUNT_ID.accountNumOrThrow(), FUNGIBLE_TOKEN_ID.tokenNum()));
+        assertSame(A_FUNGIBLE_RELATION, subject.getTokenRelation(A_NEW_ACCOUNT_ID, FUNGIBLE_TOKEN_ID));
     }
 
     @Test
     void getNftUsesStore() {
         given(context.createStore(ReadableNftStore.class)).willReturn(nftStore);
         given(nftStore.get(CIVILIAN_OWNED_NFT.nftIdOrThrow())).willReturn(CIVILIAN_OWNED_NFT);
-        assertSame(CIVILIAN_OWNED_NFT, subject.getNft(NON_FUNGIBLE_TOKEN_ID.tokenNum(), NFT_SERIAL_NO));
+        assertSame(CIVILIAN_OWNED_NFT, subject.getNft(NON_FUNGIBLE_TOKEN_ID, NFT_SERIAL_NO));
     }
 
     @Test

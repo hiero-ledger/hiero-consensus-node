@@ -305,7 +305,9 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                         genesisNetwork = hedera.startupNetworks().genesisNetworkOrThrow(platformConfig);
                     } catch (Exception ignore) {
                         // Fallback to the legacy address book if genesis-network.json or equivalent not loaded
-                        genesisNetwork = DiskStartupNetworks.fromLegacyAddressBook(maybeDiskAddressBook.orElseThrow());
+                        genesisNetwork = DiskStartupNetworks.fromLegacyAddressBook(
+                                maybeDiskAddressBook.orElseThrow(),
+                                hedera.bootstrapConfigProvider().getConfiguration());
                     }
                     final var genesisState = hedera.newStateRoot();
                     hedera.initializeStatesApi(genesisState, GENESIS, genesisNetwork, platformConfig);

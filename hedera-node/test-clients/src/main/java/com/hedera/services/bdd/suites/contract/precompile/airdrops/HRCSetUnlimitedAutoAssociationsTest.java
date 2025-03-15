@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -38,7 +39,7 @@ public class HRCSetUnlimitedAutoAssociationsTest {
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi(
-                                        "0.0." + accountNum.get().value(),
+                                        asEntityString(accountNum.get().value().longValue()),
                                         getABIFor(
                                                 com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION,
                                                 "setUnlimitedAutomaticAssociations",
@@ -73,7 +74,7 @@ public class HRCSetUnlimitedAutoAssociationsTest {
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi(
-                                        "0.0." + accountNum.get().value(),
+                                        asEntityString(accountNum.get().value().longValue()),
                                         getABIFor(
                                                 com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION,
                                                 "setUnlimitedAutomaticAssociations",

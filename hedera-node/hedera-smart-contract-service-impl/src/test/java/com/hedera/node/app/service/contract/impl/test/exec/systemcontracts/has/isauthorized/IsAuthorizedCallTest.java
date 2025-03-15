@@ -108,7 +108,9 @@ public class IsAuthorizedCallTest extends CallTestBase {
                     .when(() ->
                             ConversionUtils.accountNumberForEvmReference(APPROVED_HEADLONG_ADDRESS, nativeOperations))
                     .thenReturn(1001L);
-            given(nativeOperations.getAccount(1001L)).willReturn(mockAccount);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+            given(nativeOperations.getAccount(entityIdFactory.newAccountId(1001L)))
+                    .willReturn(mockAccount);
             given(mockAccount.key()).willReturn(null);
 
             subject = getSubject(APPROVED_HEADLONG_ADDRESS);
@@ -131,7 +133,9 @@ public class IsAuthorizedCallTest extends CallTestBase {
                     .when(() ->
                             ConversionUtils.accountNumberForEvmReference(APPROVED_HEADLONG_ADDRESS, nativeOperations))
                     .thenReturn(1001L);
-            given(nativeOperations.getAccount(1001L)).willReturn(mockAccount);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+            given(nativeOperations.getAccount(entityIdFactory.newAccountId(1001L)))
+                    .willReturn(mockAccount);
             given(mockAccount.key()).willReturn(mockKey);
 
             // Took a valid protobuf for some a message containing only a long string field and
@@ -248,7 +252,9 @@ public class IsAuthorizedCallTest extends CallTestBase {
                     .when(() ->
                             ConversionUtils.accountNumberForEvmReference(APPROVED_HEADLONG_ADDRESS, nativeOperations))
                     .thenReturn(1001L);
-            given(nativeOperations.getAccount(1001L)).willReturn(mockAccount);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+            given(nativeOperations.getAccount(entityIdFactory.newAccountId(1001L)))
+                    .willReturn(mockAccount);
             given(mockAccount.key()).willReturn(mockKey);
             given(mockSignatureVerifier.countSimpleKeys(mockKey)).willReturn(new KeyCounts(nEDkeys, nECkeys));
 
