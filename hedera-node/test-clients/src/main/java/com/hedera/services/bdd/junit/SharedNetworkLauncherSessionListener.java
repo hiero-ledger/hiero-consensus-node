@@ -22,7 +22,6 @@ import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.platform.engine.TestSource;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.launcher.LauncherSession;
 import org.junit.platform.launcher.LauncherSessionListener;
@@ -84,25 +83,17 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                                     HapiSpec.doDelayedPrepareUpgrades(offsets);
                                 }
                             }
-                            final boolean isIssScenario = isIssScenario(testPlan);
                             SubProcessNetwork subProcessNetwork = (SubProcessNetwork)
-                                    SubProcessNetwork.newSharedNetwork(CLASSIC_HAPI_TEST_NETWORK_SIZE, isIssScenario);
+                                    SubProcessNetwork.newSharedNetwork(CLASSIC_HAPI_TEST_NETWORK_SIZE);
 
                             // Check test classes for WithBlockNodes annotation
                             log.info("Checking test classes for WithBlockNodes annotation...");
 
                             Set<TestIdentifier> allIdentifiers = new HashSet<>();
                             testPlan.getRoots().forEach(root -> {
-                                log.info("Found root: {}", root.getDisplayName());
                                 allIdentifiers.add(root);
-                                root.getSource().ifPresent(source -> log.info("Root source: {}", source));
-
                                 // Get all descendants of this root
-                                testPlan.getChildren(root.getUniqueId()).forEach(child -> {
-                                    log.info("Found child: {}", child.getDisplayName());
-                                    allIdentifiers.add(child);
-                                    child.getSource().ifPresent(source -> log.info("Child source: {}", source));
-                                });
+                                allIdentifiers.addAll(testPlan.getChildren(root.getUniqueId()));
                             });
 
                             allIdentifiers.stream()
@@ -180,21 +171,6 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 case "repeatable" -> Embedding.REPEATABLE;
                 default -> Embedding.NA;
             };
-        }
-
-        private static boolean isIssScenario(final TestPlan testPlan) {
-            final Set<TestIdentifier> testChildren =
-                    testPlan.getChildren(testPlan.getRoots().iterator().next());
-            if (testChildren.iterator().hasNext()) {
-                final Optional<TestSource> testSource =
-                        testChildren.iterator().next().getSource();
-                if (testSource.isPresent() && testSource.get() instanceof ClassSource tscs) {
-                    final Class<?> javaClass = tscs.getJavaClass();
-                    return javaClass.isAnnotationPresent(IssHapiTest.class);
-                }
-            }
-
-            return false;
         }
     }
 }
