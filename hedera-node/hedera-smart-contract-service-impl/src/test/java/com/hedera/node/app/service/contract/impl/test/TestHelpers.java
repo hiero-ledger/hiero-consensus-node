@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test;
 
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.typedKeyTupleFor;
@@ -77,7 +78,6 @@ import com.hedera.node.app.service.contract.impl.records.ContractOperationStream
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
-import com.hedera.node.app.spi.key.KeyUtils;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.node.config.data.AccountsConfig;
@@ -253,10 +253,8 @@ public class TestHelpers {
             .tokenType(TokenType.FUNGIBLE_COMMON)
             .build();
 
-    public static final Token EXPLICITLY_IMMUTABLE_FUNGIBLE_TOKEN = FUNGIBLE_TOKEN
-            .copyBuilder()
-            .adminKey(KeyUtils.IMMUTABILITY_SENTINEL_KEY)
-            .build();
+    public static final Token EXPLICITLY_IMMUTABLE_FUNGIBLE_TOKEN =
+            FUNGIBLE_TOKEN.copyBuilder().adminKey(IMMUTABILITY_SENTINEL_KEY).build();
     public static final Token MUTABLE_FUNGIBLE_TOKEN =
             FUNGIBLE_TOKEN.copyBuilder().adminKey(AN_ED25519_KEY).build();
     public static final CustomFee FIXED_HBAR_FEES = CustomFee.newBuilder()

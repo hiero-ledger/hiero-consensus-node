@@ -15,10 +15,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOIN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IP_FQDN_CANNOT_BE_SET_FOR_SAME_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERVICE_ENDPOINTS_EXCEEDED_LIMIT;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.readCertificatePemFile;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.writeCertificatePemFile;
-import static com.hedera.node.app.spi.key.KeyUtils.isEmpty;
-import static com.hedera.node.app.spi.key.KeyUtils.isValid;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;

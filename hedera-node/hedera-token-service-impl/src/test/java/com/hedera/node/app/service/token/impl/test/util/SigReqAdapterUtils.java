@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.test.util;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.AdapterUtils.mockStates;
@@ -59,7 +60,6 @@ import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.TOKEN_
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.TOKEN_TREASURY_KT;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.TOKEN_WIPE_KT;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.TREASURY_PAYER;
-import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
