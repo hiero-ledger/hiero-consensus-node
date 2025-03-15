@@ -10,6 +10,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -17,6 +18,8 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.IssListener;
 import com.swirlds.platform.system.state.notifications.IssNotification;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -105,6 +108,11 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     @Override
     public ConsensusStateEventHandler<ISSTestingToolState> newConsensusStateEvenHandler() {
         return new ISSTestingToolConsensusStateEventHandler();
+    }
+
+    @Override
+    public StateLifecycleManager<ISSTestingToolState> newStateLifecycleManager() {
+        return new StateLifecycleManagerImpl<>(new NoOpMetrics());
     }
 
     /**

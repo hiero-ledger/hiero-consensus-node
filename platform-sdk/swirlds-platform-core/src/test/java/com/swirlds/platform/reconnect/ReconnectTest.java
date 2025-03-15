@@ -114,10 +114,11 @@ final class ReconnectTest {
                 .build();
 
         try (final PairedStreams pairedStreams = new PairedStreams()) {
-            final Pair<SignedState, TestPlatformStateFacade> signedStateFacadePair = new RandomSignedStateGenerator()
-                    .setRoster(roster)
-                    .setSigningNodeIds(nodeIds)
-                    .buildWithFacade();
+            final Pair<SignedState<MerkleNodeState>, TestPlatformStateFacade> signedStateFacadePair =
+                    new RandomSignedStateGenerator()
+                            .setRoster(roster)
+                            .setSigningNodeIds(nodeIds)
+                            .buildWithFacade();
             final SignedState signedState = signedStateFacadePair.left();
             final PlatformStateFacade platformStateFacade = signedStateFacadePair.right();
 

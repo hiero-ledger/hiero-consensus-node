@@ -16,7 +16,7 @@ import com.swirlds.platform.pool.TransactionPoolNexus;
 import com.swirlds.platform.roster.RosterHistory;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.SwirldStateManager;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -25,6 +25,7 @@ import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -69,8 +70,6 @@ import java.util.function.Supplier;
  * @param consensusEventStreamName               a part of the name of the directory where the consensus event stream is written
  * @param issScratchpad                          scratchpad storage for ISS recovery
  * @param notificationEngine                     for sending notifications to the application (legacy pattern)
- * @param firstPlatform                          if this is the first platform being built (there is static setup that
- *                                               needs to be done, long term plan is to stop using static variables)
  * @param statusActionSubmitterReference         a reference to the status action submitter, this can be deleted once
  *                                               platform status management is handled by the wiring framework
  * @param getLatestCompleteStateReference        a reference to a supplier that supplies the latest immutable state,
@@ -80,12 +79,15 @@ import java.util.function.Supplier;
  *                                               removed once reconnect is made compatible with the wiring framework
  * @param clearAllPipelinesForReconnectReference a reference to a runnable that clears all pipelines for reconnect, can
  *                                               be removed once reconnect is made compatible with the wiring framework
- * @param swirldStateManager                     responsible for the mutable state, this is exposed here due to
- *                                               reconnect, can be removed once reconnect is made compatible with the
- *                                               wiring framework
+ * @param firstPlatform                          if this is the first platform being built (there is static setup that
+ *                                               needs to be done, long term plan is to stop using static variables)
  * @param platformStateFacade                    the facade to access the platform state
+ * @param stateLifecycleManager                  responsible for maintaining references to the mutable state and the latest immutable state,
+ *                                               this is exposed here due to reconnect, can be removed once reconnect is made compatible with the
+ *                                               wiring framework
+ *
  */
-public record PlatformBuildingBlocks(
+public record PlatformBuildingBlocks<T extends MerkleNodeState>(
         @NonNull PlatformWiring platformWiring,
         @NonNull PlatformContext platformContext,
         @NonNull WiringModel model,
@@ -94,7 +96,7 @@ public record PlatformBuildingBlocks(
         @NonNull String mainClassName,
         @NonNull String swirldName,
         @NonNull SoftwareVersion appVersion,
-        @NonNull ReservedSignedState initialState,
+        @NonNull ReservedSignedState<T> initialState,
         @NonNull RosterHistory rosterHistory,
         @NonNull ApplicationCallbacks applicationCallbacks,
         @Nullable Consumer<PlatformEvent> preconsensusEventConsumer,
@@ -103,19 +105,19 @@ public record PlatformBuildingBlocks(
         @NonNull RandomBuilder randomBuilder,
         @NonNull TransactionPoolNexus transactionPoolNexus,
         @NonNull AtomicReference<Predicate<Instant>> isInFreezePeriodReference,
-        @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
+        @NonNull AtomicReference<Function<String, ReservedSignedState<T>>> latestImmutableStateProviderReference,
         @NonNull PcesFileTracker initialPcesFiles,
         @NonNull String consensusEventStreamName,
         @NonNull Scratchpad<IssScratchpad> issScratchpad,
         @NonNull NotificationEngine notificationEngine,
         @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
-        @NonNull SwirldStateManager swirldStateManager,
-        @NonNull AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
-        @NonNull AtomicReference<Consumer<SignedState>> loadReconnectStateReference,
+        @NonNull AtomicReference<Supplier<ReservedSignedState<T>>> getLatestCompleteStateReference,
+        @NonNull AtomicReference<Consumer<SignedState<?>>> loadReconnectStateReference,
         @NonNull AtomicReference<Runnable> clearAllPipelinesForReconnectReference,
         boolean firstPlatform,
-        @NonNull ConsensusStateEventHandler consensusStateEventHandler,
-        @NonNull PlatformStateFacade platformStateFacade) {
+        @NonNull ConsensusStateEventHandler<T> consensusStateEventHandler,
+        @NonNull PlatformStateFacade platformStateFacade,
+        @NonNull StateLifecycleManager<T> stateLifecycleManager) {
 
     public PlatformBuildingBlocks {
         requireNonNull(platformWiring);
@@ -139,9 +141,9 @@ public record PlatformBuildingBlocks(
         requireNonNull(issScratchpad);
         requireNonNull(notificationEngine);
         requireNonNull(statusActionSubmitterReference);
-        requireNonNull(swirldStateManager);
         requireNonNull(getLatestCompleteStateReference);
         requireNonNull(loadReconnectStateReference);
         requireNonNull(clearAllPipelinesForReconnectReference);
+        requireNonNull(stateLifecycleManager);
     }
 }

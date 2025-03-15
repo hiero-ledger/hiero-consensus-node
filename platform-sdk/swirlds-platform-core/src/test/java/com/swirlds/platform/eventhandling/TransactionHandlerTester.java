@@ -15,17 +15,18 @@ import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateValueAccumulator;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
+import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
+import com.swirlds.platform.test.fixtures.state.TestStateLifecycleManager;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,13 +35,13 @@ import java.util.List;
  */
 public class TransactionHandlerTester {
     private final PlatformStateModifier platformState;
-    private final SwirldStateManager swirldStateManager;
     private final DefaultTransactionHandler defaultTransactionHandler;
     private final List<PlatformStatusAction> submittedActions = new ArrayList<>();
     private final List<Round> handledRounds = new ArrayList<>();
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
     private final TestPlatformStateFacade platformStateFacade;
-    private final MerkleNodeState consensusState;
+    private final TestMerkleStateRoot consensusState;
+    private final StateLifecycleManager<TestMerkleStateRoot> stateLifecycleManager;
 
     /**
      * Constructs a new {@link TransactionHandlerTester} with the given {@link AddressBook}.
@@ -52,7 +53,7 @@ public class TransactionHandlerTester {
                 TestPlatformContextBuilder.create().build();
         platformState = new PlatformStateValueAccumulator();
 
-        consensusState = mock(MerkleNodeState.class);
+        consensusState = mock(TestMerkleStateRoot.class);
         when(consensusState.getRoot()).thenReturn(mock(MerkleNode.class));
         platformStateFacade = mock(TestPlatformStateFacade.class);
 
@@ -68,21 +69,18 @@ public class TransactionHandlerTester {
                 .when(consensusStateEventHandler)
                 .onHandleConsensusRound(any(), same(consensusState), any());
         final StatusActionSubmitter statusActionSubmitter = submittedActions::add;
-        swirldStateManager = new SwirldStateManager(
-                platformContext,
-                RosterRetriever.buildRoster(addressBook),
-                NodeId.FIRST_NODE_ID,
-                statusActionSubmitter,
-                new BasicSoftwareVersion(1),
-                consensusStateEventHandler,
-                platformStateFacade);
-        swirldStateManager.setInitialState(consensusState);
+        stateLifecycleManager = new TestStateLifecycleManager();
         defaultTransactionHandler = new DefaultTransactionHandler(
                 platformContext,
-                swirldStateManager,
                 statusActionSubmitter,
                 mock(SoftwareVersion.class),
-                platformStateFacade);
+                platformStateFacade,
+                stateLifecycleManager,
+                consensusStateEventHandler,
+                RosterRetriever.buildRoster(addressBook),
+                NodeId.FIRST_NODE_ID);
+
+        stateLifecycleManager.setInitialState(consensusState);
     }
 
     /**
@@ -114,13 +112,6 @@ public class TransactionHandlerTester {
     }
 
     /**
-     * @return the {@link SwirldStateManager} used by this tester
-     */
-    public SwirldStateManager getSwirldStateManager() {
-        return swirldStateManager;
-    }
-
-    /**
      * @return the {@link ConsensusStateEventHandler} used by this tester
      */
     public ConsensusStateEventHandler<MerkleNodeState> getStateEventHandler() {
@@ -131,7 +122,7 @@ public class TransactionHandlerTester {
         return platformStateFacade;
     }
 
-    public State getConsensusState() {
+    public TestMerkleStateRoot getConsensusState() {
         return consensusState;
     }
 }

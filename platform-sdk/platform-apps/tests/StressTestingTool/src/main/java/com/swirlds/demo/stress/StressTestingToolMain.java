@@ -25,6 +25,7 @@ import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.metrics.SpeedometerMetric;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
@@ -35,6 +36,8 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -241,6 +244,11 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
         final StressTestingToolState state = new StressTestingToolState();
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
         return state;
+    }
+
+    @Override
+    public StateLifecycleManager<StressTestingToolState> newStateLifecycleManager() {
+        return new StateLifecycleManagerImpl<>(new NoOpMetrics());
     }
 
     @Override

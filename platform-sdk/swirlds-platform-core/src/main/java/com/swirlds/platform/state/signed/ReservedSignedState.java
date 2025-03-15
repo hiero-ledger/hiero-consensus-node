@@ -5,6 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.AutoCloseableNonThrowing;
 import com.swirlds.common.exceptions.ReferenceCountException;
+import com.swirlds.platform.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
@@ -20,7 +21,7 @@ import org.apache.logging.log4j.Logger;
  * asynchronously closing it. Each thread should hold its instance of this class (and therefore its own
  * reservation) if it needs to access a state.
  */
-public class ReservedSignedState implements AutoCloseableNonThrowing {
+public class ReservedSignedState<T extends MerkleNodeState> implements AutoCloseableNonThrowing {
 
     private static final Logger logger = LogManager.getLogger(ReservedSignedState.class);
 
@@ -30,7 +31,7 @@ public class ReservedSignedState implements AutoCloseableNonThrowing {
      */
     private static final AtomicLong nextReservationId = new AtomicLong(0);
 
-    private final SignedState signedState;
+    private final SignedState<T> signedState;
     private final String reason;
     private final long reservationId;
     private boolean closed = false;
@@ -38,8 +39,8 @@ public class ReservedSignedState implements AutoCloseableNonThrowing {
     /**
      * Create a wrapper around null.
      */
-    public static @NonNull ReservedSignedState createNullReservation() {
-        return new ReservedSignedState();
+    public static <T extends MerkleNodeState> @NonNull ReservedSignedState<T> createNullReservation() {
+        return new ReservedSignedState<>();
     }
 
     /**
@@ -61,7 +62,7 @@ public class ReservedSignedState implements AutoCloseableNonThrowing {
      * @param reservationId a unique id to track reserving and releasing of signed states
      */
     private ReservedSignedState(
-            @NonNull final SignedState signedState, @NonNull final String reason, final long reservationId) {
+            @NonNull final SignedState<T> signedState, @NonNull final String reason, final long reservationId) {
         this.signedState = Objects.requireNonNull(signedState);
         this.reason = Objects.requireNonNull(reason);
         this.reservationId = reservationId;
@@ -75,10 +76,10 @@ public class ReservedSignedState implements AutoCloseableNonThrowing {
      *                    SignedState is reserved should attempt to use a unique reason, as this makes debugging
      *                    reservation bugs easier.
      */
-    static @NonNull ReservedSignedState createAndReserve(
-            @NonNull final SignedState signedState, @NonNull final String reason) {
-        final ReservedSignedState reservedSignedState =
-                new ReservedSignedState(signedState, reason, nextReservationId.getAndIncrement());
+    static <T extends MerkleNodeState> @NonNull ReservedSignedState<T> createAndReserve(
+            @NonNull final SignedState<T> signedState, @NonNull final String reason) {
+        final ReservedSignedState<T> reservedSignedState =
+                new ReservedSignedState<>(signedState, reason, nextReservationId.getAndIncrement());
         signedState.incrementReservationCount(reason, reservedSignedState.getReservationId());
         return reservedSignedState;
     }
@@ -111,10 +112,10 @@ public class ReservedSignedState implements AutoCloseableNonThrowing {
      *               reserved should attempt to use a unique reason, as this makes debugging reservation bugs easier.
      * @return a new wrapper around the state that holds a new reservation
      */
-    public @NonNull ReservedSignedState getAndReserve(@NonNull final String reason) {
+    public @NonNull ReservedSignedState<T> getAndReserve(@NonNull final String reason) {
         throwIfClosed();
         if (signedState == null) {
-            return new ReservedSignedState();
+            return new ReservedSignedState<>();
         }
         return createAndReserve(signedState, reason);
     }
@@ -127,15 +128,15 @@ public class ReservedSignedState implements AutoCloseableNonThrowing {
      *               reserved should attempt to use a unique reason, as this makes debugging reservation bugs easier.
      * @return a new wrapper around the state that holds a new reservation, or null if the signed state is closed
      */
-    public @Nullable ReservedSignedState tryGetAndReserve(@NonNull final String reason) {
+    public @Nullable ReservedSignedState<T> tryGetAndReserve(@NonNull final String reason) {
         if (signedState == null) {
-            return new ReservedSignedState();
+            return new ReservedSignedState<>();
         }
         final long reservationId = nextReservationId.getAndIncrement();
         if (!signedState.tryIncrementReservationCount(reason, reservationId)) {
             return null;
         }
-        return new ReservedSignedState(signedState, reason, reservationId);
+        return new ReservedSignedState<>(signedState, reason, reservationId);
     }
 
     /**
@@ -146,7 +147,7 @@ public class ReservedSignedState implements AutoCloseableNonThrowing {
      * @return the signed state
      * @throws IllegalStateException if the signed state is null
      */
-    public @NonNull SignedState get() {
+    public @NonNull SignedState<T> get() {
         throwIfClosed();
         if (signedState == null) {
             throw new IllegalStateException("This object wraps null, and this method is only permitted to be called "
@@ -162,7 +163,7 @@ public class ReservedSignedState implements AutoCloseableNonThrowing {
      *
      * @return the signed state, or null if this object wraps null
      */
-    public @Nullable SignedState getNullable() {
+    public @Nullable SignedState<T> getNullable() {
         throwIfClosed();
         return signedState;
     }

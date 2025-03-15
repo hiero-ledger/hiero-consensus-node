@@ -45,7 +45,7 @@ public final class SignedStateFileReader {
      * @return a signed state with it's associated hash (as computed when the state was serialized)
      * @throws IOException if there is any problems with reading from a file
      */
-    public static @NonNull DeserializedSignedState readStateFile(
+    public static <T extends MerkleNodeState> @NonNull DeserializedSignedState<T> readStateFile(
             @NonNull final Path stateFile,
             @NonNull final PlatformStateFacade stateFacade,
             @NonNull final PlatformContext platformContext)
@@ -57,7 +57,7 @@ public final class SignedStateFileReader {
 
         checkSignedStatePath(stateFile);
 
-        final DeserializedSignedState returnState;
+        final DeserializedSignedState<T> returnState;
         final MerkleTreeSnapshotReader.StateFileData data = MerkleTreeSnapshotReader.readStateFileData(stateFile);
         final File sigSetFile =
                 stateFile.getParent().resolve(SIGNATURE_SET_FILE_NAME).toFile();
@@ -67,10 +67,10 @@ public final class SignedStateFileReader {
                     return in.readSerializable();
                 });
 
-        final SignedState newSignedState = new SignedState(
+        final SignedState<T> newSignedState = new SignedState<>(
                 conf,
                 CryptoStatic::verifySignature,
-                (MerkleNodeState) data.stateRoot(),
+                (T) data.stateRoot(),
                 "SignedStateFileReader.readStateFile()",
                 false,
                 false,
@@ -82,7 +82,7 @@ public final class SignedStateFileReader {
 
         newSignedState.setSigSet(sigSet);
 
-        returnState = new DeserializedSignedState(
+        returnState = new DeserializedSignedState<>(
                 newSignedState.reserve("SignedStateFileReader.readStateFile()"), data.hash());
 
         return returnState;

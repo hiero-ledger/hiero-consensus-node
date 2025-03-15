@@ -144,9 +144,7 @@ class DefaultTransactionHandlerTests {
                 pcesRound,
                 handlerOutput.reservedSignedState().get().isPcesRound(),
                 "the state should match the PCES boolean");
-        verify(tester.getStateEventHandler())
-                .onSealConsensusRound(
-                        consensusRound, tester.getSwirldStateManager().getConsensusState());
+        verify(tester.getStateEventHandler()).onSealConsensusRound(consensusRound, tester.getConsensusState());
     }
 
     @Test

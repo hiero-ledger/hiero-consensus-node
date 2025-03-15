@@ -61,7 +61,7 @@ import com.swirlds.platform.reconnect.ReconnectLearnerFactory;
 import com.swirlds.platform.reconnect.ReconnectLearnerThrottle;
 import com.swirlds.platform.reconnect.ReconnectThrottle;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.SwirldStateManager;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -70,6 +70,7 @@ import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -91,7 +92,6 @@ import org.apache.logging.log4j.Logger;
 public class SyncGossip implements ConnectionTracker, Gossip {
     public static final String PLATFORM_THREAD_POOL_NAME = "platform-core";
     private static final Logger logger = LogManager.getLogger(SyncGossip.class);
-
     private boolean started = false;
 
     private final ReconnectController reconnectController;
@@ -138,7 +138,6 @@ public class SyncGossip implements ConnectionTracker, Gossip {
      * @param roster                        the current roster
      * @param selfId                        this node's ID
      * @param appVersion                    the version of the app
-     * @param swirldStateManager            manages the mutable state
      * @param latestCompleteState           holds the latest signed state that has enough signatures to be verifiable
      * @param statusActionSubmitter         for submitting updates to the platform status manager
      * @param loadReconnectState            a method that should be called when a state from reconnect is obtained
@@ -153,13 +152,13 @@ public class SyncGossip implements ConnectionTracker, Gossip {
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final SoftwareVersion appVersion,
-            @NonNull final SwirldStateManager swirldStateManager,
-            @NonNull final Supplier<ReservedSignedState> latestCompleteState,
+            @NonNull final Supplier<ReservedSignedState<?>> latestCompleteState,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
-            @NonNull final Consumer<SignedState> loadReconnectState,
+            @NonNull final Consumer<SignedState<?>> loadReconnectState,
             @NonNull final Runnable clearAllPipelinesForReconnect,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final StateLifecycleManager<? extends MerkleNodeState> stateLifecycleManager) {
 
         shadowgraph = new Shadowgraph(platformContext, roster.rosterEntries().size(), intakeEventCounter);
 
@@ -240,7 +239,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
 
         final LongSupplier getRoundSupplier = () -> {
-            try (final ReservedSignedState reservedState = latestCompleteState.get()) {
+            try (final ReservedSignedState<?> reservedState = latestCompleteState.get()) {
                 if (reservedState == null || reservedState.isNull()) {
                     return ROUND_UNDEFINED;
                 }
@@ -252,7 +251,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
         reconnectHelper = new ReconnectHelper(
                 this::pause,
                 clearAllPipelinesForReconnect::run,
-                swirldStateManager::getConsensusState,
+                stateLifecycleManager::getMutableState,
                 getRoundSupplier,
                 new ReconnectLearnerThrottle(platformContext.getTime(), selfId, reconnectConfig),
                 state -> {
@@ -322,7 +321,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
             final ThreadManager threadManager,
             final NodeId selfId,
             final SoftwareVersion appVersion,
-            final Supplier<ReservedSignedState> getLatestCompleteState,
+            final Supplier<ReservedSignedState<?>> getLatestCompleteState,
             final SyncMetrics syncMetrics,
             final Supplier<PlatformStatus> platformStatusSupplier,
             final Duration hangingThreadDuration,

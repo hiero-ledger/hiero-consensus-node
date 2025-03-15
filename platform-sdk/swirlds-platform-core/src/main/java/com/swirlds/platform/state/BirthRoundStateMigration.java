@@ -7,7 +7,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -34,13 +33,13 @@ public final class BirthRoundStateMigration {
      * @param appVersion   the current application version
      */
     public static void modifyStateForBirthRoundMigration(
-            @NonNull final SignedState initialState,
+            @NonNull final MerkleNodeState initialState,
             @NonNull final AncientMode ancientMode,
             @NonNull final SoftwareVersion appVersion,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         if (ancientMode == AncientMode.GENERATION_THRESHOLD) {
-            if (platformStateFacade.firstVersionInBirthRoundModeOf(initialState.getState()) != null) {
+            if (platformStateFacade.firstVersionInBirthRoundModeOf(initialState) != null) {
                 throw new IllegalStateException(
                         "Cannot revert to generation mode after birth round migration has been completed.");
             }
@@ -50,18 +49,17 @@ public final class BirthRoundStateMigration {
             return;
         }
 
-        final MerkleNodeState state = initialState.getState();
-        final boolean alreadyMigrated = platformStateFacade.firstVersionInBirthRoundModeOf(state) != null;
+        final boolean alreadyMigrated = platformStateFacade.firstVersionInBirthRoundModeOf(initialState) != null;
         if (alreadyMigrated) {
             // Birth round migration was completed at a prior time, no action needed.
             logger.info(STARTUP.getMarker(), "Birth round state migration has already been completed.");
             return;
         }
 
-        final long lastRoundBeforeMigration = platformStateFacade.roundOf(state);
+        final long lastRoundBeforeMigration = platformStateFacade.roundOf(initialState);
 
         final ConsensusSnapshot consensusSnapshot =
-                Objects.requireNonNull(platformStateFacade.consensusSnapshotOf(state));
+                Objects.requireNonNull(platformStateFacade.consensusSnapshotOf(initialState));
         final List<MinimumJudgeInfo> judgeInfoList = consensusSnapshot.minimumJudgeInfoList();
         final long lowestJudgeGenerationBeforeMigration =
                 judgeInfoList.getLast().minimumJudgeAncientThreshold();
@@ -74,7 +72,7 @@ public final class BirthRoundStateMigration {
                 lastRoundBeforeMigration,
                 lowestJudgeGenerationBeforeMigration);
 
-        platformStateFacade.bulkUpdateOf(state, v -> {
+        platformStateFacade.bulkUpdateOf(initialState, v -> {
             v.setFirstVersionInBirthRoundMode(appVersion);
             v.setLastRoundBeforeBirthRoundMode(lastRoundBeforeMigration);
             v.setLowestJudgeGenerationBeforeBirthRoundMode(lowestJudgeGenerationBeforeMigration);
@@ -90,8 +88,8 @@ public final class BirthRoundStateMigration {
                 modifiedJudgeInfoList,
                 consensusSnapshot.nextConsensusNumber(),
                 consensusSnapshot.consensusTimestamp());
-        platformStateFacade.setSnapshotTo(state, modifiedConsensusSnapshot);
+        platformStateFacade.setSnapshotTo(initialState, modifiedConsensusSnapshot);
 
-        state.invalidateHash();
+        initialState.invalidateHash();
     }
 }

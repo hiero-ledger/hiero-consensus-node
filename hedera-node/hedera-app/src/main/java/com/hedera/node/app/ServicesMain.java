@@ -83,6 +83,8 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.InstantSource;
@@ -101,7 +103,7 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>This class simply delegates to {@link Hedera}.
  */
-public class ServicesMain implements SwirldMain<MerkleNodeState> {
+public class ServicesMain implements SwirldMain<HederaStateRoot> {
     private static final Logger logger = LogManager.getLogger(ServicesMain.class);
 
     /**
@@ -152,7 +154,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull MerkleNodeState newStateRoot() {
+    public @NonNull HederaStateRoot newStateRoot() {
         return hederaOrThrow().newStateRoot();
     }
 
@@ -160,8 +162,16 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * {@inheritDoc}
      */
     @Override
-    public ConsensusStateEventHandler<MerkleNodeState> newConsensusStateEvenHandler() {
+    public ConsensusStateEventHandler<HederaStateRoot> newConsensusStateEvenHandler() {
         return new ConsensusStateEventHandlerImpl(hederaOrThrow());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public StateLifecycleManager<HederaStateRoot> newStateLifecycleManager() {
+        return new StateLifecycleManagerImpl<>(metrics);
     }
 
     /**
@@ -285,7 +295,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final var fileSystemManager = FileSystemManager.create(platformConfig);
         final var recycleBin =
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
-        ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
+        ConsensusStateEventHandler<HederaStateRoot> consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig,
                 Time.getCurrent(),
@@ -294,7 +304,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 recycleBin,
                 merkleCryptography);
         final Optional<AddressBook> maybeDiskAddressBook = loadLegacyAddressBook();
-        final HashedReservedSignedState reservedState = loadInitialState(
+        final HashedReservedSignedState<HederaStateRoot> reservedState = loadInitialState(
                 platformConfig,
                 recycleBin,
                 version,
@@ -316,12 +326,14 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 selfId,
                 platformStateFacade,
                 platformContext);
-        final ReservedSignedState initialState = reservedState.state();
-        final MerkleNodeState state = initialState.get().getState();
+        final ReservedSignedState<HederaStateRoot> initialState = reservedState.state();
+        final HederaStateRoot state = initialState.get().getState();
         if (!isGenesis.get()) {
             hedera.initializeStatesApi(state, RESTART, null, platformConfig);
         }
         hedera.setInitialStateHash(reservedState.hash());
+        final StateLifecycleManager<HederaStateRoot> stateLifecycleManager =
+                new StateLifecycleManagerImpl<>(platformContext.getMetrics());
 
         // --- Create the platform context and initialize the cryptography ---
         final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
@@ -337,7 +349,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
 
         // --- Now build the platform and start it ---
         final var rosterHistory = RosterUtils.createRosterHistory(rosterStore);
-        final var platformBuilder = PlatformBuilder.create(
+        final PlatformBuilder<HederaStateRoot> platformBuilder = PlatformBuilder.<HederaStateRoot>create(
                         Hedera.APP_NAME,
                         Hedera.SWIRLD_NAME,
                         version,
@@ -346,7 +358,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                         selfId,
                         canonicalEventStreamLoc(selfId.id(), state),
                         rosterHistory,
-                        platformStateFacade)
+                        platformStateFacade,
+                        stateLifecycleManager)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
