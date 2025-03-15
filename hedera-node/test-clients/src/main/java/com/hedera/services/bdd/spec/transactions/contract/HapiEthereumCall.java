@@ -77,6 +77,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     private byte[] explicitTo = null;
     private Integer chainId = CHAIN_ID;
     private boolean wrongRecId;
+    private boolean isJumboTxn = false;
 
     public HapiEthereumCall withExplicitParams(final Supplier<String> supplier) {
         explicitHexedParams = Optional.of(supplier);
@@ -346,7 +347,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         var signedEthTxData = Signing.signMessage(ethTxData, privateKeyByteArray, wrongRecId);
         spec.registry().saveBytes(ETH_HASH_KEY, ByteString.copyFrom((signedEthTxData.getEthereumHash())));
 
-        if (createCallDataFile || callData.length > MAX_CALL_DATA_SIZE) {
+        if (createCallDataFile || (!isJumboTxn && callData.length > MAX_CALL_DATA_SIZE)) {
             final var callDataBytesString = ByteString.copyFrom(Hex.encode(callData));
             final var createFile = new HapiFileCreate(CALL_DATA_FILE_NAME);
             final var updateLargeFile =
@@ -432,5 +433,10 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 .add("contract", contract)
                 .add("abi", abi)
                 .add("params", Arrays.toString(params.orElse(null)));
+    }
+
+    public HapiEthereumCall markAsJumboTxn() {
+        isJumboTxn = true;
+        return this;
     }
 }
