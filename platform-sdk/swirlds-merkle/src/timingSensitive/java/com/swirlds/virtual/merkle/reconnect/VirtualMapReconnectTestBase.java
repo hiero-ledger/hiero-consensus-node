@@ -96,12 +96,8 @@ public class VirtualMapReconnectTestBase {
         final Path defaultVirtualMapPath = LegacyTemporaryFileBuilder.buildTemporaryFile(CONFIGURATION);
         MerkleDb.setDefaultPath(defaultVirtualMapPath);
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
-        tableConfig.hashesRamToDiskThreshold(0);
+        final MerkleDbTableConfig tableConfig =
+                new MerkleDbTableConfig((short) 1, DigestType.SHA_384, merkleDbConfig.maxNumOfKeys(), 0);
         return new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
     }
 
