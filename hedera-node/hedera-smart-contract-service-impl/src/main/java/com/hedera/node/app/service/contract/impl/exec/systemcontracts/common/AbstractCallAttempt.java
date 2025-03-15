@@ -30,12 +30,12 @@ import org.hyperledger.besu.datatypes.Address;
  */
 public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
 
-    protected final Bytes input;
     protected final CallAttemptOptions<T> options;
-    protected final Function redirectFunction;
-    protected final byte[] selector;
     // The id of the sender in the EVM frame
     protected final AccountID senderId;
+    protected final Function redirectFunction;
+    protected final Bytes input;
+    protected final byte[] selector;
     // If non-null, the address of a non-contract entity (e.g., account or token) whose
     // "bytecode" redirects all calls to a system contract address, and was determined
     // to be the redirecting entity for this call attempt
@@ -47,11 +47,13 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
      * @param redirectFunction the redirect function
      */
     public AbstractCallAttempt(
+            // we are keeping the 'input' out of the 'options' for not duplicate and keep close to related params
             @NonNull final Bytes input,
             @NonNull final CallAttemptOptions<T> options,
             @NonNull final Function redirectFunction) {
         requireNonNull(input);
         this.options = requireNonNull(options);
+        this.senderId = options.addressIdConverter().convertSender(options.senderAddress());
         this.redirectFunction = requireNonNull(redirectFunction);
 
         if (isRedirectSelector(redirectFunction.selector(), input.toArrayUnsafe())) {
@@ -75,7 +77,6 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
         }
 
         this.selector = this.input.slice(0, 4).toArrayUnsafe();
-        this.senderId = options.addressIdConverter().convertSender(options.senderAddress());
     }
 
     protected abstract SystemContract systemContractKind();
