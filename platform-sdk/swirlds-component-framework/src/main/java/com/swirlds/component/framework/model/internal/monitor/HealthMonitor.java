@@ -3,9 +3,10 @@ package com.swirlds.component.framework.model.internal.monitor;
 
 import static com.swirlds.common.utility.CompareTo.isGreaterThan;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -55,19 +56,20 @@ public class HealthMonitor {
     /**
      * Constructor.
      *
-     * @param platformContext    the platform context
+     * @param metrics   the metrics
+     * @param time  the time
      * @param schedulers         the task schedulers to monitor
      * @param healthLogThreshold the amount of time that must pass before we start logging health information
      * @param healthLogPeriod    the period at which we log health information
      */
     public HealthMonitor(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final List<TaskScheduler<?>> schedulers,
             @NonNull final Duration healthLogThreshold,
             @NonNull final Duration healthLogPeriod) {
 
-        metrics = new HealthMonitorMetrics(platformContext, healthLogThreshold);
-
+        this.metrics = new HealthMonitorMetrics(metrics, healthLogThreshold);
         this.schedulers = new ArrayList<>();
         for (final TaskScheduler<?> scheduler : schedulers) {
             if (scheduler.getCapacity() != TaskSchedulerBuilder.UNLIMITED_CAPACITY) {
@@ -76,7 +78,7 @@ public class HealthMonitor {
             }
         }
 
-        logger = new HealthMonitorLogger(platformContext, this.schedulers, healthLogThreshold, healthLogPeriod);
+        logger = new HealthMonitorLogger(time, this.schedulers, healthLogThreshold, healthLogPeriod);
     }
 
     /**
