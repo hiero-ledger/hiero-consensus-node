@@ -5,6 +5,7 @@ import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicV
 import static com.swirlds.platform.test.fixtures.event.EventUtils.weightedChoice;
 import static com.swirlds.platform.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
@@ -22,6 +23,7 @@ import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.NoOpConsensusMetrics;
 import com.swirlds.platform.roster.RosterRetriever;
+import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
@@ -159,6 +161,14 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
         setAddressBookInitializeEventSources(eventSources, addressBook);
         buildDefaultOtherParentAffinityMatrix();
         initializeInternalConsensus();
+    }
+
+    public StandardGraphGenerator(
+            @NonNull final PlatformContext platformContext,
+            final long seed,
+            @NonNull final List<EventSource> eventSources,
+            @NonNull final Roster roster) {
+        this(platformContext, seed, eventSources, RosterUtils.buildAddressBook(roster));
     }
 
     /**
