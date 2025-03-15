@@ -49,7 +49,7 @@ public class Erc721TransferFromTranslator extends AbstractCallTranslator<HtsCall
     @Override
     public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
         // Here, for ERC-721 == non-fungible tokens, the token type must exist
-        if (!attempt.isTokenRedirect()) return Optional.empty();
+        if (!attempt.isRedirect()) return Optional.empty();
         if (attempt.redirectTokenType() != NON_FUNGIBLE_UNIQUE) return Optional.empty();
         return attempt.isMethod(ERC_721_TRANSFER_FROM);
     }

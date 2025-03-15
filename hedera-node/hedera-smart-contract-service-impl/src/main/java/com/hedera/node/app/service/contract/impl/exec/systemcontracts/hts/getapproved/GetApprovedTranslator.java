@@ -54,7 +54,7 @@ public class GetApprovedTranslator extends AbstractCallTranslator<HtsCallAttempt
     public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
         requireNonNull(attempt);
 
-        return attempt.isTokenRedirect() ? attempt.isMethod(ERC_GET_APPROVED) : attempt.isMethod(HAPI_GET_APPROVED);
+        return attempt.isRedirect() ? attempt.isMethod(ERC_GET_APPROVED) : attempt.isMethod(HAPI_GET_APPROVED);
     }
 
     /**

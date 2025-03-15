@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create;
+package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.address_0x167;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_FUNGIBLE_V1_TUPLE;

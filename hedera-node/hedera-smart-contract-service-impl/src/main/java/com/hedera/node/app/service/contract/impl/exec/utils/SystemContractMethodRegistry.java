@@ -15,12 +15,12 @@ import javax.inject.Singleton;
 
 /**
  * A registry for all the system contract methods - their names, selectors, and signatures.
- *
+ * <p>
  * Methods are added to this registry when they're defined in the various `FooTranslator` classes,
  * which, since they're all (or should be) Dagger singletons, is done as the smart contract service
  * is coming up.  Thus, the completed registry is available once processing starts, and so is ready
  * for use to enumerate all system contract methods.
- *
+ * <p>
  * The principal use case for this registry is to be able to generate various per-system-contract-method
  * metrics.
  */

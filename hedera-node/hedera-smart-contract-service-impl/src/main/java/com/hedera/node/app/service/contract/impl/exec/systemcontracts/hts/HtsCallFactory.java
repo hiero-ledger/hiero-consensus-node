@@ -10,6 +10,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAddressChecks;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAttemptOptions;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallFactory;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType;
@@ -50,8 +51,8 @@ public class HtsCallFactory implements CallFactory<HtsCallAttempt> {
     /**
      * Creates a new {@link HtsCallAttempt} for the given input and message frame.
      *
-     * @param input the input
-     * @param frame the message frame
+     * @param input    the input
+     * @param frame    the message frame
      * @param callType the call type
      * @return the new attempt
      * @throws RuntimeException if the call cannot be created
@@ -66,28 +67,29 @@ public class HtsCallFactory implements CallFactory<HtsCallAttempt> {
         requireNonNull(frame);
         final var enhancement = proxyUpdaterFor(frame).enhancement();
         return new HtsCallAttempt(
-                contractID,
                 input,
-                frame.getSenderAddress(),
-                // We only need to distinguish between the EVM sender id and the
-                // "authorizing id" for qualified delegate calls; and even then, only
-                // for classic transfers. In that specific case, the qualified delegate
-                // contracts need to use their own address as the authorizing id in order
-                // to have signatures waived correctly during preHandle() for the
-                // dispatched CryptoTransfer.
-                // As an example, following transaction show that a qualified delegate can delegate
-                // call directForToken function in the hts system contract address.  No similar
-                // transaction could be found for making a delegate to a classic transfer function.
-                // https://hashscan.io/mainnet/transaction/1722925453.690690655
-                callType == QUALIFIED_DELEGATE ? frame.getRecipientAddress() : frame.getSenderAddress(),
-                addressChecks.hasParentDelegateCall(frame),
-                enhancement,
-                configOf(frame),
-                syntheticIds.converterFor(enhancement.nativeOperations()),
-                verificationStrategies,
-                systemContractGasCalculatorOf(frame),
-                callTranslators,
-                systemContractMethodRegistry,
-                frame.isStatic());
+                new CallAttemptOptions<>(
+                        contractID,
+                        frame.getSenderAddress(),
+                        // We only need to distinguish between the EVM sender id and the
+                        // "authorizing id" for qualified delegate calls; and even then, only
+                        // for classic transfers. In that specific case, the qualified delegate
+                        // contracts need to use their own address as the authorizing id in order
+                        // to have signatures waived correctly during preHandle() for the
+                        // dispatched CryptoTransfer.
+                        // As an example, following transaction show that a qualified delegate can delegate
+                        // call directForToken function in the hts system contract address.  No similar
+                        // transaction could be found for making a delegate to a classic transfer function.
+                        // https://hashscan.io/mainnet/transaction/1722925453.690690655
+                        callType == QUALIFIED_DELEGATE ? frame.getRecipientAddress() : frame.getSenderAddress(),
+                        addressChecks.hasParentDelegateCall(frame),
+                        enhancement,
+                        configOf(frame),
+                        syntheticIds.converterFor(enhancement.nativeOperations()),
+                        verificationStrategies,
+                        systemContractGasCalculatorOf(frame),
+                        callTranslators,
+                        systemContractMethodRegistry,
+                        frame.isStatic()));
     }
 }

@@ -61,7 +61,7 @@ public class TokenClaimAirdropTranslator extends AbstractCallTranslator<HtsCallA
                 attempt.configuration().getConfigData(ContractsConfig.class).systemContractClaimAirdropsEnabled();
 
         if (!claimAirdropEnabled) return Optional.empty();
-        return attempt.isTokenRedirect()
+        return attempt.isRedirect()
                 ? attempt.isMethod(HRC_CLAIM_AIRDROP_FT, HRC_CLAIM_AIRDROP_NFT)
                 : attempt.isMethod(CLAIM_AIRDROPS);
     }

@@ -4,59 +4,29 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_SCHEDULE_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHssAttemptWithSelectorAndCustomConfig;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
-import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.getscheduledinfo.GetScheduledFungibleTokenCreateCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.getscheduledinfo.GetScheduledInfoTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.getscheduledinfo.GetScheduledNonFungibleTokenCreateCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.signschedule.SignScheduleTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
+import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
-import com.hedera.node.app.spi.signatures.SignatureVerifier;
+import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-class GetScheduledInfoTranslatorTest {
+class GetScheduledInfoTranslatorTest extends CallAttemptTestBase {
 
     @Mock
     private HssCallAttempt attempt;
 
     @Mock
-    private AddressIdConverter addressIdConverter;
-
-    @Mock
-    private Enhancement enhancement;
-
-    @Mock
-    private VerificationStrategies verificationStrategies;
-
-    @Mock
-    private SystemContractGasCalculator gasCalculator;
-
-    @Mock
-    private SignatureVerifier signatureVerifier;
-
-    @Mock
-    private SystemContractMethodRegistry systemContractMethodRegistry;
-
-    @Mock
     private ContractMetrics contractMetrics;
-
-    @Mock
-    private HederaNativeOperations nativeOperation;
 
     private GetScheduledInfoTranslator subject;
 
@@ -67,16 +37,8 @@ class GetScheduledInfoTranslatorTest {
 
     @Test
     void identifyMethodGetScheduledFungibleTokenTxn() {
-        attempt = prepareHssAttemptWithSelectorAndCustomConfig(
-                GetScheduledInfoTranslator.GET_SCHEDULED_CREATE_FUNGIBLE_TOKEN_INFO,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                signatureVerifier,
-                gasCalculator,
-                systemContractMethodRegistry,
-                DEFAULT_CONFIG);
+        attempt = createHssCallAttempt(
+                Bytes.wrap(GetScheduledInfoTranslator.GET_SCHEDULED_CREATE_FUNGIBLE_TOKEN_INFO.selector()), subject);
 
         final var result = subject.identifyMethod(attempt).isPresent();
         assertTrue(result);
@@ -84,16 +46,9 @@ class GetScheduledInfoTranslatorTest {
 
     @Test
     void identifyMethodGetScheduledNonFungibleTokenTxn() {
-        attempt = prepareHssAttemptWithSelectorAndCustomConfig(
-                GetScheduledInfoTranslator.GET_SCHEDULED_CREATE_NON_FUNGIBLE_TOKEN_INFO,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                signatureVerifier,
-                gasCalculator,
-                systemContractMethodRegistry,
-                DEFAULT_CONFIG);
+        attempt = createHssCallAttempt(
+                Bytes.wrap(GetScheduledInfoTranslator.GET_SCHEDULED_CREATE_NON_FUNGIBLE_TOKEN_INFO.selector()),
+                subject);
 
         final var result = subject.identifyMethod(attempt).isPresent();
         assertTrue(result);
@@ -101,16 +56,7 @@ class GetScheduledInfoTranslatorTest {
 
     @Test
     void identifyMethodFailsForOtherSelector() {
-        attempt = prepareHssAttemptWithSelectorAndCustomConfig(
-                SignScheduleTranslator.SIGN_SCHEDULE,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                signatureVerifier,
-                gasCalculator,
-                systemContractMethodRegistry,
-                DEFAULT_CONFIG);
+        attempt = createHssCallAttempt(Bytes.wrap(SignScheduleTranslator.SIGN_SCHEDULE.selector()), subject);
 
         final var result = subject.identifyMethod(attempt).isPresent();
         assertFalse(result);
@@ -125,10 +71,10 @@ class GetScheduledInfoTranslatorTest {
                         .encodeCallWithArgs(ConversionUtils.headlongAddressOf(CALLED_SCHEDULE_ID))
                         .array());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-        given(attempt.enhancement()).willReturn(enhancement);
-        given(attempt.nativeOperations()).willReturn(nativeOperation);
+        given(attempt.enhancement()).willReturn(mockEnhancement());
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
         given(attempt.configuration()).willReturn(DEFAULT_CONFIG);
-        given(nativeOperation.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         var result = subject.callFrom(attempt);
 
@@ -144,10 +90,10 @@ class GetScheduledInfoTranslatorTest {
                         .encodeCallWithArgs(ConversionUtils.headlongAddressOf(CALLED_SCHEDULE_ID))
                         .array());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-        given(attempt.enhancement()).willReturn(enhancement);
-        given(attempt.nativeOperations()).willReturn(nativeOperation);
+        given(attempt.enhancement()).willReturn(mockEnhancement());
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
         given(attempt.configuration()).willReturn(DEFAULT_CONFIG);
-        given(nativeOperation.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         var result = subject.callFrom(attempt);
 

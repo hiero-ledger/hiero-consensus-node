@@ -65,7 +65,7 @@ public class TokenCancelAirdropTranslator extends AbstractCallTranslator<HtsCall
                 attempt.configuration().getConfigData(ContractsConfig.class).systemContractCancelAirdropsEnabled();
 
         if (!cancelAirdropEnabled) return Optional.empty();
-        return attempt.isTokenRedirect()
+        return attempt.isRedirect()
                 ? attempt.isMethod(HRC_CANCEL_AIRDROP_FT, HRC_CANCEL_AIRDROP_NFT)
                 : attempt.isMethod(CANCEL_AIRDROPS);
     }

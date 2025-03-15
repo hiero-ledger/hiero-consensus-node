@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.claimairdrops;
 
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorAndCustomConfig;
-import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorForRedirectWithConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,29 +15,23 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
-import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.claimairdrops.TokenClaimAirdropDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.claimairdrops.TokenClaimAirdropTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.MintTranslator;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
+import com.hedera.node.app.service.contract.impl.test.TestHelpers;
+import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
+import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-class TokenClaimAirdropTranslatorTest {
+class TokenClaimAirdropTranslatorTest extends CallAttemptTestBase {
 
     @Mock
     private TokenClaimAirdropDecoder decoder;
@@ -53,22 +46,7 @@ class TokenClaimAirdropTranslatorTest {
     private ContractsConfig contractsConfig;
 
     @Mock
-    private HederaWorldUpdater.Enhancement enhancement;
-
-    @Mock
-    private AddressIdConverter addressIdConverter;
-
-    @Mock
-    private VerificationStrategies verificationStrategies;
-
-    @Mock
     private VerificationStrategy verificationStrategy;
-
-    @Mock
-    private SystemContractGasCalculator gasCalculator;
-
-    @Mock
-    private HederaNativeOperations nativeOperations;
 
     @Mock
     private TransactionBody transactionBody;
@@ -78,8 +56,6 @@ class TokenClaimAirdropTranslatorTest {
 
     @Mock
     private ContractMetrics contractMetrics;
-
-    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
     private TokenClaimAirdropTranslator subject;
 
@@ -92,15 +68,10 @@ class TokenClaimAirdropTranslatorTest {
     void testMatchesWhenClaimAirdropEnabled() {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(true);
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                TokenClaimAirdropTranslator.CLAIM_AIRDROPS,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
+        // when:
+        attempt = createHtsCallAttempt(
+                Bytes.wrap(TokenClaimAirdropTranslator.CLAIM_AIRDROPS.selector()), configuration, subject);
+        // then:
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -108,15 +79,9 @@ class TokenClaimAirdropTranslatorTest {
     void testMatchesFailsOnRandomSelector() {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(true);
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                MintTranslator.MINT,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
+        // when:
+        attempt = createHtsCallAttempt(Bytes.wrap(MintTranslator.MINT.selector()), configuration, subject);
+        // then:
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
@@ -124,15 +89,10 @@ class TokenClaimAirdropTranslatorTest {
     void testMatchesWhenClaimAirdropDisabled() {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(false);
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                TokenClaimAirdropTranslator.CLAIM_AIRDROPS,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
+        // when:
+        attempt = createHtsCallAttempt(
+                Bytes.wrap(TokenClaimAirdropTranslator.CLAIM_AIRDROPS.selector()), configuration, subject);
+        // then:
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
@@ -140,17 +100,14 @@ class TokenClaimAirdropTranslatorTest {
     void testMatchesHRCClaimFT() {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(true);
-        given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        attempt = prepareHtsAttemptWithSelectorForRedirectWithConfig(
-                TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_FT,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
+        // when:
+        attempt = createHtsCallAttempt(
+                TestHelpers.bytesForRedirect(
+                        TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_FT.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS),
+                configuration,
+                subject);
+        // then:
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -158,17 +115,14 @@ class TokenClaimAirdropTranslatorTest {
     void testMatchesHRCClaimNFT() {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(true);
-        given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        attempt = prepareHtsAttemptWithSelectorForRedirectWithConfig(
-                TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_NFT,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
+        // when:
+        attempt = createHtsCallAttempt(
+                TestHelpers.bytesForRedirect(
+                        TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_NFT.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS),
+                configuration,
+                subject);
+        // then:
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -176,17 +130,14 @@ class TokenClaimAirdropTranslatorTest {
     void testMatchesHRCClaimFTDisabled() {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(false);
-        given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        attempt = prepareHtsAttemptWithSelectorForRedirectWithConfig(
-                TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_FT,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
+        // when:
+        attempt = createHtsCallAttempt(
+                TestHelpers.bytesForRedirect(
+                        TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_FT.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS),
+                configuration,
+                subject);
+        // then:
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
@@ -194,17 +145,14 @@ class TokenClaimAirdropTranslatorTest {
     void testMatchesHRCClaimNFTDisabled() {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractClaimAirdropsEnabled()).willReturn(false);
-        given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        attempt = prepareHtsAttemptWithSelectorForRedirectWithConfig(
-                TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_NFT,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
+        // when:
+        attempt = createHtsCallAttempt(
+                TestHelpers.bytesForRedirect(
+                        TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_NFT.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS),
+                configuration,
+                subject);
+        // then:
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
@@ -214,19 +162,10 @@ class TokenClaimAirdropTranslatorTest {
         given(addressIdConverter.convertSender(any())).willReturn(SENDER_ID);
         given(verificationStrategies.activatingOnlyContractKeysFor(any(), anyBoolean(), any()))
                 .willReturn(verificationStrategy);
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                TokenClaimAirdropTranslator.CLAIM_AIRDROPS,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
-
         // when:
+        attempt = createHtsCallAttempt(
+                Bytes.wrap(TokenClaimAirdropTranslator.CLAIM_AIRDROPS.selector()), configuration, subject);
         var call = subject.callFrom(attempt);
-
         // then:
         assertEquals(DispatchForResponseCodeHtsCall.class, call.getClass());
         verify(decoder).decodeTokenClaimAirdrop(attempt);
@@ -238,19 +177,10 @@ class TokenClaimAirdropTranslatorTest {
         given(addressIdConverter.convertSender(any())).willReturn(SENDER_ID);
         given(verificationStrategies.activatingOnlyContractKeysFor(any(), anyBoolean(), any()))
                 .willReturn(verificationStrategy);
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_FT,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
-
         // when:
+        attempt = createHtsCallAttempt(
+                Bytes.wrap(TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_FT.selector()), configuration, subject);
         var call = subject.callFrom(attempt);
-
         // then:
         assertEquals(DispatchForResponseCodeHtsCall.class, call.getClass());
         verify(decoder).decodeHrcClaimAirdropFt(attempt);
@@ -262,19 +192,10 @@ class TokenClaimAirdropTranslatorTest {
         given(addressIdConverter.convertSender(any())).willReturn(SENDER_ID);
         given(verificationStrategies.activatingOnlyContractKeysFor(any(), anyBoolean(), any()))
                 .willReturn(verificationStrategy);
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_NFT,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
-
         // when:
+        attempt = createHtsCallAttempt(
+                Bytes.wrap(TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_NFT.selector()), configuration, subject);
         var call = subject.callFrom(attempt);
-
         // then:
         assertEquals(DispatchForResponseCodeHtsCall.class, call.getClass());
         verify(decoder).decodeHrcClaimAirdropNft(attempt);
@@ -283,11 +204,12 @@ class TokenClaimAirdropTranslatorTest {
     @Test
     void testGasRequirement() {
         long expectedGas = 1000L;
+        // when:
         when(gasCalculator.gasRequirement(transactionBody, DispatchType.TOKEN_CLAIM_AIRDROP, payerId))
                 .thenReturn(expectedGas);
-
-        long gas = TokenClaimAirdropTranslator.gasRequirement(transactionBody, gasCalculator, enhancement, payerId);
-
+        long gas =
+                TokenClaimAirdropTranslator.gasRequirement(transactionBody, gasCalculator, mockEnhancement(), payerId);
+        // then:
         assertEquals(expectedGas, gas);
     }
 }
