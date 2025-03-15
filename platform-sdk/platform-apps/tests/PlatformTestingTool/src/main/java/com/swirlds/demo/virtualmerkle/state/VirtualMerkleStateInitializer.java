@@ -46,11 +46,17 @@ public final class VirtualMerkleStateInitializer {
             .withConfigDataType(StateCommonConfig.class)
             .build();
     private static final MerkleDbConfig MERKLE_DB_CONFIG = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+    /*
+     * This capacity is somewhat arbitrary, but it is a reasonable limit for all the PTT tests that we have.
+     * An exact number would have to be calculated like this:
+     * (number of nodes) * (number of TYPE_VIRTUAL_MERKLE_CREATE config entries) * (amount specified in each config entry)
+     *
+     * Even though it's possible to calculate the exact number, it's not necessary for the PTT tests, so we just use the constant.
+     */
+    private static final Integer MAX_LIST_CAPACITY = 1_000_000;
+
     private static final MerkleDbTableConfig TABLE_CONFIG = new MerkleDbTableConfig(
-            (short) 1,
-            DigestType.SHA_384,
-            MERKLE_DB_CONFIG.maxNumOfKeys(),
-            MERKLE_DB_CONFIG.hashesRamToDiskThreshold());
+            (short) 1, DigestType.SHA_384, MAX_LIST_CAPACITY, MERKLE_DB_CONFIG.hashesRamToDiskThreshold());
     private static final Logger logger = LogManager.getLogger(VirtualMerkleStateInitializer.class);
     private static final Marker LOGM_DEMO_INFO = LogMarker.DEMO_INFO.getMarker();
 
