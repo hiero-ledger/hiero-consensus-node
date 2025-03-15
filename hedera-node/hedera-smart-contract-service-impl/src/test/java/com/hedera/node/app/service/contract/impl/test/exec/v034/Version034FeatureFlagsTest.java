@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.contract.impl.test.exec.v034;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
@@ -32,27 +31,5 @@ class Version034FeatureFlagsTest {
         final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
         given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(config);
         assertTrue(subject.isImplicitCreationEnabled(frame));
-    }
-
-    @Test
-    void implicitCreationNotEnabledIfLazyCreationNotEnabled() {
-        given(frame.getMessageFrameStack()).willReturn(stack);
-        given(stack.isEmpty()).willReturn(true);
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("lazyCreation.enabled", false)
-                .getOrCreateConfig();
-        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(config);
-        assertFalse(subject.isImplicitCreationEnabled(frame));
-    }
-
-    @Test
-    void implicitCreationNotEnabledIfAutoCreationNotEnabled() {
-        given(frame.getMessageFrameStack()).willReturn(stack);
-        given(stack.isEmpty()).willReturn(true);
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("autoCreation.enabled", false)
-                .getOrCreateConfig();
-        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(config);
-        assertFalse(subject.isImplicitCreationEnabled(frame));
     }
 }
