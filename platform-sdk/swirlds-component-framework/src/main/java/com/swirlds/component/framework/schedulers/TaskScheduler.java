@@ -219,26 +219,6 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
     }
 
     /**
-     * Start squelching, and continue doing so until {@link #stopSquelching()} is called.
-     *
-     * @throws UnsupportedOperationException if squelching is not supported by this scheduler
-     * @throws IllegalStateException         if scheduler is already squelching
-     */
-    public void startSquelching() {
-        squelcher.startSquelching();
-    }
-
-    /**
-     * Stop squelching.
-     *
-     * @throws UnsupportedOperationException if squelching is not supported by this scheduler
-     * @throws IllegalStateException         if scheduler is not currently squelching
-     */
-    public void stopSquelching() {
-        squelcher.stopSquelching();
-    }
-
-    /**
      * Get whether or not this task scheduler is currently squelching.
      *
      * @return true if this task scheduler is currently squelching, false otherwise

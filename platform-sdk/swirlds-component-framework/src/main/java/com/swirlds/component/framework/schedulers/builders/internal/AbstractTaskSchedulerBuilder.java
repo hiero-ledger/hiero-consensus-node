@@ -110,9 +110,6 @@ public abstract class AbstractTaskSchedulerBuilder<OUT> implements TaskScheduler
         if (configuration.flushingEnabled() != null) {
             withFlushingEnabled(configuration.flushingEnabled());
         }
-        if (configuration.squelchingEnabled() != null) {
-            withSquelchingEnabled(configuration.squelchingEnabled());
-        }
         return this;
     }
 

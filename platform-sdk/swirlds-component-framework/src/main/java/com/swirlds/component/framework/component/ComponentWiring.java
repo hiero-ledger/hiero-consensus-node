@@ -672,26 +672,6 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
     }
 
     /**
-     * Start squelching the output of this component.
-     *
-     * @throws UnsupportedOperationException if the scheduler does not support squelching
-     * @throws IllegalStateException         if the scheduler is already squelching
-     */
-    public void startSquelching() {
-        scheduler.startSquelching();
-    }
-
-    /**
-     * Stop squelching the output of this component.
-     *
-     * @throws UnsupportedOperationException if the scheduler does not support squelching
-     * @throws IllegalStateException         if the scheduler is not squelching
-     */
-    public void stopSquelching() {
-        scheduler.stopSquelching();
-    }
-
-    /**
      * Bind the component to the input wires.
      *
      * @param component the component to bind

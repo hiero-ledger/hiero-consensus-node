@@ -23,7 +23,6 @@ class TaskSchedulerConfigurationTests {
         assertNull(config.unhandledTaskMetricEnabled());
         assertNull(config.busyFractionMetricEnabled());
         assertNull(config.flushingEnabled());
-        assertNull(config.squelchingEnabled());
     }
 
     @Test
@@ -79,14 +78,6 @@ class TaskSchedulerConfigurationTests {
                 expectedFlushingEnabled = null;
             }
 
-            final Boolean expectedSquelchingEnabled;
-            if (random.nextBoolean()) {
-                expectedSquelchingEnabled = random.nextBoolean();
-                configStringBuilder.append(expectedSquelchingEnabled ? "SQUELCHABLE " : "!SQUELCHABLE ");
-            } else {
-                expectedSquelchingEnabled = null;
-            }
-
             final String configString = configStringBuilder.toString();
 
             final TaskSchedulerConfiguration config = TaskSchedulerConfiguration.parse(configString);
@@ -96,7 +87,6 @@ class TaskSchedulerConfigurationTests {
             assertEquals(expectedUnhandledTaskMetricEnabled, config.unhandledTaskMetricEnabled());
             assertEquals(expectedBusyFractionMetricEnabled, config.busyFractionMetricEnabled());
             assertEquals(expectedFlushingEnabled, config.flushingEnabled());
-            assertEquals(expectedSquelchingEnabled, config.squelchingEnabled());
         }
     }
 
@@ -127,9 +117,6 @@ class TaskSchedulerConfigurationTests {
                 () -> TaskSchedulerConfiguration.parse("BUSY_FRACTION_METRIC !BUSY_FRACTION_METRIC"));
         assertThrows(IllegalArgumentException.class, () -> TaskSchedulerConfiguration.parse("FLUSHABLE !FLUSHABLE"));
         assertThrows(IllegalArgumentException.class, () -> TaskSchedulerConfiguration.parse("FLUSHABLE FLUSHABLE"));
-        assertThrows(
-                IllegalArgumentException.class, () -> TaskSchedulerConfiguration.parse("SQUELCHABLE !SQUELCHABLE"));
-        assertThrows(IllegalArgumentException.class, () -> TaskSchedulerConfiguration.parse("SQUELCHABLE SQUELCHABLE"));
     }
 
     @Test

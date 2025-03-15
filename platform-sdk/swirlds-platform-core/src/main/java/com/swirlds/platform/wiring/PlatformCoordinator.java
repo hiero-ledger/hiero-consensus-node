@@ -173,23 +173,10 @@ public class PlatformCoordinator {
         // When reconnecting, this will force us to adopt a status that will halt event creation and gossip.
         statusStateMachineWiring.flush();
 
-        // Phase 1: squelch
-        // Break cycles in the system. Flush squelched components just in case there is a task being executed when
-        // squelch is activated.
-        consensusEngineWiring.startSquelching();
+        // Phase 1: flush
         consensusEngineWiring.flush();
-        eventCreationManagerWiring.startSquelching();
         eventCreationManagerWiring.flush();
-        staleEventDetectorWiring.startSquelching();
-
-        // Also squelch the transaction handler. It isn't strictly necessary to do this to prevent dataflow through
-        // the system, but it prevents the transaction handler from wasting time handling rounds that don't need to
-        // be handled.
-        transactionHandlerWiring.startSquelching();
         transactionHandlerWiring.flush();
-
-        // Phase 2: flush
-        // All cycles have been broken via squelching, so now it's time to flush everything out of the system.
         flushIntakePipeline();
         stateHasherWiring.flush();
         stateSignatureCollectorWiring.flush();
@@ -198,14 +185,7 @@ public class PlatformCoordinator {
         branchDetectorWiring.flush();
         branchReporterWiring.flush();
 
-        // Phase 3: stop squelching
-        // Once everything has been flushed out of the system, it's safe to stop squelching.
-        consensusEngineWiring.stopSquelching();
-        eventCreationManagerWiring.stopSquelching();
-        transactionHandlerWiring.stopSquelching();
-        staleEventDetectorWiring.stopSquelching();
-
-        // Phase 4: clear
+        // Phase 2: clear
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
         eventDeduplicatorWiring.getInputWire(EventDeduplicator::clear).inject(NoInput.getInstance());
         orphanBufferWiring.getInputWire(OrphanBuffer::clear).inject(NoInput.getInstance());
