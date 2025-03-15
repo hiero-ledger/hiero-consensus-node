@@ -230,6 +230,7 @@ import org.junit.jupiter.api.Assertions;
 
 public class UtilVerbs {
     public static final int DEFAULT_COLLISION_AVOIDANCE_FACTOR = 2;
+    private static final Duration MAX_WAIT_PER_HISTORY_PROOF = Duration.ofMinutes(25);
 
     /**
      * Private constructor to prevent instantiation.
@@ -363,7 +364,11 @@ public class UtilVerbs {
      * @return the operation that validates the streams
      */
     public static StreamValidationOp validateStreams() {
-        return new StreamValidationOp();
+        final int proofsToWaitFor = Optional.ofNullable(System.getProperty("hapi.spec.numHistoryProofsToObserve"))
+                .map(Integer::parseInt)
+                .orElse(0);
+        return new StreamValidationOp(
+                proofsToWaitFor, Duration.ofSeconds(MAX_WAIT_PER_HISTORY_PROOF.toSeconds() * proofsToWaitFor));
     }
 
     /**
@@ -2556,14 +2561,12 @@ public class UtilVerbs {
     }
 
     /**
-     * Returns the charged gas for a transaction in USD.
-     * The multiplier 71 is used to convert gas to tinybars. This multiplier comes from the feeScheduls.json file.
-     * See
-     * {@link com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues#topLevelTinybarGasPrice() topLevelTinybarGasPrice}
-     * for more information.
+     * Returns the charged gas for a transaction in USD, assuming a standard cost of
+     * 71 tinybars per gas unit.
+     *
      * @param spec the spec
      * @param txn the transaction
-     * @return
+     * @return the charged gas in USD
      */
     private static double getChargedGas(@NonNull final HapiSpec spec, @NonNull final String txn) {
         requireNonNull(spec);

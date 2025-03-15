@@ -17,14 +17,13 @@ import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,35 +33,26 @@ import org.apache.logging.log4j.Logger;
 public class HintsServiceImpl implements HintsService {
     private static final Logger logger = LogManager.getLogger(HintsServiceImpl.class);
 
-    @Deprecated
-    private final Configuration bootstrapConfig;
-
     private final HintsServiceComponent component;
 
     private final HintsLibrary library;
 
-    @Nullable
-    private Roster currentRoster;
+    @NonNull
+    private final AtomicReference<Roster> currentRoster = new AtomicReference<>();
 
     public HintsServiceImpl(
             @NonNull final Metrics metrics,
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
-            @NonNull final HintsLibrary library,
-            @NonNull final Configuration bootstrapConfig) {
-        this.bootstrapConfig = requireNonNull(bootstrapConfig);
+            @NonNull final HintsLibrary library) {
         this.library = requireNonNull(library);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
-                .create(library, appContext, executor, metrics);
+                .create(library, appContext, executor, metrics, currentRoster);
     }
 
     @VisibleForTesting
-    HintsServiceImpl(
-            @NonNull final Configuration bootstrapConfig,
-            @NonNull final HintsServiceComponent component,
-            @NonNull final HintsLibrary library) {
-        this.bootstrapConfig = requireNonNull(bootstrapConfig);
+    HintsServiceImpl(@NonNull final HintsServiceComponent component, @NonNull final HintsLibrary library) {
         this.component = requireNonNull(component);
         this.library = requireNonNull(library);
     }
@@ -94,9 +84,7 @@ public class HintsServiceImpl implements HintsService {
             }
             case HANDOFF -> hintsStore.updateForHandoff(activeRosters);
         }
-        if (currentRoster == null) {
-            currentRoster = activeRosters.findRelatedRoster(activeRosters.currentRosterHash());
-        }
+        currentRoster.set(activeRosters.findRelatedRoster(activeRosters.currentRosterHash()));
     }
 
     @Override
@@ -129,13 +117,8 @@ public class HintsServiceImpl implements HintsService {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
-        final var tssConfig = bootstrapConfig.getConfigData(TssConfig.class);
-        if (tssConfig.hintsEnabled()) {
-            registry.register(new V059HintsSchema(component.signingContext()));
-        }
-        if (tssConfig.crsEnabled()) {
-            registry.register(new V060HintsSchema(component.signingContext(), library));
-        }
+        registry.register(new V059HintsSchema(component.signingContext()));
+        registry.register(new V060HintsSchema(component.signingContext(), library));
     }
 
     @Override
@@ -149,9 +132,11 @@ public class HintsServiceImpl implements HintsService {
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }
-        final var signing = component
-                .signings()
-                .computeIfAbsent(blockHash, b -> component.signingContext().newSigning(b, currentRoster));
+        final var signing = component.signings().computeIfAbsent(blockHash, b -> component
+                .signingContext()
+                .newSigning(b, requireNonNull(currentRoster.get()), () -> component
+                        .signings()
+                        .remove(blockHash)));
         component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
             logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
             return null;

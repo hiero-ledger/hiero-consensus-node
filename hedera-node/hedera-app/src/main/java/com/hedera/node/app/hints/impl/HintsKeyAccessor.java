@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
-import com.hedera.node.app.tss.TssKeyPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -20,8 +19,9 @@ public interface HintsKeyAccessor {
     /**
      * Returns the BLS key pair this node should use starting with the given construction id,
      * creating the key pair if necessary.
+     *
      * @param constructionId the active construction ID
      * @return the hinTS key pair
      */
-    TssKeyPair getOrCreateBlsKeyPair(long constructionId);
+    Bytes getOrCreateBlsPrivateKey(long constructionId);
 }

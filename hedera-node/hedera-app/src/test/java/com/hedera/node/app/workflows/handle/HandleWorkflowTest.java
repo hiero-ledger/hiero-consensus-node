@@ -196,6 +196,8 @@ class HandleWorkflowTest {
             @NonNull final StreamMode mode, @NonNull final List<StateChanges.Builder> migrationStateChanges) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "" + mode)
+                .withValue("tss.hintsEnabled", "false")
+                .withValue("tss.historyEnabled", "false")
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
         subject = new HandleWorkflow(

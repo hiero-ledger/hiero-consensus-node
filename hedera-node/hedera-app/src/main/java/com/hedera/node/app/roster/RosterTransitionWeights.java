@@ -105,6 +105,13 @@ public record RosterTransitionWeights(
     }
 
     /**
+     * Returns the total weight of the source roster.
+     */
+    public long totalSourceWeight() {
+        return sourceNodeWeights.values().stream().mapToLong(Long::longValue).sum();
+    }
+
+    /**
      * Returns whether given node has an explicit weight in the target roster.
      * @param nodeId the ID of the node
      * @return whether the node has an explicit weight

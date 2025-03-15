@@ -71,7 +71,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * last-started round.
      * @param at the consensus time of the first user transaction
      */
-    void setRoundFirstUserTransactionTime(@NonNull Instant at);
+    void setRoundFirstTransactionTime(@NonNull Instant at);
 
     /**
      * Confirms that the post-upgrade work has been completed.

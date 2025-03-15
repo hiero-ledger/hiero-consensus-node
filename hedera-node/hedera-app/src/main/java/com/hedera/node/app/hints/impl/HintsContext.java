@@ -18,9 +18,14 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The hinTS context that can be used to request hinTS signatures using the latest
@@ -29,6 +34,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class HintsContext {
+    private static final Logger log = LogManager.getLogger(HintsContext.class);
     private final HintsLibrary library;
 
     @Nullable
@@ -36,6 +42,8 @@ public class HintsContext {
 
     @Nullable
     private Map<Long, Integer> nodePartyIds;
+
+    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     @Inject
     public HintsContext(@NonNull final HintsLibrary library) {
@@ -95,7 +103,8 @@ public class HintsContext {
      * @param currentRoster the current roster
      * @return the signing process
      */
-    public @NonNull Signing newSigning(@NonNull final Bytes blockHash, final Roster currentRoster) {
+    public @NonNull Signing newSigning(
+            @NonNull final Bytes blockHash, final Roster currentRoster, Runnable onCompletion) {
         requireNonNull(blockHash);
         throwIfNotReady();
         final var preprocessedKeys =
@@ -111,7 +120,8 @@ public class HintsContext {
                 preprocessedKeys.aggregationKey(),
                 requireNonNull(nodePartyIds),
                 verificationKey,
-                currentRoster);
+                currentRoster,
+                onCompletion);
     }
 
     /**
@@ -146,6 +156,7 @@ public class HintsContext {
         private final ConcurrentMap<Integer, Bytes> signatures = new ConcurrentHashMap<>();
         private final AtomicLong weightOfSignatures = new AtomicLong();
         private final Roster currentRoster;
+        private final AtomicBoolean completed = new AtomicBoolean();
 
         public Signing(
                 final long constructionId,
@@ -154,7 +165,8 @@ public class HintsContext {
                 @NonNull final Bytes aggregationKey,
                 @NonNull final Map<Long, Integer> partyIds,
                 @NonNull final Bytes verificationKey,
-                final Roster currentRoster) {
+                final Roster currentRoster,
+                final Runnable onCompletion) {
             this.constructionId = constructionId;
             this.thresholdWeight = thresholdWeight;
             this.message = requireNonNull(message);
@@ -162,6 +174,7 @@ public class HintsContext {
             this.partyIds = requireNonNull(partyIds);
             this.verificationKey = requireNonNull(verificationKey);
             this.currentRoster = requireNonNull(currentRoster);
+            executor.schedule(onCompletion, 10, java.util.concurrent.TimeUnit.SECONDS);
         }
 
         /**
@@ -188,17 +201,24 @@ public class HintsContext {
                 final long nodeId,
                 @NonNull final Bytes signature) {
             requireNonNull(signature);
+            if (completed.get()) {
+                return;
+            }
+            final var partyId = partyIds.get(nodeId);
             if (this.constructionId == constructionId && partyIds.containsKey(nodeId)) {
-                final int partyId = partyIds.get(nodeId);
-                if (library.verifyBls(crs, signature, message, aggregationKey, partyId)) {
+                final var isValid = library.verifyBls(crs, signature, message, aggregationKey, partyId);
+                if (isValid) {
                     signatures.put(partyId, signature);
                     final var weight = currentRoster.rosterEntries().stream()
                             .filter(e -> e.nodeId() == nodeId)
                             .mapToLong(RosterEntry::weight)
                             .findFirst()
                             .orElse(0L);
-                    if (weightOfSignatures.addAndGet(weight) >= thresholdWeight) {
-                        future.complete(library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures));
+                    final var totalWeight = weightOfSignatures.addAndGet(weight);
+                    if (totalWeight >= thresholdWeight && completed.compareAndSet(false, true)) {
+                        final var aggregatedSignature =
+                                library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
+                        future.complete(aggregatedSignature);
                     }
                 }
             }

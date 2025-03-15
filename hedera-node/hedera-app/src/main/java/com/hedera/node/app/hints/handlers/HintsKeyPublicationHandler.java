@@ -51,7 +51,9 @@ public class HintsKeyPublicationHandler implements TransactionHandler {
                 final var hintsStore = context.storeFactory().writableStore(WritableHintsStore.class);
                 final var adoptionTime = context.consensusNow();
                 if (hintsStore.setHintsKey(nodeId, partyId, numParties, hintsKey, adoptionTime)) {
-                    controller.addHintsKeyPublication(new HintsKeyPublication(nodeId, hintsKey, partyId, adoptionTime));
+                    controller.addHintsKeyPublication(
+                            new HintsKeyPublication(nodeId, hintsKey, partyId, adoptionTime),
+                            hintsStore.getCrsState().crs());
                 }
             }
         });

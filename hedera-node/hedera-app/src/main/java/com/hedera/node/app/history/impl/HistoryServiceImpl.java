@@ -97,7 +97,12 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
 
     @Override
     public boolean isReady() {
-        return historyProof != null;
+        // We don't delay signing blocks until we have a proof for the genesis
+        // address book hash; and once we have adopted *any* subsequent roster
+        // with the HistoryService enabled, the proof will be available---c.f.
+        // Hedera#canAdoptRoster(), which requires a proof to be present for
+        // the candidate roster hash.
+        return true;
     }
 
     @Override

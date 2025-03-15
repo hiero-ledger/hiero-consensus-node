@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_HINTS_CONSTRUCTION;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
@@ -37,6 +38,7 @@ import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -45,6 +47,8 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.blocks.impl.NaiveStreamingTreeHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
+import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
@@ -118,6 +122,8 @@ public class StateChangesValidator implements BlockStreamValidator {
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
     private MerkleNodeState state;
+    private final boolean isHintsEnabled;
+    private final HintsLibrary hintsLibrary = new HintsLibraryImpl();
 
     public static void main(String[] args) {
         final var node0Dir = Paths.get("hedera-node/test-clients")
@@ -126,11 +132,12 @@ public class StateChangesValidator implements BlockStreamValidator {
                 .normalize();
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
-                        "9b7ffa0ebd7385f347bd65c7535282382de6e0c48f0594f61549a1209d5ea6329490b4ce8f41d3d1b87529cb6d45b0af"),
+                        "63fb5b8a8e40a5afaab12906f71a264d5cb7fcdc636bdb67268055831f73fb6edb3f2bc5199b7f56aca614f07c643cd1"),
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("config.txt"),
                 node0Dir.resolve("data/config/application.properties"),
-                node0Dir.resolve("data/config"));
+                node0Dir.resolve("data/config"),
+                true);
         final var blocks =
                 BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-0.0.3"));
         validator.validateBlocks(blocks);
@@ -174,12 +181,14 @@ public class StateChangesValidator implements BlockStreamValidator {
             final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
             final var genesisConfigTxt = node0.metadata().workingDirOrThrow().resolve("genesis-config.txt");
             Files.writeString(genesisConfigTxt, subProcessNetwork.genesisConfigTxt());
+            final var isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
             return new StateChangesValidator(
                     rootHash,
                     node0.getExternalPath(SWIRLDS_LOG),
                     genesisConfigTxt,
                     node0.getExternalPath(APPLICATION_PROPERTIES),
-                    node0.getExternalPath(DATA_CONFIG_DIR));
+                    node0.getExternalPath(DATA_CONFIG_DIR),
+                    isHintsEnabled);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -190,7 +199,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             @NonNull final Path pathToNode0SwirldsLog,
             @NonNull final Path pathToAddressBook,
             @NonNull final Path pathToOverrideProperties,
-            @NonNull final Path pathToUpgradeSysFilesLoc) {
+            @NonNull final Path pathToUpgradeSysFilesLoc,
+            final boolean isHintsEnabled) {
         this.expectedRootHash = requireNonNull(expectedRootHash);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
 
@@ -213,6 +223,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 state, GENESIS, DiskStartupNetworks.fromLegacyAddressBook(addressBook), platformConfig);
         final var stateToBeCopied = state;
         state = state.copy();
+        this.isHintsEnabled = isHintsEnabled;
         // get the state hash before applying the state changes from current block
         this.genesisStateHash = CRYPTO.digestTreeSync(stateToBeCopied.getRoot());
 
@@ -226,9 +237,22 @@ public class StateChangesValidator implements BlockStreamValidator {
         var startOfStateHash = requireNonNull(genesisStateHash).getBytes();
 
         final int n = blocks.size();
+        final var verificationKey = isHintsEnabled
+                ? blocks.stream()
+                        .flatMap(b -> b.items().stream())
+                        .filter(BlockItem::hasStateChanges)
+                        .flatMap(b -> b.stateChangesOrThrow().stateChanges().stream())
+                        .filter(change -> change.stateId() == STATE_ID_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal())
+                        .map(change -> change.singletonUpdateOrThrow().hintsConstructionValueOrThrow())
+                        .filter(HintsConstruction::hasHintsScheme)
+                        .map(c ->
+                                c.hintsSchemeOrThrow().preprocessedKeysOrThrow().verificationKey())
+                        .findFirst()
+                        .orElseThrow()
+                : null;
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
-            final var shouldVerifyProof = i == 0 || i == n - 1 || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
+            final var shouldVerifyProof = i == 0 || i == n - 2 || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
             if (i != 0 && shouldVerifyProof) {
                 final var stateToBeCopied = state;
                 this.state = stateToBeCopied.copy();
@@ -270,24 +294,26 @@ public class StateChangesValidator implements BlockStreamValidator {
             if (!firstUserTxnSeen) {
                 assertNull(expectedFirstUserTxnTime, "Block had no user transactions");
             }
-            final var lastBlockItem = block.items().getLast();
-            assertTrue(lastBlockItem.hasBlockProof());
-            final var blockProof = lastBlockItem.blockProofOrThrow();
-            assertEquals(
-                    previousBlockHash,
-                    blockProof.previousBlockRootHash(),
-                    "Previous block hash mismatch for block " + blockProof.block());
+            if (i != n - 1) {
+                final var lastBlockItem = block.items().getLast();
+                assertTrue(lastBlockItem.hasBlockProof());
+                final var blockProof = lastBlockItem.blockProofOrThrow();
+                assertEquals(
+                        previousBlockHash,
+                        blockProof.previousBlockRootHash(),
+                        "Previous block hash mismatch for block " + blockProof.block());
 
-            if (shouldVerifyProof) {
-                final var expectedBlockHash =
-                        computeBlockHash(startOfStateHash, previousBlockHash, inputTreeHasher, outputTreeHasher);
-                validateBlockProof(blockProof, expectedBlockHash);
-                previousBlockHash = expectedBlockHash;
-            } else {
-                previousBlockHash = i < n - 1
-                        ? requireNonNull(blocks.get(i + 1).items().getLast().blockProof())
-                                .previousBlockRootHash()
-                        : Bytes.EMPTY;
+                if (shouldVerifyProof) {
+                    final var expectedBlockHash =
+                            computeBlockHash(startOfStateHash, previousBlockHash, inputTreeHasher, outputTreeHasher);
+                    validateBlockProof(blockProof, expectedBlockHash, verificationKey);
+                    previousBlockHash = expectedBlockHash;
+                } else {
+                    previousBlockHash = i < n - 2
+                            ? requireNonNull(blocks.get(i + 1).items().getLast().blockProof())
+                                    .previousBlockRootHash()
+                            : Bytes.EMPTY;
+                }
             }
         }
         logger.info("Summary of changes by service:\n{}", stateChangesSummary);
@@ -402,7 +428,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         return combine(leftHash, rightHash);
     }
 
-    private void validateBlockProof(@NonNull final BlockProof proof, @NonNull final Bytes blockHash) {
+    private void validateBlockProof(
+            @NonNull final BlockProof proof, @NonNull final Bytes blockHash, @Nullable final Bytes verificationKey) {
         var provenHash = blockHash;
         final var siblingHashes = proof.siblingHashes();
         if (!siblingHashes.isEmpty()) {
@@ -411,8 +438,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                 provenHash = combine(provenHash, siblingHash.siblingHash());
             }
         }
-        final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
-        assertEquals(expectedSignature, proof.blockSignature(), "Signature mismatch for " + proof);
+        if (verificationKey != null) {
+            final var signature = proof.blockSignature();
+            final var verified = hintsLibrary.verifyAggregate(signature, blockHash, verificationKey, 1, 3);
+            assertTrue(verified, "Block proof signature verification failed for " + proof);
+        } else {
+            final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
+            assertEquals(expectedSignature, proof.blockSignature(), "Signature mismatch for " + proof);
+        }
     }
 
     private Map<String, String> hashesFor(@NonNull final MerkleNode state) {

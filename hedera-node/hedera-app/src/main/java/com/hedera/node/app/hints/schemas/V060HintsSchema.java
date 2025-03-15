@@ -19,12 +19,15 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class V060HintsSchema extends Schema {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().minor(60).build();
     public static final String CRS_STATE_KEY = "CRS_STATE";
     public static final String CRS_PUBLICATIONS_KEY = "CRS_PUBLICATIONS";
+    private static final Logger log = LogManager.getLogger(V060HintsSchema.class);
 
     private static final long MAX_CRS_PUBLICATIONS = 1L << 31;
 
@@ -55,6 +58,7 @@ public class V060HintsSchema extends Schema {
         if (newCrsState.get() == null || requireNonNull(newCrsState.get()).crs().equals(Bytes.EMPTY)) {
             final var tssConfig = ctx.appConfig().getConfigData(TssConfig.class);
             final var initialCrs = library.newCrs(tssConfig.initialCrsParties());
+            log.info("Initializing CRS state with initial CRS with parties: {}", tssConfig.initialCrsParties());
             states.<CRSState>getSingleton(CRS_STATE_KEY)
                     .put(CRSState.newBuilder()
                             .stage(CRSStage.GATHERING_CONTRIBUTIONS)

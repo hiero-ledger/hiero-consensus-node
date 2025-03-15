@@ -150,7 +150,6 @@ public class DispatchProcessor {
                 ethereumTransactionHandler.handleThrottled(dispatch.handleContext());
             }
         } catch (final Exception e) {
-            e.printStackTrace();
             logger.error("{} - exception thrown while handling dispatch", ALERT_MESSAGE, e);
             rollbackAndRechargeFee(dispatch, validation, FAIL_INVALID);
         }

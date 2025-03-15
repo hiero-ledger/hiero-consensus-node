@@ -148,7 +148,7 @@ public class HintsControllers {
             final var publications = hintsStore.getHintsKeyPublications(weights.targetNodeIds(), numParties);
             final var votes = hintsStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
             final var selfId = selfNodeInfoSupplier.get().nodeId();
-            final var blsKeyPair = keyAccessor.getOrCreateBlsKeyPair(construction.constructionId());
+            final var blsKeyPair = keyAccessor.getOrCreateBlsPrivateKey(construction.constructionId());
             return new HintsControllerImpl(
                     selfId,
                     blsKeyPair,
