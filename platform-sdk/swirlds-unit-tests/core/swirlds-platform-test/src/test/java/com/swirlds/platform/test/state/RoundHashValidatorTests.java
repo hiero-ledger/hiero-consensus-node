@@ -282,9 +282,9 @@ class RoundHashValidatorTests {
         }
 
         if (expectedStatus != HashValidityStatus.CATASTROPHIC_ISS) {
-            assertTrue(validator.reportSelfHash(thisNode.nodeStateHash), "validator should now be decided");
+            assertTrue(validator.reportSelfHash(null), "validator should now be decided");
         } else {
-            assertFalse(validator.reportSelfHash(thisNode.nodeStateHash), "validator should already be decided");
+            assertFalse(validator.reportSelfHash(null), "validator should already be decided");
         }
         assertFalse(validator.outOfTime(), "timing out should have no effect here");
         assertEquals(expectedStatus, validator.getStatus(), "unexpected status");
@@ -312,7 +312,7 @@ class RoundHashValidatorTests {
         boolean decided = false;
 
         assertFalse(
-                validator.reportSelfHash(thisNode.nodeStateHash),
+                validator.reportSelfHash(null),
                 "we should need to gather more data before becoming decided");
 
         final Map<Long, RosterEntry> nodesById = RosterUtils.toMap(roster);
@@ -366,7 +366,7 @@ class RoundHashValidatorTests {
             final Hash hash = nodeHashInfo.nodeStateHash;
 
             if (index == addSelfHashIndex) {
-                final boolean operationCausedDecision = validator.reportSelfHash(thisNode.nodeStateHash);
+                final boolean operationCausedDecision = validator.reportSelfHash(null);
                 if (operationCausedDecision) {
                     assertFalse(decided, "should only be decided once");
                     decided = true;
@@ -478,7 +478,7 @@ class RoundHashValidatorTests {
         final long round = random.nextInt(1000);
         final RoundHashValidator validator = new RoundHashValidator(round, totalWeight, Mockito.mock(IssMetrics.class));
 
-        assertFalse(validator.reportSelfHash(thisNode.nodeStateHash), "should not allow a decision");
+        assertFalse(validator.reportSelfHash(null), "should not allow a decision");
 
         long addedWeight = 0;
 
@@ -523,7 +523,7 @@ class RoundHashValidatorTests {
         final long round = random.nextInt(1000);
         final RoundHashValidator validator = new RoundHashValidator(round, totalWeight, Mockito.mock(IssMetrics.class));
 
-        assertFalse(validator.reportSelfHash(thisNode.nodeStateHash), "should not allow a decision");
+        assertFalse(validator.reportSelfHash(null), "should not allow a decision");
 
         long addedWeight = 0;
 

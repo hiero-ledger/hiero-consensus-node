@@ -89,6 +89,7 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Round;
@@ -222,7 +223,7 @@ public class HandleWorkflow {
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     public void handleRound(
-            @NonNull final State state,
+            @NonNull final MerkleNodeState state,
             @NonNull final Round round,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         logStartRound(round);
@@ -261,7 +262,7 @@ public class HandleWorkflow {
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     private void handleEvents(
-            @NonNull final State state,
+            @NonNull final MerkleNodeState state,
             @NonNull final Round round,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         boolean userTransactionsHandled = false;
@@ -344,7 +345,7 @@ public class HandleWorkflow {
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
     private boolean handlePlatformTransaction(
-            @NonNull final State state,
+            @NonNull final MerkleNodeState state,
             @NonNull final NodeInfo creator,
             @NonNull final ConsensusTransaction txn,
             @NonNull final SemanticVersion txnVersion,
@@ -438,7 +439,7 @@ public class HandleWorkflow {
      * @param type           the type of the user transaction triggering this execution
      */
     private void executeAsManyScheduled(
-            @NonNull final State state,
+            @NonNull final MerkleNodeState state,
             @NonNull final Instant executionStart,
             @NonNull final Instant consensusNow,
             @NonNull final NodeInfo creatorInfo,
@@ -638,8 +639,6 @@ public class HandleWorkflow {
                         logger.info("Doing post-upgrade setup @ {}", userTxn.consensusNow());
                         systemSetup.doPostUpgradeSetup(dispatch);
                     }
-                    // Only for 0.59.0 we need to update the entity ID store entity counts
-                    systemSetup.initializeEntityCounts(dispatch);
                     if (streamMode != RECORDS) {
                         blockStreamManager.confirmPendingWorkFinished();
                     }
@@ -677,7 +676,7 @@ public class HandleWorkflow {
      * @return the stream output from executing the transaction
      */
     private HandleOutput executeScheduled(
-            @NonNull final State state,
+            @NonNull final MerkleNodeState state,
             @NonNull final Instant consensusNow,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final ExecutableTxn<? extends StreamBuilder> executableTxn) {

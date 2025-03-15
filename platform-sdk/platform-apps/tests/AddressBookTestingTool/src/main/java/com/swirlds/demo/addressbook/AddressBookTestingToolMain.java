@@ -20,6 +20,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -27,6 +28,7 @@ import java.io.UncheckedIOException;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -115,6 +117,12 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
         final AddressBookTestingToolState state = new AddressBookTestingToolState();
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
         return state;
+    }
+
+    // TODO: GitHub issue TBD
+    @Override
+    public Function<VirtualMap, AddressBookTestingToolState> stateRootFromVirtualMap() {
+        throw new UnsupportedOperationException();
     }
 
     @Override

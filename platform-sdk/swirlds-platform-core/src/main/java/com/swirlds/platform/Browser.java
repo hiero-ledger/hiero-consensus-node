@@ -262,6 +262,7 @@ public class Browser {
                     recycleBin,
                     appMain.getSoftwareVersion(),
                     appMain::newStateRoot,
+                    (virtualMap) -> (com.swirlds.platform.state.MerkleNodeState) appMain.stateRootFromVirtualMap(),
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,

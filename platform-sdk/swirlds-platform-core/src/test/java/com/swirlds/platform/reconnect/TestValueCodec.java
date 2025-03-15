@@ -37,4 +37,9 @@ public class TestValueCodec implements Codec<TestValue> {
         final TestValue other = parse(in);
         return value.equals(other);
     }
+
+    @Override
+    public TestValue getDefaultInstance() {
+        throw new UnsupportedOperationException();
+    }
 }

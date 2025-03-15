@@ -22,6 +22,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public class StateBuilderUtil {
     /**
+     * The token service name.
+     */
+    public static final String TOKEN_SERVICE = "TokenService";
+    /**
      * The state key for accounts.
      */
     public static final String ACCOUNTS = "ACCOUNTS";
@@ -56,66 +60,66 @@ public class StateBuilderUtil {
 
     @NonNull
     protected MapReadableKVState.Builder<AccountID, Account> emptyReadableAccountStateBuilder() {
-        return MapReadableKVState.builder(ACCOUNTS);
+        return MapReadableKVState.builder(TOKEN_SERVICE, ACCOUNTS);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<AccountID, Account> emptyWritableAccountStateBuilder() {
-        return MapWritableKVState.builder(ACCOUNTS);
+        return MapWritableKVState.builder(TOKEN_SERVICE, ACCOUNTS);
     }
 
     @NonNull
     protected MapReadableKVState.Builder<PendingAirdropId, AccountPendingAirdrop> emptyReadableAirdropStateBuilder() {
-        return MapReadableKVState.builder(AIRDROPS);
+        return MapReadableKVState.builder(TOKEN_SERVICE, AIRDROPS);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<PendingAirdropId, AccountPendingAirdrop> emptyWritableAirdropStateBuilder() {
-        return MapWritableKVState.builder(AIRDROPS);
+        return MapWritableKVState.builder(TOKEN_SERVICE, AIRDROPS);
     }
 
     @NonNull
     protected MapReadableKVState.Builder<EntityIDPair, TokenRelation> emptyReadableTokenRelsStateBuilder() {
-        return MapReadableKVState.builder(TOKEN_RELS);
+        return MapReadableKVState.builder(TOKEN_SERVICE, TOKEN_RELS);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<EntityIDPair, TokenRelation> emptyWritableTokenRelsStateBuilder() {
-        return MapWritableKVState.builder(TOKEN_RELS);
+        return MapWritableKVState.builder(TOKEN_SERVICE, TOKEN_RELS);
     }
 
     @NonNull
     protected MapReadableKVState.Builder<NftID, Nft> emptyReadableNftStateBuilder() {
-        return MapReadableKVState.builder(NFTS);
+        return MapReadableKVState.builder(TOKEN_SERVICE, NFTS);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<NftID, Nft> emptyWritableNftStateBuilder() {
-        return MapWritableKVState.builder(NFTS);
+        return MapWritableKVState.builder(TOKEN_SERVICE, NFTS);
     }
 
     @NonNull
     protected MapReadableKVState.Builder<TokenID, Token> emptyReadableTokenStateBuilder() {
-        return MapReadableKVState.builder(TOKENS);
+        return MapReadableKVState.builder(TOKEN_SERVICE, TOKENS);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<TokenID, Token> emptyWritableTokenStateBuilder() {
-        return MapWritableKVState.builder(TOKENS);
+        return MapWritableKVState.builder(TOKEN_SERVICE, TOKENS);
     }
 
     @NonNull
     protected MapWritableKVState.Builder<ProtoBytes, AccountID> emptyWritableAliasStateBuilder() {
-        return MapWritableKVState.builder(ALIASES);
+        return MapWritableKVState.builder(TOKEN_SERVICE, ALIASES);
     }
 
     @NonNull
     protected MapReadableKVState.Builder<ProtoBytes, AccountID> emptyReadableAliasStateBuilder() {
-        return MapReadableKVState.builder(ALIASES);
+        return MapReadableKVState.builder(TOKEN_SERVICE, ALIASES);
     }
 
     @NonNull
     protected MapWritableKVState<TokenID, Token> emptyWritableTokenState() {
-        return MapWritableKVState.<TokenID, Token>builder(TOKENS).build();
+        return MapWritableKVState.<TokenID, Token>builder(TOKEN_SERVICE, TOKENS).build();
     }
 }

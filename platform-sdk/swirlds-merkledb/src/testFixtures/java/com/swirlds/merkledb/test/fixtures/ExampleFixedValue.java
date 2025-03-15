@@ -102,5 +102,10 @@ public final class ExampleFixedValue extends ExampleByteArrayVirtualValue {
             final ExampleFixedValue other = parse(in);
             return other.equals(value);
         }
+
+        @Override
+        public ExampleFixedValue getDefaultInstance() {
+            throw new UnsupportedOperationException();
+        }
     }
 }

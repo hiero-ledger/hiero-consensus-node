@@ -18,7 +18,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
@@ -26,7 +28,7 @@ import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.fixtures.info.FakeNetworkInfo;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.util.Map;
@@ -56,9 +58,9 @@ class StakeInfoHelperTest {
     void setup() {
         entityIdStore = new WritableEntityIdStore(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_KEY,
-                new WritableSingletonStateBase<>(ENTITY_ID_STATE_KEY, () -> null, c -> {}),
+                new FunctionWritableSingletonState<>(EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> null, c -> {}),
                 ENTITY_COUNTS_KEY,
-                new WritableSingletonStateBase<>(ENTITY_COUNTS_KEY, () -> null, c -> {}))));
+                new FunctionWritableSingletonState<>(EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> null, c -> {}))));
     }
 
     @ParameterizedTest
@@ -66,7 +68,8 @@ class StakeInfoHelperTest {
         "20, 15", "9, 14", "10, 15",
     })
     void increaseUnclaimedStartToLargerThanCurrentStakeReward(int amount, int expectedResult) {
-        final var state = MapWritableKVState.<EntityNumber, StakingNodeInfo>builder(V0490TokenSchema.STAKING_INFO_KEY)
+        final var state = MapWritableKVState.<EntityNumber, StakingNodeInfo>builder(
+                        TokenService.NAME, V0490TokenSchema.STAKING_INFO_KEY)
                 .value(
                         NODE_ID_1,
                         StakingNodeInfo.newBuilder()
@@ -94,7 +97,8 @@ class StakeInfoHelperTest {
     @Test
     void marksNonExistingNodesToDeletedInStateAndAddsNewNodesToState() {
         // State has nodeIds 1, 2, 3
-        final var stakingInfosState = new MapWritableKVState.Builder<EntityNumber, StakingNodeInfo>(STAKING_INFO_KEY)
+        final var stakingInfosState = new MapWritableKVState.Builder<EntityNumber, StakingNodeInfo>(
+                        TokenService.NAME, STAKING_INFO_KEY)
                 .value(NODE_NUM_1, STAKING_INFO_1)
                 .value(NODE_NUM_2, STAKING_INFO_2)
                 .value(NODE_NUM_3, STAKING_INFO_3)
@@ -127,7 +131,8 @@ class StakeInfoHelperTest {
         //noinspection ReturnOfNull
         return MapWritableStates.builder()
                 .state(stakingInfo)
-                .state(new WritableSingletonStateBase<>(STAKING_NETWORK_REWARDS_KEY, () -> null, c -> {}))
+                .state(new FunctionWritableSingletonState<>(
+                        TokenService.NAME, STAKING_NETWORK_REWARDS_KEY, () -> null, c -> {}))
                 .build();
     }
 

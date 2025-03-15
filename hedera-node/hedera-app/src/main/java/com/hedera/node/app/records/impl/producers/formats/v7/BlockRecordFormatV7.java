@@ -195,5 +195,10 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
         public boolean fastEquals(@NonNull RecordStreamItemV7 item, @NonNull ReadableSequentialData input) {
             return false;
         }
+
+        @Override
+        public RecordStreamItemV7 getDefaultInstance() {
+            return new RecordStreamItemV7(Transaction.DEFAULT, TransactionRecord.DEFAULT, Bytes.EMPTY, SemanticVersion.DEFAULT, 0, 0);
+        }
     }
 }

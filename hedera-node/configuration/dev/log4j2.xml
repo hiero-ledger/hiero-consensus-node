@@ -60,7 +60,7 @@
       <Policies>
         <SizeBasedTriggeringPolicy size="100 MB"/>
       </Policies>
-      <DefaultRolloverStrategy max="10"/>
+      <DefaultRolloverStrategy max="100"/>
     </RollingFile>
 
     <!-- Transaction state logs -->

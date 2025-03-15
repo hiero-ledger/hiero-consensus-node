@@ -397,7 +397,16 @@ public class LongListDisk extends AbstractLongList<Long> {
                 Long currentOffset = chunkList.get(i);
                 maxOffset = Math.max(maxOffset, currentOffset == null ? -1 : currentOffset);
             }
-            return maxOffset == -1 ? 0 : maxOffset + memoryChunkSize;
+            final long chunk = maxOffset == -1 ? 0 : maxOffset + memoryChunkSize;
+            try {
+                // Append the full chunk to the end of the backing file
+                final ByteBuffer tmp = initOrGetTransferBuffer();
+                fillBufferWithZeroes(tmp);
+                MerkleDbFileUtils.completelyWrite(currentFileChannel, tmp, chunk);
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return chunk;
         } else {
             return chunkOffset;
         }

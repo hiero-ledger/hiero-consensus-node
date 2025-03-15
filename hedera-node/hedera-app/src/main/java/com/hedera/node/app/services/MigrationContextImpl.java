@@ -4,13 +4,14 @@ package com.hedera.node.app.services;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.NewStateRoot;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.merkle.MerkleStateRoot.MerkleWritableStates;
 import com.swirlds.state.spi.FilteredWritableStates;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -58,12 +59,19 @@ public record MigrationContextImpl(
     }
 
     @Override
+    public void adjustCountsForNode(int delta) {
+        requireNonNull(writableEntityIdStore, "Entity ID store needs to exist first")
+                .adjustEntityCount(EntityType.NODE, delta);
+    }
+
+    @Override
     public void copyAndReleaseOnDiskState(@NonNull final String stateKey) {
         requireNonNull(stateKey);
-        if (newStates instanceof MerkleWritableStates merkleWritableStates) {
+        if (newStates instanceof NewStateRoot.MerkleWritableStates merkleWritableStates) {
             merkleWritableStates.copyAndReleaseVirtualMap(stateKey);
         } else if (newStates instanceof FilteredWritableStates filteredWritableStates
-                && filteredWritableStates.getDelegate() instanceof MerkleWritableStates merkleWritableStates) {
+                && filteredWritableStates.getDelegate()
+                        instanceof NewStateRoot.MerkleWritableStates merkleWritableStates) {
             merkleWritableStates.copyAndReleaseVirtualMap(stateKey);
         } else {
             throw new UnsupportedOperationException("On-disk state is inaccessible");

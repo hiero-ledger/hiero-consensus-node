@@ -17,6 +17,9 @@ import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteUtils;
 import com.swirlds.common.utility.Labeled;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Predicate;
 
 /**
@@ -28,6 +31,7 @@ public class MerkleTreeVisualizer {
     private static final String INDENT = "   ";
 
     private final MerkleNode root;
+    private List<String> states = new ArrayList<>();
     private boolean useColors = false;
     private boolean useMnemonics = true;
     private boolean useHashes = false;
@@ -120,6 +124,11 @@ public class MerkleTreeVisualizer {
      */
     public MerkleTreeVisualizer setDepth(final int depth) {
         this.depth = depth;
+        return this;
+    }
+
+    public MerkleTreeVisualizer setStates(@NonNull final List<String> states) {
+        this.states = states;
         return this;
     }
 
@@ -228,6 +237,8 @@ public class MerkleTreeVisualizer {
                 }
             }
         });
+
+        states.forEach(table::addRow);
 
         table.render(sb);
     }

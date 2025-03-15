@@ -252,6 +252,11 @@ public class FakeSchemaRegistry implements SchemaRegistry {
             }
 
             @Override
+            public void adjustCountsForNode(final int delta) {
+                // No-op
+            }
+
+            @Override
             public Map<String, Object> sharedValues() {
                 return sharedValues;
             }
