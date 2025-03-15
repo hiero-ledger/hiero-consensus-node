@@ -43,7 +43,6 @@ public abstract class AbstractTaskSchedulerBuilder<OUT> implements TaskScheduler
     protected final String name;
     protected long unhandledTaskCapacity = 1;
     protected boolean flushingEnabled = false;
-    protected boolean squelchingEnabled = false;
     protected boolean externalBackPressure = false;
     protected ObjectCounter onRamp;
     protected ObjectCounter offRamp;
@@ -110,9 +109,6 @@ public abstract class AbstractTaskSchedulerBuilder<OUT> implements TaskScheduler
         if (configuration.flushingEnabled() != null) {
             withFlushingEnabled(configuration.flushingEnabled());
         }
-        if (configuration.squelchingEnabled() != null) {
-            withSquelchingEnabled(configuration.squelchingEnabled());
-        }
         return this;
     }
 
@@ -143,16 +139,6 @@ public abstract class AbstractTaskSchedulerBuilder<OUT> implements TaskScheduler
     @NonNull
     public AbstractTaskSchedulerBuilder<OUT> withFlushingEnabled(final boolean requireFlushCapability) {
         this.flushingEnabled = requireFlushCapability;
-        return this;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public AbstractTaskSchedulerBuilder<OUT> withSquelchingEnabled(final boolean squelchingEnabled) {
-        this.squelchingEnabled = squelchingEnabled;
         return this;
     }
 

@@ -9,7 +9,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * An input wire that can be bound to an implementation.
@@ -22,13 +21,6 @@ public class BindableInputWire<IN, OUT> extends InputWire<IN> implements Bindabl
     private final TaskSchedulerInput<OUT> taskSchedulerInput;
     private final String taskSchedulerName;
     private final TraceableWiringModel model;
-
-    /**
-     * Supplier for whether the task scheduler is currently squelching.
-     * <p>
-     * As long as this supplier returns true, the handler will be executed as a no-op, and no data will be forwarded.
-     */
-    private final Supplier<Boolean> currentlySquelching;
 
     /**
      * True if this is a wire on a no-op scheduler.
@@ -50,7 +42,6 @@ public class BindableInputWire<IN, OUT> extends InputWire<IN> implements Bindabl
         this.model = Objects.requireNonNull(model);
         taskSchedulerInput = Objects.requireNonNull(taskScheduler);
         taskSchedulerName = taskScheduler.getName();
-        currentlySquelching = taskScheduler::currentlySquelching;
 
         noOp = taskScheduler.getType() == NO_OP;
 
@@ -70,7 +61,7 @@ public class BindableInputWire<IN, OUT> extends InputWire<IN> implements Bindabl
             return;
         }
         setHandler(i -> {
-            if (currentlySquelching.get()) {
+            if (currentlySquelching()) {
                 return;
             }
 
@@ -89,7 +80,7 @@ public class BindableInputWire<IN, OUT> extends InputWire<IN> implements Bindabl
             return;
         }
         setHandler(i -> {
-            if (currentlySquelching.get()) {
+            if (currentlySquelching()) {
                 return;
             }
 

@@ -150,14 +150,14 @@ class ConcurrentTaskSchedulerTests {
                 .withType(TaskSchedulerType.CONCURRENT)
                 .withUnhandledTaskCapacity(100)
                 .withFlushingEnabled(true)
-                .withSquelchingEnabled(true)
                 .build();
         final BindableInputWire<Integer, Void> inputWire = taskScheduler.buildInputWire("channel");
+        inputWire.doSquelch();
         inputWire.bindConsumer(handler);
 
         model.start();
 
-        taskScheduler.startSquelching();
+        inputWire.startSquelching();
 
         // add tasks, which will all be squelched
         for (int i = 0; i < 10; i++) {
@@ -171,7 +171,7 @@ class ConcurrentTaskSchedulerTests {
         assertEquals(0, handleCount.get(), "No tasks should have been processed");
 
         // stop squelching, and add some more tasks to be handled
-        taskScheduler.stopSquelching();
+        inputWire.stopSquelching();
         for (int i = 0; i < 2; i++) {
             inputWire.put(i);
             inputWire.offer(i);

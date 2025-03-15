@@ -67,7 +67,6 @@ public class DeterministicTaskSchedulerBuilder<OUT> extends AbstractTaskSchedule
                             counters.offRamp(),
                             unhandledTaskCapacity,
                             flushingEnabled,
-                            squelchingEnabled,
                             insertionIsBlocking,
                             submitWork);
                     case DIRECT, DIRECT_THREADSAFE -> new DirectTaskScheduler<>(
@@ -76,10 +75,9 @@ public class DeterministicTaskSchedulerBuilder<OUT> extends AbstractTaskSchedule
                             buildUncaughtExceptionHandler(),
                             counters.onRamp(),
                             counters.offRamp(),
-                            squelchingEnabled,
                             busyFractionTimer,
                             type == DIRECT_THREADSAFE);
-                    case NO_OP -> new NoOpTaskScheduler<>(model, name, type, flushingEnabled, squelchingEnabled);
+                    case NO_OP -> new NoOpTaskScheduler<>(model, name, type, flushingEnabled);
                 };
 
         if (type != NO_OP) {

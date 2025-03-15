@@ -19,6 +19,12 @@ public abstract class InputWire<IN> {
     private final String name;
     private final String taskSchedulerName;
     private final TaskSchedulerType taskSchedulerType;
+    /**
+     * Handles squelching for this task wire.
+     */
+    private boolean shouldSquelch = false;
+
+    private volatile boolean isSquelching = false;
 
     /**
      * Constructor.
@@ -104,5 +110,38 @@ public abstract class InputWire<IN> {
             throw new IllegalStateException("Handler already bound");
         }
         this.handler = Objects.requireNonNull(handler);
+    }
+
+    /**
+     * Indicates that this wire can be squelched.
+     *  Squelching is a mechanism that allows an InputWire to ignore inputs. When a
+     *  wire is being squelched, any new received inputs are simply discarded.
+     */
+    public InputWire<IN> doSquelch() {
+        this.shouldSquelch = true;
+        return this;
+    }
+
+    /**
+     * Start squelching, and continue doing so until {@link #stopSquelching()} is called.
+     */
+    public void startSquelching() {
+        if (this.shouldSquelch) this.isSquelching = true;
+    }
+
+    /**
+     * Stop squelching.
+     */
+    public void stopSquelching() {
+        if (this.shouldSquelch) this.isSquelching = false;
+    }
+
+    /**
+     * Get whether or not this wire is currently squelching.
+     *
+     * @return true if this wire is currently squelching, false otherwise
+     */
+    protected boolean currentlySquelching() {
+        return this.shouldSquelch && this.isSquelching;
     }
 }

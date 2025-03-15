@@ -45,7 +45,6 @@ public class SequentialTaskScheduler<OUT> extends TaskScheduler<OUT> {
      * @param busyTimer                a timer that tracks the amount of time the scheduler is busy
      * @param capacity                 the maximum desired capacity for this task scheduler
      * @param flushEnabled             if true, then {@link #flush()} will be enabled, otherwise it will throw.
-     * @param squelchingEnabled        if true, then squelching will be enabled, otherwise trying to squelch will throw
      * @param insertionIsBlocking      when data is inserted into this task scheduler, will it block until capacity is
      *                                 available?
      */
@@ -59,10 +58,9 @@ public class SequentialTaskScheduler<OUT> extends TaskScheduler<OUT> {
             @NonNull final FractionalTimer busyTimer,
             final long capacity,
             final boolean flushEnabled,
-            final boolean squelchingEnabled,
             final boolean insertionIsBlocking) {
 
-        super(model, name, TaskSchedulerType.SEQUENTIAL, flushEnabled, squelchingEnabled, insertionIsBlocking);
+        super(model, name, TaskSchedulerType.SEQUENTIAL, flushEnabled, insertionIsBlocking);
 
         this.pool = Objects.requireNonNull(pool);
         this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);
