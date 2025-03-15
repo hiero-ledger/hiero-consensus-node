@@ -61,18 +61,6 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
         }
     }
 
-    @Override
-    public void onFileChange(File file) {
-        switch (typeOf(file)) {
-            case RECORD_STREAM_FILE -> retryExposingVia(this::exposeItems, "record", file);
-            case SIDE_CAR_FILE -> retryExposingVia(this::exposeSidecars, "sidecar", file);
-            case BLOCK_FILE -> retryExposingVia(this::exposeBlock, "block", file);
-            case OTHER -> {
-                // Nothing to expose
-            }
-        }
-    }
-
     private void retryExposingVia(
             @NonNull final Consumer<File> exposure, @NonNull final String fileType, @NonNull final File f) {
         var retryCount = 0;
@@ -95,8 +83,13 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
                         return;
                     }
                 } else {
-                    log.error("Could not expose contents of {} file {}", fileType, f.getAbsolutePath(), e);
-                    throw new IllegalStateException();
+                    // Don't fail hard on an empty file; if a test really depends on the contents of a
+                    // pending stream file, it will fail anyways---and if this is just a timing condition,
+                    // no reason to destabilize the PR check
+                    if (f.length() > 0) {
+                        log.error("Could not expose contents of {} file {}", fileType, f.getAbsolutePath(), e);
+                        throw new IllegalStateException();
+                    }
                 }
             }
         }

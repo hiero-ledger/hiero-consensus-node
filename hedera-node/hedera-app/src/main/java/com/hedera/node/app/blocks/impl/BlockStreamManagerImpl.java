@@ -66,7 +66,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -339,8 +338,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
 
-            final var inputHash =
-                    inputTreeHasher.rootHash().orTimeout(5, TimeUnit.SECONDS).join();
+            final var inputHash = inputTreeHasher.rootHash().join();
             // This block's starting state hash is the end state hash of the last non-empty round
             final var blockStartStateHash = requireNonNull(endRoundStateHashes.get(lastNonEmptyRoundNumber))
                     .join();
@@ -375,8 +373,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
 
-            final var outputHash =
-                    outputTreeHasher.rootHash().orTimeout(5, TimeUnit.SECONDS).join();
+            final var outputHash = outputTreeHasher.rootHash().join();
             final var leftParent = combine(lastBlockHash, inputHash);
             final var rightParent = combine(outputHash, blockStartStateHash);
             final var blockHash = combine(leftParent, rightParent);
