@@ -149,8 +149,8 @@ class BlockStreamManagerImplTest {
     @Mock
     private ConsensusEvent mockEvent;
 
-    private final AtomicReference<Bytes> lastAItem = new AtomicReference<>();
-    private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
+    private final AtomicReference<byte[]> lastAItem = new AtomicReference<>();
+    private final AtomicReference<byte[]> lastBItem = new AtomicReference<>();
     private final AtomicReference<PlatformState> stateRef = new AtomicReference<>();
     private final AtomicReference<BlockStreamInfo> infoRef = new AtomicReference<>();
 
@@ -326,7 +326,7 @@ class BlockStreamManagerImplTest {
         // Assert the block proof was written
         final var proofItem = lastAItem.get();
         assertNotNull(proofItem);
-        final var item = BlockItem.PROTOBUF.parse(proofItem);
+        final var item = BlockItem.PROTOBUF.parse(Bytes.wrap(proofItem));
         assertTrue(item.hasBlockProof());
         final var proof = item.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, proof.block());
@@ -549,7 +549,7 @@ class BlockStreamManagerImplTest {
         // Assert the block proof was written
         final var proofItem = lastAItem.get();
         assertNotNull(proofItem);
-        final var item = BlockItem.PROTOBUF.parse(proofItem);
+        final var item = BlockItem.PROTOBUF.parse(Bytes.wrap(proofItem));
         assertTrue(item.hasBlockProof());
         final var proof = item.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, proof.block());
@@ -573,7 +573,7 @@ class BlockStreamManagerImplTest {
                     return bWriter;
                 })
                 .when(bWriter)
-                .writePbjItem(any());
+                .writeItem(any());
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
@@ -620,7 +620,7 @@ class BlockStreamManagerImplTest {
         // Assert both block proofs were written, but with the proof for N using an indirect proof
         final var aProofItem = lastAItem.get();
         assertNotNull(aProofItem);
-        final var aItem = BlockItem.PROTOBUF.parse(aProofItem);
+        final var aItem = BlockItem.PROTOBUF.parse(Bytes.wrap(aProofItem));
         assertTrue(aItem.hasBlockProof());
         final var aProof = aItem.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, aProof.block());
@@ -629,7 +629,7 @@ class BlockStreamManagerImplTest {
         // And the proof for N+1 using a direct proof
         final var bProofItem = lastBItem.get();
         assertNotNull(bProofItem);
-        final var bItem = BlockItem.PROTOBUF.parse(bProofItem);
+        final var bItem = BlockItem.PROTOBUF.parse(Bytes.wrap(bProofItem));
         assertTrue(bItem.hasBlockProof());
         final var bProof = bItem.blockProofOrThrow();
         assertEquals(N_BLOCK_NO + 1, bProof.block());
@@ -837,7 +837,7 @@ class BlockStreamManagerImplTest {
                 .doAnswer(invocationOnMock -> {
                     lastAItem.set(invocationOnMock.getArgument(0));
                     if (headerRef != null) {
-                        final var item = BlockItem.PROTOBUF.parse(lastAItem.get());
+                        final var item = BlockItem.PROTOBUF.parse(Bytes.wrap(lastAItem.get()));
                         if (item.hasBlockHeader()) {
                             headerRef.set(item.blockHeaderOrThrow());
                         }
@@ -845,7 +845,7 @@ class BlockStreamManagerImplTest {
                     return aWriter;
                 })
                 .when(aWriter)
-                .writePbjItem(any());
+                .writeItem(any());
         lenient().when(state.getWritableStates(BlockStreamService.NAME)).thenReturn(writableStates);
         lenient().when(state.getReadableStates(BlockStreamService.NAME)).thenReturn(readableStates);
         lenient().when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
