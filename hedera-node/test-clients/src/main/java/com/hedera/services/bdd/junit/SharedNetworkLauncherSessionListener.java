@@ -62,28 +62,27 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     switch (embedding) {
                             // Embedding is not applicable for a subprocess network
                         case NA -> {
+                            final int networkSize = Optional.ofNullable(System.getProperty("hapi.spec.network.size"))
+                                    .map(Integer::parseInt)
+                                    .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
                             final var initialPortProperty = System.getProperty("hapi.spec.initial.port");
                             if (!initialPortProperty.isBlank()) {
                                 final var initialPort = Integer.parseInt(initialPortProperty);
-                                SubProcessNetwork.initializeNextPortsForNetwork(
-                                        CLASSIC_HAPI_TEST_NETWORK_SIZE, initialPort);
+                                SubProcessNetwork.initializeNextPortsForNetwork(networkSize, initialPort);
                             }
                             final boolean isIssScenario = isIssScenario(testPlan);
-                            SubProcessNetwork subProcessNetwork = (SubProcessNetwork)
-                                    SubProcessNetwork.newSharedNetwork(CLASSIC_HAPI_TEST_NETWORK_SIZE, isIssScenario);
+                            final var subProcessNetwork =
+                                    (SubProcessNetwork) SubProcessNetwork.newSharedNetwork(networkSize, isIssScenario);
 
                             // Check test classes for WithBlockNodes annotation
                             log.info("Checking test classes for WithBlockNodes annotation...");
 
                             Set<TestIdentifier> allIdentifiers = new HashSet<>();
                             testPlan.getRoots().forEach(root -> {
-                                log.info("Found root: {}", root.getDisplayName());
                                 allIdentifiers.add(root);
                                 root.getSource().ifPresent(source -> log.info("Root source: {}", source));
-
                                 // Get all descendants of this root
                                 testPlan.getChildren(root.getUniqueId()).forEach(child -> {
-                                    log.info("Found child: {}", child.getDisplayName());
                                     allIdentifiers.add(child);
                                     child.getSource().ifPresent(source -> log.info("Child source: {}", source));
                                 });
