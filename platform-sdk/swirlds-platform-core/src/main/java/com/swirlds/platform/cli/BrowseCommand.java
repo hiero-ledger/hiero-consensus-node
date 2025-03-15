@@ -61,10 +61,10 @@ public class BrowseCommand extends AbstractCommand {
     @SuppressWarnings("InfiniteLoopStatement")
     @Override
     public Integer call() throws IOException, InterruptedException {
+        final Path sdkPath = Path.of(System.getProperty("user.dir"));
         if (clean) {
-            CleanCommand.clean(Path.of(System.getProperty("user.dir")));
+            CleanCommand.clean(sdkPath);
         }
-
         try {
             Browser.launch(new CommandLineArgs(new HashSet<>(localNodes)), false);
         } catch (final Exception e) {

@@ -53,11 +53,13 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -401,21 +403,59 @@ public final class CryptoStatic {
             throws ExecutionException, InterruptedException, KeyStoreException {
         Objects.requireNonNull(addressBook, ADDRESS_BOOK_MUST_NOT_BE_NULL);
 
+        final PublicStores publicStores = new PublicStores();
+
+        final Map<NodeId, KeysAndCerts> keysAndCerts =
+                CryptoStatic.generateKeysAndCerts(addressBook.getNodeIdSet(), publicStores);
+        // After the keys have been generated or loaded, they are then copied to the address book
+        try {
+            copyPublicKeys(publicStores, addressBook);
+        } catch (KeyLoadingException e) {
+            // this should not be possible since we just generated the certificates
+            throw new CryptographyException(e);
+        }
+        return keysAndCerts;
+    }
+
+    /**
+     * This method is designed to generate all a user's keys from their master key, to help with key recovery if their
+     * computer is erased.
+     * <p>
+     * We follow the "CNSA Suite" (Commercial National Security Algorithm), which is the current US government standard
+     * for protecting information up to and including Top Secret:
+     * <p>
+     * <a
+     * href="https://www.iad.gov/iad/library/ia-guidance/ia-solutions-for-classified/algorithm-guidance/commercial-national-security-algorithm-suite-factsheet.cfm">...</a>
+     * <p>
+     * The CNSA standard specifies AES-256, SHA-384, RSA, ECDH and ECDSA. So that is what is used here. Their intent
+     * appears to be that AES and SHA will each have 128 bits of post-quantum security, against Grover's and the BHT
+     * algorithm, respectively. Of course, ECDH and ECDSA aren't post-quantum, but AES-256 and SHA-384 are (as far as we
+     * know).
+     *
+     * @param nodeIds The nodeIds to generate keys for
+     * @param pStores Optional of Public Stores
+     * @throws ExecutionException   if key generation throws an exception, it will be wrapped in an ExecutionException
+     * @throws InterruptedException if this thread is interrupted
+     * @throws KeyStoreException    if there is no provider that supports {@link CryptoConstants#KEYSTORE_TYPE}
+     */
+    @NonNull
+    public static Map<NodeId, KeysAndCerts> generateKeysAndCerts(
+            final @NonNull Collection<NodeId> nodeIds, @Nullable final PublicStores pStores)
+            throws ExecutionException, InterruptedException, KeyStoreException {
+
+        final PublicStores publicStores = Optional.ofNullable(pStores).orElse(new PublicStores());
         final byte[] masterKey = new byte[CryptoConstants.SYM_KEY_SIZE_BYTES];
         final byte[] swirldId = new byte[CryptoConstants.HASH_SIZE_BYTES];
 
-        final PublicStores publicStores = new PublicStores();
-
-        final int n = addressBook.getSize();
-        final Map<NodeId, Future<KeysAndCerts>> futures = HashMap.newHashMap(n);
+        final Map<NodeId, Future<KeysAndCerts>> futures = HashMap.newHashMap(nodeIds.size());
         try (final ExecutorService threadPool =
                 Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
                         .setComponent("browser")
                         .setThreadName("crypto-generate")
                         .setDaemon(false)
                         .buildFactory())) {
-            for (int i = 0; i < n; i++) {
-                final NodeId nodeId = addressBook.getNodeId(i);
+            for (final NodeId nodeId : nodeIds) {
+                int i = (int) nodeId.id();
                 for (int j = 0; j < masterKey.length; j++) {
                     masterKey[j] = (byte) (j * MASTER_KEY_MULTIPLIER);
                 }
@@ -439,12 +479,6 @@ public final class CryptoStatic {
             final Map<NodeId, KeysAndCerts> keysAndCerts = futuresToMap(futures);
             threadPool.shutdown();
             // After the keys have been generated or loaded, they are then copied to the address book
-            try {
-                copyPublicKeys(publicStores, addressBook);
-            } catch (KeyLoadingException e) {
-                // this should not be possible since we just generated the certificates
-                throw new CryptographyException(e);
-            }
             return keysAndCerts;
         }
     }
@@ -557,9 +591,12 @@ public final class CryptoStatic {
                 logger.debug(STARTUP.getMarker(), "Done loading keys");
             } else {
                 // if there are no keys on the disk, then create our own keys
-                CommonUtils.tellUserConsole(
-                        "Creating keys, because there are no files in " + pathsConfig.getKeysDirPath());
-                logger.debug(STARTUP.getMarker(), "About to start creating generating keys");
+                CommonUtils.tellUserConsole("Keys will be generated in: " + pathsConfig.getKeysDirPath()
+                        + ", which is incompatible with DAB.");
+                logger.warn(
+                        STARTUP.getMarker(),
+                        "There are no keys on disk, Adhoc keys will be generated, but this is incompatible with DAB.");
+                logger.debug(STARTUP.getMarker(), "Started generating keys");
                 keysAndCerts = generateKeysAndCerts(addressBook);
                 logger.debug(STARTUP.getMarker(), "Done generating keys");
             }
