@@ -71,9 +71,10 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
             ingestChecker.verifyReadyForTransactions();
 
             // 1.-6. Parse and check the transaction
+            final var tx = transactionChecker.parse(requestBuffer);
             final var state = wrappedState.get();
             final var configuration = configProvider.getConfiguration();
-            final var transactionInfo = ingestChecker.runAllChecks(state, requestBuffer, configuration);
+            final var transactionInfo = ingestChecker.runAllChecks(state, tx, configuration);
 
             // 7. Submit to platform
             submissionManager.submit(transactionInfo.txBody(), requestBuffer);

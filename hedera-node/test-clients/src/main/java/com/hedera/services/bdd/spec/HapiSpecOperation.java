@@ -22,7 +22,6 @@ import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
-import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.keys.SigMapGenerator;
@@ -347,15 +346,8 @@ public abstract class HapiSpecOperation implements SpecOperation {
             return txnWithBodyBytesAndSigMap;
         }
         ByteString bodyByteString = CommonUtils.extractTransactionBodyByteString(txnWithBodyBytesAndSigMap);
-        final TransactionBody txBody = TransactionBody.parseFrom(bodyByteString);
-        if (explicitProtoStructure == TxnProtoStructure.NORMALIZED) {
-            return txnWithBodyBytesAndSigMap.toBuilder()
-                    .clearBodyBytes()
-                    .setBody(txBody)
-                    .build();
-        }
         if (unknownFieldLocation == UnknownFieldLocation.TRANSACTION_BODY) {
-            bodyByteString = txBody.toBuilder()
+            bodyByteString = TransactionBody.parseFrom(bodyByteString).toBuilder()
                     .setUnknownFields(nonEmptyUnknownFields())
                     .build()
                     .toByteString();

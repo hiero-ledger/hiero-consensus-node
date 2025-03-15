@@ -20,6 +20,7 @@ import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.throttle.ThrottleServiceModule;
+import com.hedera.node.app.validation.TransactionParserImpl;
 import com.hedera.node.app.workflows.FacilityInitModule;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.app.workflows.handle.HandleWorkflowModule;
@@ -96,6 +97,8 @@ public interface ExecutorComponent {
     Consumer<State> initializer();
 
     AppFeeCharging appFeeCharging();
+
+    TransactionParserImpl transactionParser();
 
     DispatchProcessor dispatchProcessor();
 

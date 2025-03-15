@@ -477,6 +477,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                         ThrottleAccumulator::new,
                         ignore -> version),
                 () -> daggerApp.appFeeCharging(),
+                () -> daggerApp.transactionParser(),
                 new AppEntityIdFactory(bootstrapConfig));
         boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, configSupplier);
         hintsService = hintsServiceFactory.apply(appContext, bootstrapConfig);
