@@ -39,6 +39,7 @@ class ProxyEvmContractTest {
             UInt256.fromHexString("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef");
     private static final UInt256 SOME_VALUE =
             UInt256.fromHexString("0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890");
+    private static final CodeFactory CODE_FACTORY = new CodeFactory(0, 0);
 
     @Mock
     private EvmFrameState hederaState;
@@ -47,7 +48,7 @@ class ProxyEvmContractTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ProxyEvmContract(ACCOUNT_ID, hederaState);
+        subject = new ProxyEvmContract(ACCOUNT_ID, hederaState, CODE_FACTORY);
     }
 
     @Test
@@ -110,7 +111,9 @@ class ProxyEvmContractTest {
     void returnsEvmCode() {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
         given(hederaState.getCode(CONTRACT_ID)).willReturn(code);
-        assertEquals(CodeFactory.createCode(code, 0, false), subject.getEvmCode(org.apache.tuweni.bytes.Bytes.EMPTY));
+        assertEquals(
+                CODE_FACTORY.createCode(code, false),
+                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.EMPTY, CODE_FACTORY));
     }
 
     @Test
@@ -118,14 +121,14 @@ class ProxyEvmContractTest {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
         given(hederaState.getCode(CONTRACT_ID)).willReturn(code);
         assertEquals(
-                CodeFactory.createCode(code, 0, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector())));
+                CODE_FACTORY.createCode(code, false),
+                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector()), CODE_FACTORY));
     }
 
     @Test
     void returnsCodeHash() {
         final var hash = pbjToBesuHash(SOME_PRETEND_CODE_HASH);
-        given(hederaState.getCodeHash(CONTRACT_ID)).willReturn(hash);
+        given(hederaState.getCodeHash(CONTRACT_ID, CODE_FACTORY)).willReturn(hash);
         assertEquals(hash, subject.getCodeHash());
     }
 

@@ -95,9 +95,10 @@ class DispatchingEvmFrameStateTest {
     private static final Bytes SOME_PRETEND_CODE = Bytes.wrap("<NOT-REALLY-CODE>");
     private static final Bytecode SOME_PRETEND_BYTECODE =
             Bytecode.newBuilder().code(SOME_PRETEND_CODE).build();
-    private static final Hash SOME_PRETEND_CODE_HASH = CodeFactory.createCode(
-                    pbjToTuweniBytes(SOME_PRETEND_CODE), 0, false)
-            .getCodeHash();
+    private static final CodeFactory CODE_FACTORY = new CodeFactory(0, 0);
+    private static final Hash SOME_PRETEND_CODE_HASH =
+            CODE_FACTORY.createCode(pbjToTuweniBytes(SOME_PRETEND_CODE), false).getCodeHash();
+
     private static final Bytes A_STORAGE_KEY = Bytes.wrap(Bytes32.random().toArrayUnsafe());
     private static final Bytes B_STORAGE_KEY = Bytes.wrap(Bytes32.random().toArrayUnsafe());
     private static final Bytes C_STORAGE_KEY = Bytes.wrap(Bytes32.random().toArrayUnsafe());
@@ -136,7 +137,7 @@ class DispatchingEvmFrameStateTest {
 
     @BeforeEach
     void setUp() {
-        subject = new DispatchingEvmFrameState(nativeOperations, contractStateStore);
+        subject = new DispatchingEvmFrameState(nativeOperations, contractStateStore, CODE_FACTORY);
     }
 
     @Test
@@ -404,14 +405,14 @@ class DispatchingEvmFrameStateTest {
     void getsExtantCodeHash() {
         givenWellKnownBytecode();
 
-        final var actualCodeHash = subject.getCodeHash(A_CONTRACT_ID);
+        final var actualCodeHash = subject.getCodeHash(A_CONTRACT_ID, CODE_FACTORY);
 
         assertEquals(SOME_PRETEND_CODE_HASH, actualCodeHash);
     }
 
     @Test
     void getsEmptyCodeHashForMissing() {
-        final var actualCodeHash = subject.getCodeHash(A_CONTRACT_ID);
+        final var actualCodeHash = subject.getCodeHash(A_CONTRACT_ID, CODE_FACTORY);
 
         assertSame(Hash.EMPTY, actualCodeHash);
     }

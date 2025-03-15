@@ -160,4 +160,10 @@ public abstract class AbstractProxyEvmAccount extends AbstractMutableEvmAccount 
     public boolean isHollow() {
         return HOLLOW_ACCOUNT_KEY.equals(toNativeAccount().key());
     }
+
+    @Override
+    public boolean isStorageEmpty() {
+        return state.getNativeAccount(accountID).firstContractStorageKey() == null
+                || state.getNativeAccount(accountID).firstContractStorageKey().length() == 0;
+    }
 }

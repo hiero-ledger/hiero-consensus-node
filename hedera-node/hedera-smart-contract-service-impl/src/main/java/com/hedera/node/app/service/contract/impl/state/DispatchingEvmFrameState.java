@@ -116,16 +116,20 @@ public class DispatchingEvmFrameState implements EvmFrameState {
 
     private final HederaNativeOperations nativeOperations;
     private final ContractStateStore contractStateStore;
+    private final CodeFactory codeFactory;
 
     /**
-     * @param nativeOperations the Hedera native operation
+     * @param nativeOperations   the Hedera native operation
      * @param contractStateStore the contract store that manages the key/value states
+     * @param codeFactory the
      */
     public DispatchingEvmFrameState(
             @NonNull final HederaNativeOperations nativeOperations,
-            @NonNull final ContractStateStore contractStateStore) {
+            @NonNull final ContractStateStore contractStateStore,
+            @NonNull final CodeFactory codeFactory) {
         this.nativeOperations = requireNonNull(nativeOperations);
         this.contractStateStore = requireNonNull(contractStateStore);
+        this.codeFactory = codeFactory;
     }
 
     /**
@@ -231,14 +235,15 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull Hash getCodeHash(@NonNull final ContractID contractID) {
+    public @NonNull Hash getCodeHash(@NonNull final ContractID contractID, @NonNull final CodeFactory codeFactory) {
         requireNonNull(contractID);
 
         final var numberedBytecode = contractStateStore.getBytecode(contractID);
         if (numberedBytecode == null) {
             return Hash.EMPTY;
         } else {
-            return CodeFactory.createCode(pbjToTuweniBytes(numberedBytecode.code()), 0, false)
+            return codeFactory
+                    .createCode(pbjToTuweniBytes(numberedBytecode.code()), false)
                     .getCodeHash();
         }
     }
@@ -256,7 +261,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public @NonNull Hash getTokenRedirectCodeHash(@NonNull final Address address) {
-        return CodeFactory.createCode(proxyBytecodeFor(address), 0, false).getCodeHash();
+        return codeFactory.createCode(proxyBytecodeFor(address), false).getCodeHash();
     }
 
     /**
@@ -272,8 +277,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public @NonNull Hash getAccountRedirectCodeHash(@Nullable final Address address) {
-        return CodeFactory.createCode(accountProxyBytecodeFor(address), 0, false)
-                .getCodeHash();
+        return codeFactory.createCode(accountProxyBytecodeFor(address), false).getCodeHash();
     }
 
     /**
@@ -289,8 +293,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public @NonNull Hash getScheduleRedirectCodeHash(@Nullable final Address address) {
-        return CodeFactory.createCode(scheduleProxyBytecodeFor(address), 0, false)
-                .getCodeHash();
+        return codeFactory.createCode(scheduleProxyBytecodeFor(address), false).getCodeHash();
     }
 
     /**
@@ -350,7 +353,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public Wei getBalance(AccountID accountID) {
+    public Wei getBalance(final AccountID accountID) {
         return Wei.of(validatedAccount(accountID).tinybarBalance());
     }
 
@@ -358,7 +361,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public long getIdNumber(@NonNull Address address) {
+    public long getIdNumber(@NonNull final Address address) {
         final var number = maybeMissingNumberOf(address, nativeOperations);
         if (number == MISSING_ENTITY_NUMBER) {
             throw new IllegalArgumentException("Address " + address + " has no associated Hedera id");
@@ -490,7 +493,8 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         }
         final var number = maybeMissingNumberOf(address, nativeOperations);
         if (number != MISSING_ENTITY_NUMBER) {
-            AccountID accountID = AccountID.newBuilder().accountNum(number).build();
+            final AccountID accountID =
+                    AccountID.newBuilder().accountNum(number).build();
             final var account = nativeOperations.getAccount(accountID);
             if (account != null) {
                 if (account.expiredAndPendingRemoval()) {
@@ -565,7 +569,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                 return null;
             }
             if (account.smartContract()) {
-                return new ProxyEvmContract(account.accountId(), this);
+                return new ProxyEvmContract(account.accountId(), this, codeFactory);
             } else {
                 return new ProxyEvmAccount(account.accountId(), this);
             }
