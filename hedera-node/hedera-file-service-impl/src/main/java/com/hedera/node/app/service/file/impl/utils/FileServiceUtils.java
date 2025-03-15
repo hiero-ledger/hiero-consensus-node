@@ -17,9 +17,8 @@ import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -44,7 +43,7 @@ public class FileServiceUtils {
         var contentLength = content.length;
 
         if (contentLength > fileServiceConfig.maxSizeKb() * 1024L) {
-            throw new HandleException(MAX_FILE_SIZE_EXCEEDED);
+            throw new WorkflowException(MAX_FILE_SIZE_EXCEEDED);
         }
     }
 
@@ -54,13 +53,12 @@ public class FileServiceUtils {
      * @param fileId the file id to validate and to fetch the metadata
      * @param fileStore the file store to fetch the metadata of specified file id
      * @param context the prehandle context for the transaction
-     * @throws PreCheckException if the file id is invalid or the file does not exist
+     * @throws WorkflowException if the file id is invalid or the file does not exist
      */
     public static void preValidate(
             @NonNull final FileID fileId,
             @NonNull final ReadableFileStore fileStore,
-            @NonNull final PreHandleContext context)
-            throws PreCheckException {
+            @NonNull final PreHandleContext context) {
         requireNonNull(context);
         requireNonNull(fileId);
         // System files are created as a side effect of handling the genesis transaction, so by the time any
@@ -78,8 +76,9 @@ public class FileServiceUtils {
      * @param context the prehandle context for the transaction.
      */
     public static void validateAndAddRequiredKeys(
-            @Nullable final File file, @Nullable final KeyList transactionKeys, @NonNull final PreHandleContext context)
-            throws PreCheckException {
+            @Nullable final File file,
+            @Nullable final KeyList transactionKeys,
+            @NonNull final PreHandleContext context) {
         if (file != null) {
             KeyList fileKeyList = file.keys();
 
@@ -105,7 +104,7 @@ public class FileServiceUtils {
      * @param context the prehandle context for the transaction.
      */
     public static void validateAndAddRequiredKeysForDelete(
-            @Nullable final File file, @NonNull final PreHandleContext context) throws PreCheckException {
+            @Nullable final File file, @NonNull final PreHandleContext context) {
         if (file != null) {
             KeyList fileKeyList = file.keys();
 
@@ -141,24 +140,24 @@ public class FileServiceUtils {
             final boolean canBeDeleted) {
 
         if (fileId.fileNum() <= ledgerConfig.numReservedSystemEntities()) {
-            throw new HandleException(ENTITY_NOT_ALLOWED_TO_DELETE);
+            throw new WorkflowException(ENTITY_NOT_ALLOWED_TO_DELETE);
         }
 
         var optionalFile = fileStore.get(fileId);
 
         if (optionalFile.isEmpty()) {
-            throw new HandleException(INVALID_FILE_ID);
+            throw new WorkflowException(INVALID_FILE_ID);
         }
 
         final var file = optionalFile.get();
 
         if (!file.hasKeys() || file.keys().keys().isEmpty()) {
             // @todo('protobuf change needed') change to immutable file response code
-            throw new HandleException(UNAUTHORIZED);
+            throw new WorkflowException(UNAUTHORIZED);
         }
 
         if (!canBeDeleted && file.deleted()) {
-            throw new HandleException(FILE_DELETED);
+            throw new WorkflowException(FILE_DELETED);
         }
 
         return file;

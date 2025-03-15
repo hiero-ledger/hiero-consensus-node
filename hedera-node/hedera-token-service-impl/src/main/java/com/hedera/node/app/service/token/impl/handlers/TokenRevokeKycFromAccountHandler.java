@@ -26,11 +26,10 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -54,21 +53,21 @@ public class TokenRevokeKycFromAccountHandler implements TransactionHandler {
      * This method is called during the pre-handle workflow.
      *
      * @param context the {@link PreHandleContext} which collects all information
-     * @throws PreCheckException    for invalid tokens or if the token has no KYC key
+     * @throws WorkflowException    for invalid tokens or if the token has no KYC key
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
 
         final var op = context.body().tokenRevokeKycOrThrow();
         final var tokenStore = context.createStore(ReadableTokenStore.class);
         final var tokenMeta = tokenStore.getTokenMeta(op.tokenOrElse(TokenID.DEFAULT));
-        if (tokenMeta == null) throw new PreCheckException(INVALID_TOKEN_ID);
+        if (tokenMeta == null) throw new WorkflowException(INVALID_TOKEN_ID);
         if (tokenMeta.hasKycKey()) {
             context.requireKey(tokenMeta.kycKey());
         } else {
-            throw new PreCheckException(TOKEN_HAS_NO_KYC_KEY);
+            throw new WorkflowException(TOKEN_HAS_NO_KYC_KEY);
         }
     }
 
@@ -101,16 +100,16 @@ public class TokenRevokeKycFromAccountHandler implements TransactionHandler {
      * Performs checks independent of state or context.
      */
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.tokenRevokeKycOrThrow();
         if (!op.hasToken()) {
-            throw new PreCheckException(INVALID_TOKEN_ID);
+            throw new WorkflowException(INVALID_TOKEN_ID);
         }
 
         if (!op.hasAccount()) {
-            throw new PreCheckException(ResponseCodeEnum.INVALID_ACCOUNT_ID);
+            throw new WorkflowException(ResponseCodeEnum.INVALID_ACCOUNT_ID);
         }
     }
 
@@ -127,7 +126,7 @@ public class TokenRevokeKycFromAccountHandler implements TransactionHandler {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final ExpiryValidator expiryValidator,
             @NonNull final ReadableTokenStore tokenStore)
-            throws HandleException {
+            throws WorkflowException {
         // Throws if account is unusable
         TokenHandlerHelper.getIfUsable(accountId, accountStore, expiryValidator, INVALID_ACCOUNT_ID);
         // Throws if token is unusable

@@ -35,10 +35,9 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -115,7 +114,7 @@ class FileSystemDeleteTest extends FileTestBase {
         given(transactionBody.fileID()).willReturn(null);
         given(context.body()).willReturn(transaction);
 
-        assertThatThrownBy(() -> subject.pureChecks(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.pureChecks(context)).isInstanceOf(WorkflowException.class);
     }
 
     @Test
@@ -145,7 +144,7 @@ class FileSystemDeleteTest extends FileTestBase {
 
     @Test
     @DisplayName("File not found returns error")
-    void fileIdNotFound() throws PreCheckException {
+    void fileIdNotFound() {
         // given:
         mockPayerLookup();
         given(mockStore.getFileMetadata(notNull())).willReturn(null);
@@ -166,7 +165,7 @@ class FileSystemDeleteTest extends FileTestBase {
         writableStore = new WritableFileStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
 
-        HandleException thrown = (HandleException) catchThrowable(() -> subject.handle(handleContext));
+        WorkflowException thrown = (WorkflowException) catchThrowable(() -> subject.handle(handleContext));
         assertThat(thrown.getStatus()).isEqualTo(INVALID_FILE_ID);
     }
 
@@ -180,7 +179,7 @@ class FileSystemDeleteTest extends FileTestBase {
         assertThat(existingFile.get().deleted()).isFalse();
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
 
-        HandleException thrown = (HandleException) catchThrowable(() -> subject.handle(handleContext));
+        WorkflowException thrown = (WorkflowException) catchThrowable(() -> subject.handle(handleContext));
         assertThat(thrown.getStatus()).isEqualTo(ENTITY_NOT_ALLOWED_TO_DELETE);
         assertThat(existingFile.get().deleted()).isFalse();
     }
@@ -196,7 +195,7 @@ class FileSystemDeleteTest extends FileTestBase {
         writableStore = new WritableFileStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
 
-        HandleException thrown = (HandleException) catchThrowable(() -> subject.handle(handleContext));
+        WorkflowException thrown = (WorkflowException) catchThrowable(() -> subject.handle(handleContext));
         assertThat(thrown.getStatus()).isEqualTo(UNAUTHORIZED);
     }
 
@@ -239,7 +238,7 @@ class FileSystemDeleteTest extends FileTestBase {
         assertThat(changedFile.get().deleted()).isTrue();
     }
 
-    private Key mockPayerLookup() throws PreCheckException {
+    private Key mockPayerLookup() {
         return FileTestUtils.mockPayerLookup(A_COMPLEX_KEY, payerId, accountStore);
     }
 

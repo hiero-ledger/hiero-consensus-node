@@ -34,9 +34,8 @@ import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.DispatchOptions.PropagateFeeChargingStrategy;
 import com.hedera.node.app.spi.workflows.DispatchOptions.StakingRewards;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -65,7 +64,7 @@ public abstract class AbstractScheduleHandler {
 
     @FunctionalInterface
     protected interface TransactionKeysFn {
-        TransactionKeys apply(@NonNull TransactionBody body, @NonNull AccountID payerId) throws PreCheckException;
+        TransactionKeys apply(@NonNull TransactionBody body, @NonNull AccountID payerId);
     }
 
     /**
@@ -74,17 +73,13 @@ public abstract class AbstractScheduleHandler {
      * @param schedule the schedule
      * @param fn the function to get required keys by category
      * @return the schedule's signing requirements
-     * @throws HandleException if the signing requirements cannot be determined
+     * @throws WorkflowException if the signing requirements cannot be determined
      */
     protected @NonNull TransactionKeys getTransactionKeysOrThrow(
-            @NonNull final Schedule schedule, @NonNull final TransactionKeysFn fn) throws HandleException {
+            @NonNull final Schedule schedule, @NonNull final TransactionKeysFn fn) throws WorkflowException {
         requireNonNull(schedule);
         requireNonNull(fn);
-        try {
-            return getRequiredKeys(schedule, fn);
-        } catch (final PreCheckException e) {
-            throw new HandleException(e.responseCode());
-        }
+        return getRequiredKeys(schedule, fn);
     }
 
     /**
@@ -93,11 +88,10 @@ public abstract class AbstractScheduleHandler {
      * @param schedule the schedule
      * @param fn the function to get required keys by category
      * @return the schedule's signing requirements
-     * @throws PreCheckException if the signing requirements cannot be determined
+     * @throws WorkflowException if the signing requirements cannot be determined
      */
     @NonNull
-    protected TransactionKeys getRequiredKeys(@NonNull final Schedule schedule, @NonNull final TransactionKeysFn fn)
-            throws PreCheckException {
+    protected TransactionKeys getRequiredKeys(@NonNull final Schedule schedule, @NonNull final TransactionKeysFn fn) {
         requireNonNull(schedule);
         requireNonNull(fn);
         final var body = childAsOrdinary(schedule);
@@ -108,7 +102,7 @@ public abstract class AbstractScheduleHandler {
         final var transactionKeys = fn.apply(body, payerId);
         // We do not currently support scheduling transactions that would need to complete hollow accounts
         if (!transactionKeys.requiredHollowAccounts().isEmpty()) {
-            throw new PreCheckException(UNRESOLVABLE_REQUIRED_SIGNERS);
+            throw new WorkflowException(UNRESOLVABLE_REQUIRED_SIGNERS);
         }
         return transactionKeys;
     }
@@ -159,18 +153,17 @@ public abstract class AbstractScheduleHandler {
 
     /**
      * Either returns a schedule from the given store with the given id, ready to be modified, or throws a
-     * {@link PreCheckException} if the schedule is not found or is not in a valid state.
+     * {@link WorkflowException} if the schedule is not found or is not in a valid state.
      *
      * @param scheduleId the schedule to get and validate
      * @param scheduleStore the schedule store
-     * @throws PreCheckException if the schedule is not found or is not in a valid state
+     * @throws WorkflowException if the schedule is not found or is not in a valid state
      */
     @NonNull
     protected Schedule getValidated(
             @NonNull final ScheduleID scheduleId,
             @NonNull final ReadableScheduleStore scheduleStore,
-            final boolean isLongTermEnabled)
-            throws PreCheckException {
+            final boolean isLongTermEnabled) {
         requireNonNull(scheduleId);
         requireNonNull(scheduleStore);
         final var schedule = scheduleStore.get(scheduleId);
@@ -178,7 +171,7 @@ public abstract class AbstractScheduleHandler {
         if (validationResult == OK) {
             return requireNonNull(schedule);
         } else {
-            throw new PreCheckException(validationResult);
+            throw new WorkflowException(validationResult);
         }
     }
 

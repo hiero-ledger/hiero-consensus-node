@@ -24,7 +24,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.rejecttokens.RejectTokensDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.rejecttokens.RejectTokensTranslator;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.config.api.Configuration;
 import org.apache.tuweni.bytes.Bytes;
@@ -154,7 +154,7 @@ public class RejectTokensDecoderTest {
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
 
         // then
-        assertThatExceptionOfType(HandleException.class)
+        assertThatExceptionOfType(WorkflowException.class)
                 .isThrownBy(() -> subject.decodeTokenRejects(attempt))
                 .withMessage(TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED.toString());
     }
@@ -227,7 +227,7 @@ public class RejectTokensDecoderTest {
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
 
         // then
-        assertThatExceptionOfType(HandleException.class)
+        assertThatExceptionOfType(WorkflowException.class)
                 .isThrownBy(() -> subject.decodeHrcTokenRejectNFT(attempt))
                 .withMessage(TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED.toString());
     }

@@ -16,7 +16,7 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.AutoAccountCreat
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,7 +52,7 @@ class AutoAccountCreatorTest extends StepsBase {
         transferContext = new TransferContextImpl(handleContext);
         final var aliasBytes = alias.alias();
         assertThatThrownBy(() -> subject.create(aliasBytes, 0))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED));
     }
 

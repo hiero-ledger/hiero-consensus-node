@@ -26,8 +26,8 @@ import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fixtures.Scenarios;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -81,7 +81,7 @@ class PreHandleContextImplTest implements Scenarios {
     private PreHandleContextImpl subject;
 
     @BeforeEach
-    void setup() throws PreCheckException {
+    void setup() {
         given(storeFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountById(PAYER)).willReturn(account);
         given(account.keyOrThrow()).willReturn(payerKey);
@@ -126,7 +126,7 @@ class PreHandleContextImplTest implements Scenarios {
 
         @SuppressWarnings("ConstantConditions")
         @Test
-        void testAllKeysForTransactionWithInvalidParameters() throws PreCheckException {
+        void testAllKeysForTransactionWithInvalidParameters() {
             // given
             final var bob = BOB.accountID();
 
@@ -137,7 +137,7 @@ class PreHandleContextImplTest implements Scenarios {
         }
 
         @Test
-        void testAllKeysForTransactionSuccess() throws PreCheckException {
+        void testAllKeysForTransactionSuccess() {
             // given
             doAnswer(invocation -> {
                         final var innerContext = invocation.getArgument(0, PreHandleContext.class);
@@ -160,28 +160,28 @@ class PreHandleContextImplTest implements Scenarios {
         }
 
         @Test
-        void testAllKeysForTransactionWithFailingPureCheck() throws PreCheckException {
+        void testAllKeysForTransactionWithFailingPureCheck() {
             // given
-            doThrow(new PreCheckException(INVALID_TRANSACTION_BODY))
+            doThrow(new WorkflowException(INVALID_TRANSACTION_BODY))
                     .when(dispatcher)
                     .dispatchPureChecks(any());
 
             // then
             assertThatThrownBy(() -> subject.allKeysForTransaction(TransactionBody.DEFAULT, ERIN.accountID()))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
         }
 
         @Test
-        void testAllKeysForTransactionWithFailingPreHandle() throws PreCheckException {
+        void testAllKeysForTransactionWithFailingPreHandle() {
             // given
-            doThrow(new PreCheckException(INSUFFICIENT_ACCOUNT_BALANCE))
+            doThrow(new WorkflowException(INSUFFICIENT_ACCOUNT_BALANCE))
                     .when(dispatcher)
                     .dispatchPreHandle(any());
 
             // gathering keys should not throw exceptions except for inability to read a key.
             assertThatThrownBy(() -> subject.allKeysForTransaction(TransactionBody.DEFAULT, ERIN.accountID()))
-                    .isInstanceOf(PreCheckException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(UNRESOLVABLE_REQUIRED_SIGNERS));
         }
     }

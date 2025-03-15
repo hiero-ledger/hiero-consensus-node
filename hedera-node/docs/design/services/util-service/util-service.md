@@ -128,7 +128,7 @@ then their containing AtomicBatch transaction must be signed by both `batchKey` 
 
 ## Network Response Messages
 
-Specific network response messages (```ResponseCodeEnum```) are wrapped by ```HandleException``` or ```PreCheckException```.
+Specific network response messages (```ResponseCodeEnum```) are wrapped by ```WorkflowException```.
 The response codes relevant to the Util Service are:
 - `BATCH_LIST_EMPTY`: The list of batch transactions is empty.
 - `BATCH_LIST_CONTAINS_DUPLICATES`: The list of batch transactions contains duplicated transactions.

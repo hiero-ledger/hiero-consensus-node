@@ -9,7 +9,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.co
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.sponsorCustomizedCreation;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -23,8 +23,8 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -152,10 +152,10 @@ public class TransactionProcessor {
             @NonNull final Configuration config) {
         try {
             return computeInvolvedParties(transaction, updater, config);
-        } catch (HandleException e) {
+        } catch (WorkflowException e) {
             throw e;
         } catch (Exception e) {
-            throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
+            throw new WorkflowException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
     }
 

@@ -9,7 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNEXPECTED_TOKEN_DECIMALS;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -23,7 +23,7 @@ import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -180,7 +180,7 @@ public class AdjustFungibleTokenChangesStep extends BaseTokenHandler implements 
             final var account = requireNonNull(accountStore.get(atPair.accountIdOrThrow()));
             try {
                 adjustBalance(rel, account, amount, tokenRelStore, accountStore);
-            } catch (HandleException e) {
+            } catch (WorkflowException e) {
                 // Whenever mono-service assessed a fixed fee to an account, it would
                 // update the "metadata" of that pending balance change to use
                 // INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE instead of
@@ -192,7 +192,7 @@ public class AdjustFungibleTokenChangesStep extends BaseTokenHandler implements 
                 // error to INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE if so.
                 if (e.getStatus() == INSUFFICIENT_TOKEN_BALANCE
                         && effectivePaymentWasMade(rel.accountIdOrThrow(), rel.tokenIdOrThrow(), assessedCustomFees)) {
-                    throw new HandleException(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE);
+                    throw new WorkflowException(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE);
                 }
                 throw e;
             }

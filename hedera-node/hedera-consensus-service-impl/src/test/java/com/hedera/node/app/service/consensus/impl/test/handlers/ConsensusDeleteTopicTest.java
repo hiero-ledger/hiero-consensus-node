@@ -32,9 +32,8 @@ import com.hedera.node.app.service.consensus.impl.handlers.ConsensusDeleteTopicH
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -84,7 +83,7 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
 
     @Test
     @DisplayName("Topic admin key sig required")
-    void adminKeySigRequired() throws PreCheckException {
+    void adminKeySigRequired() {
         // given:
         final var payerKey = mockPayerLookup();
         mockTopicLookup(SIMPLE_KEY_A, null);
@@ -101,7 +100,7 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
 
     @Test
     @DisplayName("Non-null topic submit key sig is NOT required")
-    void submitKeyNotRequired() throws PreCheckException {
+    void submitKeyNotRequired() {
         // given:
         final var payerKey = mockPayerLookup();
         mockTopicLookup(SIMPLE_KEY_A, SIMPLE_KEY_B);
@@ -119,7 +118,7 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
 
     @Test
     @DisplayName("Topic not found returns error")
-    void topicIdNotFound() throws PreCheckException {
+    void topicIdNotFound() {
         // given:
         mockPayerLookup();
         given(mockStore.getTopic(notNull())).willReturn(null);
@@ -132,7 +131,7 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
 
     @Test
     @DisplayName("Topic without admin key returns error")
-    void noTopicAdminKey() throws PreCheckException {
+    void noTopicAdminKey() {
         // given:
         mockPayerLookup();
         mockTopicLookup(null, SIMPLE_KEY_A);
@@ -145,7 +144,7 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
 
     @Test
     @DisplayName("Fails preHandle if topic doesn't exist")
-    void topicDoesntExist() throws PreCheckException {
+    void topicDoesntExist() {
         mockPayerLookup();
         final var txn = newDeleteTxn();
 
@@ -161,7 +160,7 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
 
     @Test
     @DisplayName("Fails preHandle if topic deleted")
-    void topicDeletedFail() throws PreCheckException {
+    void topicDeletedFail() {
         mockPayerLookup();
         final var txn = newDeleteTxn();
 
@@ -201,7 +200,7 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
         writableStore = new WritableTopicStore(writableStates, entityCounters);
         given(storeFactory.writableStore(WritableTopicStore.class)).willReturn(writableStore);
 
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        final var msg = assertThrows(WorkflowException.class, () -> subject.handle(handleContext));
 
         assertEquals(ResponseCodeEnum.UNAUTHORIZED, msg.getStatus());
     }

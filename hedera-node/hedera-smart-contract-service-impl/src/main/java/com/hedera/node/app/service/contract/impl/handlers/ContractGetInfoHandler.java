@@ -9,7 +9,7 @@ import static com.hedera.node.app.service.token.api.AccountSummariesApi.hexedEvm
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.summarizeStakingInfo;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.tokenRelationshipsOf;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -31,7 +31,6 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -77,9 +76,9 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
     }
 
     @Override
-    public void validate(@NonNull final QueryContext context) throws PreCheckException {
+    public void validate(@NonNull final QueryContext context) {
         requireNonNull(context);
-        validateFalsePreCheck(contractFrom(context) == null, INVALID_CONTRACT_ID);
+        validateFalse(contractFrom(context) == null, INVALID_CONTRACT_ID);
     }
 
     @Override

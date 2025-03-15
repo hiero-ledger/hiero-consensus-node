@@ -11,8 +11,8 @@ import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.preVa
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateAndAddRequiredKeys;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -36,11 +36,10 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.FilesConfig;
@@ -78,13 +77,13 @@ public class FileUpdateHandler implements TransactionHandler {
      * @param context the context to check
      */
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var transactionBody = txn.fileUpdateOrThrow();
 
         if (transactionBody.fileID() == null) {
-            throw new PreCheckException(INVALID_FILE_ID);
+            throw new WorkflowException(INVALID_FILE_ID);
         }
     }
 
@@ -95,10 +94,10 @@ public class FileUpdateHandler implements TransactionHandler {
      *
      * @param context the {@link PreHandleContext} which collects all information that will be
      *                passed to {@code #handle()}
-     * @throws PreCheckException if any issue happens on the pre handle level
+     * @throws WorkflowException if any issue happens on the pre handle level
      */
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var body = context.body();
         final var op = body.fileUpdateOrThrow();
@@ -117,7 +116,7 @@ public class FileUpdateHandler implements TransactionHandler {
     }
 
     @Override
-    public void handle(@NonNull final HandleContext handleContext) throws HandleException {
+    public void handle(@NonNull final HandleContext handleContext) throws WorkflowException {
         requireNonNull(handleContext);
 
         final var fileStore = handleContext.storeFactory().writableStore(WritableFileStore.class);
@@ -126,7 +125,7 @@ public class FileUpdateHandler implements TransactionHandler {
         final var fileServiceConfig = handleContext.configuration().getConfigData(FilesConfig.class);
 
         if (fileUpdate.fileID() == null) {
-            throw new HandleException(INVALID_FILE_ID);
+            throw new WorkflowException(INVALID_FILE_ID);
         }
 
         // the update file always will be for the node, not a particular ledger that's why we just compare the fileNum
@@ -140,7 +139,7 @@ public class FileUpdateHandler implements TransactionHandler {
 
         final var maybeFile = fileStore.get(fileUpdate.fileIDOrElse(FileID.DEFAULT));
         if (maybeFile.isEmpty()) {
-            throw new HandleException(INVALID_FILE_ID);
+            throw new WorkflowException(INVALID_FILE_ID);
         }
 
         final var file = maybeFile.get();
@@ -233,7 +232,7 @@ public class FileUpdateHandler implements TransactionHandler {
                 accountsConfig.isSuperuser(payerId) && filesConfig.isOverrideFile(fileId);
         if (contentLength > 0 || zeroLengthShouldClearTarget) {
             if (contentLength > filesConfig.maxSizeKb() * 1024L) {
-                throw new HandleException(MAX_FILE_SIZE_EXCEEDED);
+                throw new WorkflowException(MAX_FILE_SIZE_EXCEEDED);
             }
             builder.contents(op.contents());
         } else {

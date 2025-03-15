@@ -35,8 +35,8 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeComponents;
@@ -164,7 +164,7 @@ class ContractCallLocalHandlerTest {
         given(contractCallLocalQuery.gas()).willReturn(-1L);
 
         // when:
-        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(WorkflowException.class);
     }
 
     @Test
@@ -176,7 +176,7 @@ class ContractCallLocalHandlerTest {
         given(contractCallLocalQuery.gas()).willReturn(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1);
 
         // when:
-        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(WorkflowException.class);
     }
 
     @Test
@@ -189,7 +189,7 @@ class ContractCallLocalHandlerTest {
         givenDefaultConfig();
 
         // when:
-        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(WorkflowException.class);
     }
 
     @Test
@@ -202,7 +202,7 @@ class ContractCallLocalHandlerTest {
         givenDefaultConfig();
 
         // when:
-        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(WorkflowException.class);
     }
 
     @Test
@@ -219,7 +219,7 @@ class ContractCallLocalHandlerTest {
         givenAllowCallsToNonContractAccountOffConfig();
 
         // when:
-        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(WorkflowException.class);
     }
 
     @Test
@@ -231,7 +231,7 @@ class ContractCallLocalHandlerTest {
         givenAllowCallsToNonContractAccountOffConfig();
 
         // when:
-        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(WorkflowException.class);
     }
 
     @Test

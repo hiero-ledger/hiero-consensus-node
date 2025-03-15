@@ -7,8 +7,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseType.COST_ANSWER;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -26,7 +26,6 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -67,19 +66,19 @@ public class CryptoGetAccountRecordsHandler extends PaidQueryHandler {
     }
 
     @Override
-    public void validate(@NonNull final QueryContext context) throws PreCheckException {
+    public void validate(@NonNull final QueryContext context) {
         requireNonNull(context);
         final var accountStore = context.createStore(ReadableAccountStore.class);
         final var query = context.query();
         final var op = query.cryptoGetAccountRecords();
-        validateTruePreCheck(op != null, INVALID_TRANSACTION_BODY);
+        validateTrue(op != null, INVALID_TRANSACTION_BODY);
 
         final var account = accountStore.getAccountById(op.accountIDOrElse(AccountID.DEFAULT));
-        validateTruePreCheck(account != null, INVALID_ACCOUNT_ID);
+        validateTrue(account != null, INVALID_ACCOUNT_ID);
 
-        validateFalsePreCheck(account.deleted(), ACCOUNT_DELETED);
+        validateFalse(account.deleted(), ACCOUNT_DELETED);
 
-        validateFalsePreCheck(account.smartContract(), INVALID_ACCOUNT_ID);
+        validateFalse(account.smartContract(), INVALID_ACCOUNT_ID);
     }
 
     @Override

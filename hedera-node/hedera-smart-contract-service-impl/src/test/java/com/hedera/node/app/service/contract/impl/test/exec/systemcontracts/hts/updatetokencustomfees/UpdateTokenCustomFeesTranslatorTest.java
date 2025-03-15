@@ -32,7 +32,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
@@ -233,7 +233,7 @@ class UpdateTokenCustomFeesTranslatorTest extends CallTestBase {
         given(configuration.getConfigData(TokensConfig.class)).willReturn(tokensConfig);
         given(tokensConfig.maxCustomFeesAllowed()).willReturn(0);
         // Execute the call and verify it fails with CUSTOM_FEES_LIST_TOO_LONG
-        assertThatExceptionOfType(HandleException.class)
+        assertThatExceptionOfType(WorkflowException.class)
                 .isThrownBy(() -> subject.callFrom(attempt))
                 .withMessage(CUSTOM_FEES_LIST_TOO_LONG.protoName());
     }

@@ -30,7 +30,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.cancelairdrops.TokenCancelAirdropDecoder;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import java.util.ArrayList;
@@ -121,7 +121,7 @@ class TokenCancelAirdropDecoderTest {
                 Bytes.wrapByteBuffer(CANCEL_AIRDROPS.encodeCall(Tuple.singleton(new Tuple[] {tuple, tuple, tuple})));
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
 
-        assertThatExceptionOfType(HandleException.class)
+        assertThatExceptionOfType(WorkflowException.class)
                 .isThrownBy(() -> subject.decodeCancelAirdrop(attempt))
                 .withMessage(PENDING_AIRDROP_ID_LIST_TOO_LONG.protoName());
     }
@@ -144,7 +144,7 @@ class TokenCancelAirdropDecoderTest {
         })));
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
 
-        assertThatExceptionOfType(HandleException.class)
+        assertThatExceptionOfType(WorkflowException.class)
                 .isThrownBy(() -> subject.decodeCancelAirdrop(attempt))
                 .withMessage(INVALID_TOKEN_ID.protoName());
     }

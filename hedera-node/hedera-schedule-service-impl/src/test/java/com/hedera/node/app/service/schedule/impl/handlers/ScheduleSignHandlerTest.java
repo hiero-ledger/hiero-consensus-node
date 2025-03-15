@@ -14,10 +14,9 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fixtures.Assertions;
 import com.hedera.node.app.spi.key.KeyComparator;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.InvalidKeyException;
@@ -36,13 +35,13 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
     private PreHandleContext realPreContext;
 
     @BeforeEach
-    void setUp() throws PreCheckException, InvalidKeyException {
+    void setUp() throws InvalidKeyException {
         subject = new ScheduleSignHandler(mock(ScheduleFeeCharging.class));
         setUpBase();
     }
 
     @Test
-    void vanilla() throws PreCheckException {
+    void vanilla() {
         final TransactionBody testTransaction = scheduleSignTransaction(null);
         realPreContext = new PreHandleContextImpl(
                 mockStoreFactory, testTransaction, testConfig, mockDispatcher, mockTransactionChecker);
@@ -54,7 +53,7 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
     }
 
     @Test
-    void failsIfScheduleMissing() throws PreCheckException {
+    void failsIfScheduleMissing() {
         final ScheduleID badScheduleID = ScheduleID.newBuilder().scheduleNum(1L).build();
         final TransactionBody testTransaction = scheduleSignTransaction(badScheduleID);
         realPreContext = new PreHandleContextImpl(
@@ -63,7 +62,7 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
     }
 
     @Test
-    void verifySignatoriesAreUpdatedWithoutExecution() throws PreCheckException {
+    void verifySignatoriesAreUpdatedWithoutExecution() {
         int successCount = 0;
         for (final Schedule next : listOfScheduledOptions) {
             final int startCount = scheduleMapById.size();
@@ -81,11 +80,11 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
     }
 
     @Test
-    void verifyErrorConditions() throws PreCheckException {
+    void verifyErrorConditions() {
         // verify a bad schedule ID fails correctly
         TransactionBody signTransaction = scheduleSignTransaction(badId);
         prepareContext(signTransaction);
-        throwsHandleException(() -> subject.handle(mockContext), ResponseCodeEnum.INVALID_SCHEDULE_ID);
+        throwsWorkflowException(() -> subject.handle(mockContext), ResponseCodeEnum.INVALID_SCHEDULE_ID);
 
         // verify we fail a sign for a deleted transaction.
         // Use an arbitrary schedule from the big list for this.
@@ -94,11 +93,11 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
         writableSchedules.put(deleteTest);
         signTransaction = scheduleSignTransaction(deleteTest.scheduleId());
         prepareContext(signTransaction);
-        throwsHandleException(() -> subject.handle(mockContext), ResponseCodeEnum.SCHEDULE_ALREADY_DELETED);
+        throwsWorkflowException(() -> subject.handle(mockContext), ResponseCodeEnum.SCHEDULE_ALREADY_DELETED);
     }
 
     @Test
-    void handleExecutesImmediateIfPossible() throws HandleException, PreCheckException {
+    void handleExecutesImmediateIfPossible() throws WorkflowException {
         int successCount = 0;
         for (final Schedule next : listOfScheduledOptions) {
             final int startCount = scheduleMapById.size();
@@ -138,7 +137,7 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
                 .build();
     }
 
-    private Set<Key> prepareContext(final TransactionBody signTransaction) throws PreCheckException {
+    private Set<Key> prepareContext(final TransactionBody signTransaction) {
         given(mockContext.body()).willReturn(signTransaction);
         given(mockContext.allKeysForTransaction(Mockito.any(), Mockito.any())).willReturn(testChildKeys);
         // for signature verification to be in-between, the "Answer" needs to be "valid" for only some required keys
@@ -154,7 +153,7 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
         return Set.of(payerKey); // return the expected set of signatories after the transaction is handled.
     }
 
-    private void prepareContextAllPass(final TransactionBody signTransaction) throws PreCheckException {
+    private void prepareContextAllPass(final TransactionBody signTransaction) {
         given(mockContext.body()).willReturn(signTransaction);
         given(mockContext.allKeysForTransaction(Mockito.any(), Mockito.any())).willReturn(testChildKeys);
         // for signature verification to succeed, the "Answer" needs to be "valid" for all keys

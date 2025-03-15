@@ -73,7 +73,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -213,7 +213,7 @@ public class ScheduleTestBase {
     protected TransactionBody alternateCreateTransaction;
     protected List<Schedule> listOfScheduledOptions;
 
-    protected void setUpBase() throws PreCheckException, InvalidKeyException {
+    protected void setUpBase() throws WorkflowException, InvalidKeyException {
         testConfig = HederaTestConfigBuilder.createConfig();
         scheduleConfig = testConfig.getConfigData(SchedulingConfig.class);
         scheduled = createSampleScheduled();

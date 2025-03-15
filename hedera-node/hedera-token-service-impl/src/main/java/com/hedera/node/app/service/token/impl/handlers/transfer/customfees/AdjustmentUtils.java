@@ -9,7 +9,7 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -232,7 +232,7 @@ public class AdjustmentUtils {
         try {
             return Math.addExact(addendA, addendB);
         } catch (final ArithmeticException ignore) {
-            throw new HandleException(failureReason);
+            throw new WorkflowException(failureReason);
         }
     }
 }

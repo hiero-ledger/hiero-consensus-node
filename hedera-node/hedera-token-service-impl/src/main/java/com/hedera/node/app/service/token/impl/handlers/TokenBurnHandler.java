@@ -12,7 +12,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TREASURY_MUST_OWN_BURNE
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator.verifyTokenInstanceAmounts;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -35,11 +35,10 @@ import com.hedera.node.app.service.token.records.TokenBurnStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -67,7 +66,7 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
     }
 
     @Override
-    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) {
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.tokenBurnOrThrow();
@@ -75,13 +74,13 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+    public void preHandle(@NonNull final PreHandleContext context) {
         requireNonNull(context);
         final var op = context.body().tokenBurnOrThrow();
         final var tokenId = op.tokenOrElse(TokenID.DEFAULT);
         final var tokenStore = context.createStore(ReadableTokenStore.class);
         final var tokenMetadata = tokenStore.getTokenMeta(tokenId);
-        if (tokenMetadata == null) throw new PreCheckException(INVALID_TOKEN_ID);
+        if (tokenMetadata == null) throw new WorkflowException(INVALID_TOKEN_ID);
         // we will fail in handle() if token has no supply key
         if (tokenMetadata.hasSupplyKey()) {
             context.requireKey(tokenMetadata.supplyKey());
@@ -89,7 +88,7 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
     }
 
     @Override
-    public void handle(@NonNull final HandleContext context) throws HandleException {
+    public void handle(@NonNull final HandleContext context) throws WorkflowException {
         requireNonNull(context);
         final var storeFactory = context.storeFactory();
         final var accountStore = storeFactory.writableStore(WritableAccountStore.class);

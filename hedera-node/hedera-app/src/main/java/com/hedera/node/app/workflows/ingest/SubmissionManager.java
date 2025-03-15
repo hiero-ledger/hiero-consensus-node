@@ -6,7 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NO
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
@@ -104,9 +104,9 @@ public class SubmissionManager {
      * @param txBody  the {@link TransactionBody} that should be submitted to the platform
      * @param txBytes the bytes of the data that should be submitted (the full transaction bytes as received from gRPC)
      * @throws NullPointerException if one of the arguments is {@code null}
-     * @throws PreCheckException    if the transaction could not be submitted
+     * @throws WorkflowException    if the transaction could not be submitted
      */
-    public void submit(@NonNull final TransactionBody txBody, @NonNull final Bytes txBytes) throws PreCheckException {
+    public void submit(@NonNull final TransactionBody txBody, @NonNull final Bytes txBytes) {
         requireNonNull(txBody);
         requireNonNull(txBytes);
 
@@ -125,7 +125,7 @@ public class SubmissionManager {
                     || MAIN_NET_LEDGER_ID.equals(ledgerConfig.id())
                     || TEST_NET_LEDGER_ID.equals(ledgerConfig.id())
                     || PREVIEW_NET_LEDGER_ID.equals(ledgerConfig.id())) {
-                throw new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED);
+                throw new WorkflowException(PLATFORM_TRANSACTION_NOT_CREATED);
             }
 
             // We allow it outside of prod, but it really shouldn't be used.
@@ -142,7 +142,7 @@ public class SubmissionManager {
             // and BEFORE we record the transaction as a duplicate.
             final var txId = txBody.transactionIDOrThrow();
             if (submittedTxns.contains(txId)) {
-                throw new PreCheckException(DUPLICATE_TRANSACTION);
+                throw new WorkflowException(DUPLICATE_TRANSACTION);
             }
 
             // This call to submit to the platform should almost always work. Maybe under extreme load it will fail,
@@ -153,7 +153,7 @@ public class SubmissionManager {
                 submittedTxns.add(txId);
             } else {
                 platformTxnRejections.cycle();
-                throw new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED);
+                throw new WorkflowException(PLATFORM_TRANSACTION_NOT_CREATED);
             }
         }
     }

@@ -29,7 +29,7 @@ import com.hedera.node.app.service.token.impl.test.util.SigReqAdapterUtils;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -54,7 +54,7 @@ class TokenDeleteHandlerTest extends ParityTestBase {
             given(context.body()).willReturn(txn);
 
             Assertions.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(INVALID_TOKEN_ID));
         }
 
@@ -73,7 +73,7 @@ class TokenDeleteHandlerTest extends ParityTestBase {
             given(context.body()).willReturn(txn);
 
             Assertions.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_WAS_DELETED));
         }
 
@@ -93,7 +93,7 @@ class TokenDeleteHandlerTest extends ParityTestBase {
             given(context.body()).willReturn(txn);
 
             Assertions.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_IS_PAUSED));
         }
 
@@ -113,7 +113,7 @@ class TokenDeleteHandlerTest extends ParityTestBase {
             given(context.body()).willReturn(txn);
 
             Assertions.assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
+                    .isInstanceOf(WorkflowException.class)
                     .has(responseCode(TOKEN_IS_IMMUTABLE));
         }
 

@@ -4,8 +4,8 @@ package com.hedera.node.app.workflows.purechecks;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -22,10 +22,9 @@ public class PureChecksContextImpl implements PureChecksContext {
 
     /**
      * Create a new instance of {@link PureChecksContextImpl}.
-     * @throws PreCheckException if the payer account does not exist
+     * @throws WorkflowException if the payer account does not exist
      */
-    public PureChecksContextImpl(@NonNull final TransactionBody txn, @NonNull final TransactionDispatcher dispatcher)
-            throws PreCheckException {
+    public PureChecksContextImpl(@NonNull final TransactionBody txn, @NonNull final TransactionDispatcher dispatcher) {
         this.txn = requireNonNull(txn, "txn must not be null!");
         this.dispatcher = requireNonNull(dispatcher, "dispatcher must not be null!");
     }
@@ -38,7 +37,7 @@ public class PureChecksContextImpl implements PureChecksContext {
 
     @NonNull
     @Override
-    public void dispatchPureChecks(@NonNull TransactionBody body) throws PreCheckException {
+    public void dispatchPureChecks(@NonNull TransactionBody body) {
         final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);
         dispatcher.dispatchPureChecks(pureChecksContext);
     }

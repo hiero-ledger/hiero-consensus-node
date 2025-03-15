@@ -20,15 +20,14 @@ import static com.hedera.node.app.service.addressbook.AddressBookHelper.writeCer
 import static com.hedera.node.app.spi.key.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.key.KeyUtils.isValid;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ServiceEndpoint;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -126,24 +125,23 @@ public class AddressBookValidator {
      * Validates the admin key.
      *
      * @param key The key to validate
-     * @throws PreCheckException if the key is invalid
+     * @throws WorkflowException if the key is invalid
      */
-    public void validateAdminKey(@Nullable Key key) throws PreCheckException {
+    public void validateAdminKey(@Nullable Key key) {
         final var keyEmpty = isEmpty(key);
-        validateFalsePreCheck(keyEmpty, KEY_REQUIRED);
-        validateTruePreCheck(isValid(key), INVALID_ADMIN_KEY);
+        validateFalse(keyEmpty, KEY_REQUIRED);
+        validateTrue(isValid(key), INVALID_ADMIN_KEY);
     }
 
     /**
      * Validates the account ID.
      *
      * @param accountId The account ID to validate
-     * @throws PreCheckException if the account ID is invalid
+     * @throws WorkflowException if the account ID is invalid
      */
-    public void validateAccountId(@Nullable AccountID accountId) throws PreCheckException {
+    public void validateAccountId(@Nullable AccountID accountId) {
         validateAccountID(accountId, INVALID_NODE_ACCOUNT_ID);
-        validateFalsePreCheck(
-                !requireNonNull(accountId).hasAccountNum() && accountId.hasAlias(), INVALID_NODE_ACCOUNT_ID);
+        validateFalse(!requireNonNull(accountId).hasAccountNum() && accountId.hasAlias(), INVALID_NODE_ACCOUNT_ID);
     }
 
     private void validateEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
@@ -163,9 +161,9 @@ public class AddressBookValidator {
      * Validates the given bytes encode an X509 certificate can be serialized and deserialized from
      * PEM format to recover a usable certificate.
      * @param x509CertBytes the bytes to validate
-     * @throws PreCheckException if the certificate is invalid
+     * @throws WorkflowException if the certificate is invalid
      */
-    public static void validateX509Certificate(@NonNull final Bytes x509CertBytes) throws PreCheckException {
+    public static void validateX509Certificate(@NonNull final Bytes x509CertBytes) {
         try {
             // Serialize the given bytes to a PEM file just as we would on a PREPARE_UPGRADE
             final var baos = new ByteArrayOutputStream();
@@ -176,7 +174,7 @@ public class AddressBookValidator {
             // And check its validity for completeness
             cert.checkValidity();
         } catch (Exception ignore) {
-            throw new PreCheckException(INVALID_GOSSIP_CA_CERTIFICATE);
+            throw new WorkflowException(INVALID_GOSSIP_CA_CERTIFICATE);
         }
     }
 }

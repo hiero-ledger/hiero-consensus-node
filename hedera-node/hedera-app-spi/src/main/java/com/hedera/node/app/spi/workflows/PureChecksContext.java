@@ -20,8 +20,8 @@ public interface PureChecksContext {
     /**
      * Dispatches {@link TransactionHandler#pureChecks(PureChecksContext)} for the given {@link TransactionBody}.
      * @param body
-     * @throws PreCheckException
+     * @throws WorkflowException
      */
     @NonNull
-    void dispatchPureChecks(@NonNull TransactionBody body) throws PreCheckException;
+    void dispatchPureChecks(@NonNull TransactionBody body) throws WorkflowException;
 }

@@ -7,13 +7,11 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.METADATA_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateFalse;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -40,7 +38,7 @@ public class TokenSupplyChangeOpsValidator {
      * @param fungibleCount the number of fungible tokens to mint
      * @param metaDataList the list of metadata for the NFTs to mint
      * @param tokensConfig the tokens configuration
-     * @throws HandleException if the transaction data is invalid
+     * @throws WorkflowException if the transaction data is invalid
      */
     public void validateMint(
             final long fungibleCount, final List<Bytes> metaDataList, final TokensConfig tokensConfig) {
@@ -59,7 +57,7 @@ public class TokenSupplyChangeOpsValidator {
      * @param fungibleCount the number of fungible tokens to burn
      * @param nftSerialNums the list of NFT serial numbers to burn
      * @param tokensConfig  the tokens configuration
-     * @throws HandleException if the transaction data is invalid
+     * @throws WorkflowException if the transaction data is invalid
      */
     public void validateBurn(
             final long fungibleCount,
@@ -79,26 +77,25 @@ public class TokenSupplyChangeOpsValidator {
      * @param serialNums the list of NFT serial numbers to burn
      * @param hasToken whether the transaction body has a token ID
      * @param invalidAmountResponseCode the response code to throw if the {@code fungibleAmount} param is invalid
-     * @throws PreCheckException if the transaction data is invalid
+     * @throws WorkflowException if the transaction data is invalid
      */
     public static void verifyTokenInstanceAmounts(
             final long fungibleAmount,
             final @NonNull List<Long> serialNums,
             final boolean hasToken,
-            @NonNull final ResponseCodeEnum invalidAmountResponseCode)
-            throws PreCheckException {
-        validateTruePreCheck(hasToken, INVALID_TOKEN_ID);
+            @NonNull final ResponseCodeEnum invalidAmountResponseCode) {
+        validateTrue(hasToken, INVALID_TOKEN_ID);
 
         // If a positive fungible fungibleAmount is present, the NFT serial numbers must be empty
-        validateFalsePreCheck(fungibleAmount > 0 && !serialNums.isEmpty(), INVALID_TRANSACTION_BODY);
+        validateFalse(fungibleAmount > 0 && !serialNums.isEmpty(), INVALID_TRANSACTION_BODY);
 
         // The fungible amount must not be negative, regardless of use case
-        validateFalsePreCheck(fungibleAmount < 0, invalidAmountResponseCode);
+        validateFalse(fungibleAmount < 0, invalidAmountResponseCode);
 
         // Validate the NFT serial numbers
         if (fungibleAmount < 1 && !serialNums.isEmpty()) {
             for (final var serialNumber : serialNums) {
-                validateTruePreCheck(serialNumber > 0, INVALID_NFT_ID);
+                validateTrue(serialNumber > 0, INVALID_NFT_ID);
             }
         }
     }
@@ -109,7 +106,7 @@ public class TokenSupplyChangeOpsValidator {
      * @param fungibleCount the number of fungible tokens to wipe
      * @param nftSerialNums the list of NFT serial numbers to wipe
      * @param tokensConfig the tokens configuration
-     * @throws HandleException if the transaction data is invalid
+     * @throws WorkflowException if the transaction data is invalid
      */
     public void validateWipe(
             final long fungibleCount,

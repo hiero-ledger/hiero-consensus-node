@@ -4,7 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.gas;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -12,7 +12,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
@@ -99,7 +99,7 @@ public class CustomGasCharging {
      * @param worldUpdater the world updater for the transaction
      * @param transaction the transaction to charge gas for
      * @return the result of the gas charging
-     * @throws HandleException if the gas charging fails for any reason
+     * @throws WorkflowException if the gas charging fails for any reason
      */
     public GasCharges chargeForGas(
             @NonNull final HederaEvmAccount sender,
@@ -141,7 +141,7 @@ public class CustomGasCharging {
      * @param context the context of the transaction, including the network gas price
      * @param worldUpdater the world updater for the transaction
      * @param transaction the transaction to charge gas for
-     * @throws HandleException if the gas charging fails for any reason
+     * @throws WorkflowException if the gas charging fails for any reason
      */
     public void chargeGasForAbortedTransaction(
             @NonNull final AccountID sender,

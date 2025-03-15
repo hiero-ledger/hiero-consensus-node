@@ -25,7 +25,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updatetokencustomfees.UpdateTokenCustomFeesDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updatetokencustomfees.UpdateTokenCustomFeesTranslator;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
@@ -256,7 +256,7 @@ class UpdateTokenCustomFeesDecoderTest {
         setConfiguration();
 
         final var error =
-                assertThrows(HandleException.class, () -> subject.decodeUpdateFungibleTokenCustomFees(attempt));
+                assertThrows(WorkflowException.class, () -> subject.decodeUpdateFungibleTokenCustomFees(attempt));
         assertEquals(ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG, error.getStatus());
     }
 
@@ -377,7 +377,7 @@ class UpdateTokenCustomFeesDecoderTest {
         setConfiguration();
 
         final var error =
-                assertThrows(HandleException.class, () -> subject.decodeUpdateNonFungibleTokenCustomFees(attempt));
+                assertThrows(WorkflowException.class, () -> subject.decodeUpdateNonFungibleTokenCustomFees(attempt));
         assertEquals(ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG, error.getStatus());
     }
 
@@ -408,7 +408,7 @@ class UpdateTokenCustomFeesDecoderTest {
         setConfiguration();
 
         final var error =
-                assertThrows(HandleException.class, () -> subject.decodeUpdateNonFungibleTokenCustomFees(attempt));
+                assertThrows(WorkflowException.class, () -> subject.decodeUpdateNonFungibleTokenCustomFees(attempt));
         assertEquals(ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG, error.getStatus());
     }
 

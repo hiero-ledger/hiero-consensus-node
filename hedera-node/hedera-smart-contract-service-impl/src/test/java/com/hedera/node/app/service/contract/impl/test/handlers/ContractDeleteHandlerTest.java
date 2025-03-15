@@ -37,9 +37,9 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -89,8 +89,8 @@ class ContractDeleteHandlerTest {
                 .build();
         given(preHandleContext.body()).willReturn(txn);
 
-        final var ex = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
-        assertEquals(MODIFYING_IMMUTABLE_CONTRACT, ex.responseCode());
+        final var ex = assertThrows(WorkflowException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(MODIFYING_IMMUTABLE_CONTRACT, ex.getStatus());
     }
 
     @Test
@@ -100,8 +100,8 @@ class ContractDeleteHandlerTest {
                         ContractDeleteTransactionBody.newBuilder().permanentRemoval(true))
                 .build();
         given(pureChecksContext.body()).willReturn(txn);
-        final var exc = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertEquals(PERMANENT_REMOVAL_REQUIRES_SYSTEM_INITIATION, exc.responseCode(), "Incorrect response code");
+        final var exc = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(PERMANENT_REMOVAL_REQUIRES_SYSTEM_INITIATION, exc.getStatus(), "Incorrect response code");
     }
 
     @Test
@@ -136,8 +136,8 @@ class ContractDeleteHandlerTest {
                 .contractDeleteInstance(missingObtainer(VALID_CONTRACT_ADDRESS))
                 .build();
         given(pureChecksContext.body()).willReturn(txn);
-        final var ex = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertEquals(OBTAINER_REQUIRED, ex.responseCode());
+        final var ex = assertThrows(WorkflowException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(OBTAINER_REQUIRED, ex.getStatus());
     }
 
     @Test

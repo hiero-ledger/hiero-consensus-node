@@ -52,9 +52,8 @@ import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.swirlds.state.spi.WritableStates;
 import java.util.List;
 import java.util.Map;
@@ -112,7 +111,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void preHandlesCryptoDeleteIfNoReceiverSigRequired() throws PreCheckException {
+    void preHandlesCryptoDeleteIfNoReceiverSigRequired() {
         final var txn = deleteAccountTransaction(deleteAccountId, transferAccountId);
 
         final var context = new FakePreHandleContext(readableStore, txn);
@@ -124,7 +123,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void preHandlesCryptoDeleteIfReceiverSigRequiredVanilla() throws PreCheckException {
+    void preHandlesCryptoDeleteIfReceiverSigRequiredVanilla() {
         final var txn = deleteAccountTransaction(deleteAccountId, transferAccountId);
 
         final var context = new FakePreHandleContext(readableStore, txn);
@@ -136,7 +135,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void doesntAddBothKeysAccountsSameAsPayerForCryptoDelete() throws PreCheckException {
+    void doesntAddBothKeysAccountsSameAsPayerForCryptoDelete() {
         final var txn = deleteAccountTransaction(deleteAccountId, transferAccountId);
 
         updateReadableStore(Map.of(
@@ -157,7 +156,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void doesntAddTransferKeyIfAccountSameAsPayerForCryptoDelete() throws PreCheckException {
+    void doesntAddTransferKeyIfAccountSameAsPayerForCryptoDelete() {
         final var txn = deleteAccountTransaction(deleteAccountId, id);
 
         updateReadableStore(
@@ -173,7 +172,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void doesntAddDeleteKeyIfAccountSameAsPayerForCryptoDelete() throws PreCheckException {
+    void doesntAddDeleteKeyIfAccountSameAsPayerForCryptoDelete() {
         final var txn = deleteAccountTransaction(id, transferAccountId);
 
         final var context = new FakePreHandleContext(readableStore, txn);
@@ -185,7 +184,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void failsWithResponseCodeIfAnyAccountMissingForCryptoDelete() throws PreCheckException {
+    void failsWithResponseCodeIfAnyAccountMissingForCryptoDelete() {
         /* ------ payerAccount missing, so deleteAccount and transferAccount will not be added  ------ */
         final var txn = deleteAccountTransaction(deleteAccountId, transferAccountId);
         updateReadableStore(Map.of());
@@ -206,7 +205,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void doesntExecuteIfAccountIdIsDefaultInstance() throws PreCheckException {
+    void doesntExecuteIfAccountIdIsDefaultInstance() {
         final var txn = deleteAccountTransaction(deleteAccountId, AccountID.DEFAULT);
 
         final var context = new FakePreHandleContext(readableStore, txn);
@@ -219,12 +218,12 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void pureChecksFailWhenTargetSameAsBeneficiary() throws PreCheckException {
+    void pureChecksFailWhenTargetSameAsBeneficiary() {
         final var txn = deleteAccountTransaction(deleteAccountId, deleteAccountId);
         given(pureChecksContext.body()).willReturn(txn);
 
         assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TRANSFER_ACCOUNT_SAME_AS_DELETE_ACCOUNT));
     }
 
@@ -242,7 +241,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         givenTxnWith(deleteAccountId, transferAccountId);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_ACCOUNT_ID));
     }
 
@@ -253,7 +252,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         givenTxnWith(deleteAccountId, transferAccountId);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(INVALID_TRANSFER_ACCOUNT_ID));
     }
 
@@ -272,7 +271,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
                 .willReturn(false);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ACCOUNT_DELETED));
     }
 
@@ -304,7 +303,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
                 .willReturn(true);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ACCOUNT_EXPIRED_AND_PENDING_REMOVAL));
     }
 
@@ -318,7 +317,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
                 .willReturn(true);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ACCOUNT_EXPIRED_AND_PENDING_REMOVAL));
     }
 
@@ -335,7 +334,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         givenTxnWith(deleteAccountId, transferAccountId);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ACCOUNT_IS_TREASURY));
     }
 
@@ -351,28 +350,28 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         givenTxnWith(deleteAccountId, transferAccountId);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES));
     }
 
     @Test
-    void failsIfEitherDeleteOrTransferAccountDoesntExist() throws PreCheckException {
+    void failsIfEitherDeleteOrTransferAccountDoesntExist() {
         var txn = deleteAccountTransaction(null, transferAccountId);
         given(pureChecksContext.body()).willReturn(txn);
         assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ACCOUNT_ID_DOES_NOT_EXIST));
 
         txn = deleteAccountTransaction(deleteAccountId, null);
         given(pureChecksContext.body()).willReturn(txn);
         assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ACCOUNT_ID_DOES_NOT_EXIST));
 
         txn = deleteAccountTransaction(null, null);
         given(pureChecksContext.body()).willReturn(txn);
         assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
-                .isInstanceOf(PreCheckException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(ACCOUNT_ID_DOES_NOT_EXIST));
     }
 

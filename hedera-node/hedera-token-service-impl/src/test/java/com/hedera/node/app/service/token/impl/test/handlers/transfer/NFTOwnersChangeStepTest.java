@@ -25,7 +25,7 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.NFTOwnersChangeS
 import com.hedera.node.app.service.token.impl.handlers.transfer.ReplaceAliasesWithIDsInOp;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -239,7 +239,7 @@ class NFTOwnersChangeStepTest extends StepsBase {
         changeNFTOwnersStep = new NFTOwnersChangeStep(replacedOp.tokenTransfers(), payerId);
 
         assertThatThrownBy(() -> changeNFTOwnersStep.doIn(transferContext))
-                .isInstanceOf(HandleException.class)
+                .isInstanceOf(WorkflowException.class)
                 .has(responseCode(SPENDER_DOES_NOT_HAVE_ALLOWANCE));
     }
 

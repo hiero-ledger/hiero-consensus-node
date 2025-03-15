@@ -18,8 +18,8 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 public class CryptoTransferValidationHelper {
@@ -32,13 +32,12 @@ public class CryptoTransferValidationHelper {
             final AccountID senderId,
             final NftTransfer nftTransfer,
             final PreHandleContext meta,
-            final ReadableAccountStore accountStore)
-            throws PreCheckException {
+            final ReadableAccountStore accountStore) {
 
         // Lookup the sender account and verify it.
         final var senderAccount = accountStore.getAliasedAccountById(senderId);
         if (senderAccount == null) {
-            throw new PreCheckException(INVALID_ACCOUNT_ID);
+            throw new WorkflowException(INVALID_ACCOUNT_ID);
         }
 
         // If the sender account is immutable, then we throw an exception.
@@ -49,7 +48,7 @@ public class CryptoTransferValidationHelper {
             } else {
                 // If the sender account has no key, then fail with INVALID_ACCOUNT_ID.
                 // NOTE: should change to ACCOUNT_IS_IMMUTABLE
-                throw new PreCheckException(INVALID_ACCOUNT_ID);
+                throw new WorkflowException(INVALID_ACCOUNT_ID);
             }
         } else if (!nftTransfer.isApproval()) {
             meta.requireKey(key);
@@ -64,8 +63,7 @@ public class CryptoTransferValidationHelper {
             final ReadableTokenStore.TokenMetadata tokenMeta,
             @Nullable final CryptoTransferTransactionBody op,
             final ReadableAccountStore accountStore,
-            final TransferExecutor.OptionalKeyCheck receiverKeyCheck)
-            throws PreCheckException {
+            final TransferExecutor.OptionalKeyCheck receiverKeyCheck) {
 
         // Lookup the receiver account and verify it.
         final var receiverAccount = accountStore.getAliasedAccountById(receiverId);
@@ -73,7 +71,7 @@ public class CryptoTransferValidationHelper {
             // It may be that the receiver account does not yet exist. If it is being addressed by alias,
             // then this is OK, as we will automatically create the account. Otherwise, fail.
             if (!isAlias(receiverId)) {
-                throw new PreCheckException(INVALID_ACCOUNT_ID);
+                throw new WorkflowException(INVALID_ACCOUNT_ID);
             } else {
                 return;
             }
@@ -83,7 +81,7 @@ public class CryptoTransferValidationHelper {
         if (isStakingAccount(meta.configuration(), receiverAccount.accountId())) {
             // If the receiver account has no key, then fail with INVALID_ACCOUNT_ID.
             // NOTE: should change to ACCOUNT_IS_IMMUTABLE after modularization
-            throw new PreCheckException(INVALID_ACCOUNT_ID);
+            throw new WorkflowException(INVALID_ACCOUNT_ID);
         } else if (receiverAccount.receiverSigRequired()) {
             if (receiverKeyCheck == RECEIVER_KEY_IS_OPTIONAL) {
                 meta.optionalKey(receiverKey);
@@ -95,7 +93,7 @@ public class CryptoTransferValidationHelper {
         } else if (tokenMeta.hasRoyaltyWithFallback()) {
             // For airdrops, we don't support tokens with royalties with fallback
             if (op == null) {
-                throw new PreCheckException(INVALID_TRANSACTION);
+                throw new WorkflowException(INVALID_TRANSACTION);
             } else if (!receivesFungibleValue(nftTransfer.senderAccountID(), op, accountStore)) {
                 // It may be that this transfer has royalty fees associated with it. If it does, then we need
                 // to check that the receiver signed the transaction, UNLESS the sender or receiver is

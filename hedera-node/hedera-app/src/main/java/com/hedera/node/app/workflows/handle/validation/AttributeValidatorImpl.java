@@ -9,14 +9,14 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_ST
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.node.app.spi.key.KeyUtils.isValid;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.WorkflowException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.WorkflowException;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -47,7 +47,7 @@ public class AttributeValidatorImpl implements AttributeValidator {
 
         // If key is mappable in all levels, validate the key is valid
         if (!isValid(key)) {
-            throw new HandleException(BAD_ENCODING);
+            throw new WorkflowException(BAD_ENCODING);
         }
     }
 
@@ -55,8 +55,8 @@ public class AttributeValidatorImpl implements AttributeValidator {
     public void validateKey(@NonNull final Key key, @NonNull final ResponseCodeEnum responseCodeEnum) {
         try {
             validateKey(key);
-        } catch (HandleException e) {
-            throw new HandleException(responseCodeEnum);
+        } catch (WorkflowException e) {
+            throw new WorkflowException(responseCodeEnum);
         }
     }
 
@@ -72,9 +72,9 @@ public class AttributeValidatorImpl implements AttributeValidator {
         final var maxMemoUtf8Bytes =
                 context.configuration().getConfigData(HederaConfig.class).transactionMaxMemoUtf8Bytes();
         if (raw.length > maxMemoUtf8Bytes) {
-            throw new HandleException(MEMO_TOO_LONG);
+            throw new WorkflowException(MEMO_TOO_LONG);
         } else if (containsZeroByte(raw)) {
-            throw new HandleException(INVALID_ZERO_BYTE_IN_STRING);
+            throw new WorkflowException(INVALID_ZERO_BYTE_IN_STRING);
         }
     }
 
@@ -106,7 +106,7 @@ public class AttributeValidatorImpl implements AttributeValidator {
 
     private void validateKeyAtLevel(@NonNull final Key key, final int level) {
         if (level > MAX_NESTED_KEY_LEVELS) {
-            throw new HandleException(BAD_ENCODING);
+            throw new WorkflowException(BAD_ENCODING);
         }
         if (!key.hasThresholdKey() && !key.hasKeyList()) {
             validateSimple(key);
@@ -125,7 +125,7 @@ public class AttributeValidatorImpl implements AttributeValidator {
      */
     private void validateSimple(@NonNull final Key key) {
         if (key.key().kind() == Key.KeyOneOfType.UNSET) {
-            throw new HandleException(BAD_ENCODING);
+            throw new WorkflowException(BAD_ENCODING);
         }
     }
 
