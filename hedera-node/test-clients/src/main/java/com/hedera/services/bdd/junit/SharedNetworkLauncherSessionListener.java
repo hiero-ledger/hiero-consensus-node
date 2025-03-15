@@ -65,11 +65,13 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     switch (embedding) {
                             // Embedding is not applicable for a subprocess network
                         case NA -> {
+                            final int networkSize = Optional.ofNullable(System.getProperty("hapi.spec.network.size"))
+                                    .map(Integer::parseInt)
+                                    .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
                             final var initialPortProperty = System.getProperty("hapi.spec.initial.port");
                             if (!initialPortProperty.isBlank()) {
                                 final var initialPort = Integer.parseInt(initialPortProperty);
-                                SubProcessNetwork.initializeNextPortsForNetwork(
-                                        CLASSIC_HAPI_TEST_NETWORK_SIZE, initialPort);
+                                SubProcessNetwork.initializeNextPortsForNetwork(networkSize, initialPort);
                             }
                             final var prepareUpgradeOffsetsProperty =
                                     System.getProperty("hapi.spec.prepareUpgradeOffsets");
@@ -83,8 +85,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                                     HapiSpec.doDelayedPrepareUpgrades(offsets);
                                 }
                             }
-                            SubProcessNetwork subProcessNetwork = (SubProcessNetwork)
-                                    SubProcessNetwork.newSharedNetwork(CLASSIC_HAPI_TEST_NETWORK_SIZE);
+                            SubProcessNetwork subProcessNetwork =
+                                    (SubProcessNetwork) SubProcessNetwork.newSharedNetwork(networkSize);
 
                             // Check test classes for WithBlockNodes annotation
                             log.info("Checking test classes for WithBlockNodes annotation...");

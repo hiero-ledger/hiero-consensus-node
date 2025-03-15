@@ -99,13 +99,14 @@ val prCheckStartPorts =
     )
 val prCheckPropOverrides =
     mapOf(
-        "hapiTestAdhoc" to "tss.historyEnabled=false,tss.hintsEnabled=true",
-        "hapiTestCrypto" to
-            "tss.historyEnabled=false,tss.hintsEnabled=true,blockStream.blockPeriod=3s",
+        "hapiTestAdhoc" to "tss.hintsEnabled=true",
+        "hapiTestCrypto" to "tss.hintsEnabled=true,blockStream.blockPeriod=3s",
     )
 val prCheckPrepareUpgradeOffsets =
     mapOf("hapiTestAdhoc" to "PT1000S", "hapiTestSmartContract" to "PT30M")
 val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "0", "hapiTestSmartContract" to "0")
+// Use to override the default network size for a specific test task
+val prCheckNetSizeOverrides = mapOf("hapiTestToken" to "3")
 
 tasks {
     prCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testSubprocess") } }
@@ -166,6 +167,15 @@ tasks.register<Test>("testSubprocess") {
     if (prepareUpgradeOffsets.isNotEmpty()) {
         systemProperty("hapi.spec.prepareUpgradeOffsets", prepareUpgradeOffsets)
     }
+
+    val networkSize =
+        gradle.startParameter.taskNames
+            .stream()
+            .map { prCheckNetSizeOverrides[it] ?: "" }
+            .filter { it.isNotBlank() }
+            .findFirst()
+            .orElse("4")
+    systemProperty("hapi.spec.network.size", networkSize)
 
     // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
     systemProperty(
