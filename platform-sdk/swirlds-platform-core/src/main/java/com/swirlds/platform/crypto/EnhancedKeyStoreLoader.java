@@ -460,7 +460,7 @@ public class EnhancedKeyStoreLoader {
 
                 final KeyPair sigKeyPair = new KeyPair(sigCert.getPublicKey(), sigPrivateKey);
                 final KeyPair agrKeyPair = new KeyPair(agrCert.getPublicKey(), agrPrivateKey);
-                final KeysAndCerts kc = new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, agrCert, publicStores);
+                final KeysAndCerts kc = new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, agrCert);
 
                 keysAndCerts.put(nodeId, kc);
             }
