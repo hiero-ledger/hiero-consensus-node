@@ -335,6 +335,8 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                                     final var tableConfig = new MerkleDbTableConfig(
                                             (short) 1,
                                             DigestType.SHA_384,
+                                            // Future work: drop StateDefinition.maxKeysHint and load VM size
+                                            // from VirtualMapConfig.size instead
                                             def.maxKeysHint(),
                                             merkleDbConfig.hashesRamToDiskThreshold());
                                     final var label = StateMetadata.computeLabel(serviceName, stateKey);

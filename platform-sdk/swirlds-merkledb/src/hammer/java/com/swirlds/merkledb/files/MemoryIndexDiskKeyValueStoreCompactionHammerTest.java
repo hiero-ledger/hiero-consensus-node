@@ -81,7 +81,7 @@ class MemoryIndexDiskKeyValueStoreCompactionHammerTest {
 
         // Collection of database files and index
         final var serializer = new ExampleFixedSizeDataSerializer();
-        LongListOffHeap storeIndex = new LongListOffHeap();
+        LongListOffHeap storeIndex = new LongListOffHeap(1024 * 1024, 2L * 1024 * 1024, 256 * 1024);
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final var store = new MemoryIndexDiskKeyValueStore(
                 dbConfig,

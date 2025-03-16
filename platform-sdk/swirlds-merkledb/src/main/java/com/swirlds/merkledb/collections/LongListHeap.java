@@ -40,47 +40,83 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
     /** A buffer for reading chunk data from the file only during the initialization. */
     private ByteBuffer initReadBuffer;
 
-    /** Construct a new LongListHeap with the default number of longs per chunk. */
-    public LongListHeap() {
-        this(DEFAULT_NUM_LONGS_PER_CHUNK, DEFAULT_MAX_LONGS_TO_STORE, 0);
-    }
-
     /**
-     * Construct a new LongListHeap with the specified number of longs per chunk and default max
-     * longs to store.
-     */
-    public LongListHeap(final int numLongsPerChunk) {
-        this(numLongsPerChunk, Math.min(DEFAULT_MAX_LONGS_TO_STORE, (long) numLongsPerChunk * MAX_NUM_CHUNKS), 0);
-    }
-
-    /**
-     * Construct a new LongListHeap with the specified number of longs per chunk and maximum number
-     * of longs.
+     * Create a new on-heap long list with the specified capacity. Number of longs per chunk and
+     * reserved buffer size are read from the provided configuration.
      *
-     * @param numLongsPerChunk number of longs to store in each chunk of memory allocated
-     * @param maxLongs the maximum number of longs permissible for this LongList
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param configuration Platform configuration
      */
-    LongListHeap(final int numLongsPerChunk, final long maxLongs, final long reservedBufferLength) {
-        super(numLongsPerChunk, maxLongs, reservedBufferLength);
+    public LongListHeap(final long capacity, final Configuration configuration) {
+        super(capacity, configuration);
     }
 
     /**
-     * Create a {@link LongListHeap} from a file that was saved.
+     * Create a new on-heap long list with the specified chunk size, capacity, and reserved
+     * buffer size.
      *
-     * @param file the file to read from
-     * @throws IOException If there was a problem reading the file
+     * @param longsPerChunk Number of longs to store in each chunk of memory allocated
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param reservedBufferSize Reserved buffer length that the list should have before
+     *                           minimal index in the list
      */
-    public LongListHeap(final Path file, final Configuration configuration) throws IOException {
-        super(file, 0, configuration);
+    public LongListHeap(final int longsPerChunk, final long capacity, final long reservedBufferSize) {
+        super(longsPerChunk, capacity, reservedBufferSize);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * Create a new on-heap long list from a file that was saved and the specified capacity. Number of
+     * longs per chunk and reserved buffer size are read from the provided configuration.
+     *
+     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
+     * is thrown.
+     *
+     * @param file The file to load the long list from
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param configuration Platform configuration
+     *
+     * @throws IOException If the file doesn't exist or there was a problem reading the file
+     */
+    public LongListHeap(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+            throws IOException {
+        super(file, capacity, configuration);
+    }
+
+    /**
+     * Create a long list from the specified file with the specified chunk size, capacity, and reserved
+     * buffer size. The file must exist.
+     *
+     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
+     * is thrown.
+     *
+     * @param path The file to load the long list from
+     * @param longsPerChunk Number of longs to store in each chunk
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
+     * @param configuration Platform configuration
+     *
+     * @throws IOException If the file doesn't exist or there was a problem reading the file
+     */
+    public LongListHeap(
+            @NonNull final Path path,
+            final int longsPerChunk,
+            final long capacity,
+            final long reservedBufferSize,
+            final Configuration configuration)
+            throws IOException {
+        super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    protected void readBodyFromFileChannelOnInit(final String sourceFileName, final FileChannel fileChannel)
+    protected void readBodyFromFileChannelOnInit(
+            final String sourceFileName, final FileChannel fileChannel, Configuration configuration)
             throws IOException {
         initReadBuffer = ByteBuffer.allocateDirect(memoryChunkSize).order(ByteOrder.nativeOrder());
         try {
-            super.readBodyFromFileChannelOnInit(sourceFileName, fileChannel);
+            super.readBodyFromFileChannelOnInit(sourceFileName, fileChannel, configuration);
         } finally {
             MemoryUtils.closeDirectByteBuffer(initReadBuffer);
         }
@@ -179,6 +215,6 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
     /** {@inheritDoc} */
     @Override
     protected AtomicLongArray createChunk() {
-        return new AtomicLongArray(numLongsPerChunk);
+        return new AtomicLongArray(longsPerChunk);
     }
 }
