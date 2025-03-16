@@ -6,23 +6,21 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Provides the context for a migration of state from one {@link Schema} version to another.
  */
 public interface MigrationContext {
-	Logger log = LogManager.getLogger(MigrationContext.class);
+    Logger log = LogManager.getLogger(MigrationContext.class);
 
-	/**
+    /**
      * Returns the round number of the state being migrated, zero at genesis.
      */
     long roundNumber();
@@ -120,9 +118,6 @@ public interface MigrationContext {
      * Returns whether this is a genesis migration.
      */
     default boolean isGenesis() {
-		log.info("MigCtx: Previous version: {}", previousVersion());
-		log.info("MigCtx: prevVers == SemanticVers.DEFAULT: {}", previousVersion() == SemanticVersion.DEFAULT);
-		log.info("MigCtx: prevVers.equals(DEFAULT): {}", Objects.equals(previousVersion(), SemanticVersion.DEFAULT));
         return previousVersion() == null || Objects.equals(previousVersion(), SemanticVersion.DEFAULT);
     }
 
