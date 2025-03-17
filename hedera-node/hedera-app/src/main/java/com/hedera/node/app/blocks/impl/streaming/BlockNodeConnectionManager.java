@@ -184,11 +184,11 @@ public class BlockNodeConnectionManager {
         List<PublishStreamRequest> batchRequests = new ArrayList<>(expectedBatchCount);
         for (int i = 0; i < totalItems; i += blockItemBatchSize) {
             int end = Math.min(i + blockItemBatchSize, totalItems);
-            List<byte[]> batch = block.itemBytes().subList(i, end);
+            List<Bytes> batch = block.itemBytes().subList(i, end);
             List<BlockItem> blockItems = new ArrayList<>(batch.size());
             batch.forEach(batchItem -> {
                 try {
-                    blockItems.add(BlockItem.PROTOBUF.parse(Bytes.wrap(batchItem)));
+                    blockItems.add(BlockItem.PROTOBUF.parse(batchItem));
                 } catch (ParseException e) {
                     throw new RuntimeException(e);
                 }

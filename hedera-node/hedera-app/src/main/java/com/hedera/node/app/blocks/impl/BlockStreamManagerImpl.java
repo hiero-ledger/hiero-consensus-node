@@ -491,7 +491,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .blockSignature(blockSignature)
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
-            block.writer().writeItem(BlockItem.PROTOBUF.toBytes(proofItem).toByteArray());
+            block.writer().writePbjItem(BlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeBlock();
             if (block.number() != blockNumber) {
                 siblingHashes.removeFirst();
@@ -626,7 +626,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     hash = ByteBuffer.wrap(digest.digest());
                 }
             }
-            out.send(item, hash, bytes.toByteArray());
+            out.send(item, hash, bytes);
             return true;
         }
     }
@@ -635,7 +635,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         SequentialTask next;
         BlockItem item;
-        byte[] serialized;
+        Bytes serialized;
         ByteBuffer hash;
 
         SequentialTask() {
@@ -659,7 +659,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (header != null) {
                 writer.openBlock(header.number());
             }
-            writer.writeItem(serialized);
+            writer.writePbjItem(serialized);
 
             next.send();
             return true;
@@ -670,7 +670,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             send();
         }
 
-        void send(BlockItem item, ByteBuffer hash, byte[] serialized) {
+        void send(BlockItem item, ByteBuffer hash, Bytes serialized) {
             this.item = item;
             this.hash = hash;
             this.serialized = serialized;
@@ -851,7 +851,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final BlockItem finalChanges = boundaryStateChangeListener.flushChanges();
         if (finalChanges != null && finalChanges.hasStateChanges()) {
             log.fatal("Writing final state changes for block {}", blockNumber);
-            writer.writeItem(BlockItem.PROTOBUF.toBytes(finalChanges).toByteArray());
+            writer.writePbjItem(BlockItem.PROTOBUF.toBytes(finalChanges));
         }
         log.fatal("Final state changes written (if any)");
     }

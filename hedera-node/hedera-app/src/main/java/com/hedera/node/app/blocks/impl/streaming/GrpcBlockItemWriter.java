@@ -41,15 +41,15 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
 
     @Override
     public void writePbjItem(@NonNull Bytes bytes) {
-        throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
-    }
-
-    @Override
-    public void writeItem(@NonNull byte[] bytes) {
         if (currentBlock == null) {
             throw new IllegalStateException("Received block item before opening block");
         }
         currentBlock.itemBytes().add(bytes);
+    }
+
+    @Override
+    public void writeItem(@NonNull byte[] bytes) {
+        throw new UnsupportedOperationException("writeItem is not supported in this implementation");
     }
 
     @Override

@@ -90,10 +90,10 @@ class BlockNodeConnectionManagerTest {
                 .build();
 
         // Create bytes from block items
-        List<byte[]> itemBytes = new ArrayList<>();
-        itemBytes.add(BlockItem.PROTOBUF.toBytes(item1).toByteArray());
-        itemBytes.add(BlockItem.PROTOBUF.toBytes(item2).toByteArray());
-        itemBytes.add(BlockItem.PROTOBUF.toBytes(item3).toByteArray());
+        List<Bytes> itemBytes = new ArrayList<>();
+        itemBytes.add(BlockItem.PROTOBUF.toBytes(item1));
+        itemBytes.add(BlockItem.PROTOBUF.toBytes(item2));
+        itemBytes.add(BlockItem.PROTOBUF.toBytes(item3));
 
         BlockState mockBlock = mock(BlockState.class);
         when(mockBlock.itemBytes()).thenReturn(itemBytes);
@@ -125,7 +125,7 @@ class BlockNodeConnectionManagerTest {
     void testCreatePublishStreamRequestsWithEmptyBlock() {
         // Given
         int batchSize = 2;
-        List<byte[]> emptyItemBytes = new ArrayList<>();
+        List<Bytes> emptyItemBytes = new ArrayList<>();
 
         // Mock BlockState
         BlockState mockBlockState = mock(BlockState.class);

@@ -40,13 +40,13 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
 
     @Override
     public void writePbjItem(@NonNull Bytes bytes) {
-        throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
+        this.fileBlockItemWriter.writeItem(bytes.toByteArray());
+        this.grpcBlockItemWriter.writePbjItem(bytes);
     }
 
     @Override
     public void writeItem(@NonNull byte[] bytes) {
-        this.fileBlockItemWriter.writeItem(bytes);
-        this.grpcBlockItemWriter.writeItem(bytes);
+        throw new UnsupportedOperationException("writeItem is not supported in this implementation");
     }
 
     @Override
