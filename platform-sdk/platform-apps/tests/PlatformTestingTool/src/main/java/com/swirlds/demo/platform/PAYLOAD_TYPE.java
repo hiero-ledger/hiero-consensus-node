@@ -59,7 +59,7 @@ public enum PAYLOAD_TYPE implements FastCopyable {
 
     TYPE_VIRTUAL_MERKLE_SMART_CONTRACT_METHOD_EXECUTION(55, CATEGORY_VIRTUAL_MERKLE_SMART_CONTRACT),
 
-    // MIX FCM and Virtial Merkle transaction
+    // MIX FCM and Virtual Merkle transaction
     TYPE_FCM_VIRTUAL_MIX(60);
 
     public static Map<FCMTransaction.BodyCase, PAYLOAD_TYPE> BodyCase_TO_PAYLOAD_TYPE = new HashMap<>();
@@ -67,7 +67,7 @@ public enum PAYLOAD_TYPE implements FastCopyable {
     static {
 
         // BodyCase Enum is part of FCMTransaction and is different from these Payload types
-        // this map establisheds a correspondence.
+        // this map establishes a correspondence.
         BodyCase_TO_PAYLOAD_TYPE.put(FCMTransaction.BodyCase.CREATEACCOUNT, PAYLOAD_TYPE.TYPE_FCM_CREATE);
         BodyCase_TO_PAYLOAD_TYPE.put(FCMTransaction.BodyCase.TRANSFERBALANCE, PAYLOAD_TYPE.TYPE_FCM_TRANSFER);
         BodyCase_TO_PAYLOAD_TYPE.put(FCMTransaction.BodyCase.DELETEACCOUNT, PAYLOAD_TYPE.TYPE_FCM_DELETE);

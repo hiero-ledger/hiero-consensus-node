@@ -85,7 +85,7 @@ public class FeeBuilder {
      * componentCoefficients and componentMetrics.
      *
      * @param componentCoefficients component coefficients
-     * @param componentMetrics compnent metrics
+     * @param componentMetrics component metrics
      * @return long representation of the fee in tiny cents
      */
     public static long getComponentFeeInTinyCents(

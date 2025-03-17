@@ -205,7 +205,7 @@ public class RandomSignedStateGenerator {
         platformStateFacade.bulkUpdateOf(stateInstance, v -> {
             v.setSnapshot(consensusSnapshotInstance);
             v.setLegacyRunningEventHash(legacyRunningEventHashInstance);
-            v.setCreationSoftwareVersion(softwareVersionInstance);
+            v.setCreationSoftwareVersion(softwareVersionInstance.getPbjSemanticVersion());
             v.setRoundsNonAncient(roundsNonAncientInstance);
             v.setConsensusTimestamp(consensusTimestampInstance);
         });
@@ -456,7 +456,7 @@ public class RandomSignedStateGenerator {
 
     /**
      * Set if this state should use a {@link BlockingState} instead of a {@link MerkleStateRoot}.
-     * This flag is fasle by default.
+     * This flag is false by default.
      *
      * @param useBlockingState true if this state should use {@link BlockingState}
      * @return this object
