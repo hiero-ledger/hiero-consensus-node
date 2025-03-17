@@ -65,7 +65,7 @@ import org.apache.logging.log4j.Logger;
  * rejoining after a long absence.
  * </p>
  */
-public class SignedState implements SignedStateInfo {
+public class SignedState<T extends MerkleNodeState> implements SignedStateInfo {
 
     private static final Logger logger = LogManager.getLogger(SignedState.class);
 
@@ -92,7 +92,7 @@ public class SignedState implements SignedStateInfo {
     /**
      * The root of the merkle state.
      */
-    private final MerkleNodeState state;
+    private final T state;
 
     /**
      * The timestamp of when this object was created.
@@ -179,7 +179,7 @@ public class SignedState implements SignedStateInfo {
     public SignedState(
             @NonNull final Configuration configuration,
             @NonNull final SignatureVerifier signatureVerifier,
-            @NonNull final MerkleNodeState state,
+            @NonNull final T state,
             @NonNull final String reason,
             final boolean freezeState,
             final boolean deleteOnBackgroundThread,
@@ -282,7 +282,7 @@ public class SignedState implements SignedStateInfo {
      *
      * @return the state contained in the signed state
      */
-    public @NonNull MerkleNodeState getState() {
+    public @NonNull T getState() {
         return state;
     }
 
@@ -318,7 +318,7 @@ public class SignedState implements SignedStateInfo {
      *               reserved should attempt to use a unique reason, as this makes debugging reservation bugs easier.
      * @return a wrapper that holds the state and the reservation
      */
-    public @NonNull ReservedSignedState reserve(@NonNull final String reason) {
+    public @NonNull ReservedSignedState<T> reserve(@NonNull final String reason) {
         return ReservedSignedState.createAndReserve(this, reason);
     }
 
@@ -442,7 +442,7 @@ public class SignedState implements SignedStateInfo {
         if (other == null || getClass() != other.getClass()) {
             return false;
         }
-        final SignedState that = (SignedState) other;
+        final SignedState<T> that = (SignedState<T>) other;
         return Objects.equals(sigSet, that.sigSet) && Objects.equals(state, that.state);
     }
 

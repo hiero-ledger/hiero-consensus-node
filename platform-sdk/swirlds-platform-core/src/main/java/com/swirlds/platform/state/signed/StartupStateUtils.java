@@ -140,9 +140,8 @@ public final class StartupStateUtils {
             return createNullReservation();
         }
 
-        final ReservedSignedState state = loadLatestState(
+        return loadLatestState(
                 recycleBin, currentSoftwareVersion, savedStateFiles, platformStateFacade, platformContext);
-        return state;
     }
 
     /**

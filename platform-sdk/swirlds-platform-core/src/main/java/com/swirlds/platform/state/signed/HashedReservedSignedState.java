@@ -4,6 +4,7 @@ package com.swirlds.platform.state.signed;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.crypto.Hash;
+import com.swirlds.platform.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -12,7 +13,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * @param state the reserved signed state
  * @param hash the hash of the state
  */
-public record HashedReservedSignedState(@NonNull ReservedSignedState state, @NonNull Hash hash) {
+public record HashedReservedSignedState<T extends MerkleNodeState>(
+        @NonNull ReservedSignedState<T> state, @NonNull Hash hash) {
     public HashedReservedSignedState {
         requireNonNull(state);
         requireNonNull(hash);

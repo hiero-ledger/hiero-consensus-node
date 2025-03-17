@@ -9,7 +9,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.gossip.modular.GossipController;
 import com.swirlds.platform.gossip.modular.SyncGossipSharedProtocolState;
@@ -22,12 +21,13 @@ import com.swirlds.platform.reconnect.ReconnectLearnerFactory;
 import com.swirlds.platform.reconnect.ReconnectLearnerThrottle;
 import com.swirlds.platform.reconnect.ReconnectPeerProtocol;
 import com.swirlds.platform.reconnect.ReconnectThrottle;
-import com.swirlds.platform.state.SwirldStateManager;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.system.status.PlatformStatus;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -43,7 +43,7 @@ import org.hiero.consensus.gossip.FallenBehindManager;
 public class ReconnectProtocol implements Protocol {
 
     private final ReconnectThrottle reconnectThrottle;
-    private final Supplier<ReservedSignedState> lastCompleteSignedState;
+    private final Supplier<ReservedSignedState<?>> lastCompleteSignedState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics reconnectMetrics;
     private final ReconnectController reconnectController;
@@ -57,8 +57,6 @@ public class ReconnectProtocol implements Protocol {
      */
     private final Supplier<PlatformStatus> platformStatusSupplier;
 
-    private final Configuration configuration;
-
     private final Time time;
     private final PlatformContext platformContext;
 
@@ -66,13 +64,13 @@ public class ReconnectProtocol implements Protocol {
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
             @NonNull final ReconnectThrottle reconnectThrottle,
-            @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
+            @NonNull final Supplier<ReservedSignedState<?>> lastCompleteSignedState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
             @NonNull final ReconnectController reconnectController,
             @NonNull final SignedStateValidator validator,
             @NonNull final FallenBehindManager fallenBehindManager,
-            final Supplier<PlatformStatus> platformStatusSupplier,
+            @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
@@ -86,7 +84,6 @@ public class ReconnectProtocol implements Protocol {
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
         this.platformStateFacade = platformStateFacade;
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
-        this.configuration = Objects.requireNonNull(platformContext.getConfiguration());
         this.time = Objects.requireNonNull(platformContext.getTime());
     }
 
@@ -100,24 +97,25 @@ public class ReconnectProtocol implements Protocol {
      * @param peers                 the current list of peers
      * @param loadReconnectState    a method that should be called when a state from reconnect is obtained
      * @param clearAllPipelinesForReconnect this method should be called to clear all pipelines prior to a reconnect
-     * @param swirldStateManager    manages the mutable state
      * @param selfId                this node's ID
      * @param gossipController      way to pause/resume gossip while reconnect is in progress
+     * @param platformStateFacade  the platform state facade to access platform state
+     * @param stateLifecycleManager an object containing the latest mutable and immutable state
      * @return constructed ReconnectProtocol
      */
     public static ReconnectProtocol create(
             @NonNull final PlatformContext platformContext,
             @NonNull final SyncGossipSharedProtocolState sharedState,
             @NonNull final ThreadManager threadManager,
-            @NonNull final Supplier<ReservedSignedState> latestCompleteState,
+            @NonNull final Supplier<ReservedSignedState<?>> latestCompleteState,
             @NonNull final Roster roster,
             @NonNull final List<PeerInfo> peers,
-            @NonNull final Consumer<SignedState> loadReconnectState,
+            @NonNull final Consumer<SignedState<?>> loadReconnectState,
             @NonNull final Runnable clearAllPipelinesForReconnect,
-            @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final NodeId selfId,
             @NonNull final GossipController gossipController,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final StateLifecycleManager<? extends MerkleNodeState> stateLifecycleManager) {
 
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
@@ -129,7 +127,7 @@ public class ReconnectProtocol implements Protocol {
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
 
         final LongSupplier getRoundSupplier = () -> {
-            try (final ReservedSignedState reservedState = latestCompleteState.get()) {
+            try (final ReservedSignedState<?> reservedState = latestCompleteState.get()) {
                 if (reservedState == null || reservedState.isNull()) {
                     return ROUND_UNDEFINED;
                 }
@@ -141,7 +139,7 @@ public class ReconnectProtocol implements Protocol {
         final ReconnectHelper reconnectHelper = new ReconnectHelper(
                 gossipController::pause,
                 clearAllPipelinesForReconnect::run,
-                swirldStateManager::getConsensusState,
+                stateLifecycleManager::getMutableState,
                 getRoundSupplier,
                 new ReconnectLearnerThrottle(platformContext.getTime(), selfId, reconnectConfig),
                 state -> {
