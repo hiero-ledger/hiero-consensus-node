@@ -182,7 +182,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                     .nodeTransactionMaxBytes();
             if (previousResult == null) {
                 if (InnerTransaction.YES.equals(innerTransaction)) {
-                    txInfo = transactionChecker.parseSignedAndCheck(applicationTxBytes);
+                    txInfo = transactionChecker.parseSignedAndCheck(applicationTxBytes, maxBytes);
                 } else {
                     txInfo = transactionChecker.parseAndCheck(applicationTxBytes, maxBytes);
                 }

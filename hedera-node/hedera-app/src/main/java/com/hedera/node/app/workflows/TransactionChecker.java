@@ -141,7 +141,12 @@ public class TransactionChecker {
      * @throws PreCheckException If parsing fails or any of the checks fail.
      */
     @NonNull
-    public TransactionInfo parseSignedAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
+    public TransactionInfo parseSignedAndCheck(@NonNull final Bytes buffer, final int maxBytes) throws PreCheckException {
+        // Fail fast if there are too many transaction bytes
+        if (buffer.length() > maxBytes) {
+            throw new PreCheckException(TRANSACTION_OVERSIZE);
+        }
+
         final var signedTx = parseSigned(buffer);
         return checkSigned(signedTx, buffer);
     }
@@ -159,7 +164,7 @@ public class TransactionChecker {
      */
     @NonNull
     public Transaction parse(@NonNull final Bytes buffer) throws PreCheckException {
-        return parseTransaction(buffer, Transaction.PROTOBUF);
+        return parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
     }
 
     /**
@@ -175,7 +180,7 @@ public class TransactionChecker {
      */
     @NonNull
     public SignedTransaction parseSigned(@NonNull final Bytes buffer) throws PreCheckException {
-        return parseTransaction(buffer, SignedTransaction.PROTOBUF);
+        return parseStrict(buffer.toReadableSequentialData(), SignedTransaction.PROTOBUF, INVALID_TRANSACTION);
     }
 
     /**
@@ -546,23 +551,6 @@ public class TransactionChecker {
             logger.warn("ParseException while parsing protobuf", e);
             throw new PreCheckException(parseErrorCode);
         }
-    }
-
-    /**
-     * A utility method that parses a transaction based on a give coded and check if the transaction is oversize.
-     * @param buffer The buffer containing the protobuf bytes of the transaction
-     * @param codec The codec to use for parsing
-     * @return <T> The type of the message parsed
-     * @throws PreCheckException if the data is not valid
-     */
-    private <T> T parseTransaction(@NonNull final Bytes buffer, @NonNull final Codec<T> codec)
-            throws PreCheckException {
-        // Fail fast if there are too many transaction bytes
-        if (buffer.length() > maxSignedTxnSize) {
-            throw new PreCheckException(TRANSACTION_OVERSIZE);
-        }
-
-        return parseStrict(buffer.toReadableSequentialData(), codec, INVALID_TRANSACTION);
     }
 
     private TransactionInfo check(
