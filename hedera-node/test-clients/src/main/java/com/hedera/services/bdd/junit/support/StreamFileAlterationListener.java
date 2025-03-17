@@ -83,8 +83,13 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
                         return;
                     }
                 } else {
-                    log.error("Could not expose contents of {} file {}", fileType, f.getAbsolutePath(), e);
-                    throw new IllegalStateException();
+                    // Don't fail hard on an empty file; if a test really depends on the contents of a
+                    // pending stream file, it will fail anyways---and if this is just a timing condition,
+                    // no reason to destabilize the PR check
+                    if (f.length() > 0) {
+                        log.error("Could not expose contents of {} file {}", fileType, f.getAbsolutePath(), e);
+                        throw new IllegalStateException();
+                    }
                 }
             }
         }
@@ -117,6 +122,10 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
     }
 
     private FileType typeOf(final File file) {
+        // Ignore empty files, which are likely to be in the process of being written
+        if (file.length() == 0L) {
+            return FileType.OTHER;
+        }
         if (isRecordFile(file.getName())) {
             return FileType.RECORD_STREAM_FILE;
         } else if (isSidecarFile(file.getName())) {

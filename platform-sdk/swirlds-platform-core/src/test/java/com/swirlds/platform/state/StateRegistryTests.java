@@ -94,7 +94,7 @@ class StateRegistryTests {
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(stateToSerialize);
         final var platformState = platformStateFacade.getWritablePlatformStateOf(stateToSerialize);
         platformState.bulkUpdate(v -> {
-            v.setCreationSoftwareVersion(new BasicSoftwareVersion(version.minor()));
+            v.setCreationSoftwareVersion(new BasicSoftwareVersion(version.minor()).getPbjSemanticVersion());
             v.setLegacyRunningEventHash(new Hash());
         });
 

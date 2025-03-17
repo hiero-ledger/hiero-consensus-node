@@ -21,7 +21,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.crypto.VerificationStatus;
@@ -63,7 +63,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.events.Event;
@@ -99,7 +98,7 @@ public class PlatformTestingToolConsensusStateEventHandler
     private static final Marker LOGM_STARTUP = MarkerManager.getMarker("STARTUP");
     private static final long EXCEPTION_RATE_THRESHOLD = 10;
 
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     static final String STAT_TIMER_THREAD_NAME = "stat timer PTTState";
 
@@ -846,7 +845,7 @@ public class PlatformTestingToolConsensusStateEventHandler
                         ex,
                         (error) -> logger.error(
                                 EXCEPTION.getMarker(),
-                                "" + "InvalidProtocolBufferException while chekcing signature",
+                                "" + "InvalidProtocolBufferException while checking signature",
                                 error));
             }
         }
@@ -1104,10 +1103,10 @@ public class PlatformTestingToolConsensusStateEventHandler
 
     @Override
     public void onStateInitialized(
-            @NonNull PlatformTestingToolState state,
-            @NonNull Platform platform,
-            @NonNull InitTrigger trigger,
-            @Nullable SoftwareVersion previousVersion) {
+            @NonNull final PlatformTestingToolState state,
+            @NonNull final Platform platform,
+            @NonNull final InitTrigger trigger,
+            @Nullable final SemanticVersion previousVersion) {
         if (trigger == InitTrigger.RESTART) {
             state.rebuildExpectedMapFromState(Instant.EPOCH, true);
             state.rebuildExpirationQueue();

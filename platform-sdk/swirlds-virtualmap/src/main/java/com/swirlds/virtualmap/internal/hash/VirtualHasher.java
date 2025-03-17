@@ -8,7 +8,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashBuilder;
 import com.swirlds.virtualmap.VirtualKey;
@@ -75,7 +75,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
      * the {@link #hash(LongFunction, Iterator, long, long, VirtualMapConfig)} method and used by all hashing
      * tasks.
      */
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     /**
      * Tracks if this virtual hasher has been shut down. If true (indicating that the hasher
