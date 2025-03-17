@@ -122,45 +122,17 @@ jobs:
       - name: Calculate and Create Release Branch
         run: |
           current_version="$(git-semver latest)"
-          actual_next_version="${{ steps.next-release.outputs.version }}"
+          current_minor_version="$(semver get minor ${current_version})"
+          next_version="${{ steps.next-release.outputs.version }}"
+          next_minor_version="$(semver get minor ${next_version})"
+          
+          if [[ "${next_minor_version}" -eq "$(${current_minor_version} + 1)" ]]; then
+            echo "Minor version bump detected (${current_version} -> ${next_version}). Checking if release branch exists..."
 
-          # git-semver does not support "next minor" or "next patch" version
-          #   so we calculate it here manually ourselves.
-
-          # Calculate the next minor roll version
-          minor_roll_major=$(echo "${current_version}" | cut -d. -f1)
-          minor_roll_minor=$(echo "${current_version}" | cut -d. -f2)
-          minor_roll_patch=$(echo "${current_version}" | cut -d. -f3)
-          minor_roll_minor=$((minor_roll_minor + 1))
-          minor_roll_patch=0
-          next_minor_version="${minor_roll_major}"."${minor_roll_minor}"."${minor_roll_patch}"
-
-          # Calculate the next patch roll version
-          patch_roll_major=$(echo "${current_version}" | cut -d. -f1)
-          patch_roll_minor=$(echo "${current_version}" | cut -d. -f2)
-          patch_roll_patch=$(echo "${current_version}" | cut -d. -f3)
-          patch_roll_patch=$((patch_roll_patch + 1))
-          next_patch_version="${patch_roll_major}"."${patch_roll_minor}"."${patch_roll_patch}"
-
-          echo "Current Version: ${current_version}"
-          echo "Actual Next Version: ${actual_next_version}"
-          echo "Next Minor Version: ${next_minor_version}"
-          echo "Next Patch Version: ${next_patch_version}"
-
-          if [[ "${actual_next_version}" == "${current_version}" ]]; then
-            # No new version detected, exit without doing anything
-            echo "No new version detected. No release branch required."
-
-          elif [[ "${actual_next_version}" == "${next_patch_version}" ]]; then
-            # Patch version bump detected, no new release branch needed
-            echo "Patch version bump detected (${current_version} -> ${actual_next_version}). No new release branch needed."
-
-          elif [[ "${actual_next_version}" == "${next_minor_version}" ]]; then
-            echo "Minor version bump detected (${current_version} -> ${actual_next_version}). Checking if release branch exists..."
-
-            # Caluclate the release branch name:
-            major_minor_version=$(echo "${actual_next_version}" | cut -d. -f1,2)
-            release_branch=release/"${major_minor_version}"
+            # Calculate the release branch name:
+            next_major_version="$(semver get major "$next_version")"
+            major_minor_version="${next_major_version}.${next_minor_version}"
+            release_branch="release/${major_minor_version}"
 
             # Check if the release branch already exists in the remote
             if git ls-remote --heads origin "${release_branch}" | grep -q "${release_branch}"; then
@@ -171,10 +143,6 @@ jobs:
             echo "Creating new release branch: ${release_branch}"
             git checkout -b "${release_branch}"
             git push origin "${release_branch}"
-          else
-            # Unexpected version calculation, exit with an error
-            echo "Unexpected version calculation: ${actual_next_version} does not match expected patch (${next_patch_version}) or minor (${next_minor_version})."
-            exit 1
           fi
 
       - name: Apply Tag with Calculated Next Version
