@@ -141,7 +141,8 @@ public class TransactionChecker {
      * @throws PreCheckException If parsing fails or any of the checks fail.
      */
     @NonNull
-    public TransactionInfo parseSignedAndCheck(@NonNull final Bytes buffer, final int maxBytes) throws PreCheckException {
+    public TransactionInfo parseSignedAndCheck(@NonNull final Bytes buffer, final int maxBytes)
+            throws PreCheckException {
         // Fail fast if there are too many transaction bytes
         if (buffer.length() > maxBytes) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);

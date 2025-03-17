@@ -25,7 +25,10 @@ public class TransactionParserImpl implements TransactionParser {
 
     @Override
     public TransactionBody parseSigned(Bytes signedBytes) throws PreCheckException {
-        final var maxTxnBytes = configProvider.getConfiguration().getConfigData(HederaConfig.class).nodeTransactionMaxBytes();
+        final var maxTxnBytes = configProvider
+                .getConfiguration()
+                .getConfigData(HederaConfig.class)
+                .nodeTransactionMaxBytes();
         return transactionChecker.parseSignedAndCheck(signedBytes, maxTxnBytes).txBody();
     }
 }
