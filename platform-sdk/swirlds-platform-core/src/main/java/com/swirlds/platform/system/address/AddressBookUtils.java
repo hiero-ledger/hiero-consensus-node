@@ -281,11 +281,6 @@ public class AddressBookUtils {
                                     + RosterUtils.toString(RosterRetriever.retrievePreviousRoster(state)));
                 }
             }
-
-//            RosterUtils.setActiveRoster(
-//                    state,
-//                    RosterRetriever.buildRoster(addressBookInitializer.getCurrentAddressBook()),
-//                    RosterRetriever.getRound(state));
         }
 
         // At this point the initial state must have the current address book set.  If not, something is wrong.
