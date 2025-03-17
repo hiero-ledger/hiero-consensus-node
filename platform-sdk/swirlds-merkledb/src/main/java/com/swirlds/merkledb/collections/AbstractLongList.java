@@ -12,10 +12,10 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
@@ -224,13 +224,13 @@ public abstract class AbstractLongList<C> implements LongList {
         loadFromFile(path, configuration);
     }
 
-    private void loadFromFile(@NonNull final Path path, @NonNull Configuration configuration) throws IOException {
+    private void loadFromFile(@NonNull final Path file, @NonNull Configuration configuration) throws IOException {
+        requireNonNull(file);
         requireNonNull(configuration);
-        final File file = path.toFile();
-        if (!file.exists() || file.length() == 0) {
-            throw new IOException("Cannot load index, file doesn't exist: " + file.getAbsolutePath());
+        if (!Files.exists(file)) {
+            throw new IOException("Cannot load index, file doesn't exist: " + file.toAbsolutePath());
         }
-        try (final FileChannel fileChannel = FileChannel.open(path, StandardOpenOption.READ)) {
+        try (final FileChannel fileChannel = FileChannel.open(file, StandardOpenOption.READ)) {
             // read header from existing file
             final ByteBuffer versionBuffer = readFromFileChannel(fileChannel, VERSION_METADATA_SIZE);
             final int formatVersion = versionBuffer.getInt();
@@ -281,7 +281,7 @@ public abstract class AbstractLongList<C> implements LongList {
                         "Failed to read index from file, " + "size=" + size.get() + ", capacity=" + capacity);
             }
 
-            readBodyFromFileChannelOnInit(file.getName(), fileChannel, configuration);
+            readBodyFromFileChannelOnInit(file.getFileName().toString(), fileChannel, configuration);
         }
     }
 
