@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.model.diagram.ModelEdgeSubstitution;
@@ -105,7 +107,8 @@ public final class DiagramCommand extends AbstractCommand {
             return null;
         });
 
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks);
 

@@ -5,7 +5,7 @@ import java.security.SignatureException;
 
 public interface SigningProvider {
     /**
-     * Signs a message and returns its signgature
+     * Signs a message and returns its signature
      * @param msg
      * 		raw byte array of message
      * @return

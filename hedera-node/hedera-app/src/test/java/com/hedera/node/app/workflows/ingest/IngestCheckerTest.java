@@ -102,6 +102,7 @@ class IngestCheckerTest extends AppTestBase {
     private static final Fees DEFAULT_FEES = new Fees(100L, 20L, 3L);
 
     private final InstantSource instantSource = InstantSource.system();
+    private final int maxBytes = 6144;
 
     @Mock(strictness = LENIENT)
     CurrentPlatformStatus currentPlatformStatus;

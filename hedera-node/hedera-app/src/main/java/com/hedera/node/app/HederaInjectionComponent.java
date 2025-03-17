@@ -145,6 +145,8 @@ public interface HederaInjectionComponent {
 
     AsyncFatalIssListener fatalIssListener();
 
+    CurrentPlatformStatus currentPlatformStatus();
+
     @Component.Builder
     interface Builder {
         @BindsInstance

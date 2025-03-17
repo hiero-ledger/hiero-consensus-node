@@ -47,6 +47,7 @@ class HistorySubmissionsTest {
 
     @BeforeEach
     void setUp() {
+        given(gossip.isAvailable()).willReturn(true);
         subject = new HistorySubmissions(executor, appContext);
     }
 

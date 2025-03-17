@@ -53,6 +53,7 @@ class HintsSubmissionsTest {
 
     @BeforeEach
     void setUp() {
+        given(gossip.isAvailable()).willReturn(true);
         subject = new HintsSubmissions(executor, appContext, keyAccessor, signingContext);
     }
 

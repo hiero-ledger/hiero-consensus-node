@@ -57,6 +57,11 @@ public interface AppContext {
             public Signature sign(final byte[] ledgerId) {
                 throw new IllegalStateException("Gossip is not available!");
             }
+
+            @Override
+            public boolean isAvailable() {
+                return false;
+            }
         };
 
         /**
@@ -156,6 +161,11 @@ public interface AppContext {
          * @return the signature
          */
         Signature sign(byte[] bytes);
+
+        /**
+         * Whether network gossip is currently active.
+         */
+        boolean isAvailable();
     }
 
     /**

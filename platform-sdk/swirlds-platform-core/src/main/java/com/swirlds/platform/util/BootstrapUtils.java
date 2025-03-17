@@ -8,6 +8,7 @@ import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
@@ -42,6 +43,7 @@ import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.awt.Dimension;
@@ -218,14 +220,17 @@ public final class BootstrapUtils {
             @NonNull final PlatformStateFacade platformStateFacade) {
         requireNonNull(appVersion, "The app version must not be null.");
 
-        final SoftwareVersion loadedSoftwareVersion;
+        final SemanticVersion loadedSoftwareVersion;
         if (loadedSignedState == null) {
             loadedSoftwareVersion = null;
         } else {
             final State state = loadedSignedState.getState();
             loadedSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
         }
-        final int versionComparison = loadedSoftwareVersion == null ? 1 : appVersion.compareTo(loadedSoftwareVersion);
+        final int versionComparison = loadedSoftwareVersion == null
+                ? 1
+                : HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(
+                        appVersion.getPbjSemanticVersion(), loadedSoftwareVersion);
         final boolean softwareUpgrade;
         if (versionComparison < 0) {
             throw new IllegalStateException(
