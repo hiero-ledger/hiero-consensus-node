@@ -195,13 +195,13 @@ final class TransactionCheckerTest extends AppTestBase {
         @Test
         @DisplayName("`parseAndCheck` bytes must have no more than the configured MaxSignedTxnSize bytes")
         void parseAndCheckWithTooManyBytes() {
-            assertThatThrownBy(() -> checker.parse(randomBytes(MAX_TX_SIZE + 1)))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), maxBytes))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(TRANSACTION_OVERSIZE));
 
             // NOTE: I'm going to also try a number of bytes that JUST FITS. But these are not real transaction
             //       bytes, so they will fail to parse. But that is OK, as long as it is not TRANSACTION_OVERSIZE.
-            assertThatThrownBy(() -> checker.parse(randomBytes(MAX_TX_SIZE)))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE), maxBytes))
                     .isInstanceOf(PreCheckException.class)
                     .doesNotHave(responseCode(TRANSACTION_OVERSIZE));
         }
