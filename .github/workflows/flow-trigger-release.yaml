@@ -123,13 +123,13 @@ jobs:
         run: |
           # Get current version information
           current_version="$(git-semver latest)"
-          current_major_version="$(semver get major "$current_version")"
-          current_minor_version="$(semver get minor "$current_version")"
+          current_major_version="$(semver get major "${current_version}")"
+          current_minor_version="$(semver get minor "${current_version}")"
           
           # Get next version information
           next_version="${{ steps.next-release.outputs.version }}"
-          next_major_version="$(semver get major "$next_version")"
-          next_minor_version="$(semver get minor "$next_version")"
+          next_major_version="$(semver get major "${next_version}")"
+          next_minor_version="$(semver get minor "${next_version}")"
           
           # Release branch flag for whether or not we should create the release branch
           CREATE_RELEASE_BRANCH=false
