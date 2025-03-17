@@ -3,12 +3,12 @@ package com.swirlds.platform.state;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,7 +36,7 @@ public final class BirthRoundStateMigration {
     public static void modifyStateForBirthRoundMigration(
             @NonNull final SignedState initialState,
             @NonNull final AncientMode ancientMode,
-            @NonNull final SoftwareVersion appVersion,
+            @NonNull final SemanticVersion appVersion,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         if (ancientMode == AncientMode.GENERATION_THRESHOLD) {

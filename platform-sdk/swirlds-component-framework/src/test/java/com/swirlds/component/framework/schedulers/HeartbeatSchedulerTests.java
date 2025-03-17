@@ -6,8 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
@@ -21,9 +20,8 @@ class HeartbeatSchedulerTests {
     @Test
     void heartbeatByFrequencyTest() throws InterruptedException {
         final FakeTime fakeTime = new FakeTime();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(fakeTime).build();
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), fakeTime).build();
 
         final TaskScheduler<Void> scheduler =
                 model.<Void>schedulerBuilder("test").build();
@@ -50,9 +48,8 @@ class HeartbeatSchedulerTests {
     @Test
     void heartbeatByPeriodTest() throws InterruptedException {
         final FakeTime fakeTime = new FakeTime();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(fakeTime).build();
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), fakeTime).build();
 
         final TaskScheduler<Void> scheduler =
                 model.<Void>schedulerBuilder("test").build();
@@ -79,9 +76,8 @@ class HeartbeatSchedulerTests {
     @Test
     void heartbeatsAtDifferentRates() throws InterruptedException {
         final FakeTime fakeTime = new FakeTime();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(fakeTime).build();
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), fakeTime).build();
 
         final TaskScheduler<Void> scheduler =
                 model.<Void>schedulerBuilder("test").build();
