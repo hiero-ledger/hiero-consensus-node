@@ -20,7 +20,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
- * Class that provides functionallity to print information about the config.
+ * Class that provides functionality to print information about the config.
  */
 public final class ConfigExport {
 

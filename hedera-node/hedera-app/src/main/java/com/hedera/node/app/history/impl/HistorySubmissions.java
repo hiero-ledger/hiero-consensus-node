@@ -41,7 +41,7 @@ public class HistorySubmissions extends TssSubmissions {
      */
     public CompletableFuture<Void> submitProofKeyPublication(@NonNull final Bytes proofKey) {
         requireNonNull(proofKey);
-        return submit(
+        return submitIfActive(
                 b -> b.historyProofKeyPublication(new HistoryProofKeyPublicationTransactionBody(proofKey)), onFailure);
     }
 
@@ -53,8 +53,10 @@ public class HistorySubmissions extends TssSubmissions {
      */
     public CompletableFuture<Void> submitProofVote(final long constructionId, @NonNull final HistoryProof proof) {
         requireNonNull(proof);
+        logger.info("Submitting proof vote for construction {}", constructionId);
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
-        return submit(b -> b.historyProofVote(new HistoryProofVoteTransactionBody(constructionId, vote)), onFailure);
+        return submitIfActive(
+                b -> b.historyProofVote(new HistoryProofVoteTransactionBody(constructionId, vote)), onFailure);
     }
 
     /**
@@ -64,7 +66,7 @@ public class HistorySubmissions extends TssSubmissions {
     public CompletableFuture<Void> submitAssemblySignature(
             final long constructionId, @NonNull final HistorySignature signature) {
         requireNonNull(signature);
-        return submit(
+        return submitIfActive(
                 b -> b.historyProofSignature(new HistoryProofSignatureTransactionBody(constructionId, signature)),
                 onFailure);
     }
