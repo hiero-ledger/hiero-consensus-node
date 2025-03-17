@@ -10,7 +10,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -30,7 +29,7 @@ public final class PbjConverter {
             @NonNull final PlatformStateAccessor accessor) {
         requireNonNull(accessor);
         return new PlatformState(
-                accessor.getCreationSoftwareVersion().getPbjSemanticVersion(),
+                accessor.getCreationSoftwareVersion(),
                 accessor.getRoundsNonAncient(),
                 accessor.getSnapshot(),
                 toPbjTimestamp(accessor.getFreezeTime()),
@@ -40,9 +39,7 @@ public final class PbjConverter {
                         .orElse(null),
                 accessor.getLowestJudgeGenerationBeforeBirthRoundMode(),
                 accessor.getLastRoundBeforeBirthRoundMode(),
-                Optional.ofNullable(accessor.getFirstVersionInBirthRoundMode())
-                        .map(SoftwareVersion::getPbjSemanticVersion)
-                        .orElse(null));
+                accessor.getFirstVersionInBirthRoundMode());
     }
 
     /**
@@ -58,8 +55,7 @@ public final class PbjConverter {
         final var builder = previousState.copyBuilder();
 
         if (accumulator.isCreationSoftwareVersionUpdated()) {
-            builder.creationSoftwareVersion(
-                    accumulator.getCreationSoftwareVersion().getPbjSemanticVersion());
+            builder.creationSoftwareVersion(accumulator.getCreationSoftwareVersion());
         }
 
         if (accumulator.isRoundsNonAncientUpdated()) {
@@ -115,8 +111,7 @@ public final class PbjConverter {
             if (accumulator.getFirstVersionInBirthRoundMode() == null) {
                 builder.firstVersionInBirthRoundMode((SemanticVersion) null);
             } else {
-                builder.firstVersionInBirthRoundMode(
-                        accumulator.getFirstVersionInBirthRoundMode().getPbjSemanticVersion());
+                builder.firstVersionInBirthRoundMode(accumulator.getFirstVersionInBirthRoundMode());
             }
         }
 

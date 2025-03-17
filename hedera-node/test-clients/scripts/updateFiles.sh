@@ -56,7 +56,7 @@ function updateServiceMainJava
 }
 
 #
-# check the hgcaa.log of newly started servcice
+# check the hgcaa.log of newly started service
 # whether it contains the expected new marker sentence
 #
 # Arguments
@@ -66,7 +66,7 @@ function updateServiceMainJava
 function checkUpdateResult
 {
     if grep -q "$1" $2; then
-        echo "SUCEED: Found expected string ($1) in $2"
+        echo "SUCCEED: Found expected string ($1) in $2"
     else
         echo "FAIL: Not found expected string ($1) in $2"
         exit 164

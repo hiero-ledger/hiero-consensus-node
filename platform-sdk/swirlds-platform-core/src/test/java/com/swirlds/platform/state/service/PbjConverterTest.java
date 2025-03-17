@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
@@ -19,6 +20,12 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
+import com.swirlds.platform.system.address.Address;
+import com.swirlds.platform.system.address.AddressBook;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
+import java.security.cert.CertificateEncodingException;
 import java.time.Instant;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,9 +46,7 @@ class PbjConverterTest {
         final com.hedera.hapi.platform.state.PlatformState pbjPlatformState =
                 PbjConverter.toPbjPlatformState(platformState);
 
-        assertEquals(
-                platformState.getCreationSoftwareVersion().getPbjSemanticVersion(),
-                pbjPlatformState.creationSoftwareVersion());
+        assertEquals(platformState.getCreationSoftwareVersion(), pbjPlatformState.creationSoftwareVersion());
         assertEquals(platformState.getRoundsNonAncient(), pbjPlatformState.roundsNonAncient());
         assertEquals(
                 platformState.getLastFrozenTime().getEpochSecond(),
@@ -50,9 +55,7 @@ class PbjConverterTest {
         assertEquals(
                 platformState.getLowestJudgeGenerationBeforeBirthRoundMode(),
                 pbjPlatformState.lowestJudgeGenerationBeforeBirthRoundMode());
-        assertEquals(
-                platformState.getFirstVersionInBirthRoundMode().getPbjSemanticVersion(),
-                pbjPlatformState.firstVersionInBirthRoundMode());
+        assertEquals(platformState.getFirstVersionInBirthRoundMode(), pbjPlatformState.firstVersionInBirthRoundMode());
 
         assertEquals(platformState.getSnapshot(), pbjPlatformState.consensusSnapshot());
     }
@@ -95,9 +98,7 @@ class PbjConverterTest {
 
         accumulator.setCreationSoftwareVersion(newValue);
 
-        assertEquals(
-                newValue.getPbjSemanticVersion(),
-                toPbjPlatformState(oldState, accumulator).creationSoftwareVersion());
+        assertEquals(newValue, toPbjPlatformState(oldState, accumulator).creationSoftwareVersion());
     }
 
     @Test
@@ -205,9 +206,7 @@ class PbjConverterTest {
 
         accumulator.setFirstVersionInBirthRoundMode(newValue);
 
-        assertEquals(
-                newValue.getPbjSemanticVersion(),
-                toPbjPlatformState(oldState, accumulator).firstVersionInBirthRoundMode());
+        assertEquals(newValue, toPbjPlatformState(oldState, accumulator).firstVersionInBirthRoundMode());
     }
 
     @Test
@@ -319,7 +318,7 @@ class PbjConverterTest {
 
         final var pbjState = toPbjPlatformState(oldState, accumulator);
 
-        assertEquals(newValue.getCreationSoftwareVersion().getPbjSemanticVersion(), pbjState.creationSoftwareVersion());
+        assertEquals(newValue.getCreationSoftwareVersion(), pbjState.creationSoftwareVersion());
         assertEquals(newValue.getRoundsNonAncient(), pbjState.roundsNonAncient());
         assertEquals(newValue.getSnapshot(), pbjState.consensusSnapshot());
         assertEquals(toPbjTimestamp(newValue.getLastFrozenTime()), pbjState.freezeTime());
@@ -330,9 +329,7 @@ class PbjConverterTest {
         assertEquals(
                 newValue.getLowestJudgeGenerationBeforeBirthRoundMode(),
                 pbjState.lowestJudgeGenerationBeforeBirthRoundMode());
-        assertEquals(
-                newValue.getFirstVersionInBirthRoundMode().getPbjSemanticVersion(),
-                pbjState.firstVersionInBirthRoundMode());
+        assertEquals(newValue.getFirstVersionInBirthRoundMode(), pbjState.firstVersionInBirthRoundMode());
         assertEquals(newValue.getLastRoundBeforeBirthRoundMode(), pbjState.lastRoundBeforeBirthRoundMode());
     }
 
@@ -362,7 +359,7 @@ class PbjConverterTest {
                 PbjConverter.toPbjTimestamp(randomInstant(randotron)));
     }
 
-    private static SoftwareVersion randomSoftwareVersion() {
-        return new BasicSoftwareVersion(nextInt(1, 100));
+    private static SemanticVersion randomSoftwareVersion() {
+        return new BasicSoftwareVersion(nextInt(1, 100)).getPbjSemanticVersion();
     }
 }
