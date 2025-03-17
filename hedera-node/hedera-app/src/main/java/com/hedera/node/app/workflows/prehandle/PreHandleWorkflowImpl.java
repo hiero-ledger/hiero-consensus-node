@@ -36,6 +36,7 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.events.Event;
 import com.swirlds.platform.system.transaction.Transaction;
@@ -175,8 +176,12 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
         try {
             // Transaction info is a pure function of the transaction, so we can
             // always reuse it from a prior result
+            final int maxBytes = configProvider
+                    .getConfiguration()
+                    .getConfigData(HederaConfig.class)
+                    .nodeTransactionMaxBytes();
             txInfo = previousResult == null
-                    ? transactionChecker.parseAndCheck(applicationTxBytes)
+                    ? transactionChecker.parseAndCheck(applicationTxBytes, maxBytes)
                     : previousResult.txInfo();
             if (txInfo == null) {
                 // In particular, a null transaction info means we already know the transaction's final failure status
