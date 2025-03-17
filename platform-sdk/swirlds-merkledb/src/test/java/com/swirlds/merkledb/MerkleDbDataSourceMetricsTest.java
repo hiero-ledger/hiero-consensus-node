@@ -3,7 +3,6 @@ package com.swirlds.merkledb;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFalse;
-import static com.swirlds.merkledb.collections.LongListOffHeap.DEFAULT_RESERVED_BUFFER_LENGTH;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
 import static com.swirlds.merkledb.test.fixtures.TestType.fixed_fixed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -13,6 +12,7 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
@@ -53,7 +53,7 @@ class MerkleDbDataSourceMetricsTest {
         assertEventuallyEquals(
                 0L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected no open dbs");
         // create db
-        dataSource = createDataSource(testDirectory, TABLE_NAME, fixed_fixed, COUNT, HASHES_RAM_THRESHOLD);
+        dataSource = createDataSource(testDirectory, TABLE_NAME, fixed_fixed, COUNT * 10, HASHES_RAM_THRESHOLD);
 
         metrics = createMetrics();
         dataSource.registerMetrics(metrics);
@@ -93,8 +93,8 @@ class MerkleDbDataSourceMetricsTest {
         // two 8 MB memory chunks
         final int expectedHashesIndexSize = 16;
         assertMetricValue("ds_offheap_hashesIndexMb_" + TABLE_NAME, expectedHashesIndexSize);
-        // Hash list bucket is 1_000_000
-        final int hashListBucketSize = 1_000_000;
+        final int hashListBucketSize =
+                CONFIGURATION.getConfigData(MerkleDbConfig.class).hashStoreRamBufferSize();
         final int expectedHashListBuckets = (HASHES_RAM_THRESHOLD + hashListBucketSize - 1) / hashListBucketSize;
         final int expectedHashesListSize = (int) (expectedHashListBuckets
                 * hashListBucketSize
@@ -130,11 +130,13 @@ class MerkleDbDataSourceMetricsTest {
         assertMetricValue("ds_offheap_dataSourceMb_" + TABLE_NAME, 16);
         assertNoMemoryForInternalList();
 
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+
         dataSource.saveRecords(
                 firstLeafIndex,
-                lastLeafIndex + DEFAULT_RESERVED_BUFFER_LENGTH + 1,
+                lastLeafIndex + merkleDbConfig.longListReservedBufferSize() + 1,
                 Stream.empty(),
-                IntStream.range(firstLeafIndex, lastLeafIndex + DEFAULT_RESERVED_BUFFER_LENGTH + 1)
+                IntStream.range(firstLeafIndex, lastLeafIndex + merkleDbConfig.longListReservedBufferSize() + 1)
                         .mapToObj(i -> fixed_fixed.dataType().createVirtualLeafRecord(i))
                         .map(r -> r.toBytes(keySerializer, valueSerializer)),
                 Stream.empty());
@@ -146,11 +148,11 @@ class MerkleDbDataSourceMetricsTest {
         assertNoMemoryForInternalList();
 
         dataSource.saveRecords(
-                lastLeafIndex + DEFAULT_RESERVED_BUFFER_LENGTH,
-                lastLeafIndex + DEFAULT_RESERVED_BUFFER_LENGTH + 1,
+                lastLeafIndex + merkleDbConfig.longListReservedBufferSize(),
+                lastLeafIndex + merkleDbConfig.longListReservedBufferSize() + 1,
                 Stream.empty(),
                 // valid leaf index
-                IntStream.of(lastLeafIndex + DEFAULT_RESERVED_BUFFER_LENGTH)
+                IntStream.of(lastLeafIndex + merkleDbConfig.longListReservedBufferSize())
                         .mapToObj(i -> fixed_fixed.dataType().createVirtualLeafRecord(i))
                         .map(r -> r.toBytes(keySerializer, valueSerializer)),
                 Stream.empty());

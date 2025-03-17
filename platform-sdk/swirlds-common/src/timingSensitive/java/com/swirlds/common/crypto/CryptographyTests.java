@@ -30,7 +30,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class CryptographyTests {
     private static final int PARALLELISM = 16;
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
     private static final Hash KNOWN_DUMMY_SERIALIZABLE_HASH = new Hash(
             unhex("a19330d1f361a9e8f6433cce909b5d04ec0216788acef9e8977633a8332a1b08ab6b65d821e8ff30f64f1353d46182d1"));
     private static CryptoConfig cryptoConfig;
