@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Implementation of a factory for heartbeat protocol
@@ -60,5 +61,13 @@ public class HeartbeatProtocol implements Protocol {
     @NonNull
     public HeartbeatPeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
         return new HeartbeatPeerProtocol(Objects.requireNonNull(peerId), heartbeatPeriod, networkMetrics, time);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void updatePlatformStatus(@NonNull PlatformStatus status) {
+        // no-op, we don't care
     }
 }

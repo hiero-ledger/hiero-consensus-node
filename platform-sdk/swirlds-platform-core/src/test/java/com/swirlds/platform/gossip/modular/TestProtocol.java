@@ -9,6 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 public class TestProtocol implements Protocol {
 
@@ -23,6 +24,11 @@ public class TestProtocol implements Protocol {
     @Override
     public PeerProtocol createPeerInstance(@NonNull NodeId otherId) {
         return new TestPeerProtocol(selfId, otherId, events);
+    }
+
+    @Override
+    public void updatePlatformStatus(@NonNull PlatformStatus status) {
+        // no-op, we don't care
     }
 }
 

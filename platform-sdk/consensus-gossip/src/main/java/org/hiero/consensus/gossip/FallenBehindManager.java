@@ -13,7 +13,7 @@ public interface FallenBehindManager {
      * @param id
      * 		the id of the node who says we have fallen behind
      */
-    void reportFallenBehind(NodeId id);
+    void reportFallenBehind(@NonNull NodeId id);
 
     /**
      * We have determined that we have not fallen behind, or we have reconnected, so reset everything to the initial
@@ -48,4 +48,11 @@ public interface FallenBehindManager {
      * @param removed node ids which were removed from the roster
      */
     void addRemovePeers(@NonNull Set<NodeId> added, @NonNull Set<NodeId> removed);
+
+    /**
+     * Observers halt requested dispatches. Causes gossip to permanently stop (until node reboot).
+     *
+     * @param reason the reason why gossip is being stopped
+     */
+    void haltRequestedObserver(@NonNull String reason);
 }
