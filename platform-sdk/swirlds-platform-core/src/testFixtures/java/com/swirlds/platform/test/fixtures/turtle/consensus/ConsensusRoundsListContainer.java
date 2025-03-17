@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.turtle.consensus;
 
 import com.swirlds.platform.internal.ConsensusRound;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,7 +20,12 @@ public class ConsensusRoundsListContainer implements ConsensusRoundsHolder {
     }
 
     @Override
-    public void clear(@NonNull final Object ignored) {
+    public void clear() {
         collectedRounds.clear();
+    }
+
+    @Override
+    public List<ConsensusRound> getCollectedRounds() {
+        return collectedRounds;
     }
 }
