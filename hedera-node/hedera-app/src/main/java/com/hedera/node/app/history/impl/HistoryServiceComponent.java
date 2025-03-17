@@ -31,6 +31,5 @@ public interface HistoryServiceComponent {
 
     ProofControllers controllers();
 
-    @Deprecated
     Supplier<Configuration> configSupplier();
 }
