@@ -7,8 +7,8 @@ on:
         description: "Build Number (ex: 43 = build-00043):"
         type: string
         required: true
-      alpha_release:
-        description: "Select for Alpha Tag:"
+      alpha-release:
+        description: "Create Alpha Tag"
         required: false
         default: false
         type: boolean
@@ -114,7 +114,7 @@ jobs:
       - name: Compute Next Version Number
         id: next-release
         env:
-          ALPHA_FLAG: ${{ inputs.alpha_release }}
+          ALPHA_FLAG: ${{ inputs.alpha-release }}
         run: |
           echo "Alpha Flag: ${ALPHA_FLAG}"
           echo "Compute next version number using git-semver"
