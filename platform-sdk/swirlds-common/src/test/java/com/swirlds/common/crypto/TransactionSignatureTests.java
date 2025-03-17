@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 
 public class TransactionSignatureTests {
 
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
     private static CryptoConfig cryptoConfig;
     private static final int PARALLELISM = 16;
     private static ExecutorService executorService;

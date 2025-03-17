@@ -46,7 +46,8 @@ public class BlockContentsValidator implements BlockStreamValidator {
     public void validateBlocks(@NonNull final List<Block> blocks) {
         for (int i = 0; i < blocks.size(); i++) {
             try {
-                validate(blocks.get(i));
+                final var isLastBlock = i == blocks.size() - 1;
+                validate(blocks.get(i), isLastBlock);
             } catch (AssertionError err) {
                 logger.error("Error validating block {}", blocks.get(i));
                 throw err;
@@ -54,7 +55,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
         }
     }
 
-    private static void validate(Block block) {
+    private static void validate(Block block, final boolean isLastBlock) {
         final var items = block.items();
         if (items.isEmpty()) {
             Assertions.fail("Block is empty");
@@ -70,7 +71,9 @@ public class BlockContentsValidator implements BlockStreamValidator {
         validateRounds(items.subList(1, items.size() - 1));
 
         // A block SHALL end with a `block_proof`.
-        validateBlockProof(items.getLast());
+        if (!isLastBlock) {
+            validateBlockProof(items.getLast());
+        }
     }
 
     private static void validateBlockHeader(final BlockItem item) {

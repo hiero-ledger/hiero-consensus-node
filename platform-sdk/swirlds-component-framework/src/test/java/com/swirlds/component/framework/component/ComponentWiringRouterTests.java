@@ -6,8 +6,8 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerC
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.transformers.RoutableData;
@@ -113,9 +113,8 @@ class ComponentWiringRouterTests {
     void basicBehaviorTest() {
         final Random random = getRandomPrintSeed();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final ComponentWiring<TestComponent, RoutableData<TestDataType>> wiring =
                 new ComponentWiring<>(model, TestComponent.class, DIRECT_CONFIGURATION);
@@ -164,9 +163,8 @@ class ComponentWiringRouterTests {
     void basicSplitBehaviorTest() {
         final Random random = getRandomPrintSeed();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final ComponentWiring<TestListComponent, List<RoutableData<TestDataType>>> wiring =
                 new ComponentWiring<>(model, TestListComponent.class, DIRECT_CONFIGURATION);
@@ -228,9 +226,8 @@ class ComponentWiringRouterTests {
      */
     @Test
     void multipleRoutersForbiddenTest() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final ComponentWiring<TestComponent, RoutableData<TestDataType>> wiring =
                 new ComponentWiring<>(model, TestComponent.class, DIRECT_CONFIGURATION);
@@ -245,9 +242,8 @@ class ComponentWiringRouterTests {
      */
     @Test
     void multipleSplitRoutersForbiddenTest() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final ComponentWiring<TestListComponent, RoutableData<TestDataType>> wiring =
                 new ComponentWiring<>(model, TestListComponent.class, DIRECT_CONFIGURATION);
@@ -263,9 +259,8 @@ class ComponentWiringRouterTests {
      */
     @Test
     void unsplitThenSplitRoutersForbiddenTest() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final ComponentWiring<TestComponent, RoutableData<TestDataType>> wiring =
                 new ComponentWiring<>(model, TestComponent.class, DIRECT_CONFIGURATION);
@@ -281,9 +276,8 @@ class ComponentWiringRouterTests {
      */
     @Test
     void splitThenUnsplitRoutersForbiddenTest() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final ComponentWiring<TestListComponent, RoutableData<TestDataType>> wiring =
                 new ComponentWiring<>(model, TestListComponent.class, DIRECT_CONFIGURATION);
