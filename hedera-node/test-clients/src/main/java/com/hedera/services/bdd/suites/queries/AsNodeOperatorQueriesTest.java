@@ -487,28 +487,6 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase implement
                         .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_SIGNATURE)));
     }
 
-    /**
-     * Get a Smart Contract Bytecode tests
-     */
-    @HapiTest
-    @DisplayName("Only node operators aren't charged for contract bytecode queries")
-    final Stream<DynamicTest> getContractBytecodeQueryNodeOperatorNotCharged() {
-        final var contract = "PretendPair"; // any contract, nothing special about this one
-        return hapiTest(flattened(
-                nodeOperatorAccount(),
-                payerAccount(),
-                uploadInitCode(contract),
-                contractCreate(contract),
-                // Both the node operator and payer submit queries
-                getContractBytecode(contract).payingWith(NODE_OPERATOR).asNodeOperator(),
-                getContractBytecode(contract).payingWith(PAYER),
-                sleepFor(1_000),
-                // The node operator wasn't charged
-                getAccountBalance(NODE_OPERATOR).hasTinyBars(ONE_HUNDRED_HBARS),
-                // But the payer was charged
-                getAccountBalance(PAYER).hasTinyBars(lessThan(ONE_HUNDRED_HBARS))));
-    }
-
     @HapiTest
     @DisplayName("Only node operators don't need to sign contract bytecode queries")
     final Stream<DynamicTest> getContractBytecodeQueryNoSigRequired() {

@@ -11,6 +11,7 @@ import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_AD
 import static com.swirlds.platform.state.address.AddressBookInitializer.USED_ADDRESS_BOOK_HEADER;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -28,7 +29,6 @@ import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookUtils;
@@ -95,10 +95,10 @@ public class AddressBookTestingToolConsensusStateEventHandler
 
     @Override
     public void onStateInitialized(
-            @NonNull AddressBookTestingToolState state,
-            @NonNull Platform platform,
-            @NonNull InitTrigger trigger,
-            @Nullable SoftwareVersion previousVersion) {
+            @NonNull final AddressBookTestingToolState state,
+            @NonNull final Platform platform,
+            @NonNull final InitTrigger trigger,
+            @Nullable final SemanticVersion previousVersion) {
         requireNonNull(platform, "the platform cannot be null");
         requireNonNull(trigger, "the init trigger cannot be null");
         addressBookConfig = platform.getContext().getConfiguration().getConfigData(AddressBookConfig.class);
