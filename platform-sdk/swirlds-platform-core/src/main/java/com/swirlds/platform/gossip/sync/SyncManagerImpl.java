@@ -52,11 +52,9 @@ public class SyncManagerImpl implements FallenBehindManager {
     }
 
     /**
-     * Observers halt requested dispatches. Causes gossip to permanently stop (until node reboot).
-     *
-     * @param reason the reason why gossip is being stopped
+     * {@inheritDoc}
      */
-    public void haltRequestedObserver(final String reason) {
+    public void haltRequestedObserver(@NonNull final String reason) {
         logger.info(FREEZE.getMarker(), "Gossip frozen, reason: {}", reason);
     }
 
@@ -64,7 +62,7 @@ public class SyncManagerImpl implements FallenBehindManager {
      * {@inheritDoc}
      */
     @Override
-    public void reportFallenBehind(final NodeId id) {
+    public void reportFallenBehind(@NonNull final NodeId id) {
         fallenBehindManager.reportFallenBehind(id);
     }
 
@@ -85,7 +83,7 @@ public class SyncManagerImpl implements FallenBehindManager {
     }
 
     @Override
-    public boolean shouldReconnectFrom(final NodeId peerId) {
+    public boolean shouldReconnectFrom(@NonNull final NodeId peerId) {
         return fallenBehindManager.shouldReconnectFrom(peerId);
     }
 

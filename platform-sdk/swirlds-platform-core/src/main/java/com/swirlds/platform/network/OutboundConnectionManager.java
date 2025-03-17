@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.gossip.modular;
+package com.swirlds.platform.network;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
@@ -17,13 +17,6 @@ import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.ConnectionManager;
-import com.swirlds.platform.network.ConnectionTracker;
-import com.swirlds.platform.network.NetworkUtils;
-import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.network.SocketConfig;
-import com.swirlds.platform.network.SocketConnection;
 import com.swirlds.platform.network.connection.NotConnectedConnection;
 import com.swirlds.platform.network.connectivity.SocketFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -49,7 +42,10 @@ public class OutboundConnectionManager implements ConnectionManager {
     private Connection currentConn = NotConnectedConnection.getSingleton();
     /** locks the connection managed by this instance */
     private final AutoClosableResourceLock<Connection> lock = Locks.createResourceLock(currentConn);
-    /** this factory holds only required certificates and keys to do a single P2P connection between ourselves and single other peer*/
+    /**
+     * this factory holds only required certificates and keys to do a single P2P connection between ourselves and single
+     * other peer
+     */
     private final SocketFactory socketFactory;
 
     private static final Logger logger = LogManager.getLogger(OutboundConnectionManager.class);
@@ -57,11 +53,11 @@ public class OutboundConnectionManager implements ConnectionManager {
     /**
      * Creates new outbound connection manager
      *
-     * @param selfId self's node id
-     * @param otherPeer information about the peer we are supposed to connect to
-     * @param platformContext the platform context
+     * @param selfId            self's node id
+     * @param otherPeer         information about the peer we are supposed to connect to
+     * @param platformContext   the platform context
      * @param connectionTracker connection tracker for all platform connections
-     * @param ownKeysAndCerts    private keys and public certificates
+     * @param ownKeysAndCerts   private keys and public certificates
      */
     public OutboundConnectionManager(
             @NonNull final NodeId selfId,

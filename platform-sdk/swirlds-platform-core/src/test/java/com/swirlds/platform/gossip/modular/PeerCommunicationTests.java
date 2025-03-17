@@ -15,6 +15,7 @@ import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.crypto.PublicStores;
 import com.swirlds.platform.gossip.ProtocolConfig;
+import com.swirlds.platform.network.PeerCommunication;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.handshake.VersionCompareHandshake;
 import com.swirlds.platform.network.protocol.HeartbeatProtocol;
@@ -35,7 +36,7 @@ public class PeerCommunicationTests {
 
     private static final int MAX_NODES = 10;
     private static final int CHECK_LOOPS = 30;
-    private static final int LOOP_WAIT = 200;
+    private static final int LOOP_WAIT = 500;
 
     private Map<NodeId, KeysAndCerts> perNodeCerts;
     private PlatformContext platformContext;

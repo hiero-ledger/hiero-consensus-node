@@ -7,6 +7,7 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.heartbeats.HeartbeatPeerProtocol;
 import com.swirlds.platform.network.NetworkMetrics;
+import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
@@ -60,5 +61,13 @@ public class HeartbeatProtocol implements Protocol {
     @NonNull
     public HeartbeatPeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
         return new HeartbeatPeerProtocol(Objects.requireNonNull(peerId), heartbeatPeriod, networkMetrics, time);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void updatePlatformStatus(@NonNull PlatformStatus status) {
+        // no-op, we don't care
     }
 }
