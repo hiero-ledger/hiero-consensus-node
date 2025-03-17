@@ -28,10 +28,9 @@ public final class ConsensusUtils {
      * @return true if voting for famous, false if voting for not famous
      */
     public static boolean coin(@NonNull final EventImpl event) {
-        // coin is one bit from hash (LSB of second of two middle bytes)
-        final Bytes hashBytes = event.getBaseHash().getBytes();
-        final long sigLen = hashBytes.length();
-        return ((hashBytes.getByte((sigLen / 2)) & 1) == 1);
+        // coin is one bit from signature (LSB of second of two middle bytes)
+        final int sigLen = (int) event.getBaseEvent().getSignature().length();
+        return ((event.getBaseEvent().getSignature().getByte((sigLen / 2)) & 1) == 1);
     }
 
     /**
