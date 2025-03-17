@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
@@ -58,6 +59,7 @@ public enum TransactionExecutors {
      */
     @Deprecated(since = "0.61")
     public static final String MAX_SIGNED_TXN_SIZE_PROPERTY = "executor.maxSignedTxnSize";
+
     public static final String DISABLE_THROTTLES_PROPERTY = "executor.disableThrottles";
 
     /**
