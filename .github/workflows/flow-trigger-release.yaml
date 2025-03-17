@@ -147,9 +147,19 @@ jobs:
           echo "Pushed new release tag to remote"
 
       - name: Create Release Notes with Markdown
+        id: release
         run: |
           echo git-semver log --markdown "${{ steps.next-release.outputs.version }}"
-          git-semver log --markdown "${{ steps.next-release.outputs.version }}"
+          echo "notes=$(git-semver log --markdown "${{ steps.next-release.outputs.version }}")" >> ${GITHUB_OUTPUT}
+
+      - name: Publish Release Notes
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
+        with:
+          name: v${{ steps.next-release.outputs.version }}
+          tag_name: v${{ steps.next-release.outputs.version }}
+          prerelease: ${{ inputs.alpha-release == 'true' }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          body: ${{ steps.release.outputs.notes }}
 
       - name: Clean Up git-semver
         run: |
