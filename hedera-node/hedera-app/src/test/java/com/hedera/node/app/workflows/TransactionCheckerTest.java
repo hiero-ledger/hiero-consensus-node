@@ -68,6 +68,7 @@ import org.mockito.MockedStatic;
 
 final class TransactionCheckerTest extends AppTestBase {
     private static final int MAX_TX_SIZE = 1024 * 6;
+    private static final int MAX_JUMBO_TX_SIZE = 1024 * 130;
     private static final int MAX_MEMO_SIZE = 100;
     private static final long MAX_DURATION = 120L;
     private static final long MIN_DURATION = 10L;
@@ -363,7 +364,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
             // assert that even if we are sending a transaction with more than 6KB,
             // it will not fail with TRANSACTION_OVERSIZE
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), maxBytes))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), MAX_JUMBO_TX_SIZE))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
         }
