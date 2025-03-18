@@ -11,7 +11,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBL
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.UNAUTHORIZED_SPENDER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.UNAUTHORIZED_SPENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
@@ -30,7 +29,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.granta
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval.ERCGrantApprovalCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval.GrantApprovalDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval.GrantApprovalTranslator;
-import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import java.math.BigInteger;
 import org.apache.tuweni.bytes.Bytes;
@@ -59,7 +57,7 @@ class GrantApprovalTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void grantApprovalMatches() {
-        attempt = createHtsCallAttempt(Bytes.wrap(GRANT_APPROVAL.selector()), subject);
+        attempt = createHtsCallAttempt(GRANT_APPROVAL, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -67,8 +65,7 @@ class GrantApprovalTranslatorTest extends CallAttemptTestBase {
     void ERCGrantApprovalMatches() {
         given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        attempt = createHtsCallAttempt(
-                TestHelpers.bytesForRedirect(ERC_GRANT_APPROVAL.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS), subject);
+        attempt = createHtsCallAttemptForRedirect(ERC_GRANT_APPROVAL, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -76,20 +73,19 @@ class GrantApprovalTranslatorTest extends CallAttemptTestBase {
     void ERCGrantApprovalNFTMatches() {
         given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        attempt = createHtsCallAttempt(
-                TestHelpers.bytesForRedirect(ERC_GRANT_APPROVAL_NFT.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS), subject);
+        attempt = createHtsCallAttemptForRedirect(ERC_GRANT_APPROVAL_NFT, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void grantApprovalNFTMatches() {
-        attempt = createHtsCallAttempt(Bytes.wrap(GRANT_APPROVAL_NFT.selector()), subject);
+        attempt = createHtsCallAttempt(GRANT_APPROVAL_NFT, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void falseOnInvalidSelector() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

@@ -11,7 +11,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.MintDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.MintTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
-import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -34,19 +33,19 @@ class MintTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesMintV1Test() {
-        attempt = createHtsCallAttempt(Bytes.wrap(MINT.selector()), subject);
+        attempt = createHtsCallAttempt(MINT, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesMintV2Test() {
-        attempt = createHtsCallAttempt(Bytes.wrap(MINT_V2.selector()), subject);
+        attempt = createHtsCallAttempt(MINT_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchFailsOnIncorrectSelectorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 }

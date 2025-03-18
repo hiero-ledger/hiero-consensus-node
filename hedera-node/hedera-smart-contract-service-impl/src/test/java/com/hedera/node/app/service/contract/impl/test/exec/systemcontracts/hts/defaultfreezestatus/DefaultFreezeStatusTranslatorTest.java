@@ -34,13 +34,13 @@ class DefaultFreezeStatusTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesDefaultFreezeTranslatorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(DEFAULT_FREEZE_STATUS.selector()), subject);
+        attempt = createHtsCallAttempt(DEFAULT_FREEZE_STATUS, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsIfIncorrectSelectorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

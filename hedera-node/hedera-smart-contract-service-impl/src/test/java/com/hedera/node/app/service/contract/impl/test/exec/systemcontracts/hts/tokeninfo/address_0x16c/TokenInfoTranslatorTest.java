@@ -45,7 +45,7 @@ class TokenInfoTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesFailsIfIncorrectSelectorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

@@ -11,7 +11,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantrevokekyc.GrantRevokeKycDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantrevokekyc.GrantRevokeKycTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
-import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -33,19 +32,19 @@ class GrantRevokeKycTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesGrantKycTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(GRANT_KYC.selector()), subject);
+        attempt = createHtsCallAttempt(GRANT_KYC, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesRevokeKycTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(REVOKE_KYC.selector()), subject);
+        attempt = createHtsCallAttempt(REVOKE_KYC, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsWithIncorrectSelector() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 }

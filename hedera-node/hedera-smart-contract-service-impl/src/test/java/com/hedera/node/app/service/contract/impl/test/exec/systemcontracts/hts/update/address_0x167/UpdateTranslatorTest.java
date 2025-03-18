@@ -143,31 +143,31 @@ class UpdateTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesUpdateV1Test() {
-        attempt = createHtsCallAttempt(Bytes.wrap(TOKEN_UPDATE_INFO_FUNCTION_V1.selector()), subject);
+        attempt = createHtsCallAttempt(TOKEN_UPDATE_INFO_FUNCTION_V1, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesUpdateV2Test() {
-        attempt = createHtsCallAttempt(Bytes.wrap(TOKEN_UPDATE_INFO_FUNCTION_V2.selector()), subject);
+        attempt = createHtsCallAttempt(TOKEN_UPDATE_INFO_FUNCTION_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesUpdateV3Test() {
-        attempt = createHtsCallAttempt(Bytes.wrap(TOKEN_UPDATE_INFO_FUNCTION_V3.selector()), subject);
+        attempt = createHtsCallAttempt(TOKEN_UPDATE_INFO_FUNCTION_V3, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsOnIncorrectSelector() {
-        attempt = createHtsCallAttempt(Bytes.wrap(FreezeUnfreezeTranslator.FREEZE.selector()), subject);
+        attempt = createHtsCallAttempt(FreezeUnfreezeTranslator.FREEZE, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void matchesFailsOnUpdateMetadataTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA.selector()), subject);
+        attempt = createHtsCallAttempt(TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

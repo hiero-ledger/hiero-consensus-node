@@ -38,13 +38,13 @@ class FungibleTokenInfoTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesFungibleTokenInfoTranslatorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(FUNGIBLE_TOKEN_INFO.selector()), subject);
+        attempt = createHtsCallAttempt(FUNGIBLE_TOKEN_INFO, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsIfIncorrectSelectorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

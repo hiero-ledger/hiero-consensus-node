@@ -41,13 +41,13 @@ class IsFrozenTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesIsFrozenTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(IS_FROZEN.selector()), subject);
+        attempt = createHtsCallAttempt(IS_FROZEN, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsIfIncorrectSelectorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

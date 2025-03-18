@@ -11,7 +11,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.freeze.FreezeUnfreezeDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.freeze.FreezeUnfreezeTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
-import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -34,19 +33,19 @@ class FreezeUnfreezeTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void freezeMatches() {
-        attempt = createHtsCallAttempt(Bytes.wrap(FREEZE.selector()), subject);
+        attempt = createHtsCallAttempt(FREEZE, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void unfreezeMatches() {
-        attempt = createHtsCallAttempt(Bytes.wrap(UNFREEZE.selector()), subject);
+        attempt = createHtsCallAttempt(UNFREEZE, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void falseOnInvalidSelector() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 }

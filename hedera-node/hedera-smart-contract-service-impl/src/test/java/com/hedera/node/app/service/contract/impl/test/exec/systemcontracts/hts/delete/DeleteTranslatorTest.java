@@ -40,13 +40,13 @@ class DeleteTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesDelete() {
-        attempt = createHtsCallAttempt(Bytes.wrap(DELETE_TOKEN.selector()), subject);
+        attempt = createHtsCallAttempt(DELETE_TOKEN, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsIfIncorrectSelectorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

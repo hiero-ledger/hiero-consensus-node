@@ -12,7 +12,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.wipe.WipeDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.wipe.WipeTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
-import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -36,25 +35,25 @@ public class WipeTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesWipeFungibleV1Test() {
-        attempt = createHtsCallAttempt(Bytes.wrap(WIPE_FUNGIBLE_V1.selector()), subject);
+        attempt = createHtsCallAttempt(WIPE_FUNGIBLE_V1, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesWipeFungibleV2Test() {
-        attempt = createHtsCallAttempt(Bytes.wrap(WIPE_FUNGIBLE_V2.selector()), subject);
+        attempt = createHtsCallAttempt(WIPE_FUNGIBLE_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesWipeNftTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(WIPE_NFT.selector()), subject);
+        attempt = createHtsCallAttempt(WIPE_NFT, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchFailsOnIncorrectSelectorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 }

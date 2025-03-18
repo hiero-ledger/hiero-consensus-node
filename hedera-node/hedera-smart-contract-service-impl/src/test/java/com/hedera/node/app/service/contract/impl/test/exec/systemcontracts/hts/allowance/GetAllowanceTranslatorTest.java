@@ -41,19 +41,19 @@ public class GetAllowanceTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesGetAllowance() {
-        attempt = createHtsCallAttempt(Bytes.wrap(GET_ALLOWANCE.selector()), subject);
+        attempt = createHtsCallAttempt(GET_ALLOWANCE, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesERCGetAllowance() {
-        attempt = createHtsCallAttempt(Bytes.wrap(ERC_GET_ALLOWANCE.selector()), subject);
+        attempt = createHtsCallAttempt(ERC_GET_ALLOWANCE, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void failsOnInvalidSelector() {
-        attempt = createHtsCallAttempt(Bytes.wrap(TOKEN_UPDATE_INFO_FUNCTION_V3.selector()), subject);
+        attempt = createHtsCallAttempt(TOKEN_UPDATE_INFO_FUNCTION_V3, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

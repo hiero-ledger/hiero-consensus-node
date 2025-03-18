@@ -34,13 +34,13 @@ class TokenExpiryTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesTokenExpiryTranslatorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(TOKEN_EXPIRY.selector()), subject);
+        attempt = createHtsCallAttempt(TOKEN_EXPIRY, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsIfIncorrectSelectorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

@@ -9,7 +9,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.freeze
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateKeysTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
-import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -32,13 +31,13 @@ class UpdateKeysTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesUpdateKeysTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(UpdateKeysTranslator.TOKEN_UPDATE_KEYS_FUNCTION.selector()), subject);
+        attempt = createHtsCallAttempt(UpdateKeysTranslator.TOKEN_UPDATE_KEYS_FUNCTION, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesIncorrectSelectorFailsTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(FreezeUnfreezeTranslator.FREEZE.selector()), subject);
+        attempt = createHtsCallAttempt(FreezeUnfreezeTranslator.FREEZE, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 }

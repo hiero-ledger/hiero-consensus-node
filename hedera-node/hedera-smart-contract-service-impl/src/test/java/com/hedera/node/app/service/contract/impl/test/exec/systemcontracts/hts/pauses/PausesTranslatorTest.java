@@ -11,7 +11,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.pauses.PausesDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.pauses.PausesTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
-import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -34,19 +33,19 @@ public class PausesTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesPauseTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(PAUSE.selector()), subject);
+        attempt = createHtsCallAttempt(PAUSE, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesUnpauseTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(UNPAUSE.selector()), subject);
+        attempt = createHtsCallAttempt(UNPAUSE, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsOnIncorrectSelector() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 }

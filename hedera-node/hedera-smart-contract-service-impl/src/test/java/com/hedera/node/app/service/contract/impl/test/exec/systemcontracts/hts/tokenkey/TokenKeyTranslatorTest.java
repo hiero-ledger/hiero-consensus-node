@@ -17,7 +17,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenk
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.math.BigInteger;
-import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -40,13 +39,13 @@ class TokenKeyTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesTokenKeyTranslatorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(TOKEN_KEY.selector()), subject);
+        attempt = createHtsCallAttempt(TOKEN_KEY, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsIfIncorrectSelectorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

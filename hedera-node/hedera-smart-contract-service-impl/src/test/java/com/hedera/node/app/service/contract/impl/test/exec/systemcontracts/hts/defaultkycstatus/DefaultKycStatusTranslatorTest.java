@@ -34,13 +34,13 @@ class DefaultKycStatusTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesDefaultKycTranslatorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(DEFAULT_KYC_STATUS.selector()), subject);
+        attempt = createHtsCallAttempt(DEFAULT_KYC_STATUS, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsIfIncorrectSelectorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

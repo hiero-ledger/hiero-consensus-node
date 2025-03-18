@@ -16,7 +16,6 @@ import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.getapproved.GetApprovedCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.getapproved.GetApprovedTranslator;
-import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import java.math.BigInteger;
 import org.apache.tuweni.bytes.Bytes;
@@ -48,20 +47,19 @@ public class GetApprovedTranslatorTest extends CallAttemptTestBase {
     void matchesErcGetApprovedTest() {
         given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        attempt = createHtsCallAttempt(
-                TestHelpers.bytesForRedirect(ERC_GET_APPROVED.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS), subject);
+        attempt = createHtsCallAttemptForRedirect(ERC_GET_APPROVED, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesHapiGetApprovedTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(HAPI_GET_APPROVED.selector()), subject);
+        attempt = createHtsCallAttempt(HAPI_GET_APPROVED, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsOnIncorrectSelectorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

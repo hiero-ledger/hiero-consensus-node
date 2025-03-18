@@ -11,7 +11,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
-import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -35,19 +34,19 @@ class BurnTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesBurnTokenV1() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V1.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V1, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesBurnTokenV2() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchFailsOnInvalidSelector() {
-        attempt = createHtsCallAttempt(Bytes.wrap(TOKEN_UPDATE_INFO_FUNCTION_V3.selector()), subject);
+        attempt = createHtsCallAttempt(TOKEN_UPDATE_INFO_FUNCTION_V3, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 }

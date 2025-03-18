@@ -50,19 +50,19 @@ class UpdateExpiryTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesUpdateExpiryV1Test() {
-        attempt = createHtsCallAttempt(Bytes.wrap(UPDATE_TOKEN_EXPIRY_INFO_V1.selector()), subject);
+        attempt = createHtsCallAttempt(UPDATE_TOKEN_EXPIRY_INFO_V1, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesUpdateExpiryV2Test() {
-        attempt = createHtsCallAttempt(Bytes.wrap(UPDATE_TOKEN_EXPIRY_INFO_V2.selector()), subject);
+        attempt = createHtsCallAttempt(UPDATE_TOKEN_EXPIRY_INFO_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsIfIncorrectSelectorTest() {
-        attempt = createHtsCallAttempt(Bytes.wrap(TOKEN_UPDATE_KEYS_FUNCTION.selector()), subject);
+        attempt = createHtsCallAttempt(TOKEN_UPDATE_KEYS_FUNCTION, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

@@ -75,79 +75,79 @@ class CreateTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesCreateFungibleTokenV1() {
-        attempt = createHtsCallAttempt(Bytes.wrap(CREATE_FUNGIBLE_TOKEN_V1.selector()), subject);
+        attempt = createHtsCallAttempt(CREATE_FUNGIBLE_TOKEN_V1, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateFungibleTokenV2() {
-        attempt = createHtsCallAttempt(Bytes.wrap(CREATE_FUNGIBLE_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(CREATE_FUNGIBLE_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateFungibleTokenV3() {
-        attempt = createHtsCallAttempt(Bytes.wrap(CREATE_FUNGIBLE_TOKEN_V3.selector()), subject);
+        attempt = createHtsCallAttempt(CREATE_FUNGIBLE_TOKEN_V3, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateFungibleTokenWithCustomFeesV1() {
-        attempt = createHtsCallAttempt(Bytes.wrap(CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V1.selector()), subject);
+        attempt = createHtsCallAttempt(CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V1, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateFungibleTokenWithCustomFeesV2() {
-        attempt = createHtsCallAttempt(Bytes.wrap(CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V2.selector()), subject);
+        attempt = createHtsCallAttempt(CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateFungibleTokenWithCustomFeesV3() {
-        attempt = createHtsCallAttempt(Bytes.wrap(CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V3.selector()), subject);
+        attempt = createHtsCallAttempt(CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V3, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenV1() {
-        attempt = createHtsCallAttempt(Bytes.wrap(CREATE_NON_FUNGIBLE_TOKEN_V1.selector()), subject);
+        attempt = createHtsCallAttempt(CREATE_NON_FUNGIBLE_TOKEN_V1, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenV2() {
-        attempt = createHtsCallAttempt(Bytes.wrap(CREATE_NON_FUNGIBLE_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(CREATE_NON_FUNGIBLE_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenV3() {
-        attempt = createHtsCallAttempt(Bytes.wrap(CREATE_NON_FUNGIBLE_TOKEN_V3.selector()), subject);
+        attempt = createHtsCallAttempt(CREATE_NON_FUNGIBLE_TOKEN_V3, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenWithCustomFeesV1() {
-        attempt = createHtsCallAttempt(Bytes.wrap(CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V1.selector()), subject);
+        attempt = createHtsCallAttempt(CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V1, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenWithCustomFeesV2() {
-        attempt = createHtsCallAttempt(Bytes.wrap(CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V2.selector()), subject);
+        attempt = createHtsCallAttempt(CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenWithCustomFeesV3() {
-        attempt = createHtsCallAttempt(Bytes.wrap(CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V3.selector()), subject);
+        attempt = createHtsCallAttempt(CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V3, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void falseOnInvalidSelector() {
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

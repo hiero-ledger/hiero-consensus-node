@@ -33,7 +33,6 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
     protected final CallAttemptOptions<T> options;
     // The id of the sender in the EVM frame
     protected final AccountID senderId;
-    protected final Function redirectFunction;
     protected final Bytes input;
     protected final byte[] selector;
     // If non-null, the address of a non-contract entity (e.g., account or token) whose
@@ -52,9 +51,9 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
             @NonNull final CallAttemptOptions<T> options,
             @NonNull final Function redirectFunction) {
         requireNonNull(input);
+        requireNonNull(redirectFunction);
         this.options = requireNonNull(options);
         this.senderId = options.addressIdConverter().convertSender(options.senderAddress());
-        this.redirectFunction = requireNonNull(redirectFunction);
 
         if (isRedirectSelector(redirectFunction.selector(), input.toArrayUnsafe())) {
             Tuple abiCall = null;

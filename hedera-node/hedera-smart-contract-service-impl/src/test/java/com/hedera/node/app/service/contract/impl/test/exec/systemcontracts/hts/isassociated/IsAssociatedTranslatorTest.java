@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator.BURN_TOKEN_V2;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isassociated.IsAssociatedTranslator.IS_ASSOCIATED;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -18,7 +17,6 @@ import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isassociated.IsAssociatedCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isassociated.IsAssociatedTranslator;
-import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,8 +41,7 @@ class IsAssociatedTranslatorTest extends CallAttemptTestBase {
     void matchesWithCorrectSelectorAndTokenRedirectReturnsTrue() {
         given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        mockAttempt = createHtsCallAttempt(
-                TestHelpers.bytesForRedirect(IS_ASSOCIATED.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS), subject);
+        mockAttempt = createHtsCallAttemptForRedirect(IS_ASSOCIATED, subject);
         assertThat(subject.identifyMethod(mockAttempt)).isPresent();
     }
 
@@ -52,8 +49,7 @@ class IsAssociatedTranslatorTest extends CallAttemptTestBase {
     void matchesWithIncorrectSelectorReturnsFalse() {
         given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        mockAttempt = createHtsCallAttempt(
-                TestHelpers.bytesForRedirect(BURN_TOKEN_V2.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS), subject);
+        mockAttempt = createHtsCallAttemptForRedirect(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(mockAttempt)).isEmpty();
     }
 
