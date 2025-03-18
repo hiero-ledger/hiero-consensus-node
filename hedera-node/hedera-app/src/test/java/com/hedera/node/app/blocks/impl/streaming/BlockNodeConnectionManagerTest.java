@@ -118,13 +118,13 @@ class BlockNodeConnectionManagerTest {
                 .build();
 
         // Create bytes from block items
-        List<Bytes> itemBytes = new ArrayList<>();
-        itemBytes.add(BlockItem.PROTOBUF.toBytes(item1));
-        itemBytes.add(BlockItem.PROTOBUF.toBytes(item2));
-        itemBytes.add(BlockItem.PROTOBUF.toBytes(item3));
+        List<BlockItem> itemBytes = new ArrayList<>();
+        itemBytes.add(item1);
+        itemBytes.add(item2);
+        itemBytes.add(item3);
 
         BlockState mockBlock = mock(BlockState.class);
-        when(mockBlock.itemBytes()).thenReturn(itemBytes);
+        when(mockBlock.items()).thenReturn(itemBytes);
 
         // When
         int batchSize = 2;
@@ -152,11 +152,11 @@ class BlockNodeConnectionManagerTest {
     void testCreatePublishStreamRequestsWithEmptyBlock() {
         // Given
         int batchSize = 2;
-        List<Bytes> emptyItemBytes = new ArrayList<>();
+        List<BlockItem> emptyItemBytes = new ArrayList<>();
 
         // Mock BlockState
         BlockState mockBlockState = mock(BlockState.class);
-        when(mockBlockState.itemBytes()).thenReturn(emptyItemBytes);
+        when(mockBlockState.items()).thenReturn(emptyItemBytes);
 
         // When
         final var requests = BlockNodeConnectionManager.createPublishStreamRequests(mockBlockState, batchSize);
@@ -220,12 +220,7 @@ class BlockNodeConnectionManagerTest {
 
         final var blockProof =
                 BlockItem.newBuilder().blockProof(BlockProof.DEFAULT).build();
-        final var block = new BlockState(
-                blockNumber,
-                List.of(
-                        BlockItem.PROTOBUF.toBytes(blockHeader),
-                        BlockItem.PROTOBUF.toBytes(blockItem),
-                        BlockItem.PROTOBUF.toBytes(blockProof)));
+        final var block = new BlockState(blockNumber, List.of(blockHeader, blockItem, blockProof));
 
         blockNodeConnectionManager.streamBlockToConnections(block);
 

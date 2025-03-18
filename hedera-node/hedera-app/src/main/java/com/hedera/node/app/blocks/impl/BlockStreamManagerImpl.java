@@ -491,7 +491,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .blockSignature(blockSignature)
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
-            block.writer().writePbjItem(BlockItem.PROTOBUF.toBytes(proofItem));
+            block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeBlock();
             if (block.number() != blockNumber) {
                 siblingHashes.removeFirst();
@@ -659,7 +659,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (header != null) {
                 writer.openBlock(header.number());
             }
-            writer.writePbjItem(serialized);
+            writer.writePbjItemAndBytes(item, serialized);
 
             next.send();
             return true;
@@ -851,7 +851,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final BlockItem finalChanges = boundaryStateChangeListener.flushChanges();
         if (finalChanges != null && finalChanges.hasStateChanges()) {
             log.fatal("Writing final state changes for block {}", blockNumber);
-            writer.writePbjItem(BlockItem.PROTOBUF.toBytes(finalChanges));
+            writer.writePbjItemAndBytes(finalChanges, BlockItem.PROTOBUF.toBytes(finalChanges));
         }
         log.fatal("Final state changes written (if any)");
     }

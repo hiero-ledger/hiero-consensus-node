@@ -11,8 +11,6 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
-import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.grpc.GrpcClient;
@@ -179,25 +177,17 @@ public class BlockNodeConnectionManager {
 
     public static @NonNull List<PublishStreamRequest> createPublishStreamRequests(
             @NonNull final BlockState block, final int blockItemBatchSize) {
-        final int totalItems = block.itemBytes().size();
+        final int totalItems = block.items().size();
         // Pre-calculate the expected number of batch requests
         final int expectedBatchCount = (totalItems + blockItemBatchSize - 1) / blockItemBatchSize;
         List<PublishStreamRequest> batchRequests = new ArrayList<>(expectedBatchCount);
         for (int i = 0; i < totalItems; i += blockItemBatchSize) {
             int end = Math.min(i + blockItemBatchSize, totalItems);
-            List<Bytes> batch = block.itemBytes().subList(i, end);
-            List<BlockItem> blockItems = new ArrayList<>(batch.size());
-            batch.forEach(batchItem -> {
-                try {
-                    blockItems.add(BlockItem.PROTOBUF.parse(batchItem));
-                } catch (ParseException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+            List<BlockItem> blockItemsBatch = block.items().subList(i, end);
 
             // Create BlockItemSet by adding all items at once
             batchRequests.add(PublishStreamRequest.newBuilder()
-                    .blockItems(new BlockItemSet(blockItems))
+                    .blockItems(new BlockItemSet(blockItemsBatch))
                     .build());
         }
         return batchRequests;
