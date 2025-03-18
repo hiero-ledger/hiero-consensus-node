@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.model;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
@@ -12,8 +13,6 @@ import java.util.concurrent.ForkJoinPool;
  */
 public class WiringModelBuilder {
 
-    private final PlatformContext platformContext;
-
     private boolean deterministicModeEnabled;
     private ForkJoinPool defaultPool = ForkJoinPool.commonPool();
     private boolean healthMonitorEnabled = true;
@@ -23,25 +22,30 @@ public class WiringModelBuilder {
     private Duration healthMonitorPeriod = Duration.ofMillis(100);
     private Duration healthLogThreshold = Duration.ofSeconds(5);
     private Duration healthLogPeriod = Duration.ofMinutes(10);
+    private final Metrics metrics;
+    private final Time time;
 
     /**
      * Create a new builder.
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics
+     * @param time the time
      * @return the builder
      */
     @NonNull
-    public static WiringModelBuilder create(@NonNull final PlatformContext platformContext) {
-        return new WiringModelBuilder(platformContext);
+    public static WiringModelBuilder create(final Metrics metrics, final Time time) {
+        return new WiringModelBuilder(metrics, time);
     }
 
     /**
      * Constructor.
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics
+     * @param time the time
      */
-    private WiringModelBuilder(@NonNull final PlatformContext platformContext) {
-        this.platformContext = Objects.requireNonNull(platformContext);
+    private WiringModelBuilder(@NonNull final Metrics metrics, @NonNull final Time time) {
+        this.metrics = Objects.requireNonNull(metrics);
+        this.time = Objects.requireNonNull(time);
     }
 
     /**
@@ -168,20 +172,10 @@ public class WiringModelBuilder {
     @NonNull
     public <T extends WiringModel> T build() {
         if (deterministicModeEnabled) {
-            return (T) new DeterministicWiringModel(platformContext);
+            return (T) new DeterministicWiringModel(metrics, time);
         } else {
             return (T) new StandardWiringModel(this);
         }
-    }
-
-    /**
-     * Get the platform context.
-     *
-     * @return the platform context
-     */
-    @NonNull
-    PlatformContext getPlatformContext() {
-        return platformContext;
     }
 
     /**
@@ -259,5 +253,25 @@ public class WiringModelBuilder {
     @NonNull
     Duration getHealthLogPeriod() {
         return healthLogPeriod;
+    }
+
+    /**
+     * Get the metrics
+     *
+     * @return the metrics
+     */
+    @NonNull
+    Metrics getMetrics() {
+        return metrics;
+    }
+
+    /**
+     * Get the time
+     *
+     * @return the time
+     */
+    @NonNull
+    Time getTime() {
+        return time;
     }
 }

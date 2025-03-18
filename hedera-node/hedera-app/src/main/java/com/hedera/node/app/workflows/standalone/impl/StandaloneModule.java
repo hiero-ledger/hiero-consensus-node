@@ -1,15 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.standalone.impl;
 
+import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
+import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
+
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.throttle.ThrottleAccumulator;
+import com.hedera.node.app.throttle.ThrottleMetrics;
+import com.hedera.node.app.throttle.annotations.BackendThrottle;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
+import com.hedera.node.config.ConfigProvider;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.SnapshotPlatformStateAccessor;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import dagger.Binds;
@@ -17,6 +26,7 @@ import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
+import java.util.function.Function;
 import java.util.function.IntSupplier;
 import javax.inject.Singleton;
 
@@ -30,6 +40,24 @@ public interface StandaloneModule {
     @Singleton
     static IntSupplier provideFrontendThrottleSplit() {
         return () -> 1;
+    }
+
+    @Provides
+    @Singleton
+    @BackendThrottle
+    static ThrottleAccumulator provideBackendThrottleAccumulator(
+            @NonNull final ConfigProvider configProvider,
+            final boolean disableThrottling,
+            @NonNull final Metrics metrics,
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+        final var throttleMetrics = new ThrottleMetrics(metrics, BACKEND_THROTTLE);
+        return new ThrottleAccumulator(
+                () -> 1,
+                configProvider::getConfiguration,
+                disableThrottling ? NOOP_THROTTLE : BACKEND_THROTTLE,
+                throttleMetrics,
+                ThrottleAccumulator.Verbose.YES,
+                softwareVersionFactory);
     }
 
     @Provides
