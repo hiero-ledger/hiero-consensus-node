@@ -204,8 +204,8 @@ public class CallAttemptTestBase extends CallTestBase {
 
     // -------------------------------------- HSS --------------------------------------
     protected HssCallAttempt createHssCallAttempt(
-            @NonNull final Bytes input, @NonNull final CallTranslator<HssCallAttempt> translator) {
-        return createHssCallAttempt(input, OWNER_BESU_ADDRESS, false, TestHelpers.DEFAULT_CONFIG, List.of(translator));
+            @NonNull final SystemContractMethod method, @NonNull final CallTranslator<HssCallAttempt> translator) {
+        return createHssCallAttempt(Bytes.wrap(method.selector()), OWNER_BESU_ADDRESS, false, TestHelpers.DEFAULT_CONFIG, List.of(translator));
     }
 
     protected HssCallAttempt createHssCallAttempt(

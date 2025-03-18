@@ -77,7 +77,7 @@ class ScheduleNativeTranslatorTest extends CallAttemptTestBase {
     }
 
     @Test
-    void matchesScheduleCreate() {
+    void testMatchesScheduleCreate() {
         // given
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractScheduleNativeEnabled()).willReturn(true);
@@ -96,7 +96,7 @@ class ScheduleNativeTranslatorTest extends CallAttemptTestBase {
     }
 
     @Test
-    void matchesFailsForOtherSelector() {
+    void testMatchesFailsForOtherSelector() {
         // given
         final var attempt =
                 createHssCallAttempt(Bytes.wrap(SIGN_SCHEDULE.selector()), false, DEFAULT_CONFIG, List.of(subject));
