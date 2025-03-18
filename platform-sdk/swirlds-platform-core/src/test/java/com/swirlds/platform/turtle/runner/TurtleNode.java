@@ -105,7 +105,7 @@ public class TurtleNode {
                 .withConfiguration(configuration)
                 .build();
 
-        model = WiringModelBuilder.create(platformContext)
+        model = WiringModelBuilder.create(platformContext.getMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
         final SoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
@@ -119,7 +119,7 @@ public class TurtleNode {
 
         final var reservedState = getInitialState(
                 recycleBin,
-                version,
+                version.getPbjSemanticVersion(),
                 TurtleTestingToolState::getStateRootNode,
                 "foo",
                 "bar",

@@ -24,7 +24,7 @@ import java.util.SortedMap;
  *   <li><b>Signature aggregation</b> ({@code SignAggr}) - Implemented by {@link HintsLibrary#aggregateSignatures(Bytes, Bytes, Bytes, Map)}
  *   with partial signatures verified as above with weights extracted from the current roster.</li>
  *   <li><b>Verifying aggregate signatures</b> ({@code Verify}) - Implemented by
- *   {@link HintsLibrary#verifyAggregate(Bytes, Bytes, Bytes, Bytes, long, long)}.</li>
+ *   {@link HintsLibrary#verifyAggregate(Bytes, Bytes, Bytes, long, long)}.</li>
  * </ul>
  */
 public interface HintsLibrary {
@@ -68,7 +68,7 @@ public interface HintsLibrary {
      * @param n the number of parties
      * @return the hints
      */
-    Bytes computeHints(@NonNull final Bytes crs, @NonNull Bytes blsPrivateKey, int partyId, int n);
+    Bytes computeHints(@NonNull Bytes crs, @NonNull Bytes blsPrivateKey, int partyId, int n);
 
     /**
      * Validates the hinTS public key for the given number of parties.
@@ -79,7 +79,7 @@ public interface HintsLibrary {
      * @param n the number of parties
      * @return true if the hints are valid; false otherwise
      */
-    boolean validateHintsKey(@NonNull final Bytes crs, @NonNull Bytes hintsKey, int partyId, int n);
+    boolean validateHintsKey(@NonNull Bytes crs, @NonNull Bytes hintsKey, int partyId, int n);
 
     /**
      * Runs the hinTS preprocessing algorithm on the given validated hint keys and party weights for the given number
@@ -98,7 +98,7 @@ public interface HintsLibrary {
      * @return the preprocessed keys
      */
     AggregationAndVerificationKeys preprocess(
-            @NonNull final Bytes crs,
+            @NonNull Bytes crs,
             @NonNull SortedMap<Integer, Bytes> hintsKeys,
             @NonNull SortedMap<Integer, Long> weights,
             int n);
@@ -123,22 +123,23 @@ public interface HintsLibrary {
      * @return true if the signature is valid; false otherwise
      */
     boolean verifyBls(
-            @NonNull final Bytes crs,
+            @NonNull Bytes crs,
             @NonNull Bytes signature,
             @NonNull Bytes message,
-            @NonNull final Bytes aggregationKey,
+            @NonNull Bytes aggregationKey,
             int partyId);
 
     /**
      * Aggregates the signatures for party ids using hinTS aggregation and verification keys.
      *
+     * @param crs the final CRS used by the network
      * @param aggregationKey the aggregation key
      * @param verificationKey the verification key
      * @param partialSignatures the partial signatures by party id
      * @return the aggregated signature
      */
     Bytes aggregateSignatures(
-            @NonNull final Bytes crs,
+            @NonNull Bytes crs,
             @NonNull Bytes aggregationKey,
             @NonNull Bytes verificationKey,
             @NonNull Map<Integer, Bytes> partialSignatures);
@@ -148,7 +149,6 @@ public interface HintsLibrary {
      * this is only true if the aggregate signature has weight exceeding the specified threshold
      * or total weight stipulated in the verification key.
      *
-     * @param crs the final CRS used by the network
      * @param signature            the aggregate signature
      * @param message              the message
      * @param verificationKey      the verification key
@@ -157,7 +157,6 @@ public interface HintsLibrary {
      * @return true if the signature is valid; false otherwise
      */
     boolean verifyAggregate(
-            @NonNull final Bytes crs,
             @NonNull Bytes signature,
             @NonNull Bytes message,
             @NonNull Bytes verificationKey,
