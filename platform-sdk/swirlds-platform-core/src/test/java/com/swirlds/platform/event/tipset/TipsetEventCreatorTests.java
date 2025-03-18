@@ -93,7 +93,7 @@ class TipsetEventCreatorTests {
         final Signer signer = mock(Signer.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
 
-        final SemanticVersion softwareVersion = new BasicSoftwareVersion(1).getPbjSemanticVersion();
+        final SemanticVersion softwareVersion = SemanticVersion.newBuilder().major(1).build();
 
         return new TipsetEventCreator(
                 platformContext, random, signer, roster, nodeId, softwareVersion, transactionSupplier);

@@ -7,6 +7,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupG
 import static com.swirlds.platform.state.signed.StartupStateUtils.getInitialState;
 import static com.swirlds.platform.turtle.runner.TurtleConsensusStateEventHandler.TURTLE_CONSENSUS_STATE_EVENT_HANDLER;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig_;
@@ -110,7 +111,7 @@ public class TurtleNode {
                 .build();
         final SoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> softwareVersion);
-        final var version = new BasicSoftwareVersion(1);
+        final var version = SemanticVersion.newBuilder().major(1).build();
         MerkleDb.resetDefaultInstancePath();
         final var metrics = getMetricsProvider().createPlatformMetrics(nodeId);
         final var fileSystemManager = FileSystemManager.create(configuration);
@@ -119,7 +120,7 @@ public class TurtleNode {
 
         final var reservedState = getInitialState(
                 recycleBin,
-                version.getPbjSemanticVersion(),
+                version,
                 TurtleTestingToolState::getStateRootNode,
                 "foo",
                 "bar",

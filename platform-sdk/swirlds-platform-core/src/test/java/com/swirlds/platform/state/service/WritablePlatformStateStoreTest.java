@@ -9,6 +9,7 @@ import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchem
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -67,7 +68,7 @@ class WritablePlatformStateStoreTest {
     @Test
     void verifyCreationSoftwareVersion() {
         final var version = nextInt(1, 100);
-        store.setCreationSoftwareVersion(new BasicSoftwareVersion(version).getPbjSemanticVersion());
+        store.setCreationSoftwareVersion(SemanticVersion.newBuilder().major(version).build());
         assertEquals(version, store.getCreationSoftwareVersion().major());
     }
 
@@ -123,7 +124,7 @@ class WritablePlatformStateStoreTest {
     @Test
     void verifyFirstVersionInBirthRoundMode() {
         final var version = nextInt(1, 100);
-        store.setFirstVersionInBirthRoundMode(new BasicSoftwareVersion(version).getPbjSemanticVersion());
+        store.setFirstVersionInBirthRoundMode(SemanticVersion.newBuilder().major(version).build());
         assertEquals(version, store.getFirstVersionInBirthRoundMode().major());
     }
 

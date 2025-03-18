@@ -336,7 +336,7 @@ class PlatformTestingToolStateTest {
         final Platform platform = mock(Platform.class);
         final InitTrigger initTrigger = InitTrigger.GENESIS;
         final PlatformContext platformContext = mock(PlatformContext.class);
-        final SemanticVersion softwareVersion = new BasicSoftwareVersion(1).getPbjSemanticVersion();
+        final SemanticVersion softwareVersion = SemanticVersion.newBuilder().major(1).build();
 
         givenPlatform(platform, platformContext, nodeId);
         givenPlatformContextConfig(platformContext, config);

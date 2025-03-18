@@ -477,7 +477,7 @@ class PbjConverterTest {
     }
 
     private static SemanticVersion randomSoftwareVersion() {
-        return new BasicSoftwareVersion(nextInt(1, 100)).getPbjSemanticVersion();
+        return SemanticVersion.newBuilder().major(nextInt(1, 100)).build();
     }
 
     private static SerializableX509Certificate randomX509Certificate() {

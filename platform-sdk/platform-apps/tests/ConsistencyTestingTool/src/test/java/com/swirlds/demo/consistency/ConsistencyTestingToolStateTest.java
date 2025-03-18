@@ -65,7 +65,7 @@ public class ConsistencyTestingToolStateTest {
     void setUp() {
         platform = mock(Platform.class);
         initTrigger = InitTrigger.GENESIS;
-        softwareVersion = new BasicSoftwareVersion(1).getPbjSemanticVersion();
+        softwareVersion = SemanticVersion.newBuilder().major(1).build();
         platformContext = mock(PlatformContext.class);
         configuration = mock(Configuration.class);
         consistencyTestingToolConfig = mock(ConsistencyTestingToolConfig.class);

@@ -71,7 +71,7 @@ class AddressBookTestingToolStateTest {
         state.setChild(RUNNING_SUM_INDEX, new StringLeaf("0"));
         platform = mock(Platform.class);
         initTrigger = InitTrigger.GENESIS;
-        softwareVersion = new BasicSoftwareVersion(1).getPbjSemanticVersion();
+        softwareVersion = SemanticVersion.newBuilder().major(1).build();
         platformContext = mock(PlatformContext.class);
         configuration = mock(Configuration.class);
         addressBookConfig = mock(AddressBookConfig.class);
