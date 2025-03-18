@@ -178,7 +178,6 @@ public class PlatformCoordinator {
         // squelch is activated.
         consensusEngineWiring.startSquelching();
         consensusEngineWiring.flush();
-        eventCreationManagerWiring.startSquelching();
         eventCreationManagerWiring.flush();
         staleEventDetectorWiring.startSquelching();
 
@@ -201,7 +200,6 @@ public class PlatformCoordinator {
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
         consensusEngineWiring.stopSquelching();
-        eventCreationManagerWiring.stopSquelching();
         transactionHandlerWiring.stopSquelching();
         staleEventDetectorWiring.stopSquelching();
 
