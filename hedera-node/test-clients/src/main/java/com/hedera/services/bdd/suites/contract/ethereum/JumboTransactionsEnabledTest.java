@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumContractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -66,5 +67,52 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .payingWith(RELAYER)
                         .gasLimit(1_000_000L));
+    }
+
+    @HapiTest
+    @DisplayName("Ethereum Call jumbo transaction with ethereum data overflow should fail")
+    public Stream<DynamicTest> ethereumCallJumboTxnWithEthereumDataOverflow() {
+        final var contract = "CalldataSize";
+        final var function = "callme";
+        final var size = 131072 + 1; // Exceeding the limit
+        final var payload = new byte[size];
+        return hapiTest(
+            prepareFakeUpgrade(),
+            upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
+            newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+            cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+            cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
+            uploadInitCode(contract),
+            contractCreate(contract),
+            ethereumCall(contract, function, payload)
+                .markAsJumboTxn()
+                .type(EthTxData.EthTransactionType.EIP1559)
+                .signingWith(SECP_256K1_SOURCE_KEY)
+                .payingWith(RELAYER)
+                .gasLimit(1_000_000L)
+                .hasPrecheck(TRANSACTION_OVERSIZE));
+    }
+
+    @HapiTest
+    @DisplayName("Ethereum contract create jumbo transaction more then 6kb smart contract should pass")
+    public Stream<DynamicTest> ethereumContractCreateJumboTxnMoreThen6Kb() {
+        final var contract = "TokenCreateContract";
+        return hapiTest(
+            prepareFakeUpgrade(),
+            upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
+            newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+            cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+            cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
+                .via("autoAccount"),
+            uploadInitCode(contract),
+            ethereumContractCreate(contract)
+                .markAsJumboTxn()
+                .type(EthTxData.EthTransactionType.EIP1559)
+                .signingWith(SECP_256K1_SOURCE_KEY)
+                .payingWith(RELAYER)
+                .nonce(0)
+                .maxGasAllowance(ONE_HUNDRED_HBARS)
+                .gasLimit(1_000_000L)
+                .via("payTxn"));
     }
 }
