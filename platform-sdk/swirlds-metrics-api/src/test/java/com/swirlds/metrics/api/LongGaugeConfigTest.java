@@ -30,6 +30,8 @@ class LongGaugeConfigTest {
         assertThat(config.getUnit()).isEmpty();
         assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
         assertThat(config.getInitialValue()).isZero();
+        assertThat(config.getLabelKeys()).isEmpty();
+        assertThat(config.getPredefinedLabels()).isEmpty();
     }
 
     @Test
@@ -62,6 +64,8 @@ class LongGaugeConfigTest {
         assertThat(config.getUnit()).isEmpty();
         assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
         assertThat(config.getInitialValue()).isZero();
+        assertThat(config.getLabelKeys()).isEmpty();
+        assertThat(config.getPredefinedLabels()).isEmpty();
 
         assertThat(result.getCategory()).isEqualTo(CATEGORY);
         assertThat(result.getName()).isEqualTo(NAME);
@@ -69,6 +73,8 @@ class LongGaugeConfigTest {
         assertThat(result.getUnit()).isEqualTo(UNIT);
         assertThat(result.getFormat()).isEqualTo(FORMAT);
         assertThat(result.getInitialValue()).isEqualTo(42L);
+        assertThat(result.getLabelKeys()).isEmpty();
+        assertThat(result.getPredefinedLabels()).isEmpty();
     }
 
     @Test
