@@ -8,16 +8,11 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
-import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
-import com.hedera.hapi.platform.state.Address;
-import com.hedera.hapi.platform.state.AddressBook;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.internal.CryptoUtils;
@@ -52,82 +47,6 @@ public class RosterRetrieverTests {
     private static final Roster ROSTER_555 = mock(Roster.class);
     private static final Roster ROSTER_666 = mock(Roster.class);
     private static final Roster ROSTER_777 = mock(Roster.class);
-
-    private static final X509Certificate CERTIFICATE_1 = randomX509Certificate();
-    private static final X509Certificate CERTIFICATE_2 = randomX509Certificate();
-    private static final X509Certificate CERTIFICATE_3 = randomX509Certificate();
-
-    private static final AddressBook ADDRESS_BOOK = AddressBook.newBuilder()
-            .addresses(List.of(
-                    Address.newBuilder()
-                            .id(new NodeId(1L))
-                            .weight(1L)
-                            .signingCertificate(getCertBytes(CERTIFICATE_1))
-                            // The agreementCertificate is unused, but required to prevent deserialization failure in
-                            // States API.
-                            .agreementCertificate(getCertBytes(CERTIFICATE_1))
-                            .hostnameExternal("external1.com")
-                            .portExternal(111)
-                            .hostnameInternal("192.168.0.1")
-                            .portInternal(222)
-                            .build(),
-                    Address.newBuilder()
-                            .id(new NodeId(2L))
-                            .weight(111L)
-                            .signingCertificate(getCertBytes(CERTIFICATE_2))
-                            // The agreementCertificate is unused, but required to prevent deserialization failure in
-                            // States API.
-                            .agreementCertificate(getCertBytes(CERTIFICATE_2))
-                            .hostnameInternal("10.0.55.66")
-                            .portInternal(222)
-                            .build(),
-                    Address.newBuilder()
-                            .id(new NodeId(3L))
-                            .weight(3L)
-                            .signingCertificate(getCertBytes(CERTIFICATE_3))
-                            // The agreementCertificate is unused, but required to prevent deserialization failure in
-                            // States API.
-                            .agreementCertificate(getCertBytes(CERTIFICATE_3))
-                            .hostnameExternal("external3.com")
-                            .portExternal(111)
-                            .build()))
-            .build();
-
-    private static final Roster ROSTER_FROM_ADDRESS_BOOK = Roster.newBuilder()
-            .rosterEntries(List.of(
-                    RosterEntry.newBuilder()
-                            .nodeId(1L)
-                            .weight(1L)
-                            .gossipCaCertificate(getCertBytes(CERTIFICATE_1))
-                            .gossipEndpoint(List.of(
-                                    ServiceEndpoint.newBuilder()
-                                            .domainName("external1.com")
-                                            .port(111)
-                                            .build(),
-                                    ServiceEndpoint.newBuilder()
-                                            .ipAddressV4(Bytes.wrap(new byte[] {(byte) 192, (byte) 168, 0, 1}))
-                                            .port(222)
-                                            .build()))
-                            .build(),
-                    RosterEntry.newBuilder()
-                            .nodeId(2L)
-                            .weight(111L)
-                            .gossipCaCertificate(getCertBytes(CERTIFICATE_2))
-                            .gossipEndpoint(List.of(ServiceEndpoint.newBuilder()
-                                    .ipAddressV4(Bytes.wrap(new byte[] {10, 0, 55, 66}))
-                                    .port(222)
-                                    .build()))
-                            .build(),
-                    RosterEntry.newBuilder()
-                            .nodeId(3L)
-                            .weight(3L)
-                            .gossipCaCertificate(getCertBytes(CERTIFICATE_3))
-                            .gossipEndpoint(List.of(ServiceEndpoint.newBuilder()
-                                    .domainName("external3.com")
-                                    .port(111)
-                                    .build()))
-                            .build()))
-            .build();
 
     @Mock
     private State state;

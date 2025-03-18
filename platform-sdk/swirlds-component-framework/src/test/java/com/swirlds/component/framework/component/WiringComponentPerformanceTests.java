@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.component;
 
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
@@ -36,9 +37,8 @@ class WiringComponentPerformanceTests {
 
     @NonNull
     private InputWire<Long> buildOldStyleComponent(@NonNull final SimpleComponent component) {
-        final WiringModel model = WiringModelBuilder.create(
-                        TestPlatformContextBuilder.create().build())
-                .build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskScheduler scheduler = model.schedulerBuilder("test")
                 .withType(TaskSchedulerType.DIRECT)
@@ -53,9 +53,8 @@ class WiringComponentPerformanceTests {
     @NonNull
     private InputWire<Long> buildAutomaticComponent(@NonNull final SimpleComponent component) {
 
-        final WiringModel model = WiringModelBuilder.create(
-                        TestPlatformContextBuilder.create().build())
-                .build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskScheduler<Void> scheduler = model.<Void>schedulerBuilder("test")
                 .withType(TaskSchedulerType.DIRECT)

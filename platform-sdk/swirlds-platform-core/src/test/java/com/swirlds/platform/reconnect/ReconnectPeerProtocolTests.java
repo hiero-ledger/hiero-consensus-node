@@ -22,6 +22,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.utility.ValueReference;
@@ -63,6 +64,7 @@ class ReconnectPeerProtocolTests {
 
     private ReconnectController reconnectController;
     private ReconnectThrottle teacherThrottle;
+    private ReconnectMetrics reconnectMetrics;
 
     private static Stream<Arguments> initiateParams() {
         return Stream.of(
@@ -124,6 +126,11 @@ class ReconnectPeerProtocolTests {
 
         teacherThrottle = mock(ReconnectThrottle.class);
         when(teacherThrottle.initiateReconnect(any())).thenReturn(true);
+
+        var nopMetrics = new NoOpMetrics();
+        reconnectMetrics = mock(ReconnectMetrics.class);
+
+        when(reconnectMetrics.getMetrics()).thenReturn(nopMetrics);
     }
 
     @AfterEach
@@ -144,7 +151,6 @@ class ReconnectPeerProtocolTests {
                 .toList();
 
         final FallenBehindManager fallenBehindManager = mock(FallenBehindManager.class);
-        when(fallenBehindManager.getNeighborsForReconnect()).thenReturn(neighborsForReconnect);
         when(fallenBehindManager.shouldReconnectFrom(any()))
                 .thenAnswer(a -> neighborsForReconnect.contains(a.getArgument(0, NodeId.class)));
 
@@ -157,7 +163,7 @@ class ReconnectPeerProtocolTests {
                 mock(ReconnectThrottle.class),
                 () -> null,
                 Duration.of(100, ChronoUnit.MILLIS),
-                mock(ReconnectMetrics.class),
+                reconnectMetrics,
                 reconnectController,
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
@@ -200,7 +206,7 @@ class ReconnectPeerProtocolTests {
                 teacherThrottle,
                 () -> reservedSignedState,
                 Duration.of(100, ChronoUnit.MILLIS),
-                mock(ReconnectMetrics.class),
+                reconnectMetrics,
                 reconnectController,
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
@@ -234,7 +240,7 @@ class ReconnectPeerProtocolTests {
                 mock(ReconnectThrottle.class),
                 () -> null,
                 Duration.of(100, ChronoUnit.MILLIS),
-                mock(ReconnectMetrics.class),
+                reconnectMetrics,
                 reconnectController,
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
@@ -278,6 +284,7 @@ class ReconnectPeerProtocolTests {
 
         final NodeId node1 = NodeId.of(1L);
         final NodeId node2 = NodeId.of(2L);
+
         final ReconnectPeerProtocol peer1 = new ReconnectPeerProtocol(
                 platformContext,
                 getStaticThreadManager(),
@@ -285,7 +292,7 @@ class ReconnectPeerProtocolTests {
                 reconnectThrottle,
                 () -> null,
                 Duration.of(100, ChronoUnit.MILLIS),
-                mock(ReconnectMetrics.class),
+                reconnectMetrics,
                 reconnectController,
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
@@ -306,7 +313,7 @@ class ReconnectPeerProtocolTests {
                 reconnectThrottle,
                 () -> reservedSignedState,
                 Duration.of(100, ChronoUnit.MILLIS),
-                mock(ReconnectMetrics.class),
+                reconnectMetrics,
                 reconnectController,
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
@@ -351,7 +358,7 @@ class ReconnectPeerProtocolTests {
                 mock(ReconnectThrottle.class),
                 () -> null,
                 Duration.of(100, ChronoUnit.MILLIS),
-                mock(ReconnectMetrics.class),
+                reconnectMetrics,
                 reconnectController,
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
@@ -395,7 +402,7 @@ class ReconnectPeerProtocolTests {
                 reconnectThrottle,
                 () -> reservedSignedState,
                 Duration.of(100, ChronoUnit.MILLIS),
-                mock(ReconnectMetrics.class),
+                reconnectMetrics,
                 reconnectController,
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
@@ -433,7 +440,7 @@ class ReconnectPeerProtocolTests {
                 reconnectThrottle,
                 ReservedSignedState::createNullReservation,
                 Duration.of(100, ChronoUnit.MILLIS),
-                mock(ReconnectMetrics.class),
+                reconnectMetrics,
                 mock(ReconnectController.class),
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
@@ -463,7 +470,7 @@ class ReconnectPeerProtocolTests {
                 teacherThrottle,
                 () -> reservedSignedState,
                 Duration.of(100, ChronoUnit.MILLIS),
-                mock(ReconnectMetrics.class),
+                reconnectMetrics,
                 mock(ReconnectController.class),
                 mock(SignedStateValidator.class),
                 fallenBehindManager,
@@ -489,7 +496,7 @@ class ReconnectPeerProtocolTests {
                 teacherThrottle,
                 () -> signedState.reserve("test"),
                 Duration.of(100, ChronoUnit.MILLIS),
-                mock(ReconnectMetrics.class),
+                reconnectMetrics,
                 reconnectController,
                 mock(SignedStateValidator.class),
                 mock(FallenBehindManager.class),
@@ -535,7 +542,7 @@ class ReconnectPeerProtocolTests {
                 teacherThrottle,
                 () -> signedState.reserve("test"),
                 Duration.of(100, ChronoUnit.MILLIS),
-                mock(ReconnectMetrics.class),
+                reconnectMetrics,
                 reconnectController,
                 mock(SignedStateValidator.class),
                 mock(FallenBehindManager.class),
