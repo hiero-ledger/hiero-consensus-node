@@ -180,6 +180,19 @@ public interface HederaWorldUpdater extends WorldUpdater {
             @NonNull Address deleted, @NonNull Address beneficiary, MessageFrame frame);
 
     /**
+     * Tracks the given deletion of an account with the designated beneficiary.
+     *
+     * @param deleted the address of the account being deleted, a contract
+     * @param beneficiary the address of the beneficiary of the deletion
+     * @param frame
+     *
+     * `Beneficiary` must not be a token or a schedule.  Contract `deleted` must not be any token's
+     * treasury.  Contract `deleted` must not own any tokens.  These conditions are _not_ checked
+     * by this method.
+     */
+    void trackSelfDestructBeneficiary(@NonNull Address deleted, @NonNull Address beneficiary, MessageFrame frame);
+
+    /**
      * Given the HAPI operation initiating a top-level {@code CONTRACT_CREATION} message, sets up the
      * {@link PendingCreation} a {@link ProxyWorldUpdater} can use to complete the creation of the new
      * account in {@link ProxyWorldUpdater#createAccount(Address, long, Wei)}; returns the "long-zero" address
