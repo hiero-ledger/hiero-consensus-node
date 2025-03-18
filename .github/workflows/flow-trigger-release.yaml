@@ -150,10 +150,10 @@ jobs:
         id: release
         if: ${{ inputs.alpha-release != true }}  # Skip step if alpha-release is true
         run: |
-          echo git-semver log --markdown "${{ steps.next-release.outputs.version }}" >> "RELEASE.md"
-          git-semver log --markdown "${{ steps.next-release.outputs.version }}" >> "RELEASE.md"
-          echo ls
-          ls -la
+          echo git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
+          git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
+          echo "Now we cat the log:"
+          cat RELEASE.md
 
       - name: Publish Release Notes
         uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
@@ -165,11 +165,14 @@ jobs:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           body_path: "RELEASE.md"
 
-      - name: Clean Up git-semver
+      - name: Clean Up git-semver and Release Notes
         run: |
           echo "Deleting git-semver directory"
           rm -rf ./git-semver
           echo "Successfully removed git-semver directory"
+          echo "Removing the release notes file RELEASE.md"
+          rm RELEASE.md
+          echo "Successfully removed the release notes file RELEASE.md"
 
       - name: View Status After Running Semantic Release
         run: git status
