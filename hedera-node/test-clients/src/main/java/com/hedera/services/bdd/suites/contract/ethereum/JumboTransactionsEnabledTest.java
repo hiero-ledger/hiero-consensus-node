@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -57,7 +58,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 contractCreate(contract),
                 contractCall(contract, function, payload)
                         .gas(1_000_000L)
-                        .hasPrecheckFrom(TRANSACTION_OVERSIZE)
                         // gRPC request terminated immediately
                         .orUnavailableStatus(),
                 ethereumCall(contract, function, payload)
@@ -65,6 +65,9 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .payingWith(RELAYER)
-                        .gasLimit(1_000_000L));
+                        .gasLimit(1_000_000L)
+                        // Ethereum call should pass
+                        // (TRANSACTION_OVERSIZE will be returned on ingest until we merge the ingest checks)
+                        .hasPrecheckFrom(OK, TRANSACTION_OVERSIZE));
     }
 }
