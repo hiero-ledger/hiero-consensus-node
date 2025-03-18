@@ -22,7 +22,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
-import com.hedera.node.app.hapi.utils.throttles.GasLimitDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -61,6 +61,7 @@ class AppThrottleFactoryTest {
             List.of(
                     new ThrottleUsageSnapshot(1L, new Timestamp(234567, 8)),
                     new ThrottleUsageSnapshot(2L, new Timestamp(345678, 9))),
+            new ThrottleUsageSnapshot(3L, new Timestamp(456789, 0)),
             ThrottleUsageSnapshot.DEFAULT);
 
     @Mock
@@ -79,7 +80,7 @@ class AppThrottleFactoryTest {
     private DeterministicThrottle lastThrottle;
 
     @Mock
-    private GasLimitDeterministicThrottle gasThrottle;
+    private LeakyBucketDeterministicThrottle gasThrottle;
 
     @Mock
     private AppThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;

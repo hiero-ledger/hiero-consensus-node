@@ -48,6 +48,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createLargeFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -100,10 +102,12 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -124,6 +128,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -147,6 +152,31 @@ public class EthereumSuite {
     private static final String PAY_TXN = "payTxn";
     private static final String TOTAL_SUPPLY_TX = "totalSupplyTx";
     private static final String ERC20_ABI = "ERC20ABI";
+
+    @DisplayName("Jumbo transaction gets bytes throttled at ingest")
+    @LeakyHapiTest(overrides = {"jumboTransactions.isEnabled", "jumboTransactions.maxBytesPerSec"})
+    public Stream<DynamicTest> jumboTransactionGetsThrottledAtIngest() {
+        final var contract = "CalldataSize";
+        final var function = "callme";
+        final var size = 126 * 1024;
+        final var bytesPerSec = 140 * 1024;
+        final var payload = new byte[size];
+        return hapiTest(
+                overridingTwo(
+                        "jumboTransactions.isEnabled",
+                        "true",
+                        "jumboTransactions.maxBytesPerSec",
+                        String.valueOf(bytesPerSec)),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
+                uploadInitCode(contract),
+                contractCreate(contract),
+                jumboEthCall(contract, function, payload),
+                sleepFor(1_000),
+                jumboEthCall(contract, function, payload),
+                jumboEthCall(contract, function, payload).hasPrecheck(BUSY));
+    }
 
     // This test must be run first to ensure the record file is as expected.
     @HapiTest
@@ -1285,5 +1315,14 @@ public class EthereumSuite {
                         .gasLimit(2_000_000L * -1)
                         .via(PAY_TXN)
                         .hasPrecheck(INVALID_ETHEREUM_TRANSACTION));
+    }
+
+    private static HapiEthereumCall jumboEthCall(String contract, String function, byte[] payload) {
+        return ethereumCall(contract, function, payload)
+                .markAsJumboTxn()
+                .type(EthTransactionType.EIP1559)
+                .signingWith(SECP_256K1_SOURCE_KEY)
+                .payingWith(RELAYER)
+                .gasLimit(1_000_000L);
     }
 }

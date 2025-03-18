@@ -104,7 +104,8 @@ public class AppThrottleFactory implements Throttle.Factory {
                         throttleAccumulator.allActiveThrottles().stream()
                                 .map(DeterministicThrottle::usageSnapshot)
                                 .toList(),
-                        throttleAccumulator.gasLimitThrottle().usageSnapshot());
+                        throttleAccumulator.gasLimitThrottle().usageSnapshot(),
+                        throttleAccumulator.bytesLimitThrottle().usageSnapshot());
             }
         };
     }

@@ -74,8 +74,9 @@ public class ThrottleServiceManager {
      */
     public void init(@NonNull final State state, @NonNull final Bytes throttleDefinitions) {
         requireNonNull(state);
-        // Apply configuration for gas throttles
+        // Apply configuration for gas and bytes throttles
         applyGasConfig();
+        applyBytesConfig();
         // Create backend/frontend throttles from the configured system file
         rebuildThrottlesFrom(throttleDefinitions);
         // Reset multiplier expectations
@@ -114,6 +115,7 @@ public class ThrottleServiceManager {
      */
     public void refreshThrottleConfiguration() {
         applyGasConfig();
+        applyBytesConfig();
         congestionMultipliers.resetExpectations();
     }
 
@@ -159,12 +161,15 @@ public class ThrottleServiceManager {
             }
         }
 
+        final var bytesThrottle = backendThrottle.bytesLimitThrottle();
+        final var bytesThrottleSnapshot = bytesThrottle.usageSnapshot();
         final var gasThrottle = backendThrottle.gasLimitThrottle();
         final var gasThrottleSnapshot = gasThrottle.usageSnapshot();
 
         final WritableSingletonState<ThrottleUsageSnapshots> throttleSnapshots =
                 serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_KEY);
-        throttleSnapshots.put(new ThrottleUsageSnapshots(hapiThrottleSnapshots, gasThrottleSnapshot));
+        throttleSnapshots.put(
+                new ThrottleUsageSnapshots(hapiThrottleSnapshots, gasThrottleSnapshot, bytesThrottleSnapshot));
     }
 
     private void saveCongestionLevelStartsTo(@NonNull final WritableStates serviceStates) {
@@ -186,6 +191,11 @@ public class ThrottleServiceManager {
     private void applyGasConfig() {
         ingestThrottle.applyGasConfig();
         backendThrottle.applyGasConfig();
+    }
+
+    private void applyBytesConfig() {
+        ingestThrottle.applyBytesConfig();
+        backendThrottle.applyBytesConfig();
     }
 
     private void syncFromCongestionLevelStarts(@NonNull final ReadableStates serviceStates) {
@@ -220,6 +230,9 @@ public class ThrottleServiceManager {
         resetUnconditionally(backendThrottle.allActiveThrottles(), usageSnapshots.tpsThrottles());
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
+        }
+        if (usageSnapshots.hasBytesThrottle()) {
+            backendThrottle.bytesLimitThrottle().resetUsageTo(usageSnapshots.bytesThrottleOrThrow());
         }
     }
 
