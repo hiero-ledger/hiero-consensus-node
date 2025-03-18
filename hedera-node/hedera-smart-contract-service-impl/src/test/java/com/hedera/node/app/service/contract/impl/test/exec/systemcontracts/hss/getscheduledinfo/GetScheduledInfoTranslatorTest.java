@@ -45,8 +45,7 @@ class GetScheduledInfoTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void identifyMethodGetScheduledNonFungibleTokenTxn() {
-        attempt = createHssCallAttempt(GET_SCHEDULED_CREATE_NON_FUNGIBLE_TOKEN_INFO,
-                subject);
+        attempt = createHssCallAttempt(GET_SCHEDULED_CREATE_NON_FUNGIBLE_TOKEN_INFO, subject);
         final var result = subject.identifyMethod(attempt).isPresent();
         assertTrue(result);
     }
@@ -60,8 +59,7 @@ class GetScheduledInfoTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void createsFungibleTokenCall() {
-        given(attempt.isSelector(GET_SCHEDULED_CREATE_FUNGIBLE_TOKEN_INFO))
-                .willReturn(true);
+        given(attempt.isSelector(GET_SCHEDULED_CREATE_FUNGIBLE_TOKEN_INFO)).willReturn(true);
         given(attempt.inputBytes())
                 .willReturn(GET_SCHEDULED_CREATE_FUNGIBLE_TOKEN_INFO
                         .encodeCallWithArgs(ConversionUtils.headlongAddressOf(CALLED_SCHEDULE_ID))
@@ -79,8 +77,7 @@ class GetScheduledInfoTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void createsNonFungibleTokenCall() {
-        given(attempt.isSelector(GET_SCHEDULED_CREATE_FUNGIBLE_TOKEN_INFO))
-                .willReturn(false);
+        given(attempt.isSelector(GET_SCHEDULED_CREATE_FUNGIBLE_TOKEN_INFO)).willReturn(false);
         given(attempt.inputBytes())
                 .willReturn(GET_SCHEDULED_CREATE_NON_FUNGIBLE_TOKEN_INFO
                         .encodeCallWithArgs(ConversionUtils.headlongAddressOf(CALLED_SCHEDULE_ID))

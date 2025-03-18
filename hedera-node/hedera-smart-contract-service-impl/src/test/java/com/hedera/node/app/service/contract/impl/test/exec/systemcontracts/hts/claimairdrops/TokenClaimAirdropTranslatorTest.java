@@ -98,9 +98,7 @@ class TokenClaimAirdropTranslatorTest extends CallAttemptTestBase {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
         attempt = createHtsCallAttemptForRedirect(
-                        TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_FT,
-                configuration,
-                subject);
+                TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_FT, configuration, subject);
         // then:
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
@@ -112,9 +110,7 @@ class TokenClaimAirdropTranslatorTest extends CallAttemptTestBase {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
         attempt = createHtsCallAttemptForRedirect(
-                        TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_NFT,
-                configuration,
-                subject);
+                TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_NFT, configuration, subject);
         // then:
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
@@ -126,9 +122,7 @@ class TokenClaimAirdropTranslatorTest extends CallAttemptTestBase {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
         attempt = createHtsCallAttemptForRedirect(
-                        TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_FT,
-                configuration,
-                subject);
+                TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_FT, configuration, subject);
         // then:
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
@@ -140,9 +134,7 @@ class TokenClaimAirdropTranslatorTest extends CallAttemptTestBase {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
         attempt = createHtsCallAttemptForRedirect(
-                        TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_NFT,
-                configuration,
-                subject);
+                TokenClaimAirdropTranslator.HRC_CLAIM_AIRDROP_NFT, configuration, subject);
         // then:
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }

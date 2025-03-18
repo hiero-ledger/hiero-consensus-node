@@ -36,33 +36,27 @@ class CreateTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesCreateFungibleTokenWithMetadata() {
-        attempt = createHtsCallAttempt(
-                HTS_16C_CONTRACT_ID, CREATE_FUNGIBLE_TOKEN_WITH_METADATA, subject);
+        attempt = createHtsCallAttempt(HTS_16C_CONTRACT_ID, CREATE_FUNGIBLE_TOKEN_WITH_METADATA, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateFungibleTokenWithMetadataAndCustomFees() {
-        attempt = createHtsCallAttempt(
-                HTS_16C_CONTRACT_ID,
-                CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES,
-                subject);
+        attempt =
+                createHtsCallAttempt(HTS_16C_CONTRACT_ID, CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenWithMetadata() {
-        attempt = createHtsCallAttempt(
-                HTS_16C_CONTRACT_ID, CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA, subject);
+        attempt = createHtsCallAttempt(HTS_16C_CONTRACT_ID, CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesCreateNonFungibleTokenWithMetadataAndCustomFees() {
         attempt = createHtsCallAttempt(
-                HTS_16C_CONTRACT_ID,
-                CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES,
-                subject);
+                HTS_16C_CONTRACT_ID, CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 

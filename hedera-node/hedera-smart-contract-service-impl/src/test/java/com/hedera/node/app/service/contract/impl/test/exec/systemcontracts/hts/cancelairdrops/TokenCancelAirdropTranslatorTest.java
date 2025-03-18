@@ -96,9 +96,8 @@ class TokenCancelAirdropTranslatorTest extends CallAttemptTestBase {
         given(contractsConfig.systemContractCancelAirdropsEnabled()).willReturn(true);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
-        attempt = createHtsCallAttemptForRedirect(TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_FT,
-                configuration,
-                subject);
+        attempt = createHtsCallAttemptForRedirect(
+                TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_FT, configuration, subject);
         // then:
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
@@ -109,9 +108,8 @@ class TokenCancelAirdropTranslatorTest extends CallAttemptTestBase {
         given(contractsConfig.systemContractCancelAirdropsEnabled()).willReturn(false);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
-        attempt = createHtsCallAttemptForRedirect(TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_FT,
-                configuration,
-                subject);
+        attempt = createHtsCallAttemptForRedirect(
+                TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_FT, configuration, subject);
         // then:
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
@@ -123,9 +121,7 @@ class TokenCancelAirdropTranslatorTest extends CallAttemptTestBase {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
         attempt = createHtsCallAttemptForRedirect(
-                        TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_NFT,
-                configuration,
-                subject);
+                TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_NFT, configuration, subject);
         // then:
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
@@ -137,9 +133,7 @@ class TokenCancelAirdropTranslatorTest extends CallAttemptTestBase {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
         attempt = createHtsCallAttemptForRedirect(
-                        TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_NFT,
-                configuration,
-                subject);
+                TokenCancelAirdropTranslator.HRC_CANCEL_AIRDROP_NFT, configuration, subject);
         // then:
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }

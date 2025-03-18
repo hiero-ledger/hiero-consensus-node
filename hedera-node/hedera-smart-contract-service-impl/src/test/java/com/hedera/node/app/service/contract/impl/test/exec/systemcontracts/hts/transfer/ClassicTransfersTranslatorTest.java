@@ -59,8 +59,7 @@ class ClassicTransfersTranslatorTest extends CallAttemptTestBase {
 
         subject =
                 new ClassicTransfersTranslator(classicTransfersDecoder, systemContractMethodRegistry, contractMetrics);
-        final var call = subject.callFrom(
-                createHtsCallAttempt(ABI_ID_TRANSFER_TOKEN, callTranslators));
+        final var call = subject.callFrom(createHtsCallAttempt(ABI_ID_TRANSFER_TOKEN, callTranslators));
         Field senderIdField = ClassicTransfersCall.class.getDeclaredField("senderId");
         senderIdField.setAccessible(true);
         AccountID senderID = (AccountID) senderIdField.get(call);
@@ -77,8 +76,7 @@ class ClassicTransfersTranslatorTest extends CallAttemptTestBase {
 
         subject =
                 new ClassicTransfersTranslator(classicTransfersDecoder, systemContractMethodRegistry, contractMetrics);
-        final var call = subject.callFrom(
-                createHtsCallAttempt(ABI_ID_CRYPTO_TRANSFER_V2, callTranslators));
+        final var call = subject.callFrom(createHtsCallAttempt(ABI_ID_CRYPTO_TRANSFER_V2, callTranslators));
         Field senderIdField = ClassicTransfersCall.class.getDeclaredField("senderId");
         senderIdField.setAccessible(true);
         AccountID senderID = (AccountID) senderIdField.get(call);

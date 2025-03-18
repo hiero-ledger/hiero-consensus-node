@@ -96,10 +96,7 @@ public class RejectTokensTranslatorTest extends CallAttemptTestBase {
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(true);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
-        attempt = createHtsCallAttemptForRedirect(
-                        RejectTokensTranslator.HRC_TOKEN_REJECT_FT,
-                configuration,
-                subject);
+        attempt = createHtsCallAttemptForRedirect(RejectTokensTranslator.HRC_TOKEN_REJECT_FT, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -109,10 +106,7 @@ public class RejectTokensTranslatorTest extends CallAttemptTestBase {
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(false);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
-        attempt = createHtsCallAttemptForRedirect(
-                        RejectTokensTranslator.HRC_TOKEN_REJECT_FT,
-                configuration,
-                subject);
+        attempt = createHtsCallAttemptForRedirect(RejectTokensTranslator.HRC_TOKEN_REJECT_FT, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
@@ -122,9 +116,7 @@ public class RejectTokensTranslatorTest extends CallAttemptTestBase {
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(true);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
-        attempt = createHtsCallAttemptForRedirect(RejectTokensTranslator.HRC_TOKEN_REJECT_NFT,
-                configuration,
-                subject);
+        attempt = createHtsCallAttemptForRedirect(RejectTokensTranslator.HRC_TOKEN_REJECT_NFT, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 

@@ -38,8 +38,7 @@ class NftTokenInfoTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesTokenInfoTranslatorTestV2() {
-        attempt =
-                createHtsCallAttempt(HTS_16C_CONTRACT_ID, NON_FUNGIBLE_TOKEN_INFO_16C, subject);
+        attempt = createHtsCallAttempt(HTS_16C_CONTRACT_ID, NON_FUNGIBLE_TOKEN_INFO_16C, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 

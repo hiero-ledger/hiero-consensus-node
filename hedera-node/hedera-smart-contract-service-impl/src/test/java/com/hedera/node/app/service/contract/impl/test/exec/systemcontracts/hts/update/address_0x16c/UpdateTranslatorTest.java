@@ -34,15 +34,13 @@ class UpdateTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesUpdateMetadataTest() {
-        attempt = createHtsCallAttempt(
-                HTS_16C_CONTRACT_ID, TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA, subject);
+        attempt = createHtsCallAttempt(HTS_16C_CONTRACT_ID, TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsOnIncorrectSelector() {
-        attempt = createHtsCallAttempt(
-                HTS_16C_CONTRACT_ID, FREEZE, subject);
+        attempt = createHtsCallAttempt(HTS_16C_CONTRACT_ID, FREEZE, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 }

@@ -80,7 +80,13 @@ public class CallAttemptTestBase extends CallTestBase {
             @NonNull final SystemContractMethod method,
             @NonNull final CallTranslator<HtsCallAttempt> translator) {
         return createHtsCallAttempt(
-                contractID, Bytes.wrap(method.selector()), OWNER_BESU_ADDRESS, OWNER_BESU_ADDRESS, false, DEFAULT_CONFIG, List.of(translator));
+                contractID,
+                Bytes.wrap(method.selector()),
+                OWNER_BESU_ADDRESS,
+                OWNER_BESU_ADDRESS,
+                false,
+                DEFAULT_CONFIG,
+                List.of(translator));
     }
 
     protected HtsCallAttempt createHtsCallAttempt(
@@ -205,7 +211,12 @@ public class CallAttemptTestBase extends CallTestBase {
     // -------------------------------------- HSS --------------------------------------
     protected HssCallAttempt createHssCallAttempt(
             @NonNull final SystemContractMethod method, @NonNull final CallTranslator<HssCallAttempt> translator) {
-        return createHssCallAttempt(Bytes.wrap(method.selector()), OWNER_BESU_ADDRESS, false, TestHelpers.DEFAULT_CONFIG, List.of(translator));
+        return createHssCallAttempt(
+                Bytes.wrap(method.selector()),
+                OWNER_BESU_ADDRESS,
+                false,
+                TestHelpers.DEFAULT_CONFIG,
+                List.of(translator));
     }
 
     protected HssCallAttempt createHssCallAttempt(
