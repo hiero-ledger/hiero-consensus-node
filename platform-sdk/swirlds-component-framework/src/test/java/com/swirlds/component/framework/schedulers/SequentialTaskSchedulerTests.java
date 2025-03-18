@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -30,9 +31,11 @@ import com.swirlds.component.framework.wires.SolderType;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.StringWriter;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -2443,17 +2446,50 @@ class SequentialTaskSchedulerTests {
     }
 
     @AfterEach
-    void tierDown() {
-        // Make sure we don't leave any Thread alive before finishing the test.
-        // Is a best effort attempt as the thread could ignore the interrupt request depending on the scenario.
-        getLivePlatformThreadByNameMatching(name -> name.startsWith(SequentialThreadTaskScheduler.THREAD_NAME_PREFIX)
-                        && name.endsWith(SequentialThreadTaskScheduler.THREAD_NAME_SUFFIX))
-                .forEach(Thread::interrupt);
+    void tierDown() throws InterruptedException {
+        // This is a "best effort" attempt to not leave any thread alive before finishing the test.
+        // ONLY applies to SEQUENTIAL_THREAD.
+
+        final int retries = 3;
+        Collection<Thread> liveThreads = List.of();
+        for (int i = 0; i < retries; i++) {
+            liveThreads = getLivePlatformThreadByNameMatching(
+                    name -> name.startsWith(SequentialThreadTaskScheduler.THREAD_NAME_PREFIX)
+                            && name.endsWith(SequentialThreadTaskScheduler.THREAD_NAME_SUFFIX));
+            if (liveThreads.isEmpty()) {
+                break;
+            } else {
+                Thread.sleep(100);
+            }
+        }
+
+        if (!liveThreads.isEmpty()) {
+            // There is an issue preventing the thread to normally finish.
+            final StringWriter sw = new StringWriter();
+            sw.append(("Some scheduler threads are still alive after %d retries and they should not. ")
+                    .formatted(retries));
+            liveThreads.forEach(t -> {
+                StringBuilder exception = new StringBuilder();
+                sw.append("+".repeat(40));
+                sw.append("\n");
+                sw.append(t.getName());
+                sw.append("\n");
+                for (StackTraceElement s : t.getStackTrace()) {
+                    exception.append(s).append("\n\t\t");
+                }
+                sw.append(exception);
+                sw.append("\n\n");
+                //
+                t.interrupt();
+            });
+            // mark the test as fail to analyze
+            fail(sw.toString());
+        }
     }
 
     /**
-     * Search for a particular alive platform thread by its regex.
-     * @param predicate that the name of the platform thread needs to match to be located
+     * Search for all alive platform threads which name's matches a given predicate.
+     * @param predicate that the name of the platform thread needs to match to be returned
      * @return the list of threads that matched the predicate.
      */
     @NonNull
