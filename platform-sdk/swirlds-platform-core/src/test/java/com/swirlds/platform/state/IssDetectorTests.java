@@ -49,48 +49,6 @@ import org.junit.jupiter.api.Test;
 @DisplayName("IssDetector Tests")
 class IssDetectorTests extends PlatformTest {
 
-    private static Map<NodeId, ScopedSystemTransaction<StateSignatureTransaction>> generateSystemTransactions(
-            final long roundNumber, @NonNull final RoundHashValidatorTests.HashGenerationData hashGenerationData) {
-
-        final Map<NodeId, ScopedSystemTransaction<StateSignatureTransaction>> nodeIdToScopedSystemTransactionMap =
-                new HashMap<>();
-        hashGenerationData.nodeList().forEach(nodeHashInfo -> {
-            final StateSignatureTransaction signatureTransaction = StateSignatureTransaction.newBuilder()
-                    .round(roundNumber)
-                    .signature(Bytes.EMPTY)
-                    .hash(nodeHashInfo.nodeStateHash().getBytes())
-                    .build();
-            final ScopedSystemTransaction<StateSignatureTransaction> scopedSystemTransaction =
-                    new ScopedSystemTransaction<>(nodeHashInfo.nodeId(), SemanticVersion.DEFAULT, signatureTransaction);
-            nodeIdToScopedSystemTransactionMap.put(nodeHashInfo.nodeId(), scopedSystemTransaction);
-        });
-
-        return nodeIdToScopedSystemTransactionMap;
-    }
-
-    /**
-     * Randomly selects ~50% of a collection of candidate signatures to submit from a round, and removes them from the
-     * candidate signatures collection.
-     *
-     * @param random              a source of randomness
-     * @param candidateSignatures the collection of candidate signatures to select from
-     * @return a list of signatures to include in a round
-     */
-    private static List<ScopedSystemTransaction<StateSignatureTransaction>> selectRandomSignatures(
-            @NonNull final Random random,
-            @NonNull final Collection<ScopedSystemTransaction<StateSignatureTransaction>> candidateSignatures) {
-
-        final List<ScopedSystemTransaction<StateSignatureTransaction>> signaturesToInclude = new ArrayList<>();
-        candidateSignatures.forEach(signature -> {
-            if (random.nextBoolean()) {
-                signaturesToInclude.add(signature);
-            }
-        });
-        candidateSignatures.removeAll(signaturesToInclude);
-
-        return signaturesToInclude;
-    }
-
     @Test
     @DisplayName("No ISSes Test")
     void noIss() {
@@ -648,6 +606,48 @@ class IssDetectorTests extends PlatformTest {
         assertMarkerFile(IssType.CATASTROPHIC_ISS.toString(), false);
         assertMarkerFile(IssType.SELF_ISS.toString(), false);
         assertMarkerFile(IssType.OTHER_ISS.toString(), false);
+    }
+
+    private static Map<NodeId, ScopedSystemTransaction<StateSignatureTransaction>> generateSystemTransactions(
+            final long roundNumber, @NonNull final RoundHashValidatorTests.HashGenerationData hashGenerationData) {
+
+        final Map<NodeId, ScopedSystemTransaction<StateSignatureTransaction>> nodeIdToScopedSystemTransactionMap =
+                new HashMap<>();
+        hashGenerationData.nodeList().forEach(nodeHashInfo -> {
+            final StateSignatureTransaction signatureTransaction = StateSignatureTransaction.newBuilder()
+                    .round(roundNumber)
+                    .signature(Bytes.EMPTY)
+                    .hash(nodeHashInfo.nodeStateHash().getBytes())
+                    .build();
+            final ScopedSystemTransaction<StateSignatureTransaction> scopedSystemTransaction =
+                    new ScopedSystemTransaction<>(nodeHashInfo.nodeId(), SemanticVersion.DEFAULT, signatureTransaction);
+            nodeIdToScopedSystemTransactionMap.put(nodeHashInfo.nodeId(), scopedSystemTransaction);
+        });
+
+        return nodeIdToScopedSystemTransactionMap;
+    }
+
+    /**
+     * Randomly selects ~50% of a collection of candidate signatures to submit from a round, and removes them from the
+     * candidate signatures collection.
+     *
+     * @param random              a source of randomness
+     * @param candidateSignatures the collection of candidate signatures to select from
+     * @return a list of signatures to include in a round
+     */
+    private static List<ScopedSystemTransaction<StateSignatureTransaction>> selectRandomSignatures(
+            @NonNull final Random random,
+            @NonNull final Collection<ScopedSystemTransaction<StateSignatureTransaction>> candidateSignatures) {
+
+        final List<ScopedSystemTransaction<StateSignatureTransaction>> signaturesToInclude = new ArrayList<>();
+        candidateSignatures.forEach(signature -> {
+            if (random.nextBoolean()) {
+                signaturesToInclude.add(signature);
+            }
+        });
+        candidateSignatures.removeAll(signaturesToInclude);
+
+        return signaturesToInclude;
     }
 
     private static ReservedSignedState mockState(final long round, final Hash hash) {

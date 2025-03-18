@@ -20,10 +20,10 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.metrics.IssMetrics;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.sequence.map.ConcurrentSequenceMap;
 import com.swirlds.platform.sequence.map.SequenceMap;
-import com.swirlds.platform.sequence.set.ConcurrentSequenceSet;
+import com.swirlds.platform.sequence.map.StandardSequenceMap;
 import com.swirlds.platform.sequence.set.SequenceSet;
+import com.swirlds.platform.sequence.set.StandardSequenceSet;
 import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
@@ -138,9 +138,9 @@ public class DefaultIssDetector implements IssDetector {
         this.roster = Objects.requireNonNull(roster);
         this.currentSoftwareVersion = Objects.requireNonNull(currentSoftwareVersion);
 
-        this.roundData = new ConcurrentSequenceMap<>(
+        this.roundData = new StandardSequenceMap<>(
                 -consensusConfig.roundsNonAncient(), consensusConfig.roundsNonAncient(), x -> x);
-        this.savedSignatures = new ConcurrentSequenceSet<>(
+        this.savedSignatures = new StandardSequenceSet<>(
                 0, consensusConfig.roundsNonAncient(), s -> s.transaction().round());
 
         this.ignorePreconsensusSignatures = ignorePreconsensusSignatures;
@@ -280,8 +280,14 @@ public class DefaultIssDetector implements IssDetector {
         }
     }
 
+    /**
+     * Applies any saved signatures for the given round and shifts the saved signature window.
+     *
+     * @param roundNumber the round to apply saved signatures to
+     * @return a list of ISS notifications, or an empty list if no ISS occurred
+     */
+    @NonNull
     private List<IssNotification> applySignaturesAndShiftWindow(final long roundNumber) {
-
         // Apply any signatures we collected previously that are for the current round
         final List<IssNotification> issNotifications = new ArrayList<>(
                 handlePostconsensusSignatures(savedSignatures.getEntriesWithSequenceNumber(roundNumber)));
