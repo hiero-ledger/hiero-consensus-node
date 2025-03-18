@@ -281,15 +281,15 @@ public final class RosterUtils {
      * Creates the Roster History to be used by Platform.
      *
      * @param rosterStore the roster store containing the active rosters.
-     * @return the roster history if roster store contains active rosters, otherwise IllegalStateException is thrown.
+     * @return the roster history if roster store contains active rosters, otherwise NullPointerException is thrown.
      */
     @NonNull
     public static RosterHistory createRosterHistory(@NonNull final ReadableRosterStore rosterStore) {
         final var roundRosterPairs = rosterStore.getRosterHistory();
-        final var rosterMap = roundRosterPairs.stream()
-                .collect(Collectors.toMap(
-                        RoundRosterPair::activeRosterHash,
-                        pair -> Objects.requireNonNull(rosterStore.get(pair.activeRosterHash()))));
+        final Map<Bytes, Roster> rosterMap = new HashMap<>();
+        for (final var pair : roundRosterPairs) {
+            rosterMap.put(pair.activeRosterHash(), Objects.requireNonNull(rosterStore.get(pair.activeRosterHash())));
+        }
         return new RosterHistory(roundRosterPairs, rosterMap);
     }
 
