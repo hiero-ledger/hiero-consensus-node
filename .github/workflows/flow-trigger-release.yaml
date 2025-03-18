@@ -120,6 +120,9 @@ jobs:
           echo "Next release version is: ${OUTPUT}"
 
       - name: Calculate and Create Release Branch
+#        TODO: Uncomment before merging
+#        env:
+#          ALPHA_FLAG: ${{ inputs.alpha-release }}
         run: |
           # Get current version information
           current_version="$(git-semver latest)"
@@ -152,7 +155,12 @@ jobs:
           else
             echo "No major or minor version bump detected. Skipping release branch creation."
           fi
-
+          
+#          TODO: Uncomment before merging
+#          if [[ "${ALPHA_FLAG}" == "true" ]]; then
+#            CREATE_RELEASE_BRANCH=false
+#          fi
+          
           # Create and push the release branch if CREATE_RELEASE_BRANCH is true
           if [[ "${CREATE_RELEASE_BRANCH}" == 'true' ]]; then
           echo "Check if the release branch already exists."
