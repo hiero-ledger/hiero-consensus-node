@@ -57,7 +57,7 @@ public class BlockNodeConnectionManager {
     private final ExecutorService streamingExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService retryExecutor = Executors.newVirtualThreadPerTaskExecutor();
     private BlockNodeConfigExtractor blockNodeConfigurations;
-    private BlockStreamStateCleanUpTracker acknowledgementTracker;
+    private BlockAcknowledgementsTracker acknowledgementTracker;
 
     /**
      * Creates a new BlockNodeConnectionManager with the given configuration from disk.
@@ -77,10 +77,8 @@ public class BlockNodeConnectionManager {
         }
         this.blockNodeConfigurations = new BlockNodeConfigExtractor(blockStreamConfig.blockNodeConnectionFileDir());
         // Initialize the block acknowledgment tracker
-        this.acknowledgementTracker = new BlockStreamStateCleanUpTracker(
-                blockStreamStateManager,
-                1,
-                blockStreamConfig.deleteFilesOnDisk());
+        this.acknowledgementTracker =
+                new BlockAcknowledgementsTracker(blockStreamStateManager, 1, blockStreamConfig.deleteFilesOnDisk());
     }
 
     /**

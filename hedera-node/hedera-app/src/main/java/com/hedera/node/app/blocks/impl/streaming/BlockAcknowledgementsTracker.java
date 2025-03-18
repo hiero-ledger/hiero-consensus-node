@@ -11,40 +11,41 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * A class to track block recognitions for blocks sent to block nodes.
- * Recognitions because the class keeps track of BlockAcknowledgements and SkipBlock responses.
- * Consensus node can receive SkipBlock PublishStreamResponse which indicates
- * that the block is received from another source which means that the block is being recognized.
+ * A class to track BlockAcknowledgements for blocks sent to block nodes.
  */
-public class BlockStreamStateCleanUpTracker {
-    private static final Logger logger = LogManager.getLogger(BlockStreamStateCleanUpTracker.class);
+public class BlockAcknowledgementsTracker {
+    private static final Logger logger = LogManager.getLogger(BlockAcknowledgementsTracker.class);
 
     private final BlockStreamStateManager blockStreamStateManager;
-    private final ConcurrentHashMap<String, AtomicLong> blockRecognitions;
-    private final int requiredRecognitions;
+    private final ConcurrentHashMap<String, AtomicLong> blockAcknowledgements;
+    private final int requiredAcknowledgements;
     private final boolean deleteFilesOnDisk;
+    private Long lastVerifiedBlock;
 
     /**
      * @param blockStreamStateManager the block stream state manager to clean up block states
-     * @param requiredRecognitions the required number of block recognitions before deleting files on disc
+     * @param requiredAcknowledgements the required number of block acknowledgements before deleting files on disc
      * @param deleteFilesOnDisk whether to delete files on disk
      */
-    public BlockStreamStateCleanUpTracker(
+    public BlockAcknowledgementsTracker(
             @NonNull BlockStreamStateManager blockStreamStateManager,
-            int requiredRecognitions,
+            int requiredAcknowledgements,
             boolean deleteFilesOnDisk) {
         this.blockStreamStateManager = requireNonNull(blockStreamStateManager);
-        this.blockRecognitions = new ConcurrentHashMap<>();
-        this.requiredRecognitions = requiredRecognitions;
+        this.blockAcknowledgements = new ConcurrentHashMap<>();
+        this.requiredAcknowledgements = requiredAcknowledgements;
         this.deleteFilesOnDisk = deleteFilesOnDisk;
+        this.lastVerifiedBlock = -1L;
     }
 
     /**
-     * @param connectionId the connection id to update the block recognition for
+     * @param connectionId the connection id to update the block acknowledgements for
      * @param blockNumber the block number
      */
-    public void trackBlockRecognition(@NonNull String connectionId, long blockNumber) {
-        blockRecognitions.computeIfAbsent(connectionId, k -> new AtomicLong(0)).set(blockNumber);
+    public void trackBlockAcknowledgements(@NonNull String connectionId, long blockNumber) {
+        blockAcknowledgements
+                .computeIfAbsent(connectionId, k -> new AtomicLong(0))
+                .set(blockNumber);
 
         checkBlockDeletion(blockNumber);
     }
@@ -54,17 +55,19 @@ public class BlockStreamStateCleanUpTracker {
      */
     @VisibleForTesting
     public void checkBlockDeletion(long blockNumber) {
-        long recognitionsCount = blockRecognitions.values().stream()
+        long acknowledgementsCount = blockAcknowledgements.values().stream()
                 .filter(ack -> ack.get() >= blockNumber)
                 .count();
 
-        if (recognitionsCount == requiredRecognitions) {
+        if (acknowledgementsCount == requiredAcknowledgements) {
             logger.info(
-                    "Block {} has received sufficient recognitions ({}). Ready for cleanup.",
+                    "Block {} has received sufficient acknowledgements ({}). Ready for cleanup.",
                     blockNumber,
-                    requiredRecognitions);
+                    requiredAcknowledgements);
+
             // Trigger cleanup event
             blockStreamStateManager.cleanUpBlockState(blockNumber);
+            lastVerifiedBlock = blockNumber;
 
             if (deleteFilesOnDisk) {
                 onBlockReadyForCleanup(blockNumber);
@@ -73,6 +76,8 @@ public class BlockStreamStateCleanUpTracker {
     }
 
     /**
+     * Cleans up all block files up to and including the specified block number.
+     *
      * @param blockNumber the block for which the file is ready to be deleted
      */
     @VisibleForTesting
@@ -81,10 +86,9 @@ public class BlockStreamStateCleanUpTracker {
     }
 
     /**
-     * @param connectionId the connection id to get the last verified block for
      * @return the last verified block for this connection id
      */
-    public long getLastVerifiedBlock(@NonNull String connectionId) {
-        return blockRecognitions.getOrDefault(connectionId, new AtomicLong(0)).get();
+    public long getLastVerifiedBlock() {
+        return lastVerifiedBlock;
     }
 }

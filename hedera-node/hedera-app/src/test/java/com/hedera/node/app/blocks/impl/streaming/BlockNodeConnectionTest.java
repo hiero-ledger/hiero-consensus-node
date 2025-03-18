@@ -50,11 +50,18 @@ class BlockNodeConnectionTest {
     BlockNodeConnectionManager blockNodeConnectionManager;
 
     @Mock
+    BlockStreamStateManager blockStreamStateManager;
+
+    BlockAcknowledgementsTracker blockAcknowledgementsTracker;
+
+    @Mock
     private StreamObserver<PublishStreamRequest> requestObserver;
 
     @BeforeEach
     public void setUp() {
-        blockNodeConnection = new BlockNodeConnection(nodeConfig, grpcServiceClient, blockNodeConnectionManager);
+        blockAcknowledgementsTracker = new BlockAcknowledgementsTracker(blockStreamStateManager, 1, false);
+        blockNodeConnection = new BlockNodeConnection(
+                nodeConfig, grpcServiceClient, blockNodeConnectionManager, blockAcknowledgementsTracker);
     }
 
     @Test
@@ -131,7 +138,7 @@ class BlockNodeConnectionTest {
                 .build();
         capturedObserver.onNext(response);
 
-        assertThat(logCaptor.infoLogs()).contains("Block acknowledgment received for a full block: block_number: 1234");
+        assertThat(blockAcknowledgementsTracker.getLastVerifiedBlock()).isEqualTo(1234);
     }
 
     @Test

@@ -25,7 +25,7 @@ public class BlockNodeConnection {
     private StreamObserver<PublishStreamRequest> requestObserver;
     private volatile boolean isActive = false;
     private final String connectionId;
-    private final BlockStreamStateCleanUpTracker acknowledgmentTracker;
+    private final BlockAcknowledgementsTracker acknowledgmentTracker;
 
     /**
      * Construct a new BlockNodeConnection.
@@ -39,7 +39,7 @@ public class BlockNodeConnection {
             @NonNull final BlockNodeConfig nodeConfig,
             @NonNull final GrpcServiceClient grpcServiceClient,
             @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
-            @NonNull final BlockStreamStateCleanUpTracker acknowledgmentTracker) {
+            @NonNull final BlockAcknowledgementsTracker acknowledgmentTracker) {
         this.node = requireNonNull(nodeConfig, "nodeConfig must not be null");
         this.grpcServiceClient = requireNonNull(grpcServiceClient, "grpcServiceClient must not be null");
         this.blockNodeConnectionManager =
@@ -84,7 +84,7 @@ public class BlockNodeConnection {
         if (acknowledgement.hasBlockAck()) {
             final var ackBlockNumber = acknowledgement.getBlockAck().getBlockNumber();
 
-            acknowledgmentTracker.trackBlockRecognition(connectionId, ackBlockNumber);
+            acknowledgmentTracker.trackBlockAcknowledgements(connectionId, ackBlockNumber);
         }
     }
 
