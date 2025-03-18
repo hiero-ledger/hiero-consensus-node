@@ -25,10 +25,13 @@ import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
+import com.swirlds.component.framework.schedulers.internal.SequentialThreadTaskScheduler;
 import com.swirlds.component.framework.wires.SolderType;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
@@ -39,6 +42,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -2435,5 +2440,26 @@ class SequentialTaskSchedulerTests {
                 countAtSquelchEnd + 6, handleCount.get(), "New tasks should be processed after stopping squelching");
 
         model.stop();
+    }
+
+    @AfterEach
+    void tierDown() {
+        // Make sure we don't leave any Thread alive before finishing the test.
+        // Is a best effort attempt as the thread could ignore the interrupt request depending on the scenario.
+        getLivePlatformThreadByNameMatching(name -> name.startsWith(SequentialThreadTaskScheduler.THREAD_NAME_PREFIX)
+                        && name.endsWith(SequentialThreadTaskScheduler.THREAD_NAME_SUFFIX))
+                .forEach(Thread::interrupt);
+    }
+
+    /**
+     * Search for a particular alive platform thread by its regex.
+     * @param predicate that the name of the platform thread needs to match to be located
+     * @return the list of threads that matched the predicate.
+     */
+    @NonNull
+    private static Collection<Thread> getLivePlatformThreadByNameMatching(@NonNull final Predicate<String> predicate) {
+        return Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> predicate.test(t.getName()))
+                .toList();
     }
 }
