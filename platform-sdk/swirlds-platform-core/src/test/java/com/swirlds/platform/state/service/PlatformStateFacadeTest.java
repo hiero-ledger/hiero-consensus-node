@@ -205,10 +205,11 @@ class PlatformStateFacadeTest {
 
     @Test
     void testSetCreationSoftwareVersionTo() {
-        final var newCreationSoftwareVersion = new BasicSoftwareVersion(RandomUtils.nextInt());
+        final var newCreationSoftwareVersion =
+                SemanticVersion.newBuilder().major(RandomUtils.nextInt()).build();
+
         platformStateFacade.setCreationSoftwareVersionTo(state, newCreationSoftwareVersion);
-        assertEquals(
-                newCreationSoftwareVersion.getPbjSemanticVersion(), platformStateModifier.getCreationSoftwareVersion());
+        assertEquals(newCreationSoftwareVersion, platformStateModifier.getCreationSoftwareVersion());
     }
 
     @Test

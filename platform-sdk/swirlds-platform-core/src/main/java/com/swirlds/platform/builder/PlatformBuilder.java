@@ -444,7 +444,7 @@ public final class PlatformBuilder {
                 currentRoster,
                 selfId,
                 x -> statusActionSubmitterAtomicReference.get().submitStatusAction(x),
-                softwareVersion,
+                softwareVersion.getPbjSemanticVersion(),
                 consensusStateEventHandler,
                 platformStateFacade);
 

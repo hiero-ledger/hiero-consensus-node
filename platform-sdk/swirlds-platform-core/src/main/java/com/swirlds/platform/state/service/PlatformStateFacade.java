@@ -17,7 +17,6 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -275,8 +274,8 @@ public class PlatformStateFacade {
      *
      * @param creationVersion the creation version
      */
-    public void setCreationSoftwareVersionTo(@NonNull final State state, @NonNull SoftwareVersion creationVersion) {
-        getWritablePlatformStateOf(state).setCreationSoftwareVersion(creationVersion.getPbjSemanticVersion());
+    public void setCreationSoftwareVersionTo(@NonNull final State state, @NonNull SemanticVersion creationVersion) {
+        getWritablePlatformStateOf(state).setCreationSoftwareVersion(creationVersion);
     }
 
     /**
