@@ -30,6 +30,26 @@ import org.apache.logging.log4j.Logger;
  * A simulated block node server that implements the block streaming gRPC service.
  * This server can be configured to respond with different response codes and simulate
  * various error conditions for testing purposes.
+ *
+ * <p>Key capabilities include:
+ * <ul>
+ *   <li>Processing block headers and proofs from client streams</li>
+ *   <li>Tracking verified blocks and maintaining last verified block number</li>
+ *   <li>Sending various streaming responses (EndOfStream, SkipBlock, ResendBlock, BlockAcknowledgement)</li>
+ *   <li>Handling duplicate block headers by sending SkipBlock responses</li>
+ *   <li>Synchronizing block acknowledgments across multiple streams</li>
+ *   <li>Supporting immediate response injection for testing error conditions</li>
+ *   <li>Thread-safe tracking of block state using concurrent collections and locks</li>
+ * </ul>
+ *
+ * <p>The simulator supports testing various block streaming scenarios including:
+ * <ul>
+ *   <li>Normal operation with sequential block processing</li>
+ *   <li>Error handling with configurable end-of-stream responses</li>
+ *   <li>Block resending and skipping scenarios</li>
+ *   <li>Multiple concurrent client streams</li>
+ *   <li>Proper synchronization of block acknowledgments across streams</li>
+ * </ul>
  */
 public class SimulatedBlockNodeServer {
     private static final Logger log = LogManager.getLogger(SimulatedBlockNodeServer.class);
