@@ -32,7 +32,7 @@ public class KeyValueStoreBench extends BaseBench {
         beforeTest(storeName);
 
         final BenchmarkRecord[] map = new BenchmarkRecord[verify ? maxKey : 0];
-        LongListOffHeap keyToDiskLocationIndex = new LongListOffHeap();
+        LongListOffHeap keyToDiskLocationIndex = new LongListOffHeap(1024 * 1024, maxKey, 256 * 1024);
         final MerkleDbConfig dbConfig = getConfig(MerkleDbConfig.class);
         final BenchmarkRecordSerializer serializer = new BenchmarkRecordSerializer();
         final var store = new MemoryIndexDiskKeyValueStore(

@@ -187,7 +187,8 @@ public class SwirldsPlatform implements Platform {
         // This method is a no-op if we are not in birth round mode, or if we have already migrated.
         final SoftwareVersion appVersion = blocks.appVersion();
         PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
-        modifyStateForBirthRoundMigration(initialState, ancientMode, appVersion, platformStateFacade);
+        modifyStateForBirthRoundMigration(
+                initialState, ancientMode, appVersion.getPbjSemanticVersion(), platformStateFacade);
 
         selfId = blocks.selfId();
 
@@ -376,6 +377,10 @@ public class SwirldsPlatform implements Platform {
 
         if (ancientMode == AncientMode.GENERATION_THRESHOLD) {
             // We don't need the shim if we haven't migrated to birth round mode.
+            return null;
+        }
+        if (initialState.isGenesisState()) {
+            // We don't need the shim if we are starting from genesis.
             return null;
         }
 

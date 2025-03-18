@@ -114,7 +114,7 @@ public final class Uninterruptable {
      * </p>
      *
      * @param action       the action to perform
-     * @param errorMessage the error message to write to the log if this thread is inerrupted
+     * @param errorMessage the error message to write to the log if this thread is interrupted
      */
     public static void abortAndLogIfInterrupted(
             @NonNull final InterruptableRunnable action, @NonNull final String errorMessage) {
@@ -140,7 +140,7 @@ public final class Uninterruptable {
      *
      * @param consumer     an object that consumes something and may throw an {@link InterruptedException}
      * @param object       the object to pass to the consumer
-     * @param errorMessage the error message to write to the log if this thread is inerrupted
+     * @param errorMessage the error message to write to the log if this thread is interrupted
      */
     public static <T> void abortAndLogIfInterrupted(
             @NonNull final CheckedConsumer<T, InterruptedException> consumer,

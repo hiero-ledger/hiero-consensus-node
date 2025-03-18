@@ -4,7 +4,9 @@ package com.swirlds.platform.test.fixtures.consensus;
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
@@ -69,7 +71,7 @@ public class TestIntake {
 
         output = new ConsensusOutput(ancientMode);
 
-        model = WiringModelBuilder.create(platformContext).build();
+        model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         hasherWiring = new ComponentWiring<>(model, EventHasher.class, directScheduler("eventHasher"));
         final EventHasher eventHasher = new DefaultEventHasher();
