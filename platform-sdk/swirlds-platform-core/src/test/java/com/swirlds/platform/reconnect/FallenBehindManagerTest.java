@@ -4,6 +4,7 @@ package com.swirlds.platform.reconnect;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 
+import com.google.common.collect.ImmutableSet;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
@@ -13,10 +14,9 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.Utilities;
 import com.swirlds.platform.gossip.FallenBehindManagerImpl;
 import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.network.topology.NetworkTopology;
-import com.swirlds.platform.network.topology.StaticTopology;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.consensus.gossip.FallenBehindManager;
@@ -34,9 +34,8 @@ class FallenBehindManagerTest {
             .getOrCreateConfig()
             .getConfigData(ReconnectConfig.class);
     final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
-    final NetworkTopology topology = new StaticTopology(peers, selfId);
     private final FallenBehindManager manager = new FallenBehindManagerImpl(
-            selfId, topology, mock(StatusActionSubmitter.class), fallenBehindNotification::incrementAndGet, config);
+            selfId, peers.size(), mock(StatusActionSubmitter.class), fallenBehindNotification::incrementAndGet, config);
 
     @Test
     void test() {
@@ -64,6 +63,49 @@ class FallenBehindManagerTest {
         manager.reportFallenBehind(NodeId.of(3));
         manager.reportFallenBehind(NodeId.of(4));
         manager.reportFallenBehind(NodeId.of(5));
+        manager.reportFallenBehind(NodeId.of(6));
+        assertFallenBehind(true, 6, "if the same nodes report again, nothing should change");
+
+        manager.reportFallenBehind(NodeId.of(7));
+        manager.reportFallenBehind(NodeId.of(8));
+        assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
+
+        manager.resetFallenBehind();
+        fallenBehindNotification.set(0);
+        assertFallenBehind(false, 0, "resetting should return to default");
+    }
+
+    @Test
+    void testChangingPeerAmount() {
+        assertFallenBehind(false, 0, "default should be none report fallen behind");
+
+        // node 1 reports fallen behind
+        manager.reportFallenBehind(NodeId.of(1));
+        assertFallenBehind(false, 1, "one node only reported fallen behind");
+
+        // if the same node reports again, nothing should change
+        manager.reportFallenBehind(NodeId.of(1));
+        assertFallenBehind(false, 1, "if the same node reports again, nothing should change");
+
+        manager.reportFallenBehind(NodeId.of(2));
+        manager.reportFallenBehind(NodeId.of(3));
+        manager.reportFallenBehind(NodeId.of(4));
+        manager.reportFallenBehind(NodeId.of(5));
+        assertFallenBehind(false, 5, "we should still be missing one for fallen behind");
+
+        manager.addRemovePeers(ImmutableSet.of(NodeId.of(22), NodeId.of(23)), Collections.emptySet());
+
+        manager.reportFallenBehind(NodeId.of(6));
+        assertFallenBehind(false, 6, "we miss one due to changed size");
+
+        manager.addRemovePeers(Collections.emptySet(), Collections.singleton(NodeId.of(9)));
+
+        assertFallenBehind(true, 6, "we should fall behind due to reduced number of peers");
+
+        manager.reportFallenBehind(NodeId.of(1));
+        manager.reportFallenBehind(NodeId.of(2));
+        manager.reportFallenBehind(NodeId.of(3));
+        manager.reportFallenBehind(NodeId.of(4));
         manager.reportFallenBehind(NodeId.of(6));
         assertFallenBehind(true, 6, "if the same nodes report again, nothing should change");
 
