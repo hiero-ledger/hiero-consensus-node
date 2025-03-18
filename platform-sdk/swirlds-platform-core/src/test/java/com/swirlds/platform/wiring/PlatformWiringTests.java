@@ -66,12 +66,28 @@ class PlatformWiringTests {
                         .withConfiguration(ConfigurationBuilder.create()
                                 .autoDiscoverExtensions()
                                 .withValue("platformWiring.inlinePces", "false")
+                                .withValue("event.useBirthRoundAncientThreshold", "false")
                                 .build())
                         .build(),
                 TestPlatformContextBuilder.create()
                         .withConfiguration(ConfigurationBuilder.create()
                                 .autoDiscoverExtensions()
                                 .withValue("platformWiring.inlinePces", "true")
+                                .withValue("event.useBirthRoundAncientThreshold", "false")
+                                .build())
+                        .build(),
+                TestPlatformContextBuilder.create()
+                        .withConfiguration(ConfigurationBuilder.create()
+                                .autoDiscoverExtensions()
+                                .withValue("platformWiring.inlinePces", "false")
+                                .withValue("event.useBirthRoundAncientThreshold", "true")
+                                .build())
+                        .build(),
+                TestPlatformContextBuilder.create()
+                        .withConfiguration(ConfigurationBuilder.create()
+                                .autoDiscoverExtensions()
+                                .withValue("platformWiring.inlinePces", "true")
+                                .withValue("event.useBirthRoundAncientThreshold", "true")
                                 .build())
                         .build());
     }
