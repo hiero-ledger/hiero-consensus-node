@@ -22,7 +22,7 @@ for BOOK in $BOOKS; do
   diff -b localhost/sysfiles/addressBook.json run/test/local/assets/${BOOK}.json
 
   if [ ! $? -eq 0 ]; then
-    echo "FAILED to match dowload of book $BOOK"
+    echo "FAILED to match download of book $BOOK"
   fi
 done
 mv addressBook.json.bkup localhost/sysfiles/addressBook.json

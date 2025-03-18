@@ -9,6 +9,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
@@ -19,7 +20,6 @@ import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.platform.system.transaction.Transaction;
@@ -53,7 +53,7 @@ class AddressBookTestingToolStateTest {
     private Transaction consensusTransaction;
     private StateSignatureTransaction stateSignatureTransaction;
     private InitTrigger initTrigger;
-    private SoftwareVersion softwareVersion;
+    private SemanticVersion softwareVersion;
     private Configuration configuration;
     private AddressBookConfig addressBookConfig;
     private AddressBookTestingToolConfig addressBookTestingToolConfig;
@@ -71,7 +71,7 @@ class AddressBookTestingToolStateTest {
         state.setChild(RUNNING_SUM_INDEX, new StringLeaf("0"));
         platform = mock(Platform.class);
         initTrigger = InitTrigger.GENESIS;
-        softwareVersion = new BasicSoftwareVersion(1);
+        softwareVersion = new BasicSoftwareVersion(1).getPbjSemanticVersion();
         platformContext = mock(PlatformContext.class);
         configuration = mock(Configuration.class);
         addressBookConfig = mock(AddressBookConfig.class);

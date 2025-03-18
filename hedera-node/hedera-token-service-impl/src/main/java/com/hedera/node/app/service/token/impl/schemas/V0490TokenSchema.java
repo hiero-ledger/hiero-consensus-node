@@ -49,7 +49,7 @@ public class V0490TokenSchema extends Schema {
     private static final long MAX_STAKING_INFOS = 1_000_000L;
     private static final long MAX_TOKENS = 1_000_000_000L;
     private static final long MAX_ACCOUNTS = 1_000_000_000L;
-    private static final long MAX_TOKEN_RELS = 4_000_000_000L;
+    private static final long MAX_TOKEN_RELS = 1_000_000_000L;
     private static final long MAX_MINTABLE_NFTS = 1_000_000_000L;
     private static final long FIRST_RESERVED_SYSTEM_CONTRACT = 350L;
     private static final long LAST_RESERVED_SYSTEM_CONTRACT = 399L;

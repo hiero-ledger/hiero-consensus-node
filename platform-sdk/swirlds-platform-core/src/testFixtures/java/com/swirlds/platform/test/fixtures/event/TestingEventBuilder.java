@@ -556,7 +556,7 @@ public class TestingEventBuilder {
         }
 
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                softwareVersion,
+                softwareVersion.getPbjSemanticVersion(),
                 creatorId,
                 selfParentDescriptor,
                 otherParentDescriptors,
