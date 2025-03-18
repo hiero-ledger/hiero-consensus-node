@@ -3,6 +3,7 @@ package com.swirlds.platform.wiring;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -88,8 +89,9 @@ class PlatformWiringTests {
 
         final PlatformWiring wiring = new PlatformWiring(platformContext, model, applicationCallbacks);
 
-        final PlatformComponentBuilder componentBuilder =
-                new PlatformComponentBuilder(mock(PlatformBuildingBlocks.class));
+        final PlatformBuildingBlocks platformBuildingBlocks = mock(PlatformBuildingBlocks.class);
+        when(platformBuildingBlocks.platformContext()).thenReturn(platformContext);
+        final PlatformComponentBuilder componentBuilder = new PlatformComponentBuilder(platformBuildingBlocks);
 
         componentBuilder
                 .withEventHasher(mock(EventHasher.class))

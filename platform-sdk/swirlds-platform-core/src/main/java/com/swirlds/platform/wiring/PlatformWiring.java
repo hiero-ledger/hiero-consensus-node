@@ -727,6 +727,7 @@ public class PlatformWiring {
         gossipWiring.bind(builder.buildGossip());
         branchDetectorWiring.bind(builder::buildBranchDetector);
         branchReporterWiring.bind(builder::buildBranchReporter);
+        futureEventBufferWiring.bind(builder::buildFutureEventBuffer);
     }
 
     /**
