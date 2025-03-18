@@ -38,7 +38,8 @@ public class SequentialTaskScheduler<OUT> extends TaskScheduler<OUT> {
      * @param model                    the wiring model containing this scheduler
      * @param name                     the name of the task scheduler
      * @param pool                     the fork join pool that will execute tasks on this scheduler
-     * @param uncaughtExceptionHandler the uncaught exception handler
+     * @param uncaughtExceptionHandler the uncaught exception handler.
+     *                                   In this scheduler, the handler is executed out of order.
      * @param onRamp                   an object counter that is incremented when data is added to the task scheduler
      * @param offRamp                  an object counter that is decremented when data is removed from the task
      *                                 scheduler

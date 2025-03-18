@@ -205,7 +205,7 @@ public class RandomSignedStateGenerator {
         platformStateFacade.bulkUpdateOf(stateInstance, v -> {
             v.setSnapshot(consensusSnapshotInstance);
             v.setLegacyRunningEventHash(legacyRunningEventHashInstance);
-            v.setCreationSoftwareVersion(softwareVersionInstance);
+            v.setCreationSoftwareVersion(softwareVersionInstance.getPbjSemanticVersion());
             v.setRoundsNonAncient(roundsNonAncientInstance);
             v.setConsensusTimestamp(consensusTimestampInstance);
         });

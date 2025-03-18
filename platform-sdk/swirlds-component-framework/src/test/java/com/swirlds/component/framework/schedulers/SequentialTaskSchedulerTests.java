@@ -1200,12 +1200,14 @@ class SequentialTaskSchedulerTests {
 
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void exceptionHandlingTest(final String typeString) {
+    void exceptionHandlingTest(String typeString) {
         final WiringModel model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final AtomicInteger wireValue = new AtomicInteger();
+        final AtomicInteger lastX = new AtomicInteger();
         final Consumer<Integer> handler = x -> {
+            lastX.set(x);
             if (x == 50) {
                 throw new IllegalStateException("intentional");
             }
@@ -1213,10 +1215,15 @@ class SequentialTaskSchedulerTests {
         };
 
         final AtomicInteger exceptionCount = new AtomicInteger();
+        final AtomicBoolean isLastXTheMinValueWhenProcessingException = new AtomicBoolean();
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
-                .withUncaughtExceptionHandler((t, e) -> exceptionCount.incrementAndGet())
+                .withUncaughtExceptionHandler((t, e) -> {
+                    // check that is never called before the task that threw the exception.
+                    isLastXTheMinValueWhenProcessingException.set(lastX.get() >= 50);
+                    exceptionCount.incrementAndGet();
+                })
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .build();
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
@@ -1235,7 +1242,13 @@ class SequentialTaskSchedulerTests {
         }
 
         assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-        assertEquals(1, exceptionCount.get());
+        // We cannot guarantee that the exception handling will be executed immediately after the task that throws the
+        // exception
+        // so we check a) that it was at least after that task, and b) give some time for it to finish so we check that
+        // it was executed.
+        assertTrue(isLastXTheMinValueWhenProcessingException.get());
+        assertEventuallyEquals(
+                1, exceptionCount::get, Duration.ofSeconds(1), "Exception handler did not update the expected value");
         model.stop();
     }
 

@@ -3,10 +3,13 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
+import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
+import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
@@ -43,6 +46,7 @@ public class ReconnectPeerProtocol implements PeerProtocol {
     private final ReconnectController reconnectController;
     private final SignedStateValidator validator;
     private final PlatformStateFacade platformStateFacade;
+    private final CountPerSecond reconnectRejectionMetrics;
     private InitiatedBy initiatedBy = InitiatedBy.NO_ONE;
     private final ThreadManager threadManager;
     private final FallenBehindManager fallenBehindManager;
@@ -125,6 +129,15 @@ public class ReconnectPeerProtocol implements PeerProtocol {
         fallenBehindLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
         notActiveLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
         this.time = Objects.requireNonNull(time);
+
+        this.reconnectRejectionMetrics = new CountPerSecond(
+                reconnectMetrics.getMetrics(),
+                new CountPerSecond.Config(
+                                PLATFORM_CATEGORY, String.format("reconnectRejections_per_sec_%02d", peerId.id()))
+                        .withDescription(String.format(
+                                "number of reconnections rejected per second from node %02d", peerId.id()))
+                        .withUnit("rejectionsPerSec")
+                        .withFormat(FORMAT_10_0));
     }
 
     /**
@@ -232,7 +245,7 @@ public class ReconnectPeerProtocol implements PeerProtocol {
             teacherState.close();
             teacherState = null;
         }
-        reconnectMetrics.recordReconnectRejection(peerId.id());
+        reconnectRejectionMetrics.count();
     }
 
     /**

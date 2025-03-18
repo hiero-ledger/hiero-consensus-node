@@ -3,8 +3,7 @@ package org.hiero.consensus.gossip;
 
 import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
+import java.util.Set;
 
 public interface FallenBehindManager {
     /**
@@ -23,27 +22,11 @@ public interface FallenBehindManager {
     void resetFallenBehind();
 
     /**
-     * Returns a list of node IDs which need to be contacted to establish if we have fallen behind.
-     *
-     * @return a list of node IDs, or null if there is no indication we have fallen behind
-     */
-    @Nullable
-    List<NodeId> getNeededForFallenBehind();
-
-    /**
      * Have enough nodes reported that they don't have events we need, and that we have fallen behind?
      *
      * @return true if we have fallen behind, false otherwise
      */
     boolean hasFallenBehind();
-
-    /**
-     * Get a list of neighbors to call if we need to do a reconnect
-     *
-     * @return a list of neighbor IDs
-     */
-    @Nullable
-    List<NodeId> getNeighborsForReconnect();
 
     /**
      * Should I attempt a reconnect with this neighbor?
@@ -58,4 +41,11 @@ public interface FallenBehindManager {
      * @return the number of nodes that have told us we have fallen behind
      */
     int numReportedFallenBehind();
+
+    /**
+     * Notify about changes in list of node ids we should be taking into account for falling behind
+     * @param added node ids which were added from the roster
+     * @param removed node ids which were removed from the roster
+     */
+    void addRemovePeers(@NonNull Set<NodeId> added, @NonNull Set<NodeId> removed);
 }

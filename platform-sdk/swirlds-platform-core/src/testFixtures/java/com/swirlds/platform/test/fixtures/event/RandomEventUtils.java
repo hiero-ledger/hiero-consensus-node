@@ -84,7 +84,7 @@ public class RandomEventUtils {
                     .forEach(convertedTransactions::add);
         }
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                new BasicSoftwareVersion(1),
+                new BasicSoftwareVersion(1).getPbjSemanticVersion(),
                 creatorId,
                 selfDescriptor,
                 otherDescriptor == null ? Collections.emptyList() : Collections.singletonList(otherDescriptor),
