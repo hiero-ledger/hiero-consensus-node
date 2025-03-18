@@ -99,6 +99,12 @@ public class DefaultTransactionHandler implements TransactionHandler {
     private final boolean waitForPrehandle;
 
     /**
+     * The number of transactions in consensus rounds that have been handled but not yet included in a signed state.
+     * This value is an estimate of the hash complexity of a state which is used by the health monitor.
+     */
+    private long numTransactionsSinceLastSignedState;
+
+    /**
      * Constructor
      *
      * @param platformContext       contains various platform utilities
@@ -136,6 +142,8 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
         // If the application transaction prehandler is a no-op then we don't need to wait for it.
         waitForPrehandle = schedulersConfig.applicationTransactionPrehandler().type() != TaskSchedulerType.NO_OP;
+
+        numTransactionsSinceLastSignedState = 0L;
     }
 
     /**
@@ -290,10 +298,17 @@ public class DefaultTransactionHandler implements TransactionHandler {
             signedState.init(platformContext);
 
             reservedSignedState = signedState.reserve("transaction handler output");
-            return new TransactionHandlerResult(
-                    new StateWithHashComplexity(reservedSignedState, consensusRound.getNumAppTransactions()),
-                    systemTransactions);
+
+            // Estimate the amount of work it will be to calculate the hash of this state. The primary modifier
+            // of the state is transactions, so that's our best bet.
+            final long hashComplexity = Math.max(numTransactionsSinceLastSignedState, 1);
+            final TransactionHandlerResult result = new TransactionHandlerResult(
+                    new StateWithHashComplexity(reservedSignedState, hashComplexity), systemTransactions);
+            numTransactionsSinceLastSignedState = 0;
+
+            return result;
         } else {
+            numTransactionsSinceLastSignedState += consensusRound.getNumAppTransactions();
             return new TransactionHandlerResult(null, systemTransactions);
         }
     }

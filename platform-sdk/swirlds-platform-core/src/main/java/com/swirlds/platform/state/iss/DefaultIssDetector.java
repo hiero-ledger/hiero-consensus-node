@@ -226,7 +226,7 @@ public class DefaultIssDetector implements IssDetector {
     public List<IssNotification> handleStateSignatureTransactions(
             @NonNull final Collection<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {
         // TODO Kelly remove this log statement
-        logger.info(SIGNED_STATE.getMarker(), "Handling state signature transactions in a round without a state");
+        logger.info(STARTUP.getMarker(), "Handling state signature transactions in a round without a state");
 
         final List<IssNotification> issNotifications = new ArrayList<>();
         // The state signatures in the queue may be for hashes of different rounds.
