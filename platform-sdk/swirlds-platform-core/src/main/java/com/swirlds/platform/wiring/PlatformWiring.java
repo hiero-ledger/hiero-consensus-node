@@ -327,7 +327,8 @@ public class PlatformWiring {
                 transactionResubmitterWiring.getInputWire(TransactionResubmitter::updateEventWindow));
         eventWindowOutputWire.solderTo(branchDetectorWiring.getInputWire(BranchDetector::updateEventWindow), INJECT);
         eventWindowOutputWire.solderTo(branchReporterWiring.getInputWire(BranchReporter::updateEventWindow), INJECT);
-        eventWindowOutputWire.solderTo(futureEventBufferWiring.getInputWire(FutureEventBuffer::updateEventWindow), INJECT);
+        eventWindowOutputWire.solderTo(
+                futureEventBufferWiring.getInputWire(FutureEventBuffer::updateEventWindow), INJECT);
     }
 
     /**
@@ -388,7 +389,9 @@ public class PlatformWiring {
 
         splitOrphanBufferOutput.solderTo(pcesInlineWriterWiring.getInputWire(InlinePcesWriter::writeEvent));
 
-        pcesInlineWriterWiring.getOutputWire().solderTo(futureEventBufferWiring.getInputWire(FutureEventBuffer::addEvent));
+        pcesInlineWriterWiring
+                .getOutputWire()
+                .solderTo(futureEventBufferWiring.getInputWire(FutureEventBuffer::addEvent));
         // make sure that an event is persisted before being sent to consensus, this avoids the situation where we
         // reach consensus with events that might be lost due to a crash
         futureEventBufferWiring.getOutputWire().solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
