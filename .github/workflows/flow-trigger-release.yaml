@@ -125,34 +125,34 @@ jobs:
           current_version="$(git-semver latest)"
           current_major_version="$(semver get major "${current_version}")"
           current_minor_version="$(semver get minor "${current_version}")"
-          
+
           # Get next version information
           next_version="${{ steps.next-release.outputs.version }}"
           next_major_version="$(semver get major "${next_version}")"
           next_minor_version="$(semver get minor "${next_version}")"
-          
+
           # Release branch flag for whether or not we should create the release branch
           CREATE_RELEASE_BRANCH=false
-          
+
           # Create a string for the release branch name:
           major_minor_version="${next_major_version}.${next_minor_version}"
           release_branch="release/${major_minor_version}"
-          
+
           # Check if this is a major version bump
           if [[ "$next_major_version" -eq "$((current_major_version + 1))" && "$next_minor_version" -eq 0 ]]; then
             echo "Major version bump detected (${current_version} -> ${next_version})."
             CREATE_RELEASE_BRANCH=true
-          
+
           # Check if this is a minor version bump
           elif [[ "$next_major_version" -eq "$current_major_version" && "$next_minor_version" -eq "$((current_minor_version + 1))" ]]; then
             echo "Minor version bump detected (${current_version} -> ${next_version})."
             CREATE_RELEASE_BRANCH=true
-          
+
           # Not a major or minor version bump, so we do not set the flag to create a release branch
           else
             echo "No major or minor version bump detected. Skipping release branch creation."
           fi
-          
+
           # Create and push the release branch if CREATE_RELEASE_BRANCH is true
           if [[ "${CREATE_RELEASE_BRANCH}" == 'true' ]]; then
           echo "Check if the release branch already exists."
