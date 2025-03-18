@@ -16,24 +16,21 @@ import org.apache.logging.log4j.Logger;
 public class BlockAcknowledgementsTracker {
     private static final Logger logger = LogManager.getLogger(BlockAcknowledgementsTracker.class);
 
+    private static final int REQUIRED_ACKNOWLEDGEMENTS = 1;
     private final BlockStreamStateManager blockStreamStateManager;
     private final ConcurrentHashMap<String, AtomicLong> blockAcknowledgements;
-    private final int requiredAcknowledgements;
     private final boolean deleteFilesOnDisk;
     private Long lastVerifiedBlock;
 
     /**
      * @param blockStreamStateManager the block stream state manager to clean up block states
-     * @param requiredAcknowledgements the required number of block acknowledgements before deleting files on disc
      * @param deleteFilesOnDisk whether to delete files on disk
      */
     public BlockAcknowledgementsTracker(
             @NonNull BlockStreamStateManager blockStreamStateManager,
-            int requiredAcknowledgements,
             boolean deleteFilesOnDisk) {
         this.blockStreamStateManager = requireNonNull(blockStreamStateManager);
         this.blockAcknowledgements = new ConcurrentHashMap<>();
-        this.requiredAcknowledgements = requiredAcknowledgements;
         this.deleteFilesOnDisk = deleteFilesOnDisk;
         this.lastVerifiedBlock = -1L;
     }
@@ -59,11 +56,11 @@ public class BlockAcknowledgementsTracker {
                 .filter(ack -> ack.get() >= blockNumber)
                 .count();
 
-        if (acknowledgementsCount == requiredAcknowledgements) {
+        if (acknowledgementsCount == REQUIRED_ACKNOWLEDGEMENTS) {
             logger.info(
                     "Block {} has received sufficient acknowledgements ({}). Ready for cleanup.",
                     blockNumber,
-                    requiredAcknowledgements);
+                    REQUIRED_ACKNOWLEDGEMENTS);
 
             // Trigger cleanup event
             blockStreamStateManager.cleanUpBlockState(blockNumber);

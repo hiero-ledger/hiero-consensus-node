@@ -78,7 +78,7 @@ public class BlockNodeConnectionManager {
         this.blockNodeConfigurations = new BlockNodeConfigExtractor(blockStreamConfig.blockNodeConnectionFileDir());
         // Initialize the block acknowledgment tracker
         this.acknowledgementTracker =
-                new BlockAcknowledgementsTracker(blockStreamStateManager, 1, blockStreamConfig.deleteFilesOnDisk());
+                new BlockAcknowledgementsTracker(blockStreamStateManager, blockStreamConfig.deleteFilesOnDisk());
     }
 
     /**
