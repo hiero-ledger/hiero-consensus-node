@@ -53,6 +53,12 @@ public enum TransactionExecutors {
     TRANSACTION_EXECUTORS;
 
     /**
+     * Prefer overriding {@code hedera.nodeTransaction.maxBytes} instead.
+     */
+    @Deprecated(since = "0.61")
+    public static final String MAX_SIGNED_TXN_SIZE_PROPERTY = "executor.maxSignedTxnSize";
+
+    /**
      * A strategy to bind and retrieve {@link OperationTracer} scoped to a thread.
      */
     public interface TracerBinding extends Supplier<List<OperationTracer>> {

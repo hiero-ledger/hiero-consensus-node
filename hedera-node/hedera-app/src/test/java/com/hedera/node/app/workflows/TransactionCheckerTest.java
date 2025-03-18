@@ -345,7 +345,7 @@ final class TransactionCheckerTest extends AppTestBase {
                     .maxTxnSize();
 
             // assert that passing more than maxJumboTxnSize will fail
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxJumboTxnSize + 1)))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxJumboTxnSize + 1), maxBytes))
                     .isInstanceOf(PreCheckException.class)
                     .is(responseCode(TRANSACTION_OVERSIZE));
         }
@@ -363,7 +363,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
             // assert that even if we are sending a transaction with more than 6KB,
             // it will not fail with TRANSACTION_OVERSIZE
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1)))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), maxBytes))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
         }

@@ -112,7 +112,6 @@ public class TransactionChecker {
             @NonNull final ConfigProvider configProvider,
             @NonNull final Metrics metrics) {
         this.nodeAccount = requireNonNull(nodeAccount);
-        requireNonNull(configProvider);
         this.deprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_DEPRECATED_TXNS_NAME)
                 .withDescription(COUNTER_RECEIVED_DEPRECATED_DESC));
         this.superDeprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_SUPER_DEPRECATED_TXNS_NAME)
@@ -131,22 +130,14 @@ public class TransactionChecker {
      * @throws PreCheckException If parsing fails or any of the checks fail.
      */
     @NonNull
-    public TransactionInfo parseAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
-        validateTheBufferSize(buffer.length());
-        final var tx = parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
-        return check(tx, buffer);
-    }
-
-    private void validateTheBufferSize(long bufferSize) throws PreCheckException {
-        final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
-        final var jumboMaxTxnSize = jumboTransactionsConfig.maxTxnSize();
-        final var transactionMaxBytes = hederaConfig.transactionMaxBytes();
-
+    public TransactionInfo parseAndCheck(@NonNull final Bytes buffer, long maxBytes) throws PreCheckException {
         // Fail fast if there are too many transaction bytes
-        final var maxSize = jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
-        if (bufferSize > maxSize) {
+        if (buffer.length() > maxBytes) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
+
+        final var tx = parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
+        return check(tx, buffer);
     }
 
     /**
