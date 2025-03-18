@@ -27,8 +27,7 @@ public class BlockAcknowledgementsTracker {
      * @param deleteFilesOnDisk whether to delete files on disk
      */
     public BlockAcknowledgementsTracker(
-            @NonNull BlockStreamStateManager blockStreamStateManager,
-            boolean deleteFilesOnDisk) {
+            @NonNull BlockStreamStateManager blockStreamStateManager, boolean deleteFilesOnDisk) {
         this.blockStreamStateManager = requireNonNull(blockStreamStateManager);
         this.blockAcknowledgements = new ConcurrentHashMap<>();
         this.deleteFilesOnDisk = deleteFilesOnDisk;

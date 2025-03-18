@@ -25,16 +25,14 @@ class BlockAcknowledgementsTrackerTest {
 
     @Test
     void testAcknowledgementTrackerCreation() {
-        blockAcknowledgementsTracker =
-                new BlockAcknowledgementsTracker(blockStreamStateManager, false);
+        blockAcknowledgementsTracker = new BlockAcknowledgementsTracker(blockStreamStateManager, false);
         // then
         assertThat(blockAcknowledgementsTracker.getLastVerifiedBlock()).isEqualTo(-1L);
     }
 
     @Test
     void testAcknowledgementForSingleNode() {
-        blockAcknowledgementsTracker =
-                new BlockAcknowledgementsTracker(blockStreamStateManager, false);
+        blockAcknowledgementsTracker = new BlockAcknowledgementsTracker(blockStreamStateManager, false);
 
         // when
         blockAcknowledgementsTracker.trackBlockAcknowledgements(NODE1, 1L);
@@ -45,8 +43,7 @@ class BlockAcknowledgementsTrackerTest {
 
     @Test
     void testUpdateLastVerifiedBlockWhenNewAckReceived() {
-        blockAcknowledgementsTracker =
-                spy(new BlockAcknowledgementsTracker(blockStreamStateManager, false));
+        blockAcknowledgementsTracker = spy(new BlockAcknowledgementsTracker(blockStreamStateManager, false));
 
         // when
         blockAcknowledgementsTracker.trackBlockAcknowledgements(NODE1, 1L);
@@ -62,8 +59,7 @@ class BlockAcknowledgementsTrackerTest {
 
     @Test
     void testTrackerDoesNotDeleteFilesOnDiskWhenFalse() {
-        blockAcknowledgementsTracker =
-                spy(new BlockAcknowledgementsTracker(blockStreamStateManager, false));
+        blockAcknowledgementsTracker = spy(new BlockAcknowledgementsTracker(blockStreamStateManager, false));
         blockAcknowledgementsTracker.trackBlockAcknowledgements(NODE1, 1L);
         blockAcknowledgementsTracker.trackBlockAcknowledgements(NODE2, 1L);
 
@@ -77,8 +73,7 @@ class BlockAcknowledgementsTrackerTest {
 
     @Test
     void testTrackerDeleteFilesOnDiskWhenTrue() {
-        blockAcknowledgementsTracker =
-                spy(new BlockAcknowledgementsTracker(blockStreamStateManager, true));
+        blockAcknowledgementsTracker = spy(new BlockAcknowledgementsTracker(blockStreamStateManager, true));
         blockAcknowledgementsTracker.trackBlockAcknowledgements(NODE1, 1L);
         blockAcknowledgementsTracker.trackBlockAcknowledgements(NODE2, 1L);
 
@@ -91,8 +86,7 @@ class BlockAcknowledgementsTrackerTest {
 
     @Test
     void shouldTestDifferentBlocksForDifferentNodes() {
-        blockAcknowledgementsTracker =
-                spy(new BlockAcknowledgementsTracker(blockStreamStateManager, true));
+        blockAcknowledgementsTracker = spy(new BlockAcknowledgementsTracker(blockStreamStateManager, true));
 
         // when
         blockAcknowledgementsTracker.trackBlockAcknowledgements(NODE1, 1L);
@@ -111,8 +105,7 @@ class BlockAcknowledgementsTrackerTest {
 
     @Test
     void shouldTriggerCleanupOnlyOnceForSameBlock() {
-        blockAcknowledgementsTracker =
-                spy(new BlockAcknowledgementsTracker(blockStreamStateManager, true));
+        blockAcknowledgementsTracker = spy(new BlockAcknowledgementsTracker(blockStreamStateManager, true));
 
         // when
         blockAcknowledgementsTracker.trackBlockAcknowledgements(NODE1, 1L);
@@ -128,8 +121,7 @@ class BlockAcknowledgementsTrackerTest {
 
     @Test
     void shouldHandleMultipleBlocksSimultaneously() {
-        blockAcknowledgementsTracker =
-                spy(new BlockAcknowledgementsTracker(blockStreamStateManager, true));
+        blockAcknowledgementsTracker = spy(new BlockAcknowledgementsTracker(blockStreamStateManager, true));
 
         // when
         blockAcknowledgementsTracker.trackBlockAcknowledgements(NODE1, 1L);

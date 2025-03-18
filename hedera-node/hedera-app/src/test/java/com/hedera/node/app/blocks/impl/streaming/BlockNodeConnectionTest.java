@@ -59,7 +59,7 @@ class BlockNodeConnectionTest {
 
     @BeforeEach
     public void setUp() {
-        blockAcknowledgementsTracker = new BlockAcknowledgementsTracker(blockStreamStateManager,false);
+        blockAcknowledgementsTracker = new BlockAcknowledgementsTracker(blockStreamStateManager, false);
         blockNodeConnection = new BlockNodeConnection(
                 nodeConfig, grpcServiceClient, blockNodeConnectionManager, blockAcknowledgementsTracker);
     }
