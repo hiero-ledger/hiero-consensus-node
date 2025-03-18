@@ -126,6 +126,7 @@ public class TransactionChecker {
      * Parses and checks the transaction encoded as protobuf in the given buffer.
      *
      * @param buffer The buffer containing the protobuf bytes of the transaction
+     * @param maxBytes The maximum number of bytes that can exist in the transaction
      * @return The parsed {@link TransactionInfo}
      * @throws PreCheckException If parsing fails or any of the checks fail.
      */

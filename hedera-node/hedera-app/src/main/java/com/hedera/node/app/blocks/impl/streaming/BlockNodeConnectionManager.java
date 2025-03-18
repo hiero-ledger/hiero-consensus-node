@@ -26,22 +26,30 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * Manages connections to block nodes, connection lifecycle and node selection.
+ * It is also responsible for retrying with exponential backoff if a connection fails.
  */
 public class BlockNodeConnectionManager {
+    public static final Duration INITIAL_RETRY_DELAY = Duration.ofSeconds(1);
     private static final Logger logger = LogManager.getLogger(BlockNodeConnectionManager.class);
     private static final String GRPC_END_POINT =
             BlockStreamServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
+    private static final long RETRY_BACKOFF_MULTIPLIER = 2;
+
+    // Add a random number generator for jitter
+    private final Random random = new Random();
 
     private final Map<BlockNodeConfig, BlockNodeConnection> activeConnections;
     private BlockNodeConfigExtractor blockNodeConfigurations;
@@ -49,6 +57,7 @@ public class BlockNodeConnectionManager {
     private final Object connectionLock = new Object();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService streamingExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService retryExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
     /**
      * Creates a new BlockNodeConnectionManager with the given configuration from disk.
@@ -102,6 +111,7 @@ public class BlockNodeConnectionManager {
                     .build());
 
             BlockNodeConnection connection = new BlockNodeConnection(node, grpcServiceClient, this);
+            connection.establishStream();
             synchronized (connectionLock) {
                 activeConnections.put(node, connection);
             }
@@ -206,11 +216,53 @@ public class BlockNodeConnectionManager {
         }
     }
 
+    public void scheduleReconnect(@NonNull final BlockNodeConnection connection) {
+        requireNonNull(connection);
+
+        retryExecutor.execute(() -> {
+            try {
+                retry(connection::establishStream, INITIAL_RETRY_DELAY);
+                activeConnections.put(connection.getNodeConfig(), connection);
+            } catch (Exception e) {
+                final var node = connection.getNodeConfig();
+                logger.error("Failed to re-establish stream to block node {}:{}: {}", node.address(), node.port(), e);
+            }
+        });
+    }
+
+    /**
+     * Retries the given action with exponential backoff.
+     *
+     * @param action the action to retry
+     * @param initialDelay the initial delay before the first retry
+     * @param <T> the return type of the action
+     */
+    public <T> void retry(@NonNull final Supplier<T> action, @NonNull final Duration initialDelay) {
+        requireNonNull(action);
+        requireNonNull(initialDelay);
+
+        Duration delay = initialDelay;
+
+        while (true) {
+            try {
+                // Apply jitter: use a random value between 50-100% of the calculated delay
+                final long jitteredDelayMs = delay.toMillis() / 2 + random.nextLong(delay.toMillis() / 2 + 1);
+                logger.info("Retrying in {} ms", jitteredDelayMs);
+                Thread.sleep(jitteredDelayMs);
+                action.get();
+                return;
+            } catch (Exception e) {
+                delay = delay.multipliedBy(RETRY_BACKOFF_MULTIPLIER);
+            }
+        }
+    }
+
     /**
      * Shuts down the connection manager, closing all active connections.
      */
     public void shutdown() {
         scheduler.shutdown();
+        retryExecutor.shutdown();
         try {
             boolean awaitTermination = streamingExecutor.awaitTermination(10, TimeUnit.SECONDS);
             if (!awaitTermination) {

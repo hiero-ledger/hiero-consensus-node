@@ -187,7 +187,8 @@ public class SwirldsPlatform implements Platform {
         // This method is a no-op if we are not in birth round mode, or if we have already migrated.
         final SoftwareVersion appVersion = blocks.appVersion();
         PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
-        modifyStateForBirthRoundMigration(initialState, ancientMode, appVersion, platformStateFacade);
+        modifyStateForBirthRoundMigration(
+                initialState, ancientMode, appVersion.getPbjSemanticVersion(), platformStateFacade);
 
         selfId = blocks.selfId();
 

@@ -42,6 +42,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 
@@ -220,11 +221,20 @@ public enum TransactionExecutors {
 
     private ExecutorComponent newExecutorComponent(
             @NonNull final State state,
-            @NonNull final Map<String, String> properties,
+            @NonNull Map<String, String> properties,
             @NonNull final TracerBinding tracerBinding,
             @NonNull final Set<Operation> customOps,
             @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
+        // Translate legacy executor property name to hedera.nodeTransaction.maxBytes, which
+        // now controls the effective max size of a signed transaction after ingest
+        if (properties.containsKey(MAX_SIGNED_TXN_SIZE_PROPERTY)) {
+            properties = properties.entrySet().stream()
+                    .map(e -> MAX_SIGNED_TXN_SIZE_PROPERTY.equals(e.getKey())
+                            ? Map.entry("hedera.nodeTransaction.maxBytes", e.getValue())
+                            : e)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        }
         final var bootstrapConfigProvider = new BootstrapConfigProviderImpl();
         final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
         final var configProvider = new ConfigProviderImpl(false, null, properties);
@@ -254,8 +264,8 @@ public enum TransactionExecutors {
                 appContext, NO_OP_METRICS, NOOP_VERIFICATION_STRATEGIES, tracerBinding, customOps);
         final var fileService = new FileServiceImpl();
         final var scheduleService = new ScheduleServiceImpl(appContext);
-        final var hintsService = new HintsServiceImpl(
-                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl(), bootstrapConfig);
+        final var hintsService =
+                new HintsServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl());
         final var historyService = new HistoryServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig);
         final var component = DaggerExecutorComponent.builder()
