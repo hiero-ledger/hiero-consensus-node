@@ -153,12 +153,12 @@ jobs:
           release_branch="release/${major_minor_version}"
 
           # Check if this is a major version bump
-          if [[ "${next_major_version}" -eq "$((current_major_version + 1))" ]]; then
+          if [[ "${next_major_version}" -gt "${current_major_version}" ]]; then
             echo "Major version bump detected (${current_version} -> ${next_version})."
             CREATE_RELEASE_BRANCH=true
 
           # Check if this is a minor version bump
-          elif [[ "${next_major_version}" -eq "${current_major_version}" && "${next_minor_version}" -eq "$((current_minor_version + 1))" ]]; then
+          elif [[ "${next_major_version}" -eq "${current_major_version}" && "${next_minor_version}" -gt "${current_minor_version}" ]]; then
             echo "Minor version bump detected (${current_version} -> ${next_version})."
             CREATE_RELEASE_BRANCH=true
 
