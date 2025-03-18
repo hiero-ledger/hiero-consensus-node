@@ -7,6 +7,7 @@ import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
+import static com.hedera.node.app.workflows.standalone.TransactionExecutors.MAX_SIGNED_TXN_SIZE_PROPERTY;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
@@ -257,8 +258,8 @@ public class TransactionExecutorsTest {
     }
 
     @Test
-    void respectsOverrideTransactionMaxBytes() {
-        final var overrides = Map.of("hedera.transaction.maxBytes", "42");
+    void respectsOverrideMaxSignedTxnSize() {
+        final var overrides = Map.of(MAX_SIGNED_TXN_SIZE_PROPERTY, "42");
         // Construct a full implementation of the consensus node State API with all genesis accounts and files
         final var state = genesisState(overrides);
 
