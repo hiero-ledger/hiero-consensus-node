@@ -132,9 +132,8 @@ jobs:
           echo "Next release version is: ${OUTPUT}"
 
       - name: Calculate and Create Release Branch
-#        TODO: Uncomment before merging
-#        env:
-#          ALPHA_FLAG: ${{ inputs.alpha-release }}
+        env:
+          ALPHA_FLAG: ${{ inputs.alpha-release }}
         run: |
           # Get current version information
           current_version="$(git-semver latest)"
@@ -154,12 +153,12 @@ jobs:
           release_branch="release/${major_minor_version}"
 
           # Check if this is a major version bump
-          if [[ "$next_major_version" -eq "$((current_major_version + 1))" && "$next_minor_version" -eq 0 ]]; then
+          if [[ "${next_major_version}" -eq "$((current_major_version + 1))" ]]; then
             echo "Major version bump detected (${current_version} -> ${next_version})."
             CREATE_RELEASE_BRANCH=true
 
           # Check if this is a minor version bump
-          elif [[ "$next_major_version" -eq "$current_major_version" && "$next_minor_version" -eq "$((current_minor_version + 1))" ]]; then
+          elif [[ "${next_major_version}" -eq "${current_major_version}" && "${next_minor_version}" -eq "$((current_minor_version + 1))" ]]; then
             echo "Minor version bump detected (${current_version} -> ${next_version})."
             CREATE_RELEASE_BRANCH=true
 
@@ -168,10 +167,9 @@ jobs:
             echo "No major or minor version bump detected. Skipping release branch creation."
           fi
           
-#          TODO: Uncomment before merging
-#          if [[ "${ALPHA_FLAG}" == "true" ]]; then
-#            CREATE_RELEASE_BRANCH=false
-#          fi
+          if [[ "${ALPHA_FLAG}" == "true" ]]; then
+            CREATE_RELEASE_BRANCH=false
+          fi
           
           # Create and push the release branch if CREATE_RELEASE_BRANCH is true
           if [[ "${CREATE_RELEASE_BRANCH}" == 'true' ]]; then
