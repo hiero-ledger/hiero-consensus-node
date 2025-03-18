@@ -165,14 +165,18 @@ jobs:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           body_path: "RELEASE.md"
 
-      - name: Clean Up git-semver and Release Notes
+      - name: Clean Up Release Notes
+        if: ${{ inputs.alpha-release != true }}  # Skip step if alpha-release is true
+        run: |
+          echo "Removing the release notes file RELEASE.md"
+          rm RELEASE.md
+          echo "Successfully removed the release notes file RELEASE.md"
+
+      - name: Clean Up git-semver
         run: |
           echo "Deleting git-semver directory"
           rm -rf ./git-semver
           echo "Successfully removed git-semver directory"
-          echo "Removing the release notes file RELEASE.md"
-          rm RELEASE.md
-          echo "Successfully removed the release notes file RELEASE.md"
 
       - name: View Status After Running Semantic Release
         run: git status
