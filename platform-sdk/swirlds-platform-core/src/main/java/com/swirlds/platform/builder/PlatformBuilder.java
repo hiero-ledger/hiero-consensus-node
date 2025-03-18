@@ -14,9 +14,11 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.concurrent.ExecutorFactory;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Signature;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.component.framework.WiringConfig;
@@ -456,7 +458,7 @@ public final class PlatformBuilder {
                     platformContext.getExecutorFactory().createForkJoinPool(parallelism);
             logger.info(STARTUP.getMarker(), "Default platform pool parallelism: {}", parallelism);
 
-            model = WiringModelBuilder.create(platformContext)
+            model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                     .withJvmAnchorEnabled(true)
                     .withDefaultPool(defaultPool)
                     .withHealthMonitorEnabled(wiringConfig.healthMonitorEnabled())

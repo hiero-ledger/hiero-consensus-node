@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.model.diagram.ModelEdgeSubstitution;
@@ -41,7 +43,8 @@ public final class DiagramLegendCommand extends AbstractCommand {
 
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskScheduler<Integer> sequentialScheduler = model.<Integer>schedulerBuilder("SequentialScheduler")
                 .withType(TaskSchedulerType.SEQUENTIAL)

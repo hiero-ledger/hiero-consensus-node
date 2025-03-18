@@ -22,6 +22,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.Socket;
 import java.time.Duration;
+import java.util.List;
 import java.util.Objects;
 import javax.net.ssl.SSLSocket;
 import org.apache.logging.log4j.LogManager;
@@ -48,7 +49,7 @@ public class InboundConnectionHandler {
      *
      * @param platformContext       the platform context
      * @param connectionTracker     connection tracker for all platform connections
-     * @param networkPeerIdentifier network peer identifier for new connections
+     * @param peers                 the list of peers
      * @param selfId                self's node id
      * @param newConnectionConsumer new connection consumer
      * @param time                  platform time
@@ -56,7 +57,7 @@ public class InboundConnectionHandler {
     public InboundConnectionHandler(
             @NonNull final PlatformContext platformContext,
             @NonNull final ConnectionTracker connectionTracker,
-            @NonNull final NetworkPeerIdentifier networkPeerIdentifier,
+            @NonNull final List<PeerInfo> peers,
             @NonNull final NodeId selfId,
             @NonNull final InterruptableConsumer<Connection> newConnectionConsumer,
             @NonNull final Time time) {
@@ -67,7 +68,7 @@ public class InboundConnectionHandler {
         this.time = Objects.requireNonNull(time);
         this.socketExceptionLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         this.socketConfig = platformContext.getConfiguration().getConfigData(SocketConfig.class);
-        this.networkPeerIdentifier = networkPeerIdentifier;
+        this.networkPeerIdentifier = new NetworkPeerIdentifier(platformContext, Objects.requireNonNull(peers));
     }
 
     /**
@@ -136,5 +137,21 @@ public class InboundConnectionHandler {
                     e);
             NetworkUtils.close(clientSocket);
         }
+    }
+
+    /**
+     * Creates a copy of handler with a set of new peers applied internally, everything else is copied directly
+     *
+     * @param newPeers list of new peers to accept
+     * @return copy of curren handler with new set of peers
+     */
+    public InboundConnectionHandler withNewPeers(@NonNull final List<PeerInfo> newPeers) {
+        return new InboundConnectionHandler(
+                this.platformContext,
+                this.connectionTracker,
+                newPeers,
+                this.selfId,
+                this.newConnectionConsumer,
+                this.time);
     }
 }
