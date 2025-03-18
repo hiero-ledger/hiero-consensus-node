@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.rejecttokens;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,11 +23,9 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.rejecttokens.RejectTokensDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.rejecttokens.RejectTokensTranslator;
-import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
-import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -71,7 +68,7 @@ public class RejectTokensTranslatorTest extends CallAttemptTestBase {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(true);
         // when:
-        attempt = createHtsCallAttempt(Bytes.wrap(BurnTranslator.BURN_TOKEN_V1.selector()), configuration, subject);
+        attempt = createHtsCallAttempt(BurnTranslator.BURN_TOKEN_V1, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
@@ -80,8 +77,7 @@ public class RejectTokensTranslatorTest extends CallAttemptTestBase {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(true);
         // when:
-        attempt = createHtsCallAttempt(
-                Bytes.wrap(RejectTokensTranslator.TOKEN_REJECT.selector()), configuration, subject);
+        attempt = createHtsCallAttempt(RejectTokensTranslator.TOKEN_REJECT, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -90,8 +86,7 @@ public class RejectTokensTranslatorTest extends CallAttemptTestBase {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(false);
         // when:
-        attempt = createHtsCallAttempt(
-                Bytes.wrap(RejectTokensTranslator.TOKEN_REJECT.selector()), configuration, subject);
+        attempt = createHtsCallAttempt(RejectTokensTranslator.TOKEN_REJECT, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
@@ -101,9 +96,8 @@ public class RejectTokensTranslatorTest extends CallAttemptTestBase {
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(true);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
-        attempt = createHtsCallAttempt(
-                TestHelpers.bytesForRedirect(
-                        RejectTokensTranslator.HRC_TOKEN_REJECT_FT.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS),
+        attempt = createHtsCallAttemptForRedirect(
+                        RejectTokensTranslator.HRC_TOKEN_REJECT_FT,
                 configuration,
                 subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
@@ -115,9 +109,8 @@ public class RejectTokensTranslatorTest extends CallAttemptTestBase {
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(false);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
-        attempt = createHtsCallAttempt(
-                TestHelpers.bytesForRedirect(
-                        RejectTokensTranslator.HRC_TOKEN_REJECT_FT.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS),
+        attempt = createHtsCallAttemptForRedirect(
+                        RejectTokensTranslator.HRC_TOKEN_REJECT_FT,
                 configuration,
                 subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
@@ -129,9 +122,7 @@ public class RejectTokensTranslatorTest extends CallAttemptTestBase {
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(true);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         // when:
-        attempt = createHtsCallAttempt(
-                TestHelpers.bytesForRedirect(
-                        RejectTokensTranslator.HRC_TOKEN_REJECT_NFT.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS),
+        attempt = createHtsCallAttemptForRedirect(RejectTokensTranslator.HRC_TOKEN_REJECT_NFT,
                 configuration,
                 subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
@@ -142,8 +133,7 @@ public class RejectTokensTranslatorTest extends CallAttemptTestBase {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractRejectTokensEnabled()).willReturn(false);
         // when:
-        attempt = createHtsCallAttempt(
-                Bytes.wrap(RejectTokensTranslator.HRC_TOKEN_REJECT_NFT.selector()), configuration, subject);
+        attempt = createHtsCallAttempt(RejectTokensTranslator.HRC_TOKEN_REJECT_NFT, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
@@ -196,8 +186,7 @@ public class RejectTokensTranslatorTest extends CallAttemptTestBase {
         given(verificationStrategies.activatingOnlyContractKeysFor(any(), anyBoolean(), any()))
                 .willReturn(verificationStrategy);
         // when:
-        attempt = createHtsCallAttempt(
-                Bytes.wrap(RejectTokensTranslator.TOKEN_REJECT.selector()), configuration, subject);
+        attempt = createHtsCallAttempt(RejectTokensTranslator.TOKEN_REJECT, configuration, subject);
         var call = subject.callFrom(attempt);
         // then:
         assertEquals(DispatchForResponseCodeHtsCall.class, call.getClass());
@@ -211,8 +200,7 @@ public class RejectTokensTranslatorTest extends CallAttemptTestBase {
         given(verificationStrategies.activatingOnlyContractKeysFor(any(), anyBoolean(), any()))
                 .willReturn(verificationStrategy);
         // when:
-        attempt = createHtsCallAttempt(
-                Bytes.wrap(RejectTokensTranslator.HRC_TOKEN_REJECT_FT.selector()), configuration, subject);
+        attempt = createHtsCallAttempt(RejectTokensTranslator.HRC_TOKEN_REJECT_FT, configuration, subject);
         var call = subject.callFrom(attempt);
         // then:
         assertEquals(DispatchForResponseCodeHtsCall.class, call.getClass());
@@ -226,8 +214,7 @@ public class RejectTokensTranslatorTest extends CallAttemptTestBase {
         given(verificationStrategies.activatingOnlyContractKeysFor(any(), anyBoolean(), any()))
                 .willReturn(verificationStrategy);
         // when:
-        attempt = createHtsCallAttempt(
-                Bytes.wrap(RejectTokensTranslator.HRC_TOKEN_REJECT_NFT.selector()), configuration, subject);
+        attempt = createHtsCallAttempt(RejectTokensTranslator.HRC_TOKEN_REJECT_NFT, configuration, subject);
         var call = subject.callFrom(attempt);
         // then:
         assertEquals(DispatchForResponseCodeHtsCall.class, call.getClass());

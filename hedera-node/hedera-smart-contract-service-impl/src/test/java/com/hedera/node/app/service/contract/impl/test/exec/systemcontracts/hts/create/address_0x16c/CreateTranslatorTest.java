@@ -14,7 +14,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
-import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -38,7 +37,7 @@ class CreateTranslatorTest extends CallAttemptTestBase {
     @Test
     void matchesCreateFungibleTokenWithMetadata() {
         attempt = createHtsCallAttempt(
-                HTS_16C_CONTRACT_ID, Bytes.wrap(CREATE_FUNGIBLE_TOKEN_WITH_METADATA.selector()), subject);
+                HTS_16C_CONTRACT_ID, CREATE_FUNGIBLE_TOKEN_WITH_METADATA, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -46,7 +45,7 @@ class CreateTranslatorTest extends CallAttemptTestBase {
     void matchesCreateFungibleTokenWithMetadataAndCustomFees() {
         attempt = createHtsCallAttempt(
                 HTS_16C_CONTRACT_ID,
-                Bytes.wrap(CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES.selector()),
+                CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES,
                 subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
@@ -54,7 +53,7 @@ class CreateTranslatorTest extends CallAttemptTestBase {
     @Test
     void matchesCreateNonFungibleTokenWithMetadata() {
         attempt = createHtsCallAttempt(
-                HTS_16C_CONTRACT_ID, Bytes.wrap(CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA.selector()), subject);
+                HTS_16C_CONTRACT_ID, CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -62,14 +61,14 @@ class CreateTranslatorTest extends CallAttemptTestBase {
     void matchesCreateNonFungibleTokenWithMetadataAndCustomFees() {
         attempt = createHtsCallAttempt(
                 HTS_16C_CONTRACT_ID,
-                Bytes.wrap(CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES.selector()),
+                CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES,
                 subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void falseOnInvalidSelector16c() {
-        attempt = createHtsCallAttempt(HTS_16C_CONTRACT_ID, Bytes.wrap(BURN_TOKEN_V2.selector()), subject);
+        attempt = createHtsCallAttempt(HTS_16C_CONTRACT_ID, BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 }

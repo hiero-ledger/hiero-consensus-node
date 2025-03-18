@@ -21,6 +21,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
+import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -75,6 +76,54 @@ public class CallAttemptTestBase extends CallTestBase {
     }
 
     protected HtsCallAttempt createHtsCallAttempt(
+            @NonNull final ContractID contractID,
+            @NonNull final SystemContractMethod method,
+            @NonNull final CallTranslator<HtsCallAttempt> translator) {
+        return createHtsCallAttempt(
+                contractID, Bytes.wrap(method.selector()), OWNER_BESU_ADDRESS, OWNER_BESU_ADDRESS, false, DEFAULT_CONFIG, List.of(translator));
+    }
+
+    protected HtsCallAttempt createHtsCallAttempt(
+            @NonNull final SystemContractMethod method,
+            @NonNull final Configuration configuration,
+            @NonNull final CallTranslator<HtsCallAttempt> translator) {
+        return createHtsCallAttempt(
+                HTS_167_CONTRACT_ID,
+                Bytes.wrap(method.selector()),
+                OWNER_BESU_ADDRESS,
+                OWNER_BESU_ADDRESS,
+                false,
+                configuration,
+                List.of(translator));
+    }
+
+    protected HtsCallAttempt createHtsCallAttemptForRedirect(
+            @NonNull final SystemContractMethod method,
+            @NonNull final Configuration configuration,
+            @NonNull final CallTranslator<HtsCallAttempt> translator) {
+        return createHtsCallAttempt(
+                HTS_167_CONTRACT_ID,
+                TestHelpers.bytesForRedirect(method.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS),
+                OWNER_BESU_ADDRESS,
+                OWNER_BESU_ADDRESS,
+                false,
+                configuration,
+                List.of(translator));
+    }
+
+    protected HtsCallAttempt createHtsCallAttempt(
+            @NonNull final String method, @NonNull final List<CallTranslator<HtsCallAttempt>> callTranslators) {
+        return createHtsCallAttempt(
+                HTS_167_CONTRACT_ID,
+                Bytes.wrap(CommonUtils.unhex(method)),
+                EIP_1014_ADDRESS,
+                NON_SYSTEM_LONG_ZERO_ADDRESS,
+                true,
+                DEFAULT_CONFIG,
+                callTranslators);
+    }
+
+    protected HtsCallAttempt createHtsCallAttempt(
             @NonNull final Bytes input,
             final boolean onlyDelegatableContractKeysActive,
             @NonNull final List<CallTranslator<HtsCallAttempt>> callTranslators) {
@@ -84,40 +133,6 @@ public class CallAttemptTestBase extends CallTestBase {
                 OWNER_BESU_ADDRESS,
                 OWNER_BESU_ADDRESS,
                 onlyDelegatableContractKeysActive,
-                DEFAULT_CONFIG,
-                callTranslators);
-    }
-
-    protected HtsCallAttempt createHtsCallAttempt(
-            @NonNull final ContractID contractID,
-            @NonNull final Bytes input,
-            @NonNull final CallTranslator<HtsCallAttempt> translator) {
-        return createHtsCallAttempt(
-                contractID, input, OWNER_BESU_ADDRESS, OWNER_BESU_ADDRESS, false, DEFAULT_CONFIG, List.of(translator));
-    }
-
-    protected HtsCallAttempt createHtsCallAttempt(
-            @NonNull final Bytes input,
-            @NonNull final Configuration configuration,
-            @NonNull final CallTranslator<HtsCallAttempt> translator) {
-        return createHtsCallAttempt(
-                HTS_167_CONTRACT_ID,
-                input,
-                OWNER_BESU_ADDRESS,
-                OWNER_BESU_ADDRESS,
-                false,
-                configuration,
-                List.of(translator));
-    }
-
-    protected HtsCallAttempt createHtsCallAttempt(
-            @NonNull final Bytes input, @NonNull final List<CallTranslator<HtsCallAttempt>> callTranslators) {
-        return createHtsCallAttempt(
-                HTS_167_CONTRACT_ID,
-                input,
-                EIP_1014_ADDRESS,
-                NON_SYSTEM_LONG_ZERO_ADDRESS,
-                true,
                 DEFAULT_CONFIG,
                 callTranslators);
     }

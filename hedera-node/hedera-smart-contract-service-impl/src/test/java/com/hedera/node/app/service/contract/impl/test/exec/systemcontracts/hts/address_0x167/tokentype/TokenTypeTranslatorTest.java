@@ -65,7 +65,7 @@ class TokenTypeTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void validateNonMatchingContractIDTest() {
-        attempt = createHtsCallAttempt(HTS_16C_CONTRACT_ID, Bytes.wrap(TOKEN_TYPE.selector()), subject);
+        attempt = createHtsCallAttempt(HTS_16C_CONTRACT_ID, TOKEN_TYPE, subject);
         assertThat(attempt.isMethod(TOKEN_TYPE)).isNotPresent();
     }
 }

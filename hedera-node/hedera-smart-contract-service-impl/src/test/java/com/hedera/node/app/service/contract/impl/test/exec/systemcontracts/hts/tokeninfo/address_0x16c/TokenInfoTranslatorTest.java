@@ -39,7 +39,7 @@ class TokenInfoTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesTokenInfoTranslatorTest() {
-        attempt = createHtsCallAttempt(HTS_16C_CONTRACT_ID, Bytes.wrap(TOKEN_INFO_16C.selector()), subject);
+        attempt = createHtsCallAttempt(HTS_16C_CONTRACT_ID, TOKEN_INFO_16C, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 

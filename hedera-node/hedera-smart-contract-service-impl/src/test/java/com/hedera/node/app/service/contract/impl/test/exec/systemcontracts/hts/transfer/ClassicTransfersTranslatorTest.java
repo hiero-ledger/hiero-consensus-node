@@ -18,10 +18,8 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transf
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
-import com.swirlds.common.utility.CommonUtils;
 import java.lang.reflect.Field;
 import java.util.List;
-import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -62,7 +60,7 @@ class ClassicTransfersTranslatorTest extends CallAttemptTestBase {
         subject =
                 new ClassicTransfersTranslator(classicTransfersDecoder, systemContractMethodRegistry, contractMetrics);
         final var call = subject.callFrom(
-                createHtsCallAttempt(Bytes.wrap(CommonUtils.unhex(ABI_ID_TRANSFER_TOKEN)), callTranslators));
+                createHtsCallAttempt(ABI_ID_TRANSFER_TOKEN, callTranslators));
         Field senderIdField = ClassicTransfersCall.class.getDeclaredField("senderId");
         senderIdField.setAccessible(true);
         AccountID senderID = (AccountID) senderIdField.get(call);
@@ -80,7 +78,7 @@ class ClassicTransfersTranslatorTest extends CallAttemptTestBase {
         subject =
                 new ClassicTransfersTranslator(classicTransfersDecoder, systemContractMethodRegistry, contractMetrics);
         final var call = subject.callFrom(
-                createHtsCallAttempt(Bytes.wrap(CommonUtils.unhex(ABI_ID_CRYPTO_TRANSFER_V2)), callTranslators));
+                createHtsCallAttempt(ABI_ID_CRYPTO_TRANSFER_V2, callTranslators));
         Field senderIdField = ClassicTransfersCall.class.getDeclaredField("senderId");
         senderIdField.setAccessible(true);
         AccountID senderID = (AccountID) senderIdField.get(call);

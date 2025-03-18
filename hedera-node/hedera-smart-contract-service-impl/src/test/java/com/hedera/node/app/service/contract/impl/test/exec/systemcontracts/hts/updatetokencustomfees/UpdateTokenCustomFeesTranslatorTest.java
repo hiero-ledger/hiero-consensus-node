@@ -66,8 +66,7 @@ class UpdateTokenCustomFeesTranslatorTest extends CallAttemptTestBase {
     void matchesIsTrueWhenSelectorForFungibleIsCorrect() {
         // given:
         setConfiguration(true);
-        attempt = createHtsCallAttempt(
-                Bytes.wrap(UPDATE_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION.selector()), configuration, subject);
+        attempt = createHtsCallAttempt(UPDATE_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -76,8 +75,7 @@ class UpdateTokenCustomFeesTranslatorTest extends CallAttemptTestBase {
         // given:
         setConfiguration(true);
         // when:
-        attempt = createHtsCallAttempt(
-                Bytes.wrap(UPDATE_NON_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION.selector()), configuration, subject);
+        attempt = createHtsCallAttempt(UPDATE_NON_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -94,7 +92,7 @@ class UpdateTokenCustomFeesTranslatorTest extends CallAttemptTestBase {
         // given:
         setConfiguration(true);
         // when:
-        attempt = createHtsCallAttempt(Bytes.wrap(BURN_TOKEN_V2.selector()), configuration, subject);
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

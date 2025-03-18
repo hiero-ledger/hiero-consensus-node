@@ -25,7 +25,6 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -65,13 +64,13 @@ class TokenAirdropTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesWhenAirdropEnabled() {
-        attempt = createHtsCallAttempt(Bytes.wrap(TOKEN_AIRDROP.selector()), getTestConfiguration(true), subject);
+        attempt = createHtsCallAttempt(TOKEN_AIRDROP, getTestConfiguration(true), subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void doesNotMatchWhenAirdropDisabled() {
-        attempt = createHtsCallAttempt(Bytes.wrap(TOKEN_AIRDROP.selector()), getTestConfiguration(false), subject);
+        attempt = createHtsCallAttempt(TOKEN_AIRDROP, getTestConfiguration(false), subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
@@ -79,7 +78,7 @@ class TokenAirdropTranslatorTest extends CallAttemptTestBase {
     void matchesFailsForRandomSelector() {
         when(configuration.getConfigData(ContractsConfig.class)).thenReturn(contractsConfig);
         when(contractsConfig.systemContractAirdropTokensEnabled()).thenReturn(true);
-        attempt = createHtsCallAttempt(Bytes.wrap(MintTranslator.MINT.selector()), configuration, subject);
+        attempt = createHtsCallAttempt(MintTranslator.MINT, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
