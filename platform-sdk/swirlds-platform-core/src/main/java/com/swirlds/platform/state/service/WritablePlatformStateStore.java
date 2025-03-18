@@ -70,10 +70,10 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      * {@inheritDoc}
      */
     @Override
-    public void setCreationSoftwareVersion(@NonNull final SoftwareVersion creationVersion) {
+    public void setCreationSoftwareVersion(@NonNull final SemanticVersion creationVersion) {
         requireNonNull(creationVersion);
         final var previousState = stateOrThrow();
-        update(previousState.copyBuilder().creationSoftwareVersion(creationVersion.getPbjSemanticVersion()));
+        update(previousState.copyBuilder().creationSoftwareVersion(creationVersion));
     }
 
     /**
@@ -158,12 +158,12 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      * {@inheritDoc}
      */
     @Override
-    public void setFirstVersionInBirthRoundMode(@NonNull final SoftwareVersion firstVersionInBirthRoundMode) {
+    public void setFirstVersionInBirthRoundMode(@NonNull final SemanticVersion firstVersionInBirthRoundMode) {
         requireNonNull(firstVersionInBirthRoundMode);
         final var previousState = stateOrThrow();
         update(previousState
                 .copyBuilder()
-                .firstVersionInBirthRoundMode(firstVersionInBirthRoundMode.getPbjSemanticVersion())
+                .firstVersionInBirthRoundMode(firstVersionInBirthRoundMode)
                 .build());
     }
 

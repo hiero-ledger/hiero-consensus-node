@@ -8,10 +8,10 @@ import static org.mockito.Mockito.verify;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.crypto.Hash;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.stream.MultiStream;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -42,9 +42,8 @@ class ConsensusEventStreamTest {
             verify(multiStreamMock, never()).close();
         }
 
-        final WiringModel model = WiringModelBuilder.create(
-                        TestPlatformContextBuilder.create().build())
-                .build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
         final ComponentWiring<ConsensusEventStream, Void> wiring = new ComponentWiring<>(
                 model,
                 ConsensusEventStream.class,
@@ -70,9 +69,8 @@ class ConsensusEventStreamTest {
         final Random random = RandomUtils.getRandomPrintSeed();
         final Hash runningHash = randomHash(random);
 
-        final WiringModel model = WiringModelBuilder.create(
-                        TestPlatformContextBuilder.create().build())
-                .build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
         final ComponentWiring<ConsensusEventStream, Void> wiring = new ComponentWiring<>(
                 model,
                 ConsensusEventStream.class,

@@ -15,6 +15,8 @@ public record HederaConfig(
         @ConfigProperty(value = "config.version", defaultValue = "0") @NetworkProperty int configVersion,
         @ConfigProperty(value = "transaction.eip2930.enabled", defaultValue = "true") @NetworkProperty
                 boolean eip2930Enabled,
+        @ConfigProperty(value = "nodeTransaction.maxBytes", defaultValue = "2621440") @NetworkProperty
+                int nodeTransactionMaxBytes,
         @ConfigProperty(value = "transaction.maxBytes", defaultValue = "6144") @NetworkProperty int transactionMaxBytes,
         @ConfigProperty(value = "transaction.maxMemoUtf8Bytes", defaultValue = "100") @NetworkProperty
                 int transactionMaxMemoUtf8Bytes,
