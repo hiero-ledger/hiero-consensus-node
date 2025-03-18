@@ -10,7 +10,6 @@ import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.hashing.PbjStreamHasher;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import com.swirlds.platform.system.events.UnsignedEvent;
 import com.swirlds.platform.system.transaction.TransactionWrapper;

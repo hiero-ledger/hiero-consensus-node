@@ -68,7 +68,8 @@ class WritablePlatformStateStoreTest {
     @Test
     void verifyCreationSoftwareVersion() {
         final var version = nextInt(1, 100);
-        store.setCreationSoftwareVersion(SemanticVersion.newBuilder().major(version).build());
+        store.setCreationSoftwareVersion(
+                SemanticVersion.newBuilder().major(version).build());
         assertEquals(version, store.getCreationSoftwareVersion().major());
     }
 
@@ -124,7 +125,8 @@ class WritablePlatformStateStoreTest {
     @Test
     void verifyFirstVersionInBirthRoundMode() {
         final var version = nextInt(1, 100);
-        store.setFirstVersionInBirthRoundMode(SemanticVersion.newBuilder().major(version).build());
+        store.setFirstVersionInBirthRoundMode(
+                SemanticVersion.newBuilder().major(version).build());
         assertEquals(version, store.getFirstVersionInBirthRoundMode().major());
     }
 

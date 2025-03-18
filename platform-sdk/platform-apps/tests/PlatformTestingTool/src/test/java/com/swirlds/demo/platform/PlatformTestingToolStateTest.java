@@ -47,7 +47,6 @@ import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
@@ -336,7 +335,8 @@ class PlatformTestingToolStateTest {
         final Platform platform = mock(Platform.class);
         final InitTrigger initTrigger = InitTrigger.GENESIS;
         final PlatformContext platformContext = mock(PlatformContext.class);
-        final SemanticVersion softwareVersion = SemanticVersion.newBuilder().major(1).build();
+        final SemanticVersion softwareVersion =
+                SemanticVersion.newBuilder().major(1).build();
 
         givenPlatform(platform, platformContext, nodeId);
         givenPlatformContextConfig(platformContext, config);

@@ -11,7 +11,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.PbjConverter;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
 import java.util.LinkedList;
@@ -39,7 +38,8 @@ public final class PlatformStateUtils {
             v.setLegacyRunningEventHash(randomHash(random));
             v.setRound(random.nextLong());
             v.setConsensusTimestamp(randomInstant(random));
-            v.setCreationSoftwareVersion(SemanticVersion.newBuilder().major(nextInt(1, 100)).build());
+            v.setCreationSoftwareVersion(
+                    SemanticVersion.newBuilder().major(nextInt(1, 100)).build());
         });
 
         final List<MinimumJudgeInfo> minimumJudgeInfo = new LinkedList<>();

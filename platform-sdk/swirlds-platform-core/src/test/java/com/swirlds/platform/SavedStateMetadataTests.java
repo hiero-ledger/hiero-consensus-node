@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.crypto.Hash;
@@ -34,8 +35,6 @@ import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SavedStateMetadataField;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -91,7 +90,8 @@ class SavedStateMetadataTests {
         final Instant timestamp = RandomUtils.randomInstant(random);
         final Hash legacyRunningEventHash = randomHash(random);
         final long minimumGenerationNonAncient = random.nextLong();
-        final SoftwareVersion softwareVersion = new BasicSoftwareVersion(random.nextInt());
+        final SemanticVersion softwareVersion =
+                SemanticVersion.newBuilder().major(random.nextInt()).build();
         final Instant wallClockTime = RandomUtils.randomInstant(random);
         final NodeId nodeId = generateRandomNodeId(random);
         final List<NodeId> signingNodes = new ArrayList<>();
@@ -146,7 +146,8 @@ class SavedStateMetadataTests {
         final Instant timestamp = RandomUtils.randomInstant(random);
         final Hash legacyRunningEventHash = randomHash(random);
         final long minimumGenerationNonAncient = random.nextLong();
-        final SoftwareVersion softwareVersion = new BasicSoftwareVersion(random.nextInt());
+        final SemanticVersion softwareVersion =
+                SemanticVersion.newBuilder().major(random.nextInt()).build();
         final Instant wallClockTime = RandomUtils.randomInstant(random);
         final NodeId nodeId = generateRandomNodeId(random);
         final List<NodeId> signingNodes = new ArrayList<>();
@@ -306,7 +307,8 @@ class SavedStateMetadataTests {
         final Instant timestamp = RandomUtils.randomInstant(random);
         final Hash legacyRunningEventHash = randomHash(random);
         final long minimumGenerationNonAncient = random.nextLong();
-        final SoftwareVersion softwareVersion = new BasicSoftwareVersion(random.nextInt());
+        final SemanticVersion softwareVersion =
+                SemanticVersion.newBuilder().major(random.nextInt()).build();
         final Instant wallClockTime = RandomUtils.randomInstant(random);
         final NodeId nodeId = generateRandomNodeId(random);
         final List<NodeId> signingNodes = new ArrayList<>();
@@ -380,7 +382,7 @@ class SavedStateMetadataTests {
             assertEquals(legacyRunningEventHash.toMnemonic(), deserialized.legacyRunningEventHashMnemonic());
         }
         assertEquals(minimumGenerationNonAncient, deserialized.minimumGenerationNonAncient());
-        assertEquals(softwareVersion.toString(), deserialized.softwareVersion());
+        assertEquals(softwareVersion.toString(), deserialized.softwareVersion().replace("   ", ""));
         assertEquals(wallClockTime, deserialized.wallClockTime());
         assertEquals(nodeId, deserialized.nodeId());
         assertEquals(signingNodes, deserialized.signingNodes());

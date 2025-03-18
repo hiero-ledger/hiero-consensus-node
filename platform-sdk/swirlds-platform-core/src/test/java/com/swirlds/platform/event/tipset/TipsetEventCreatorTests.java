@@ -35,7 +35,6 @@ import com.swirlds.platform.event.creation.tipset.TipsetEventCreator;
 import com.swirlds.platform.event.creation.tipset.TipsetTracker;
 import com.swirlds.platform.event.creation.tipset.TipsetWeightCalculator;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import com.swirlds.platform.system.events.UnsignedEvent;
@@ -93,7 +92,8 @@ class TipsetEventCreatorTests {
         final Signer signer = mock(Signer.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
 
-        final SemanticVersion softwareVersion = SemanticVersion.newBuilder().major(1).build();
+        final SemanticVersion softwareVersion =
+                SemanticVersion.newBuilder().major(1).build();
 
         return new TipsetEventCreator(
                 platformContext, random, signer, roster, nodeId, softwareVersion, transactionSupplier);

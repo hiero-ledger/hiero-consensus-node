@@ -24,7 +24,6 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.system.address.AddressBook;
 import java.security.KeyPair;

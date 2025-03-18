@@ -14,8 +14,6 @@ import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import com.swirlds.platform.system.events.UnsignedEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,7 +31,8 @@ import java.util.stream.Stream;
  */
 public class TestingEventBuilder {
     private static final Instant DEFAULT_TIMESTAMP = Instant.ofEpochMilli(1588771316678L);
-    private static final SemanticVersion DEFAULT_SOFTWARE_VERSION = SemanticVersion.newBuilder().major(1).build();
+    private static final SemanticVersion DEFAULT_SOFTWARE_VERSION =
+            SemanticVersion.newBuilder().major(1).build();
     private static final NodeId DEFAULT_CREATOR_ID = NodeId.of(0);
     private static final int DEFAULT_APP_TRANSACTION_COUNT = 2;
     private static final int DEFAULT_SYSTEM_TRANSACTION_COUNT = 0;
@@ -190,7 +189,8 @@ public class TestingEventBuilder {
      * @return this instance
      */
     public @NonNull TestingEventBuilder setSoftwareVersion(@Nullable final SemanticVersion softwareVersion) {
-        this.softwareVersion = SemanticVersion.newBuilder().major(softwareVersion.major()).build();
+        this.softwareVersion =
+                SemanticVersion.newBuilder().major(softwareVersion.major()).build();
         return this;
     }
 
