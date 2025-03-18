@@ -110,8 +110,8 @@ public class CacheWarmer {
             final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
             final var jumboMaxTxnSize = jumboTransactionsConfig.maxTxnSize();
             final var transactionMaxBytes = hederaConfig.transactionMaxBytes();
-            final var maxSize = jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
-            return checker.parseAndCheck(buffer, maxSize).txBody();
+            final var maxSignedTxnSize = jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
+            return checker.parseAndCheck(buffer, maxSignedTxnSize).txBody();
         } catch (PreCheckException ex) {
             return null;
         }
