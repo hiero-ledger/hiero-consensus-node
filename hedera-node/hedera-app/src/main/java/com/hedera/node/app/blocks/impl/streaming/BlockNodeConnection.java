@@ -10,43 +10,48 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.helidon.webclient.grpc.GrpcServiceClient;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Represents a single connection to a block node. Each connection is responsible for connecting to configured block nodes
+ * Represents a single connection to a block node. Each connection is responsible for connecting to configured block nodes.
  */
 public class BlockNodeConnection {
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     private final BlockNodeConfig node;
     private final GrpcServiceClient grpcServiceClient;
-    private final BlockNodeConnectionManager manager;
+    private final BlockNodeConnectionManager blockNodeConnectionManager;
     private StreamObserver<PublishStreamRequest> requestObserver;
-    private volatile boolean isActive = true;
+    private volatile boolean isActive = false;
     private final String connectionId;
     private final BlockStreamStateCleanUpTracker acknowledgmentTracker;
 
+    /**
+     * Construct a new BlockNodeConnection.
+     *
+     * @param nodeConfig the configuration for the block node
+     * @param grpcServiceClient the gRPC service client
+     * @param blockNodeConnectionManager the connection manager for block node connections
+     * @param acknowledgmentTracker the block acknowledgement tracker
+     */
     public BlockNodeConnection(
-            @NonNull BlockNodeConfig nodeConfig,
-            @NonNull GrpcServiceClient grpcServiceClient,
-            @NonNull BlockNodeConnectionManager manager,
-            @NonNull BlockStreamStateCleanUpTracker acknowledgmentTracker) {
-        this.node = requireNonNull(nodeConfig);
-        this.grpcServiceClient = requireNonNull(grpcServiceClient);
-        this.manager = requireNonNull(manager);
+            @NonNull final BlockNodeConfig nodeConfig,
+            @NonNull final GrpcServiceClient grpcServiceClient,
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
+            @NonNull final BlockStreamStateCleanUpTracker acknowledgmentTracker) {
+        this.node = requireNonNull(nodeConfig, "nodeConfig must not be null");
+        this.grpcServiceClient = requireNonNull(grpcServiceClient, "grpcServiceClient must not be null");
+        this.blockNodeConnectionManager =
+                requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
         this.acknowledgmentTracker = requireNonNull(acknowledgmentTracker);
         this.connectionId = generateConnectionId(nodeConfig);
-        establishStream();
         logger.info("BlockNodeConnection INITIALIZED");
     }
 
-    private void establishStream() {
-        requestObserver =
-                grpcServiceClient.bidi(manager.getGrpcEndPoint(), new StreamObserver<PublishStreamResponse>() {
+    public Void establishStream() {
+        requestObserver = grpcServiceClient.bidi(
+                blockNodeConnectionManager.getGrpcEndPoint(), new StreamObserver<PublishStreamResponse>() {
                     @Override
                     public void onNext(PublishStreamResponse response) {
                         if (response.hasAcknowledgement()) {
@@ -61,6 +66,7 @@ public class BlockNodeConnection {
                         Status status = Status.fromThrowable(t);
                         logger.error("Error in block node stream {}:{}: {}", node.address(), node.port(), status, t);
                         handleStreamFailure();
+                        scheduleReconnect();
                     }
 
                     @Override
@@ -69,6 +75,9 @@ public class BlockNodeConnection {
                         handleStreamFailure();
                     }
                 });
+
+        isActive = true;
+        return null;
     }
 
     private void handleAcknowledgement(PublishStreamResponse.Acknowledgement acknowledgement) {
@@ -79,41 +88,63 @@ public class BlockNodeConnection {
         }
     }
 
+    private void handleStreamFailure() {
+        isActive = false;
+        removeFromActiveConnections(node);
+    }
+
     private void handleEndOfStream(PublishStreamResponse.EndOfStream endOfStream) {
         logger.info("Error returned from block node at block number {}: {}", endOfStream.getBlockNumber(), endOfStream);
     }
 
     private void removeFromActiveConnections(BlockNodeConfig node) {
-        manager.handleConnectionError(node);
+        blockNodeConnectionManager.handleConnectionError(node);
+    }
+
+    private void scheduleReconnect() {
+        blockNodeConnectionManager.scheduleReconnect(this);
     }
 
     private String generateConnectionId(BlockNodeConfig nodeConfig) {
         return nodeConfig.address() + ":" + nodeConfig.port();
     }
 
-    public void handleStreamFailure() {
-        isActive = false;
-        removeFromActiveConnections(node);
-    }
-
-    public void sendRequest(PublishStreamRequest request) {
+    /**
+     * If connection is active sends a request to the block node, otherwise does nothing.
+     *
+     * @param request the request to send
+     */
+    public void sendRequest(@NonNull final PublishStreamRequest request) {
         if (isActive) {
+            requireNonNull(request);
             requestObserver.onNext(request);
         }
     }
 
+    /**
+     * If connection is active it closes it, otherwise does nothing.
+     */
     public void close() {
         if (isActive) {
             isActive = false;
             requestObserver.onCompleted();
-            scheduler.shutdown();
         }
     }
 
+    /**
+     * Returns whether the connection is active.
+     *
+     * @return true if the connection is active, false otherwise
+     */
     public boolean isActive() {
         return isActive;
     }
 
+    /**
+     * Returns the block node configuration this connection.
+     *
+     * @return the block node configuration
+     */
     public BlockNodeConfig getNodeConfig() {
         return node;
     }

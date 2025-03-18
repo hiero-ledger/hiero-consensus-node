@@ -222,8 +222,8 @@ public class HandleWorkflow {
     /**
      * Handles the next {@link Round}
      *
-     * @param state the writable {@link State} that this round will work on
-     * @param round the next {@link Round} that needs to be processed
+     * @param state                     the writable {@link State} that this round will work on
+     * @param round                     the next {@link Round} that needs to be processed
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     public void handleRound(
@@ -261,8 +261,8 @@ public class HandleWorkflow {
      * Applies all effects of the events in the given round to the given state, writing stream items
      * that capture these effects in the process.
      *
-     * @param state the state to apply the effects to
-     * @param round the round to apply the effects of
+     * @param state                     the state to apply the effects to
+     * @param round                     the round to apply the effects of
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     private void handleEvents(
@@ -341,10 +341,10 @@ public class HandleWorkflow {
      * executing the workflow for the transaction. This produces a stream of records that are then passed to the
      * {@link BlockRecordManager} to be externalized.
      *
-     * @param state the writable {@link State} that this transaction will work on
-     * @param creator the {@link NodeInfo} of the creator of the transaction
-     * @param txn the {@link ConsensusTransaction} to be handled
-     * @param txnVersion the software version for the event containing the transaction
+     * @param state          the writable {@link State} that this transaction will work on
+     * @param creator        the {@link NodeInfo} of the creator of the transaction
+     * @param txn            the {@link ConsensusTransaction} to be handled
+     * @param txnVersion     the software version for the event containing the transaction
      * @param userTxnHandled whether a user transaction has been handled in this round
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
@@ -374,7 +374,6 @@ public class HandleWorkflow {
                 case POST_UPGRADE_WORK -> POST_UPGRADE_TRANSACTION;
                 default -> ORDINARY_TRANSACTION;};
         }
-
         final var userTxn =
                 userTxnFactory.createUserTxn(state, creator, txn, consensusNow, type, stateSignatureTxnCallback);
         if (userTxn == null) {
@@ -382,6 +381,8 @@ public class HandleWorkflow {
         } else if (streamMode != BLOCKS && startsNewRecordFile) {
             blockRecordManager.startUserTransaction(consensusNow, state);
         }
+
+        //        logger.info("Functionality - {}", userTxn.functionality());
 
         var lastRecordManagerTime = streamMode == RECORDS ? blockRecordManager.consTimeOfLastHandledTxn() : null;
         final var handleOutput = executeTopLevel(userTxn, txnVersion, state);
@@ -392,7 +393,7 @@ public class HandleWorkflow {
         if (streamMode != RECORDS) {
             handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
             if (!userTxnHandled) {
-                blockStreamManager.setRoundFirstUserTransactionTime(handleOutput.firstAssignedConsensusTime());
+                blockStreamManager.setRoundFirstTransactionTime(handleOutput.firstAssignedConsensusTime());
             }
         }
 
@@ -574,9 +575,9 @@ public class HandleWorkflow {
      * just the transaction with a {@link ResponseCodeEnum#FAIL_INVALID} transaction result,
      * and no other side effects.
      *
-     * @param userTxn the user transaction to execute
+     * @param userTxn    the user transaction to execute
      * @param txnVersion the software version for the event containing the transaction
-     * @param state the state to commit any direct changes against
+     * @param state      the state to commit any direct changes against
      * @return the stream output from executing the transaction
      */
     private HandleOutput executeTopLevel(
@@ -733,10 +734,10 @@ public class HandleWorkflow {
      * Commits an action with side effects while capturing its key/value state changes and writing them to the
      * block stream.
      *
-     * @param writableStates the writable states to commit the action to
+     * @param writableStates         the writable states to commit the action to
      * @param entityIdWritableStates if not null, the writable states for the entity ID service
-     * @param now the consensus timestamp of the action
-     * @param action the action to commit
+     * @param now                    the consensus timestamp of the action
+     * @param action                 the action to commit
      */
     private void doStreamingKVChanges(
             @NonNull final WritableStates writableStates,
@@ -865,7 +866,7 @@ public class HandleWorkflow {
     /**
      * Processes any side effects of crossing a stake period boundary.
      *
-     * @param userTxn the user transaction that crossed the boundary
+     * @param userTxn  the user transaction that crossed the boundary
      * @param dispatch the dispatch for the user transaction that crossed the boundary
      */
     private void processStakePeriodChanges(@NonNull final UserTxn userTxn, @NonNull final Dispatch dispatch) {
@@ -887,25 +888,22 @@ public class HandleWorkflow {
 
     /**
      * Reconciles the state of the TSS system with the active rosters in the given state at the current time.
+     *
      * @param tssConfig the TSS configuration
-     * @param state the state to use when reconciling the TSS system state with the active rosters
-     * @param now the current consensus time
+     * @param state     the state to use when reconciling the TSS system state with the active rosters
+     * @param now       the current consensus time
      */
     private void reconcileTssState(
             @NonNull final TssConfig tssConfig, @NonNull final State state, @NonNull final Instant now) {
-        if (tssConfig.crsEnabled() || tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
+        if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var activeRosters = ActiveRosters.from(rosterStore);
             final var isActive = currentPlatformStatus.get() == ACTIVE;
-            if (tssConfig.crsEnabled()) {
+            if (tssConfig.hintsEnabled()) {
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 final var hintsStore = new WritableHintsStoreImpl(hintsWritableStates);
                 doStreamingKVChanges(
                         hintsWritableStates, null, now, () -> hintsService.executeCrsWork(hintsStore, now, isActive));
-            }
-            if (tssConfig.hintsEnabled()) {
-                final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
-                final var hintsStore = new WritableHintsStoreImpl(hintsWritableStates);
                 doStreamingKVChanges(
                         hintsWritableStates,
                         null,
@@ -916,7 +914,7 @@ public class HandleWorkflow {
                 final Bytes currentMetadata = tssConfig.hintsEnabled()
                         ? new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME))
                                 .getActiveVerificationKey()
-                        : Bytes.wrap(new byte[32]);
+                        : HintsService.DISABLED_HINTS_METADATA;
                 final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
                 final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
                 doStreamingKVChanges(

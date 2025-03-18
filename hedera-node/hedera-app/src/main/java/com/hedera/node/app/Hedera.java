@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.ConcurrentStreamingTreeHasher.rootHashFrom;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
@@ -835,6 +836,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         return platform.sign(ledgerId);
     }
 
+    @Override
+    public boolean isAvailable() {
+        return daggerApp != null && daggerApp.currentPlatformStatus().get() == ACTIVE;
+    }
+
     /**
      * Called to perform orderly close record streams.
      */
@@ -1174,7 +1180,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                     .blockStreamManager()
                     .initLastBlockHash(
                             switch (trigger) {
-                                case GENESIS -> BlockStreamManager.ZERO_BLOCK_HASH;
+                                case GENESIS -> ZERO_BLOCK_HASH;
                                 default -> blockStreamService
                                         .migratedLastBlockHash()
                                         .orElseGet(() -> startBlockHashFrom(state));
@@ -1197,10 +1203,12 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         requireNonNull(blockStreamInfo);
         // Three of the four ingredients in the block hash are directly in the BlockStreamInfo; that is,
         // the previous block hash, the input tree root hash, and the start of block state hash
-        final var prevBlockHash = blockHashByBlockNumber(
-                blockStreamInfo.trailingBlockHashes(),
-                blockStreamInfo.blockNumber() - 1,
-                blockStreamInfo.blockNumber() - 1);
+        final var prevBlockHash = blockStreamInfo.blockNumber() == 0L
+                ? ZERO_BLOCK_HASH
+                : blockHashByBlockNumber(
+                        blockStreamInfo.trailingBlockHashes(),
+                        blockStreamInfo.blockNumber() - 1,
+                        blockStreamInfo.blockNumber() - 1);
         requireNonNull(prevBlockHash);
         final var leftParent = combine(prevBlockHash, blockStreamInfo.inputTreeRootHash());
         // The fourth ingredient, the output tree root hash, is not directly in the BlockStreamInfo, but

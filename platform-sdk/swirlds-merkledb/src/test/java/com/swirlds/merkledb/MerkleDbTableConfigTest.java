@@ -22,23 +22,34 @@ class MerkleDbTableConfigTest {
     }
 
     @Test
+    void testIllegalMaxNumOfKeys() {
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> new MerkleDbTableConfig(
+                        (short) 1, DigestType.SHA_384, 0, merkleDbConfig.hashesRamToDiskThreshold()));
+        Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> new MerkleDbTableConfig(
+                        (short) 1, DigestType.SHA_384, -1, merkleDbConfig.hashesRamToDiskThreshold()));
+    }
+
+    @Test
+    void testIllegalHashesRamToDiskThreshold() {
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> new MerkleDbTableConfig((short) 1, DigestType.SHA_384, merkleDbConfig.maxNumOfKeys(), -1));
+    }
+
+    @Test
     void deserializeDefaultsTest() throws IOException {
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
+                (short) 1, DigestType.SHA_384, 1_000, 0); // Default protobuf value, will not be serialized
 
-        Assertions.assertEquals(merkleDbConfig.maxNumOfKeys(), tableConfig.getMaxNumberOfKeys());
-        Assertions.assertEquals(merkleDbConfig.hashesRamToDiskThreshold(), tableConfig.getHashesRamToDiskThreshold());
-
-        Assertions.assertThrows(IllegalArgumentException.class, () -> tableConfig.maxNumberOfKeys(0));
-        Assertions.assertThrows(IllegalArgumentException.class, () -> tableConfig.maxNumberOfKeys(-1));
-        Assertions.assertThrows(IllegalArgumentException.class, () -> tableConfig.hashesRamToDiskThreshold(-1));
-
-        // Default protobuf value, will not be serialized
-        tableConfig.hashesRamToDiskThreshold(0);
+        Assertions.assertEquals(1_000, tableConfig.getMaxNumberOfKeys());
+        Assertions.assertEquals(0, tableConfig.getHashesRamToDiskThreshold());
 
         final ByteArrayOutputStream bout = new ByteArrayOutputStream();
         try (final WritableStreamingData out = new WritableStreamingData(bout)) {
@@ -51,7 +62,7 @@ class MerkleDbTableConfigTest {
             restored = new MerkleDbTableConfig(in);
         }
 
-        Assertions.assertEquals(merkleDbConfig.maxNumOfKeys(), restored.getMaxNumberOfKeys());
+        Assertions.assertEquals(1_000, restored.getMaxNumberOfKeys());
         // Fields that aren't deserialized should have default protobuf values (e.g. zero), not
         // default MerkleDbConfig values
         Assertions.assertEquals(0, restored.getHashesRamToDiskThreshold());

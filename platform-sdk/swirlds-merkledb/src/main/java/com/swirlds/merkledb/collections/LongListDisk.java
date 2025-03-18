@@ -331,9 +331,17 @@ public class LongListDisk extends AbstractLongList<Long> {
                     transferBuffer.limit(memoryChunkSize);
                 }
                 int currentPosition = transferBuffer.position();
-                MerkleDbFileUtils.completelyRead(currentFileChannel, transferBuffer, chunkOffset);
+                final int toRead = transferBuffer.remaining();
+                final int read = MerkleDbFileUtils.completelyRead(currentFileChannel, transferBuffer, chunkOffset);
+                if (toRead != read) {
+                    throw new IOException("Failed to read a chunk from the file, offset=" + chunkOffset + ", toRead="
+                            + toRead + ", read=" + read + ", file size=" + currentFileChannel.size());
+                }
+                // Restore the position, so the right part of transferBuffer is written to the target
+                // file channel below. No need to restore the limit, it isn't changed by completelyRead()
                 transferBuffer.position(currentPosition);
             } else {
+                // fillBufferWithZeroes() takes care of buffer position and limit
                 fillBufferWithZeroes(transferBuffer);
             }
 
@@ -436,7 +444,16 @@ public class LongListDisk extends AbstractLongList<Long> {
                 Long currentOffset = chunkList.get(i);
                 maxOffset = Math.max(maxOffset, currentOffset == null ? -1 : currentOffset);
             }
-            return maxOffset == -1 ? 0 : maxOffset + memoryChunkSize;
+            final long chunk = maxOffset == -1 ? 0 : maxOffset + memoryChunkSize;
+            try {
+                // Append the full chunk to the end of the backing file
+                final ByteBuffer tmp = initOrGetTransferBuffer();
+                fillBufferWithZeroes(tmp);
+                MerkleDbFileUtils.completelyWrite(currentFileChannel, tmp, chunk);
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return chunk;
         } else {
             return chunkOffset;
         }
