@@ -103,7 +103,7 @@ class PlatformWiringTests {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final PlatformWiring wiring = new PlatformWiring(platformContext, model, applicationCallbacks);
+        final PlatformWiring wiring = new PlatformWiring(platformContext, model, applicationCallbacks, true);
 
         final PlatformBuildingBlocks platformBuildingBlocks = mock(PlatformBuildingBlocks.class);
         when(platformBuildingBlocks.platformContext()).thenReturn(platformContext);

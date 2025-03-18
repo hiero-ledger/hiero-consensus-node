@@ -164,7 +164,8 @@ public class PlatformWiring {
     public PlatformWiring(
             @NonNull final PlatformContext platformContext,
             @NonNull final WiringModel model,
-            @NonNull final ApplicationCallbacks applicationCallbacks) {
+            @NonNull final ApplicationCallbacks applicationCallbacks,
+            final boolean isGenesis) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.model = Objects.requireNonNull(model);
@@ -175,7 +176,7 @@ public class PlatformWiring {
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
-        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
+        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD && !isGenesis) {
             birthRoundMigrationShimWiring =
                     new ComponentWiring<>(model, BirthRoundMigrationShim.class, DIRECT_THREADSAFE_CONFIGURATION);
         } else {
