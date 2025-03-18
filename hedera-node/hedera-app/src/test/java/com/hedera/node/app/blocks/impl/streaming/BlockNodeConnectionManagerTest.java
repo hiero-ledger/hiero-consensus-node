@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -11,9 +13,12 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.BlockItemSet;
-import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
+import com.hedera.hapi.block.protoc.PublishStreamRequest;
+import com.hedera.hapi.block.protoc.PublishStreamResponse;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
@@ -24,10 +29,19 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.stub.StreamObserver;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.function.Supplier;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,6 +67,18 @@ class BlockNodeConnectionManagerTest {
     @Mock
     BlockNodeConnection mockConnection;
 
+    private static Server testServer;
+
+    @BeforeAll
+    static void beforeAll() throws IOException {
+        final var configExtractor = new BlockNodeConfigExtractor("./src/test/resources/bootstrap");
+        final int testServerPort = configExtractor.getAllNodes().getFirst().port();
+        testServer = ServerBuilder.forPort(testServerPort)
+                .addService(new BlockStreamServiceTestImpl())
+                .build();
+        testServer.start();
+    }
+
     @BeforeEach
     void setUp() {
         final var config = HederaTestConfigBuilder.create()
@@ -61,6 +87,8 @@ class BlockNodeConnectionManagerTest {
                 .getOrCreateConfig();
         given(mockConfigProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         blockNodeConnectionManager = new BlockNodeConnectionManager(mockConfigProvider);
+        assertTrue(blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(1L)));
+        assertThat(logCaptor.infoLogs()).contains("Successfully connected to block node localhost:8080");
     }
 
     @Test
@@ -100,8 +128,7 @@ class BlockNodeConnectionManagerTest {
 
         // When
         int batchSize = 2;
-        List<PublishStreamRequest> requests =
-                BlockNodeConnectionManager.createPublishStreamRequests(mockBlock, batchSize);
+        final var requests = BlockNodeConnectionManager.createPublishStreamRequests(mockBlock, batchSize);
 
         // Then
         // Should create 2 batches: [item1, item2] and [item3]
@@ -132,8 +159,7 @@ class BlockNodeConnectionManagerTest {
         when(mockBlockState.itemBytes()).thenReturn(emptyItemBytes);
 
         // When
-        List<PublishStreamRequest> requests =
-                BlockNodeConnectionManager.createPublishStreamRequests(mockBlockState, batchSize);
+        final var requests = BlockNodeConnectionManager.createPublishStreamRequests(mockBlockState, batchSize);
 
         // Then
         assertEquals(0, requests.size(), "Should create no batches for empty block");
@@ -174,6 +200,45 @@ class BlockNodeConnectionManagerTest {
         verify(mockConnection, times(1)).establishStream();
     }
 
+    @Test
+    void testStreamBlockToConnections() {
+        final long blockNumber = 1L;
+        final var blockHeader = BlockItem.newBuilder()
+                .blockHeader(BlockHeader.newBuilder().number(blockNumber).hashAlgorithm(SHA2_384))
+                .build();
+
+        // Generate random bytes used for application transaction
+        byte[] randomBytes = new byte[1024];
+        new Random().nextBytes(randomBytes);
+        BlockItem blockItem = BlockItem.newBuilder()
+                .eventTransaction(
+                        // Add some dummy data
+                        EventTransaction.newBuilder()
+                                .applicationTransaction(Bytes.wrap(randomBytes))
+                                .build())
+                .build();
+
+        final var blockProof =
+                BlockItem.newBuilder().blockProof(BlockProof.DEFAULT).build();
+        final var block = new BlockState(
+                blockNumber,
+                List.of(
+                        BlockItem.PROTOBUF.toBytes(blockHeader),
+                        BlockItem.PROTOBUF.toBytes(blockItem),
+                        BlockItem.PROTOBUF.toBytes(blockProof)));
+
+        blockNodeConnectionManager.streamBlockToConnections(block);
+
+        assertThat(logCaptor.infoLogs())
+                .contains(
+                        "Streaming block 1 to 1 active connections", "Successfully streamed block 1 to localhost:8080");
+    }
+
+    @AfterAll
+    static void afterAll() {
+        testServer.shutdownNow();
+    }
+
     private List<String> generateExpectedRetryLogs(Duration delay) {
         final long start = delay.toMillis() / 2;
         final long end = delay.toMillis();
@@ -183,5 +248,30 @@ class BlockNodeConnectionManagerTest {
         }
 
         return logs;
+    }
+
+    private static class BlockStreamServiceTestImpl extends BlockStreamServiceGrpc.BlockStreamServiceImplBase {
+        private static final Logger logger = LogManager.getLogger(BlockStreamServiceTestImpl.class);
+
+        @Override
+        public StreamObserver<PublishStreamRequest> publishBlockStream(
+                StreamObserver<PublishStreamResponse> responseObserver) {
+            return new StreamObserver<>() {
+                @Override
+                public void onNext(PublishStreamRequest request) {
+                    // no-op
+                }
+
+                @Override
+                public void onError(Throwable t) {
+                    // no-op
+                }
+
+                @Override
+                public void onCompleted() {
+                    responseObserver.onCompleted();
+                }
+            };
+        }
     }
 }

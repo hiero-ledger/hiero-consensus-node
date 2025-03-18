@@ -108,6 +108,7 @@ public class BlockNodeConnectionManager {
                                             BlockStreamServiceGrpc.SERVICE_NAME, GRPC_END_POINT)
                                     .requestType(PublishStreamRequest.class)
                                     .responseType(PublishStreamResponse.class)
+                                    .marshallerSupplier(new RequestResponseMarshaller.Supplier())
                                     .build())
                     .build());
 
@@ -132,7 +133,7 @@ public class BlockNodeConnectionManager {
         }
     }
 
-    private void streamBlockToConnections(@NonNull BlockState block) {
+    public void streamBlockToConnections(@NonNull BlockState block) {
         long blockNumber = block.blockNumber();
         // Get currently active connections
         List<BlockNodeConnection> connectionsToStream;
@@ -294,11 +295,12 @@ public class BlockNodeConnectionManager {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
         establishConnections();
 
+        final var deadline = Instant.now().plus(timeout);
         scheduler.scheduleAtFixedRate(
                 () -> {
                     if (!activeConnections.isEmpty()) {
                         future.complete(true);
-                    } else if (Instant.now().isAfter(Instant.now().plus(timeout))) {
+                    } else if (Instant.now().isAfter(deadline)) {
                         future.complete(false);
                     }
                 },
