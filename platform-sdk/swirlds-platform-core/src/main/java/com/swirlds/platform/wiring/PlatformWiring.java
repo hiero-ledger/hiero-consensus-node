@@ -391,13 +391,14 @@ public class PlatformWiring {
 
         splitOrphanBufferOutput.solderTo(pcesInlineWriterWiring.getInputWire(InlinePcesWriter::writeEvent));
 
-
         if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
             pcesInlineWriterWiring
                     .getOutputWire()
                     .solderTo(futureEventBufferWiring.getInputWire(FutureEventBuffer::addEvent));
 
-            futureEventBufferWiring.getOutputWire().solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
+            futureEventBufferWiring
+                    .getOutputWire()
+                    .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
             futureEventBufferWiring.getOutputWire().solderTo(gossipWiring.getEventInput(), INJECT);
             futureEventBufferWiring
                     .getOutputWire()
@@ -405,7 +406,8 @@ public class PlatformWiring {
         } else {
             // make sure that an event is persisted before being sent to consensus, this avoids the situation where we
             // reach consensus with events that might be lost due to a crash
-            pcesInlineWriterWiring.getOutputWire()
+            pcesInlineWriterWiring
+                    .getOutputWire()
                     .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
             // make sure events are persisted before being gossipped, this prevents accidental branching in the case
             // where an event is created, gossipped, and then the node crashes before the event is persisted.
