@@ -43,6 +43,11 @@ class MerkleDbBuilderTest {
                 merkleDbConfig.hashesRamToDiskThreshold());
     }
 
+    private MerkleDbTableConfig createTableConfig(final long maxNumOfKeys, final long hashesRamToDiskThreshold) {
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        return new MerkleDbTableConfig((short) 1, DigestType.SHA_384, maxNumOfKeys, hashesRamToDiskThreshold);
+    }
+
     @Test
     @DisplayName("Test table config is passed to data source")
     public void testTableConfig() throws IOException {
@@ -94,10 +99,9 @@ class MerkleDbBuilderTest {
     }
 
     @Test
-    @DisplayName("Test data source config overrides")
-    public void testBuilderOverrides() throws IOException {
-        final MerkleDbTableConfig tableConfig = createTableConfig();
-        tableConfig.maxNumberOfKeys(1999).hashesRamToDiskThreshold(Integer.MAX_VALUE >> 4);
+    @DisplayName("Test custom table config values")
+    public void testCustomTableConfig() throws IOException {
+        final MerkleDbTableConfig tableConfig = createTableConfig(1999, Integer.MAX_VALUE >> 4);
         final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
         final Path defaultDbPath = testDirectory.resolve("defaultDatabasePath");
         MerkleDb.setDefaultPath(defaultDbPath);
