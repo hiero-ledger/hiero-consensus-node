@@ -37,8 +37,6 @@ public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
     @NonNull
     private final SignatureVerifier signatureVerifier;
 
-    // too many parameters
-    @SuppressWarnings("java:S107")
     public HasCallAttempt(
             @NonNull final Bytes input,
             @NonNull final CallAttemptOptions<HasCallAttempt> options,

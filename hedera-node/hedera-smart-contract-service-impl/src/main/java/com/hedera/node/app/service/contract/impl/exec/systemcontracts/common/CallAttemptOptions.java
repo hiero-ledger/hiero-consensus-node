@@ -15,18 +15,18 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hyperledger.besu.datatypes.Address;
 
-public record CallAttemptOptions<T>(
-        ContractID contractID,
-        Address senderAddress,
-        Address authorizingAddress,
+public record CallAttemptOptions<T extends AbstractCallAttempt<T>>(
+        @NonNull ContractID contractID,
+        @NonNull Address senderAddress,
+        @NonNull Address authorizingAddress,
         boolean onlyDelegatableContractKeysActive,
-        HederaWorldUpdater.Enhancement enhancement,
-        Configuration configuration,
-        AddressIdConverter addressIdConverter,
-        VerificationStrategies verificationStrategies,
-        SystemContractGasCalculator gasCalculator,
-        List<CallTranslator<T>> callTranslators,
-        SystemContractMethodRegistry systemContractMethodRegistry,
+        @NonNull HederaWorldUpdater.Enhancement enhancement,
+        @NonNull Configuration configuration,
+        @NonNull AddressIdConverter addressIdConverter,
+        @NonNull VerificationStrategies verificationStrategies,
+        @NonNull SystemContractGasCalculator gasCalculator,
+        @NonNull List<CallTranslator<T>> callTranslators,
+        @NonNull SystemContractMethodRegistry systemContractMethodRegistry,
         boolean isStaticCall) {
 
     /**

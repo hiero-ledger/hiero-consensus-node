@@ -41,8 +41,6 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
     @Nullable
     private final Token redirectToken;
 
-    // too many parameters
-    @SuppressWarnings("java:S107")
     public HtsCallAttempt(@NonNull final Bytes input, @NonNull final CallAttemptOptions<HtsCallAttempt> options) {
         super(input, options, REDIRECT_FOR_TOKEN);
         if (isRedirect()) {

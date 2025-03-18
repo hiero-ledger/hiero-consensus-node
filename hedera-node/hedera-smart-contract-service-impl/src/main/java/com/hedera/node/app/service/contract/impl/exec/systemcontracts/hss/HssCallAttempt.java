@@ -39,8 +39,6 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
     @NonNull
     private final SignatureVerifier signatureVerifier;
 
-    // too many parameters
-    @SuppressWarnings("java:S107")
     public HssCallAttempt(
             @NonNull final Bytes input,
             @NonNull final CallAttemptOptions<HssCallAttempt> options,
