@@ -23,8 +23,7 @@ final class DataBufferMarshallerTest {
     private static final int MAX_MESSAGE_SIZE = 6144;
     private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL =
             ThreadLocal.withInitial(() -> BufferedData.allocate(MAX_MESSAGE_SIZE + 1));
-    private final DataBufferMarshaller marshaller =
-            new DataBufferMarshaller(MAX_MESSAGE_SIZE, BUFFER_THREAD_LOCAL::get);
+    private final DataBufferMarshaller marshaller = new DataBufferMarshaller(MAX_MESSAGE_SIZE, BUFFER_THREAD_LOCAL);
 
     @Test
     void nullBufferThrows() {

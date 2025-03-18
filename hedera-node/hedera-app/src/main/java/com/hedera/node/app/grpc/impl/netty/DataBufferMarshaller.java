@@ -7,7 +7,6 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.MethodDescriptor;
 import java.io.InputStream;
-import java.util.function.Supplier;
 
 /**
  * A thread-safe implementation of a gRPC marshaller which does nothing but pass through byte arrays as {@link
@@ -16,13 +15,22 @@ import java.util.function.Supplier;
  */
 /*@ThreadSafe*/
 final class DataBufferMarshaller implements MethodDescriptor.Marshaller<BufferedData> {
-    private final int tooBigMessageSize;
-    private final Supplier<BufferedData> bufferSupplier;
+    private final int toBigMessageSize;
+
+    /**
+     * Per-thread shared ByteBuffer for reading. We store these in a thread local, because we do not
+     * have control over the thread pool used by the underlying gRPC server.
+     */
+    @SuppressWarnings(
+            "java:S5164") // looks like a false positive ("ThreadLocal" variables should be cleaned up when no longer
+    // used), but these threads are long-lived and the lifetime of the thread local is the same as
+    // the application
+    private final ThreadLocal<BufferedData> bufferThreadLocal;
 
     /** Constructs a new {@link DataBufferMarshaller}. Only called by {@link GrpcServiceBuilder}. */
-    DataBufferMarshaller(final int maxMessageSize, @NonNull final Supplier<BufferedData> bufferSupplier) {
-        this.tooBigMessageSize = maxMessageSize + 1;
-        this.bufferSupplier = requireNonNull(bufferSupplier);
+    DataBufferMarshaller(int maxMessageSize, ThreadLocal<BufferedData> bufferedDataThreadLocal) {
+        bufferThreadLocal = bufferedDataThreadLocal;
+        toBigMessageSize = maxMessageSize + 1;
     }
 
     /** {@inheritDoc} */
@@ -43,7 +51,7 @@ final class DataBufferMarshaller implements MethodDescriptor.Marshaller<Buffered
         requireNonNull(stream);
 
         // Each thread has a single buffer instance that gets reused over and over.
-        final var buffer = bufferSupplier.get();
+        final var buffer = bufferThreadLocal.get();
         buffer.reset();
 
         // We sized the buffer to be 1 byte larger than the MAX_MESSAGE_SIZE.
@@ -53,7 +61,7 @@ final class DataBufferMarshaller implements MethodDescriptor.Marshaller<Buffered
         // want to do for bad input from the user. Also note that if the user sent us way too many
         // bytes, this method will only read up to TOO_BIG_MESSAGE_SIZE, so there is no risk of
         // the user overwhelming the server with a huge message.
-        buffer.writeBytes(stream, tooBigMessageSize);
+        buffer.writeBytes(stream, toBigMessageSize);
 
         // We read some bytes into the buffer, so reset the position and limit accordingly to
         // prepare for reading the data

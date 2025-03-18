@@ -37,9 +37,9 @@ final class GrpcServiceBuilderTest {
             ThreadLocal.withInitial(() -> BufferedData.allocate(6145));
     private static final ThreadLocal<BufferedData> JUMBO_BUFFER_THREAD_LOCAL =
             ThreadLocal.withInitial(() -> BufferedData.allocate(133121));
-    private static final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller(6144, BUFFER_THREAD_LOCAL::get);
+    private static final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller(6144, BUFFER_THREAD_LOCAL);
     private static final DataBufferMarshaller JUMBO_MARSHALLER =
-            new DataBufferMarshaller(130 * 1024, JUMBO_BUFFER_THREAD_LOCAL::get);
+            new DataBufferMarshaller(130 * 1024, JUMBO_BUFFER_THREAD_LOCAL);
 
     // These are simple no-op workflows
     private final QueryWorkflow queryWorkflow = (requestBuffer, responseBuffer) -> {};
