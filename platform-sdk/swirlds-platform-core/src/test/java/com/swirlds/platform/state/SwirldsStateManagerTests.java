@@ -40,7 +40,7 @@ class SwirldsStateManagerTests {
         final SwirldsPlatform platform = mock(SwirldsPlatform.class);
         final Roster roster = RandomRosterBuilder.create(Randotron.create()).build();
         when(platform.getRoster()).thenReturn(roster);
-        PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
+        PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         initialState = newState(platformStateFacade);
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();

@@ -45,7 +45,7 @@ class PlatformStateFacadeTest {
         state = new TestMerkleStateRoot();
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
         emptyState = new TestMerkleStateRoot();
-        platformStateFacade = new TestPlatformStateFacade(VERSION_FACTORY);
+        platformStateFacade = new TestPlatformStateFacade();
         platformStateModifier = randomPlatformState(state, platformStateFacade);
     }
 

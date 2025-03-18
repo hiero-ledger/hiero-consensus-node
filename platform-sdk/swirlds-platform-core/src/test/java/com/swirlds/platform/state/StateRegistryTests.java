@@ -90,7 +90,7 @@ class StateRegistryTests {
 
         // Deserialize a state
         final TestMerkleStateRoot stateToSerialize = new TestMerkleStateRoot();
-        final TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade(softwareVersionSupplier);
+        final TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(stateToSerialize);
         final var platformState = platformStateFacade.getWritablePlatformStateOf(stateToSerialize);
         platformState.bulkUpdate(v -> {

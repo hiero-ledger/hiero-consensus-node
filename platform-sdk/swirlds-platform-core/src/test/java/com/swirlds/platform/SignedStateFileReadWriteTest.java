@@ -71,7 +71,7 @@ class SignedStateFileReadWriteTest {
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.merkledb");
         FakeConsensusStateEventHandler.registerMerkleStateRootClassIds();
-        stateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(platformVersion.major()));
+        stateFacade = new PlatformStateFacade();
     }
 
     @BeforeEach

@@ -24,7 +24,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * This class is an entry point for the platform state. Though the class itself is stateless, given an instance of {@link State},
@@ -33,18 +32,7 @@ import java.util.function.Function;
  */
 public class PlatformStateFacade {
 
-    public static final PlatformStateFacade DEFAULT_PLATFORM_STATE_FACADE =
-            new PlatformStateFacade(v -> SoftwareVersion.NO_VERSION);
-
-    private final Function<SemanticVersion, SoftwareVersion> versionFactory;
-
-    /**
-     * Create a new instance of {@link PlatformStateFacade}.
-     * @param versionFactory a factory to create the current {@link SoftwareVersion} from a {@link SemanticVersion}
-     */
-    public PlatformStateFacade(Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        this.versionFactory = versionFactory;
-    }
+    public static final PlatformStateFacade DEFAULT_PLATFORM_STATE_FACADE = new PlatformStateFacade();
 
     /**
      * Given a {@link State}, returns the creation version of the platform state if it exists.
@@ -304,12 +292,12 @@ public class PlatformStateFacade {
     private PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {
         final ReadableStates readableStates = state.getReadableStates(NAME);
         if (readableStates.isEmpty()) {
-            return new SnapshotPlatformStateAccessor(UNINITIALIZED_PLATFORM_STATE, versionFactory);
+            return new SnapshotPlatformStateAccessor(UNINITIALIZED_PLATFORM_STATE);
         }
-        return new ReadablePlatformStateStore(readableStates, versionFactory);
+        return new ReadablePlatformStateStore(readableStates);
     }
 
     private WritablePlatformStateStore writablePlatformStateStore(@NonNull final State state) {
-        return new WritablePlatformStateStore(state.getWritableStates(NAME), versionFactory);
+        return new WritablePlatformStateStore(state.getWritableStates(NAME));
     }
 }

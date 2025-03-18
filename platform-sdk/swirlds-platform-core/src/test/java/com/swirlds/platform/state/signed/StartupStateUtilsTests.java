@@ -80,7 +80,7 @@ public class StartupStateUtilsTests {
                 .getOrCreateConfig()
                 .getConfigData(StateCommonConfig.class));
         currentSoftwareVersion = new BasicSoftwareVersion(1);
-        platformStateFacade = new PlatformStateFacade(v -> currentSoftwareVersion);
+        platformStateFacade = new PlatformStateFacade();
     }
 
     @AfterEach

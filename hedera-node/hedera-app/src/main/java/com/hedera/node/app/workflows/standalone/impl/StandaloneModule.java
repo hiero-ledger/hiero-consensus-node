@@ -6,7 +6,6 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.SnapshotPlatformStateAccessor;
@@ -35,7 +34,7 @@ public interface StandaloneModule {
     @Provides
     @Singleton
     static PlatformStateAccessor providePlatformState() {
-        return new SnapshotPlatformStateAccessor(PlatformState.DEFAULT, ServicesSoftwareVersion::new);
+        return new SnapshotPlatformStateAccessor(PlatformState.DEFAULT);
     }
 
     @Provides

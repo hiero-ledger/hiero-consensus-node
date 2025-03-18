@@ -143,7 +143,7 @@ public class RandomSignedStateGenerator {
             roundInstance = round;
         }
 
-        TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade((v -> softwareVersionInstance));
+        TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
         if (state == null) {
             if (useBlockingState) {
                 stateInstance = new BlockingState(platformStateFacade);

@@ -110,7 +110,7 @@ public class TurtleNode {
                 .withDeterministicModeEnabled(true)
                 .build();
         final SoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
-        final PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> softwareVersion);
+        final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         final var version = SemanticVersion.newBuilder().major(1).build();
         MerkleDb.resetDefaultInstancePath();
         final var metrics = getMetricsProvider().createPlatformMetrics(nodeId);
