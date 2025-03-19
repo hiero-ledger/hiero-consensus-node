@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_HINTS_CONSTRUCTION;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_PROOF_CONSTRUCTION;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
@@ -39,6 +40,7 @@ import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -49,6 +51,8 @@ import com.hedera.node.app.blocks.impl.NaiveStreamingTreeHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
+import com.hedera.node.app.history.HistoryLibrary;
+import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
@@ -122,8 +126,12 @@ public class StateChangesValidator implements BlockStreamValidator {
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
     private MerkleNodeState state;
-    private final HintsEnabled hintsEnabled;
-    private final HintsLibrary hintsLibrary = new HintsLibraryImpl();
+
+    @Nullable
+    private final HintsLibrary hintsLibrary;
+
+    @Nullable
+    private final HistoryLibrary historyLibrary;
 
     public enum HintsEnabled {
         YES,
@@ -239,7 +247,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                 state, GENESIS, DiskStartupNetworks.fromLegacyAddressBook(addressBook), platformConfig);
         final var stateToBeCopied = state;
         state = state.copy();
-        this.hintsEnabled = hintsEnabled;
+        this.hintsLibrary = (hintsEnabled == HintsEnabled.YES) ? new HintsLibraryImpl() : null;
+        this.historyLibrary = (historyEnabled == HistoryEnabled.YES) ? new HistoryLibraryImpl() : null;
         // get the state hash before applying the state changes from current block
         this.genesisStateHash = CRYPTO.digestTreeSync(stateToBeCopied.getRoot());
 
@@ -253,7 +262,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         var startOfStateHash = requireNonNull(genesisStateHash).getBytes();
 
         final int n = blocks.size();
-        final var verificationKey = (hintsEnabled == HintsEnabled.YES)
+        final var verificationKey = (hintsLibrary != null)
                 ? blocks.stream()
                         .flatMap(b -> b.items().stream())
                         .filter(BlockItem::hasStateChanges)
@@ -495,8 +504,20 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
                 case SINGLETON_UPDATE -> {
                     final var singletonState = writableStates.getSingleton(stateKey);
-                    singletonState.put(singletonPutFor(stateChange.singletonUpdateOrThrow()));
+                    final var singleton = singletonPutFor(stateChange.singletonUpdateOrThrow());
+                    singletonState.put(singleton);
                     stateChangesSummary.countSingletonPut(serviceName, stateKey);
+                    if (historyLibrary != null
+                            && stateChange.stateId() == STATE_ID_ACTIVE_PROOF_CONSTRUCTION.protoOrdinal()) {
+                        final var construction = (HistoryProofConstruction) singleton;
+                        if (construction.hasTargetProof()) {
+                            logger.info("Verifying chain of trust for #{}", construction.constructionId());
+                            assertTrue(
+                                    historyLibrary.verifyChainOfTrust(
+                                            construction.targetProofOrThrow().proof()),
+                                    "Chain of trust verification failed for " + construction);
+                        }
+                    }
                 }
                 case MAP_UPDATE -> {
                     final var mapState = writableStates.get(stateKey);

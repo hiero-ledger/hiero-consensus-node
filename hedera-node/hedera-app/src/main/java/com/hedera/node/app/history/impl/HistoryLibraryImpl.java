@@ -118,14 +118,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     }
 
     @Override
-    public boolean verifyChainOfTrust(
-            @NonNull final Bytes ledgerId,
-            @NonNull final Bytes addressBookHash,
-            @NonNull final Bytes metadata,
-            @NonNull final Bytes proof) {
-        requireNonNull(ledgerId);
-        requireNonNull(addressBookHash);
-        requireNonNull(metadata);
+    public boolean verifyChainOfTrust(@NonNull final Bytes proof) {
         requireNonNull(proof);
         return BRIDGE.verifyChainOfTrust(SNARK_KEYS.verifyingKey(), proof.toByteArray());
     }

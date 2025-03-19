@@ -77,22 +77,18 @@ public interface HistoryLibrary {
     Bytes proveChainOfTrust(
             @NonNull Bytes genesisAddressBookHash,
             @Nullable Bytes sourceProof,
-            @NonNull final long[] currentAddressBookWeights,
-            @NonNull final byte[][] currentAddressBookVerifyingKeys,
-            @NonNull final long[] nextAddressBookWeights,
-            @NonNull final byte[][] nextAddressBookVerifyingKeys,
+            @NonNull long[] currentAddressBookWeights,
+            @NonNull byte[][] currentAddressBookVerifyingKeys,
+            @NonNull long[] nextAddressBookWeights,
+            @NonNull byte[][] nextAddressBookVerifyingKeys,
             @NonNull byte[][] sourceSignatures,
             @NonNull Bytes targetMetadataHash);
 
     /**
-     * Verifies the given SNARK proves the given address book hash and associated metadata belong to the given
-     * ledger id's chain of trust
-     * @param ledgerId the ledger id
-     * @param addressBookHash the hash of the address book
-     * @param metadata the metadata associated to the address book
-     * @param proof the SNARK proving the address book hash and metadata belong to the ledger id's chain of trust
-     * @return true if the proof is valid; false otherwise
+     * Verifies the given proof validates under this library's SNARK verification key.
+     *
+     * @param proof the proof to verify
+     * @return whether the proof is valid under this library's SNARK verification key
      */
-    boolean verifyChainOfTrust(
-            @NonNull Bytes ledgerId, @NonNull Bytes addressBookHash, @NonNull Bytes metadata, @NonNull Bytes proof);
+    boolean verifyChainOfTrust(@NonNull Bytes proof);
 }

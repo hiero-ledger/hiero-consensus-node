@@ -46,7 +46,6 @@ import org.apache.logging.log4j.Logger;
  */
 public class ProofControllerImpl implements ProofController {
     private static final Logger log = LogManager.getLogger(ProofControllerImpl.class);
-    private static final int ADDRESS_BOOK_HASH_LEN = 32;
     private static final Comparator<ProofKey> PROOF_KEY_COMPARATOR = Comparator.comparingLong(ProofKey::nodeId);
     private static final Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
     private static final int INSUFFICIENT_SIGNATURES_CHECK_RETRY_SECS = 10;
@@ -61,6 +60,8 @@ public class ProofControllerImpl implements ProofController {
     private static CompletableFuture<Void> RUNNING_PROOF_FUTURE = null;
 
     public static final String PROOF_COMPLETE_MSG = "History proof constructed";
+
+    public static final int ADDRESS_BOOK_HASH_LEN = 32;
 
     private final long selfId;
 
