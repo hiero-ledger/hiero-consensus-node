@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.config.ServicesConfigExtension;
+import com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.props.MapPropertySource.Quiet;
@@ -35,8 +36,8 @@ public abstract class AbstractNetwork implements HederaNetwork {
     protected AbstractNetwork(@NonNull final String networkName, @NonNull final List<HederaNode> nodes) {
         this.networkName = requireNonNull(networkName);
         this.nodes = new ArrayList<>(requireNonNull(nodes));
-        this.startupProperties =
-                inPriorityOrder(Stream.of(networkOverrides(), environmentDefaults(), servicesDefaults())
+        this.startupProperties = inPriorityOrder(
+                Stream.of(ciCheckOverrides(), networkOverrides(), environmentDefaults(), servicesDefaults())
                         .filter(Objects::nonNull)
                         .toArray(HapiPropertySource[]::new));
     }
@@ -63,6 +64,14 @@ public abstract class AbstractNetwork implements HederaNetwork {
      */
     protected @Nullable HapiPropertySource networkOverrides() {
         return null;
+    }
+
+    /**
+     * Returns a property source with any PR check overrides, if some exist.
+     */
+    private HapiPropertySource ciCheckOverrides() {
+        final var maybeOverrides = ProcessUtils.prCheckOverrides();
+        return maybeOverrides.isEmpty() ? null : new MapPropertySource(maybeOverrides);
     }
 
     private HapiPropertySource environmentDefaults() {

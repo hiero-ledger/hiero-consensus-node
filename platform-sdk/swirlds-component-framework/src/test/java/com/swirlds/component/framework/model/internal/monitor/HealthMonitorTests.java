@@ -7,9 +7,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.utility.CompareTo;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -53,11 +52,9 @@ class HealthMonitorTests {
 
         final Instant startTime = randotron.nextInstant();
         final FakeTime time = new FakeTime(startTime, Duration.ZERO);
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
 
         final HealthMonitor healthMonitor =
-                new HealthMonitor(platformContext, schedulers, Duration.ofSeconds(5), Duration.ofDays(10000));
+                new HealthMonitor(new NoOpMetrics(), time, schedulers, Duration.ofSeconds(5), Duration.ofDays(10000));
 
         final Instant endTime = startTime.plus(Duration.ofSeconds(10));
         while (time.now().isBefore(endTime)) {
@@ -85,11 +82,9 @@ class HealthMonitorTests {
 
         final Instant startTime = randotron.nextInstant();
         final FakeTime time = new FakeTime(startTime, Duration.ZERO);
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
 
         final HealthMonitor healthMonitor =
-                new HealthMonitor(platformContext, schedulers, Duration.ofSeconds(5), Duration.ofDays(10000));
+                new HealthMonitor(new NoOpMetrics(), time, schedulers, Duration.ofSeconds(5), Duration.ofDays(10000));
 
         final Instant phase1EndTime = startTime.plus(Duration.ofSeconds(10));
         while (time.now().isBefore(phase1EndTime)) {
@@ -146,11 +141,9 @@ class HealthMonitorTests {
 
         final Instant startTime = randotron.nextInstant();
         final FakeTime time = new FakeTime(startTime, Duration.ZERO);
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
 
         final HealthMonitor healthMonitor =
-                new HealthMonitor(platformContext, schedulers, Duration.ofSeconds(5), Duration.ofDays(10000));
+                new HealthMonitor(new NoOpMetrics(), time, schedulers, Duration.ofSeconds(5), Duration.ofDays(10000));
 
         final Instant phase1EndTime = startTime.plus(Duration.ofSeconds(10));
         while (time.now().isBefore(phase1EndTime)) {

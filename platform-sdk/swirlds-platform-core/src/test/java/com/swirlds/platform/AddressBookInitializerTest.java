@@ -21,6 +21,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.FileUtils;
@@ -426,7 +427,7 @@ class AddressBookInitializerTest {
             @Nullable final AddressBook previousAddressBook,
             boolean fromGenesis) {
         final SignedState signedState = mock(SignedState.class);
-        final SoftwareVersion softwareVersion = getMockSoftwareVersion(2);
+        final SemanticVersion softwareVersion = getMockSoftwareVersion(2).getPbjSemanticVersion();
         configureUpdateWeightForStateEventHandler(weightValue);
         final MerkleNodeState state = mock(MerkleNodeState.class);
         final ReadableStates readableStates = mock(ReadableStates.class);

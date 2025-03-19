@@ -76,12 +76,19 @@ public interface LifecycleTest {
      *
      * @param selector the node to reconnect
      * @param configVersion the configuration version to reconnect at
+     * @param preReconnectOps operations to run before the node is reconnected
      * @return the operation
      */
-    default HapiSpecOperation reconnectNode(@NonNull final NodeSelector selector, final int configVersion) {
+    default HapiSpecOperation reconnectNode(
+            @NonNull final NodeSelector selector,
+            final int configVersion,
+            @NonNull final SpecOperation... preReconnectOps) {
+        requireNonNull(selector);
+        requireNonNull(preReconnectOps);
         return blockingOrder(
                 FakeNmt.shutdownWithin(selector, SHUTDOWN_TIMEOUT),
                 burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                preReconnectOps.length > 0 ? blockingOrder(preReconnectOps) : noOp(),
                 FakeNmt.restartWithConfigVersion(selector, configVersion),
                 waitForActive(selector, RESTART_TO_ACTIVE_TIMEOUT));
     }

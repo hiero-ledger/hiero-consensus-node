@@ -2,7 +2,8 @@
 package com.swirlds.platform.test.fixtures.sync;
 
 import com.swirlds.common.platform.NodeId;
-import java.util.List;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Set;
 import org.hiero.consensus.gossip.FallenBehindManager;
 
 public class TestingSyncManager implements FallenBehindManager {
@@ -26,16 +27,6 @@ public class TestingSyncManager implements FallenBehindManager {
     }
 
     @Override
-    public List<NodeId> getNeighborsForReconnect() {
-        return null;
-    }
-
-    @Override
-    public List<NodeId> getNeededForFallenBehind() {
-        return null;
-    }
-
-    @Override
     public int numReportedFallenBehind() {
         return 0;
     }
@@ -44,4 +35,7 @@ public class TestingSyncManager implements FallenBehindManager {
     public boolean shouldReconnectFrom(final NodeId peerId) {
         return false;
     }
+
+    @Override
+    public void addRemovePeers(@NonNull Set<NodeId> added, @NonNull Set<NodeId> removed) {}
 }

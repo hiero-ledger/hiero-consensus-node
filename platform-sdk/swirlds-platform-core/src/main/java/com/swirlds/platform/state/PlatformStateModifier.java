@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -19,7 +19,7 @@ public interface PlatformStateModifier extends PlatformStateAccessor {
      *
      * @param creationVersion the creation version
      */
-    void setCreationSoftwareVersion(@NonNull SoftwareVersion creationVersion);
+    void setCreationSoftwareVersion(@NonNull SemanticVersion creationVersion);
 
     /**
      * Set the round when this state was generated.
@@ -76,7 +76,7 @@ public interface PlatformStateModifier extends PlatformStateAccessor {
      *
      * @param firstVersionInBirthRoundMode the first software version where the birth round migration happened
      */
-    void setFirstVersionInBirthRoundMode(SoftwareVersion firstVersionInBirthRoundMode);
+    void setFirstVersionInBirthRoundMode(SemanticVersion firstVersionInBirthRoundMode);
 
     /**
      * Set the last round before the birth round mode was enabled.

@@ -13,7 +13,6 @@ import com.swirlds.platform.Utilities;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionTracker;
-import com.swirlds.platform.network.NetworkPeerIdentifier;
 import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.PeerInfo;
 import java.net.ServerSocket;
@@ -56,7 +55,6 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
         final KeysAndCerts OtherKeysAndCerts = keysAndCerts.get(node2);
         final List<PeerInfo> node1Peers = Utilities.createPeerInfoList(roster, node1);
         final List<PeerInfo> node2Peers = Utilities.createPeerInfoList(roster, node2);
-        final NetworkPeerIdentifier identifier = new NetworkPeerIdentifier(platformContext, node1Peers);
 
         final SocketFactory socketFactory1 =
                 NetworkUtils.createSocketFactory(node1, node1Peers, thisKeysAndCerts, TLS_NO_IP_TOS_CONFIG);
@@ -78,7 +76,7 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
         };
 
         final InboundConnectionHandler inbound =
-                new InboundConnectionHandler(platformContext, ct, identifier, node1, connConsumer, Time.getCurrent());
+                new InboundConnectionHandler(platformContext, ct, node1Peers, node1, connConsumer, Time.getCurrent());
         inbound.handle(socket); // 2 can talk to 1 via tls ok
         socket.close();
     }
@@ -105,7 +103,6 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
 
         final List<PeerInfo> node1Peers = Utilities.createPeerInfoList(roster, node1);
         final List<PeerInfo> node2Peers = Utilities.createPeerInfoList(roster, node2);
-        final NetworkPeerIdentifier identifier = new NetworkPeerIdentifier(platformContext, node1Peers);
 
         final SocketFactory s1 =
                 NetworkUtils.createSocketFactory(node1, node1Peers, keysAndCerts1, TLS_NO_IP_TOS_CONFIG);
@@ -123,7 +120,7 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
                 conn -> Assertions.fail("connection should never have been created");
 
         final InboundConnectionHandler inbound =
-                new InboundConnectionHandler(platformContext, ct, identifier, node1, connConsumer, Time.getCurrent());
+                new InboundConnectionHandler(platformContext, ct, node1Peers, node1, connConsumer, Time.getCurrent());
         inbound.handle(socket);
         Assertions.assertTrue(socket.isClosed());
         serverThread.join();

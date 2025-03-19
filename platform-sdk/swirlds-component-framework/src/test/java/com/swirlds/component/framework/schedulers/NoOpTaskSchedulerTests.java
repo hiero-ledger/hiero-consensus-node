@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
@@ -22,9 +22,8 @@ class NoOpTaskSchedulerTests {
 
     @Test
     void nothingHappensTest() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskScheduler<List<Integer>> realFakeScheduler =
                 model.<List<Integer>>schedulerBuilder("A").withType(NO_OP).build();

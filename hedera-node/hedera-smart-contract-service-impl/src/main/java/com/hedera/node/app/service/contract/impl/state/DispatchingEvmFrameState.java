@@ -545,6 +545,22 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
+    public void trackSelfDestructBeneficiary(
+            @NonNull final Address deleted, @NonNull final Address beneficiary, @NonNull final MessageFrame frame) {
+        requireNonNull(deleted);
+        requireNonNull(beneficiary);
+
+        final var beneficiaryAccount = getAccount(beneficiary);
+        final var deletedAccount = (AbstractProxyEvmAccount) requireNonNull(getAccount(deleted));
+
+        nativeOperations.trackSelfDestructBeneficiary(
+                deletedAccount.hederaId(), ((AbstractProxyEvmAccount) beneficiaryAccount).hederaId(), frame);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public @Nullable Account getAccount(@NonNull final Address address) {
         return getMutableAccount(address);
     }

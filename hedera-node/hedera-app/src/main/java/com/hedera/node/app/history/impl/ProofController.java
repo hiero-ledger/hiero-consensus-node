@@ -40,7 +40,7 @@ public interface ProofController {
             @NonNull Instant now,
             @Nullable Bytes metadata,
             @NonNull WritableHistoryStore historyStore,
-            final boolean isActive);
+            boolean isActive);
 
     /**
      * Incorporates the proof key published by the given node, if this construction has not already "locked in"

@@ -11,29 +11,22 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-class KeyPairSequenceManagerTest {
+class SequentialContentManagerTest {
     private static final String PRIVATE_KEY_FILE_NAME = "hinTS.bls";
-
-    private record HintsKeyPair(byte[] privateKey, byte[] extendedPublicKey) {}
 
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
 
-    private static final byte[] CRS;
-
-    static {
-        CRS = BRIDGE.initCRS(8);
-    }
-
     @TempDir
     private Path tempDir;
 
-    private KeyPairSequenceManager<byte[], byte[], HintsKeyPair> subject;
+    private SequentialContentManager<byte[]> subject;
 
     @BeforeEach
     void setUp() {
-        subject = new KeyPairSequenceManager<>(
+        subject = new SequentialContentManager<>(
                 tempDir,
+                "private key",
                 PRIVATE_KEY_FILE_NAME,
                 () -> {
                     final var bytes = new byte[32];
@@ -41,15 +34,13 @@ class KeyPairSequenceManagerTest {
                     return BRIDGE.generateSecretKey(bytes);
                 },
                 Files::readAllBytes,
-                (bytes, p) -> Files.write(p, bytes),
-                privateKey -> BRIDGE.computeHints(CRS, privateKey, 1, 2),
-                HintsKeyPair::new);
+                (bytes, p) -> Files.write(p, bytes));
     }
 
     @Test
     void createsDirectoryAndKeyPairIfNoneExist() {
         // when
-        final var keyPair = subject.getOrCreateKeyPairFor(5);
+        final var keyPair = subject.getOrCreateContent(5);
 
         // then
         final var constructedDir = tempDir.resolve("5");
@@ -58,67 +49,53 @@ class KeyPairSequenceManagerTest {
         assertTrue(Files.exists(privateKeyFile), "Private key file should be created");
         // The returned pair should be valid
         assertNotNull(keyPair);
-        assertNotNull(keyPair.privateKey());
     }
 
     @Test
     void reusesDirectoryForSameConstructionId() {
         // when
-        final var firstPair = subject.getOrCreateKeyPairFor(5);
-        final var secondPair = subject.getOrCreateKeyPairFor(5);
+        final var firstPair = subject.getOrCreateContent(5);
+        final var secondPair = subject.getOrCreateContent(5);
 
         // then
-        assertArrayEquals(
-                firstPair.privateKey(),
-                secondPair.privateKey(),
-                "Should return the same private key for repeated calls at the same ID");
-        assertArrayEquals(
-                firstPair.extendedPublicKey(),
-                secondPair.extendedPublicKey(),
-                "Should return the same public key for repeated calls at the same ID");
+        assertArrayEquals(firstPair, secondPair, "Should return the same content for repeated calls at the same ID");
+        assertArrayEquals(firstPair, secondPair, "Should return the same content for repeated calls at the same ID");
     }
 
     @Test
     void usesLargestDirectoryNotExceedingId() {
         // given two calls to create directories "2" and "5"
-        final var pair2 = subject.getOrCreateKeyPairFor(2);
-        final var pair5 = subject.getOrCreateKeyPairFor(5);
+        final var key2 = subject.getOrCreateContent(2);
+        final var key5 = subject.getOrCreateContent(5);
 
         // when
-        final var pairForId3 = subject.getOrCreateKeyPairFor(3);
-        final var pairForId5Again = subject.getOrCreateKeyPairFor(5);
-        final var pairForId10 = subject.getOrCreateKeyPairFor(10);
+        final var keyForId3 = subject.getOrCreateContent(3);
+        final var keyForId5Again = subject.getOrCreateContent(5);
+        final var keyForId10 = subject.getOrCreateContent(10);
 
         // then
         // For ID=3, the largest existing directory <= 3 is "2"
-        assertArrayEquals(
-                pair2.privateKey(), pairForId3.privateKey(), "Should reuse the directory for ID=2 when asked for ID=3");
+        assertArrayEquals(key2, keyForId3, "Should reuse the directory for ID=2 when asked for ID=3");
         // For ID=5, we exactly match "5"
-        assertArrayEquals(
-                pair5.privateKey(),
-                pairForId5Again.privateKey(),
-                "Should reuse the directory for ID=5 when asked for ID=5 again");
+        assertArrayEquals(key5, keyForId5Again, "Should reuse the directory for ID=5 when asked for ID=5 again");
         // For ID=10, the largest existing directory <= 10 is still "5"
         // so we do not create a "10" directory
-        assertArrayEquals(
-                pair5.privateKey(),
-                pairForId10.privateKey(),
-                "Should reuse the directory for ID=5 when asked for ID=10");
+        assertArrayEquals(key5, keyForId10, "Should reuse the directory for ID=5 when asked for ID=10");
         final var potentialDir10 = tempDir.resolve("10");
         assertFalse(Files.exists(potentialDir10), "Should not create directory 10");
     }
 
     @Test
     void purgeKeyPairsForConstructionsBeforeRemovesCorrectDirs() {
-        subject.createKeyPairFor(1);
-        subject.createKeyPairFor(5);
-        subject.createKeyPairFor(10);
+        subject.createContentFor(1);
+        subject.createContentFor(5);
+        subject.createContentFor(10);
 
         assertTrue(Files.isDirectory(tempDir.resolve("1")));
         assertTrue(Files.isDirectory(tempDir.resolve("5")));
         assertTrue(Files.isDirectory(tempDir.resolve("10")));
 
-        subject.purgeKeyPairsBefore(5);
+        subject.purgeContentBefore(5);
 
         assertFalse(Files.exists(tempDir.resolve("1")), "Dir '1' should be purged");
         assertTrue(Files.exists(tempDir.resolve("5")), "Dir '5' should remain");
@@ -133,11 +110,11 @@ class KeyPairSequenceManagerTest {
         assertTrue(Files.isDirectory(originalDir));
 
         // remove it
-        KeyPairSequenceManager.rm(originalDir);
+        SequentialContentManager.rm(originalDir);
 
         // now try to get the key pair again
         assertDoesNotThrow(
-                () -> subject.getOrCreateKeyPairFor(7), "Should handle re-creating base directory if it was removed");
+                () -> subject.getOrCreateContent(7), "Should handle re-creating base directory if it was removed");
         final var newDir = originalDir.resolve("7");
         assertTrue(Files.isDirectory(newDir), "Directory should be re-created");
     }

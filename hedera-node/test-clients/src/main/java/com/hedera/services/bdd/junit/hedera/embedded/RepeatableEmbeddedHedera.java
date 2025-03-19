@@ -159,7 +159,7 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     /**
      * Executes the transaction in the last-created event within its own round.
      */
-    private void handleNextRound() {
+    public void handleNextRound() {
         hedera.onPreHandle(platform.lastCreatedEvent, state, preHandleStateSignatureCallback);
         final var round = platform.nextConsensusRound();
         // Handle each transaction in own round

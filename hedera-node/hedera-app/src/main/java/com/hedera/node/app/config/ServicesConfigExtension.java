@@ -41,6 +41,7 @@ import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NettyConfig;
@@ -115,7 +116,8 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 UtilPrngConfig.class,
                 AtomicBatchConfig.class,
                 VersionConfig.class,
-                TssConfig.class);
+                TssConfig.class,
+                JumboTransactionsConfig.class);
     }
 
     @NonNull

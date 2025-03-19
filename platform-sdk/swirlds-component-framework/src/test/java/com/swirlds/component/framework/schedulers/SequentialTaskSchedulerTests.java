@@ -15,9 +15,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.component.framework.TestWiringModelBuilder;
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
@@ -438,10 +438,7 @@ class SequentialTaskSchedulerTests {
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void backpressureTest(final String typeString) throws InterruptedException {
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
-        final WiringModel model = WiringModelBuilder.create(platformContext)
+        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
@@ -542,10 +539,8 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void uninterruptableTest(final String typeString) throws InterruptedException {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
-        final WiringModel model = WiringModelBuilder.create(platformContext)
+        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
 
@@ -852,10 +847,8 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void multipleChannelBackpressureTest(final String typeString) throws InterruptedException {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
-        final WiringModel model = WiringModelBuilder.create(platformContext)
+        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
 
@@ -1080,10 +1073,8 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void flushTest(final String typeString) throws InterruptedException {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
-        final WiringModel model = WiringModelBuilder.create(platformContext)
+        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
 
@@ -1209,12 +1200,14 @@ class SequentialTaskSchedulerTests {
 
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void exceptionHandlingTest(final String typeString) {
+    void exceptionHandlingTest(String typeString) {
         final WiringModel model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final AtomicInteger wireValue = new AtomicInteger();
+        final AtomicInteger lastX = new AtomicInteger();
         final Consumer<Integer> handler = x -> {
+            lastX.set(x);
             if (x == 50) {
                 throw new IllegalStateException("intentional");
             }
@@ -1222,10 +1215,15 @@ class SequentialTaskSchedulerTests {
         };
 
         final AtomicInteger exceptionCount = new AtomicInteger();
+        final AtomicBoolean isLastXTheMinValueWhenProcessingException = new AtomicBoolean();
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
-                .withUncaughtExceptionHandler((t, e) -> exceptionCount.incrementAndGet())
+                .withUncaughtExceptionHandler((t, e) -> {
+                    // check that is never called before the task that threw the exception.
+                    isLastXTheMinValueWhenProcessingException.set(lastX.get() >= 50);
+                    exceptionCount.incrementAndGet();
+                })
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .build();
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
@@ -1244,8 +1242,13 @@ class SequentialTaskSchedulerTests {
         }
 
         assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-        assertEquals(1, exceptionCount.get());
-
+        // We cannot guarantee that the exception handling will be executed immediately after the task that throws the
+        // exception
+        // so we check a) that it was at least after that task, and b) give some time for it to finish so we check that
+        // it was executed.
+        assertTrue(isLastXTheMinValueWhenProcessingException.get());
+        assertEventuallyEquals(
+                1, exceptionCount::get, Duration.ofSeconds(1), "Exception handler did not update the expected value");
         model.stop();
     }
 
@@ -1658,10 +1661,8 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void injectionSolderingTest(final String typeString) throws InterruptedException {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
-        final WiringModel model = WiringModelBuilder.create(platformContext)
+        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
 
@@ -2144,10 +2145,8 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void multipleCountersInternalBackpressureTest(final String typeString) throws InterruptedException {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
-        final WiringModel model = WiringModelBuilder.create(platformContext)
+        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
 
@@ -2269,10 +2268,8 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void offerSolderingTest(final String typeString) {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
-        final WiringModel model = WiringModelBuilder.create(platformContext)
+        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
 

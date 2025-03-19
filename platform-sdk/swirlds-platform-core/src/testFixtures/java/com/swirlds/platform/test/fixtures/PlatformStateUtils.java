@@ -38,7 +38,7 @@ public final class PlatformStateUtils {
             v.setLegacyRunningEventHash(randomHash(random));
             v.setRound(random.nextLong());
             v.setConsensusTimestamp(randomInstant(random));
-            v.setCreationSoftwareVersion(new BasicSoftwareVersion(nextInt(1, 100)));
+            v.setCreationSoftwareVersion(new BasicSoftwareVersion(nextInt(1, 100)).getPbjSemanticVersion());
         });
 
         final List<MinimumJudgeInfo> minimumJudgeInfo = new LinkedList<>();

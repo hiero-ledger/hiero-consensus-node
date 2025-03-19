@@ -166,7 +166,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        currentSoftwareVersion,
+                        currentSoftwareVersion.getPbjSemanticVersion(),
                         platformStateFacade,
                         platformContext)
                 .getNullable();
@@ -196,7 +196,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        currentSoftwareVersion,
+                        currentSoftwareVersion.getPbjSemanticVersion(),
                         platformStateFacade,
                         platformContext)
                 .get();
@@ -230,7 +230,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        currentSoftwareVersion,
+                        currentSoftwareVersion.getPbjSemanticVersion(),
                         platformStateFacade,
                         platformContext)
                 .get());
@@ -276,7 +276,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        currentSoftwareVersion,
+                        currentSoftwareVersion.getPbjSemanticVersion(),
                         platformStateFacade,
                         platformContext)
                 .getNullable();

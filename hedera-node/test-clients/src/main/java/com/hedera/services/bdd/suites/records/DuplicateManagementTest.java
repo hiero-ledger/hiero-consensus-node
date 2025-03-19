@@ -37,7 +37,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -203,31 +202,5 @@ public class DuplicateManagementTest {
                         .hasPriority(recordWith()
                                 .status(INVALID_PAYER_SIGNATURE)
                                 .transfers(includingDeduction("node payment", TO))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> classifiableTakesPriorityOverUnclassifiable() {
-        return hapiTest(
-                cryptoCreate(CIVILIAN).balance(100 * 100_000_000L),
-                usableTxnIdNamed(TXN_ID).payerId(CIVILIAN),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, TO, 100_000_000L)),
-                uncheckedSubmit(cryptoCreate("nope")
-                                .txnId(TXN_ID)
-                                .payingWith(CIVILIAN)
-                                .setNode("0.0.4"))
-                        .logged(),
-                uncheckedSubmit(
-                        cryptoCreate("sure").txnId(TXN_ID).payingWith(CIVILIAN).setNode(TO)),
-                sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
-                getReceipt(TXN_ID)
-                        .andAnyDuplicates()
-                        .logged()
-                        .hasPriorityStatus(SUCCESS)
-                        .hasDuplicateStatuses(INVALID_NODE_ACCOUNT),
-                getTxnRecord(TXN_ID)
-                        .assertingNothingAboutHashes()
-                        .andAnyDuplicates()
-                        .hasPriority(recordWith().status(SUCCESS))
-                        .hasDuplicates(inOrder(recordWith().status(INVALID_NODE_ACCOUNT))));
     }
 }

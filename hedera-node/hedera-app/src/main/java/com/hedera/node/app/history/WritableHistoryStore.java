@@ -63,6 +63,14 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     HistoryProofConstruction completeProof(long constructionId, @NonNull HistoryProof proof);
 
     /**
+     * Fails the construction with the given ID, providing a reason.
+     * @param constructionId the construction ID
+     * @param reason the reason
+     * @return the updated construction
+     */
+    HistoryProofConstruction failForReason(long constructionId, @NonNull String reason);
+
+    /**
      * Sets the ledger ID to the given bytes.
      * @param bytes the bytes
      */

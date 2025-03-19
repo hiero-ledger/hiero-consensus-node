@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -105,6 +106,18 @@ public class ProcessUtils {
     }
 
     /**
+     * Returns any environment overrides specified by the {@code hapi.spec.test.overrides} system property.
+     * @return a map of environment variable overrides
+     */
+    public static Map<String, String> prCheckOverrides() {
+        return Optional.ofNullable(System.getProperty("hapi.spec.test.overrides"))
+                .map(testOverrides -> Arrays.stream(testOverrides.split(","))
+                        .map(override -> override.split("="))
+                        .collect(Collectors.toMap(parts -> parts[0], parts -> parts[1])))
+                .orElse(Map.of());
+    }
+
+    /**
      * Starts a sub-process node from the given metadata and main class reference with the requested environment
      * overrides, and returns its {@link ProcessHandle}.
      *
@@ -124,6 +137,10 @@ public class ProcessUtils {
         environment.put("grpc.port", Integer.toString(metadata.grpcPort()));
         environment.put("grpc.nodeOperatorPort", Integer.toString(metadata.grpcNodeOperatorPort()));
         environment.put("hedera.config.version", Integer.toString(configVersion));
+        environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(1));
+        // Include an PR check overrides from build.gradle.kts
+        environment.putAll(prCheckOverrides());
+        // Give any overrides set by the test author the highest priority
         environment.putAll(envOverrides);
         try {
             final var redirectFile = guaranteedExtantFile(

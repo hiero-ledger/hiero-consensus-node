@@ -117,8 +117,8 @@ class IngestComponentTest {
                 throttleFactory,
                 () -> NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(configuration));
-        final var hintsService = new HintsServiceImpl(
-                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl(), configuration);
+        final var hintsService =
+                new HintsServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl());
         final var historyService = new HistoryServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), DEFAULT_CONFIG);
         app = DaggerHederaInjectionComponent.builder()

@@ -4,7 +4,9 @@ package com.swirlds.platform.wiring;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -81,9 +83,10 @@ class PlatformWiringTests {
             return null;
         });
 
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final PlatformWiring wiring = new PlatformWiring(platformContext, model, applicationCallbacks);
+        final PlatformWiring wiring = new PlatformWiring(platformContext, model, applicationCallbacks, true);
 
         final PlatformComponentBuilder componentBuilder =
                 new PlatformComponentBuilder(mock(PlatformBuildingBlocks.class));

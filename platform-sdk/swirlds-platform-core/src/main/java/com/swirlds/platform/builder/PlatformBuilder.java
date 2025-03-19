@@ -456,7 +456,7 @@ public final class PlatformBuilder {
                     platformContext.getExecutorFactory().createForkJoinPool(parallelism);
             logger.info(STARTUP.getMarker(), "Default platform pool parallelism: {}", parallelism);
 
-            model = WiringModelBuilder.create(platformContext)
+            model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                     .withJvmAnchorEnabled(true)
                     .withDefaultPool(defaultPool)
                     .withHealthMonitorEnabled(wiringConfig.healthMonitorEnabled())
@@ -472,7 +472,8 @@ public final class PlatformBuilder {
             randomBuilder = new RandomBuilder();
         }
 
-        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks);
+        final PlatformWiring platformWiring = new PlatformWiring(
+                platformContext, model, callbacks, initialState.get().isGenesisState());
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformWiring,

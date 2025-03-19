@@ -110,7 +110,7 @@ public class PlatformStateFacade {
      * @return the version of the state if it was deserialized, otherwise null
      */
     @Nullable
-    public SoftwareVersion creationSoftwareVersionOf(@NonNull final State state) {
+    public SemanticVersion creationSoftwareVersionOf(@NonNull final State state) {
         requireNonNull(state);
         if (isPlatformStateEmpty(state)) {
             return null;
@@ -185,7 +185,7 @@ public class PlatformStateFacade {
      * @return the number of non-ancient rounds, or zero if the state is a genesis state
      */
     @Nullable
-    public SoftwareVersion firstVersionInBirthRoundModeOf(@NonNull final State state) {
+    public SemanticVersion firstVersionInBirthRoundModeOf(@NonNull final State state) {
         return readablePlatformStateStore(state).getFirstVersionInBirthRoundMode();
     }
 
@@ -288,7 +288,7 @@ public class PlatformStateFacade {
      * @param creationVersion the creation version
      */
     public void setCreationSoftwareVersionTo(@NonNull final State state, @NonNull SoftwareVersion creationVersion) {
-        getWritablePlatformStateOf(state).setCreationSoftwareVersion(creationVersion);
+        getWritablePlatformStateOf(state).setCreationSoftwareVersion(creationVersion.getPbjSemanticVersion());
     }
 
     /**

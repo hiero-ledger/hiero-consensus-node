@@ -79,7 +79,7 @@ public class V0540PlatformStateSchema extends Schema {
 
     private Consumer<PlatformStateModifier> genesisStateSpec(@NonNull final MigrationContext ctx) {
         return v -> {
-            v.setCreationSoftwareVersion(versionFn.apply(ctx.appConfig()));
+            v.setCreationSoftwareVersion(versionFn.apply(ctx.appConfig()).getPbjSemanticVersion());
             v.setRound(0);
             v.setLegacyRunningEventHash(null);
             v.setConsensusTimestamp(Instant.EPOCH);

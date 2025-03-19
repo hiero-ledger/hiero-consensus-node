@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,8 +21,6 @@ public final class TestWiringModelBuilder {
      */
     @NonNull
     public static WiringModel create() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        return WiringModelBuilder.create(platformContext).build();
+        return WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
     }
 }
