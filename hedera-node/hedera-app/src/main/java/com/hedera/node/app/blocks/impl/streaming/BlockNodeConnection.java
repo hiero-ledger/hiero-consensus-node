@@ -3,8 +3,10 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.protoc.PublishStreamRequest;
-import com.hedera.hapi.block.protoc.PublishStreamResponse;
+import com.hedera.hapi.block.Acknowledgement;
+import com.hedera.hapi.block.EndOfStream;
+import com.hedera.hapi.block.PublishStreamRequest;
+import com.hedera.hapi.block.PublishStreamResponse;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
@@ -49,9 +51,9 @@ public class BlockNodeConnection {
                     @Override
                     public void onNext(PublishStreamResponse response) {
                         if (response.hasAcknowledgement()) {
-                            handleAcknowledgement(response.getAcknowledgement());
+                            handleAcknowledgement(response.acknowledgement());
                         } else if (response.hasEndStream()) {
-                            handleEndOfStream(response.getEndStream());
+                            handleEndOfStream(response.endStream());
                         }
                     }
 
@@ -74,9 +76,9 @@ public class BlockNodeConnection {
         return null;
     }
 
-    private void handleAcknowledgement(PublishStreamResponse.Acknowledgement acknowledgement) {
+    private void handleAcknowledgement(Acknowledgement acknowledgement) {
         if (acknowledgement.hasBlockAck()) {
-            logger.info("Block acknowledgment received for a full block: {}", acknowledgement.getBlockAck());
+            logger.info("Block acknowledgment received for a full block: {}", acknowledgement.blockAck());
         }
     }
 
@@ -85,8 +87,8 @@ public class BlockNodeConnection {
         removeFromActiveConnections(node);
     }
 
-    private void handleEndOfStream(PublishStreamResponse.EndOfStream endOfStream) {
-        logger.info("Error returned from block node at block number {}: {}", endOfStream.getBlockNumber(), endOfStream);
+    private void handleEndOfStream(EndOfStream endOfStream) {
+        logger.info("Error returned from block node at block number {}: {}", endOfStream.blockNumber(), endOfStream);
     }
 
     private void removeFromActiveConnections(BlockNodeConfig node) {

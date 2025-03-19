@@ -1,36 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.pricing;
 
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusSubmitMessage;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractAutoRenew;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoApproveAllowance;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoDeleteAllowance;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoUpdate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileAppend;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ScheduleCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenAccountWipe;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenBurn;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenFeeScheduleUpdate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenFreezeAccount;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenMint;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenPause;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenUnfreezeAccount;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenUnpause;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.UtilPrng;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
-import static com.hederahashgraph.api.proto.java.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_AUTO_RENEW;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE_ALLOWANCE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ACCOUNT_WIPE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_BURN;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_FEE_SCHEDULE_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_FREEZE_ACCOUNT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_PAUSE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UNFREEZE_ACCOUNT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UNPAUSE;
+import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
+import static com.hedera.hapi.node.base.SubType.DEFAULT;
+import static com.hedera.hapi.node.base.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
+import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON;
+import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
+import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
+import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 import static java.time.Month.SEPTEMBER;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.SubType;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SubType;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -107,43 +107,42 @@ public class ScheduleGenerator {
         return transactionFeeSchedule;
     }
 
-    @SuppressWarnings("unchecked")
     static final List<Pair<HederaFunctionality, List<SubType>>> SUPPORTED_FUNCTIONS = List.of(
-            Pair.of(ContractAutoRenew, List.of(DEFAULT)),
+            Pair.of(CONTRACT_AUTO_RENEW, List.of(DEFAULT)),
             /* Crypto */
             Pair.of(
-                    CryptoTransfer,
+                    CRYPTO_TRANSFER,
                     List.of(
                             DEFAULT,
                             TOKEN_FUNGIBLE_COMMON,
                             TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES,
                             TOKEN_NON_FUNGIBLE_UNIQUE,
                             TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES)),
-            Pair.of(CryptoCreate, List.of(DEFAULT)),
-            Pair.of(CryptoUpdate, List.of(DEFAULT)),
-            Pair.of(CryptoApproveAllowance, List.of(DEFAULT)),
-            Pair.of(CryptoDeleteAllowance, List.of(DEFAULT)),
+            Pair.of(CRYPTO_CREATE, List.of(DEFAULT)),
+            Pair.of(CRYPTO_UPDATE, List.of(DEFAULT)),
+            Pair.of(CRYPTO_APPROVE_ALLOWANCE, List.of(DEFAULT)),
+            Pair.of(CRYPTO_DELETE_ALLOWANCE, List.of(DEFAULT)),
             /* File */
-            Pair.of(FileAppend, List.of(DEFAULT)),
+            Pair.of(FILE_APPEND, List.of(DEFAULT)),
             /* Token */
             Pair.of(
-                    TokenCreate,
+                    TOKEN_CREATE,
                     List.of(
                             TOKEN_FUNGIBLE_COMMON,
                             TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES,
                             TOKEN_NON_FUNGIBLE_UNIQUE,
                             TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES)),
-            Pair.of(TokenMint, List.of(TOKEN_FUNGIBLE_COMMON, TOKEN_NON_FUNGIBLE_UNIQUE)),
-            Pair.of(TokenBurn, List.of(TOKEN_FUNGIBLE_COMMON, TOKEN_NON_FUNGIBLE_UNIQUE)),
-            Pair.of(TokenAccountWipe, List.of(TOKEN_FUNGIBLE_COMMON, TOKEN_NON_FUNGIBLE_UNIQUE)),
-            Pair.of(TokenFeeScheduleUpdate, List.of(DEFAULT)),
-            Pair.of(TokenFreezeAccount, List.of(DEFAULT)),
-            Pair.of(TokenUnfreezeAccount, List.of(DEFAULT)),
-            Pair.of(TokenPause, List.of(DEFAULT)),
-            Pair.of(TokenUnpause, List.of(DEFAULT)),
+            Pair.of(TOKEN_MINT, List.of(TOKEN_FUNGIBLE_COMMON, TOKEN_NON_FUNGIBLE_UNIQUE)),
+            Pair.of(TOKEN_BURN, List.of(TOKEN_FUNGIBLE_COMMON, TOKEN_NON_FUNGIBLE_UNIQUE)),
+            Pair.of(TOKEN_ACCOUNT_WIPE, List.of(TOKEN_FUNGIBLE_COMMON, TOKEN_NON_FUNGIBLE_UNIQUE)),
+            Pair.of(TOKEN_FEE_SCHEDULE_UPDATE, List.of(DEFAULT)),
+            Pair.of(TOKEN_FREEZE_ACCOUNT, List.of(DEFAULT)),
+            Pair.of(TOKEN_UNFREEZE_ACCOUNT, List.of(DEFAULT)),
+            Pair.of(TOKEN_PAUSE, List.of(DEFAULT)),
+            Pair.of(TOKEN_UNPAUSE, List.of(DEFAULT)),
             /* Consensus */
-            Pair.of(ConsensusSubmitMessage, List.of(DEFAULT)),
+            Pair.of(CONSENSUS_SUBMIT_MESSAGE, List.of(DEFAULT)),
             /* Schedule */
-            Pair.of(ScheduleCreate, List.of(DEFAULT, SCHEDULE_CREATE_CONTRACT_CALL)),
-            Pair.of(UtilPrng, List.of(DEFAULT)));
+            Pair.of(SCHEDULE_CREATE, List.of(DEFAULT, SCHEDULE_CREATE_CONTRACT_CALL)),
+            Pair.of(UTIL_PRNG, List.of(DEFAULT)));
 }

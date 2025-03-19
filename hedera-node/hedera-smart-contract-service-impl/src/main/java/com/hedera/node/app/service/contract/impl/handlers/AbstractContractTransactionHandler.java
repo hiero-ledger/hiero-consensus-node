@@ -2,11 +2,12 @@
 package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
@@ -17,7 +18,6 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Provider;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -61,7 +61,7 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> getFeeMatrices(usageEstimator, fromPbj(op), sigValueObj));
+                .legacyCalculate(sigValueObj -> getFeeMatrices(usageEstimator, op, sigValueObj));
     }
 
     /**
@@ -73,7 +73,7 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
      */
     protected /*abstract*/ @NonNull FeeData getFeeMatrices(
             @NonNull final SmartContractFeeBuilder usageEstimator,
-            @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txBody,
+            @NonNull final TransactionBody txBody,
             @NonNull final SigValueObj sigValObj) {
         throw new IllegalStateException("must be overridden if `calculateFees` _not_ overridden");
     }

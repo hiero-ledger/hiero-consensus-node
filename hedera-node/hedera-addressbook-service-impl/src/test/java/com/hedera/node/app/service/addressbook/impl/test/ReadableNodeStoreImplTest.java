@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.test;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.asBytes;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
 import static java.util.stream.Collectors.toSet;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,8 +46,8 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
         assertEquals(1L, node.nodeId());
         assertEquals(accountId, node.accountId());
         assertEquals("description", node.description());
-        assertArrayEquals(gossipCaCertificate, asBytes(node.gossipCaCertificate()));
-        assertArrayEquals(grpcCertificateHash, asBytes(node.grpcCertificateHash()));
+        assertArrayEquals(gossipCaCertificate, node.gossipCaCertificate().toByteArray());
+        assertArrayEquals(grpcCertificateHash, node.grpcCertificateHash().toByteArray());
     }
 
     @Test

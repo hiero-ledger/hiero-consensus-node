@@ -27,7 +27,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
-import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TopicID;
@@ -532,7 +531,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
                 .build();
     }
 
-    private final ByteString NONSENSE = ByteString.copyFromUtf8("NONSENSE");
+    private final Bytes NONSENSE = Bytes.wrap("NONSENSE");
 
     private void mockPayerKeyIsFeeExempt() {
         // mock signature is in FEKL

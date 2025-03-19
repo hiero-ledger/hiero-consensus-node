@@ -52,3 +52,6 @@ configurations.configureEach {
         }
     }
 }
+
+// Timing sensitive tests need to see some 'main' dependencies
+configurations.timingSensitiveImplementation { extendsFrom(configurations.implementation.get()) }

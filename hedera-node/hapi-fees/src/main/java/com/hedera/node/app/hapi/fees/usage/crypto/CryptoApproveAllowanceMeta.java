@@ -11,7 +11,7 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_ALLOWANCE_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.TOKEN_ALLOWANCE_SIZE;
 
 import com.google.common.base.MoreObjects;
-import com.hederahashgraph.api.proto.java.CryptoApproveAllowanceTransactionBody;
+import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
 import java.util.Map;
 import java.util.Set;
 import org.apache.commons.lang3.builder.EqualsBuilder;
@@ -37,16 +37,16 @@ public class CryptoApproveAllowanceMeta {
             final CryptoApproveAllowanceTransactionBody cryptoApproveTxnBody, final long transactionValidStartSecs) {
         effectiveNow = transactionValidStartSecs;
         msgBytesUsed = bytesUsedInTxn(cryptoApproveTxnBody);
-        cryptoAllowances = convertToCryptoMap(cryptoApproveTxnBody.getCryptoAllowancesList());
-        tokenAllowances = convertToTokenMap(cryptoApproveTxnBody.getTokenAllowancesList());
-        nftAllowances = convertToNftMap(cryptoApproveTxnBody.getNftAllowancesList());
+        cryptoAllowances = convertToCryptoMap(cryptoApproveTxnBody.cryptoAllowances());
+        tokenAllowances = convertToTokenMap(cryptoApproveTxnBody.tokenAllowances());
+        nftAllowances = convertToNftMap(cryptoApproveTxnBody.nftAllowances());
     }
 
-    private int bytesUsedInTxn(final CryptoApproveAllowanceTransactionBody op) {
-        return op.getCryptoAllowancesCount() * CRYPTO_ALLOWANCE_SIZE
-                + op.getTokenAllowancesCount() * TOKEN_ALLOWANCE_SIZE
-                + op.getNftAllowancesCount() * NFT_ALLOWANCE_SIZE
-                + countSerials(op.getNftAllowancesList()) * LONG_SIZE;
+    private long bytesUsedInTxn(final CryptoApproveAllowanceTransactionBody op) {
+        return op.cryptoAllowances().size() * CRYPTO_ALLOWANCE_SIZE
+                + op.tokenAllowances().size() * TOKEN_ALLOWANCE_SIZE
+                + op.nftAllowances().size() * NFT_ALLOWANCE_SIZE
+                + countSerials(op.nftAllowances()) * LONG_SIZE;
     }
 
     public static Builder newBuilder() {

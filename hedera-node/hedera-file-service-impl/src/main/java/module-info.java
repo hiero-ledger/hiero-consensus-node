@@ -15,7 +15,6 @@ module com.hedera.node.app.service.file.impl {
     requires transitive javax.inject;
     requires com.swirlds.common;
     requires com.fasterxml.jackson.databind;
-    requires com.google.protobuf;
     requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
     requires static com.github.spotbugs.annotations;

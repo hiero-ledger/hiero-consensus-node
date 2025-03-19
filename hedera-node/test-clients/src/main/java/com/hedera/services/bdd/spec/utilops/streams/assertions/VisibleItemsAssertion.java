@@ -3,6 +3,8 @@ package com.hedera.services.bdd.spec.utilops.streams.assertions;
 
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.BaseIdScreenedAssertion.baseFieldsMatch;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItems.newVisibleItems;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.NodeStakeUpdate;
 import static java.util.Objects.requireNonNull;
 
@@ -73,7 +75,7 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
                         .findFirst()
                         .ifPresentOrElse(
                                 seenId -> {
-                                    final var entry = RecordStreamEntry.from(item);
+                                    final var entry = RecordStreamEntry.from(toPbj(item));
                                     final var isSynthItem = isSynthItem(entry);
                                     if (skipSynthItems == SkipSynthItems.NO || !isSynthItem) {
                                         if (withLogging) {
@@ -115,8 +117,8 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
     }
 
     private static boolean isSynthItem(@NonNull final RecordStreamEntry entry) {
-        final var receipt = entry.transactionRecord().getReceipt();
-        return entry.function() == NodeStakeUpdate
+        final var receipt = fromPbj(entry.transactionRecord()).getReceipt();
+        return fromPbj(entry.function()) == NodeStakeUpdate
                 || (receipt.getAccountID().hasAccountNum()
                         && receipt.getAccountID().getAccountNum() < FIRST_USER_NUM)
                 || (receipt.hasFileID() && receipt.getFileID().getFileNum() < FIRST_USER_NUM);

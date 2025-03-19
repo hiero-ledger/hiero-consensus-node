@@ -6,7 +6,6 @@ import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
-import com.hedera.services.stream.proto.SidecarType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +24,7 @@ public class StorageAccessTracker {
 
     /**
      * The first time this method is called for a particular {@link SlotKey}, tracks its
-     * value for future reporting in a {@link SidecarType#CONTRACT_STATE_CHANGE} sidecar.
+     * value for future reporting in a {@link com.hedera.hapi.streams.SidecarType#CONTRACT_STATE_CHANGE} sidecar.
      *
      * @param contractID the id of the contract whose storage is being read
      * @param key the key of the slot read

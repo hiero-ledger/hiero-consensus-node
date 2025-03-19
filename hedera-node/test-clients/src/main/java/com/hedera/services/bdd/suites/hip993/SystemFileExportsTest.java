@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip993;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.statusHistograms;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
@@ -48,6 +46,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.StandardSerdes.SYS_FILE_SERDES;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromByteString;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileCreate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileUpdate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.NodeStakeUpdate;
@@ -395,9 +396,9 @@ public class SystemFileExportsTest {
                         // Our node admin key file will contain two override keys
                         2,
                         (spec, item) -> {
-                            final var entry = RecordStreamEntry.from(item);
-                            return entry.function() == NodeUpdate
-                                    && entry.txnId().getAccountID().getAccountNum()
+                            final var entry = RecordStreamEntry.from(toPbj(item));
+                            return fromPbj(entry.function()) == NodeUpdate
+                                    && entry.txnId().accountID().accountNum()
                                             == spec.startupProperties().getLong("accounts.systemAdmin");
                         })),
                 newKeyNamed("node0AdminKey").shape(ED25519_ON),
@@ -473,8 +474,8 @@ public class SystemFileExportsTest {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No post-upgrade node updates found");
             final Map<Long, Key> newAdminKeys = items.entries().stream()
-                    .filter(item -> item.function() == NodeUpdate)
-                    .map(item -> item.body().getNodeUpdate())
+                    .filter(item -> fromPbj(item.function()) == NodeUpdate)
+                    .map(item -> fromPbj(item.body()).getNodeUpdate())
                     .collect(toMap(NodeUpdateTransactionBody::getNodeId, NodeUpdateTransactionBody::getAdminKey));
             assertEquals(spec.registry().getKey("node0AdminKey"), newAdminKeys.get(0L));
             assertEquals(spec.registry().getKey("node3AdminKey"), newAdminKeys.get(3L));
@@ -491,13 +492,13 @@ public class SystemFileExportsTest {
             final var targetId = new FileID(
                     shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             final var updateItem = items.entries().stream()
-                    .filter(item -> item.function() == FileUpdate)
-                    .filter(item ->
-                            toPbj(item.body().getFileUpdate().getFileID()).equals(targetId))
+                    .filter(item -> fromPbj(item.function()) == FileUpdate)
+                    .filter(item -> toPbj(fromPbj(item.body()).getFileUpdate().getFileID())
+                            .equals(targetId))
                     .findFirst()
                     .orElse(null);
             assertNotNull(updateItem, "No update for " + fileNumProperty + " found in post-upgrade txn");
-            final var synthOp = updateItem.body().getFileUpdate();
+            final var synthOp = fromPbj(updateItem.body()).getFileUpdate();
             final T actual;
             try {
                 actual = parser.parse(synthOp.getContents().toByteArray());
@@ -516,10 +517,10 @@ public class SystemFileExportsTest {
             final var histogram = statusHistograms(items.entries());
             assertEquals(Map.of(SUCCESS, 1), histogram.get(FileUpdate));
             final var updateItem = items.entries().stream()
-                    .filter(item -> item.function() == FileUpdate)
+                    .filter(item -> fromPbj(item.function()) == FileUpdate)
                     .findFirst()
                     .orElseThrow();
-            final var synthOp = updateItem.body().getFileUpdate();
+            final var synthOp = fromPbj(updateItem.body()).getFileUpdate();
             final var nodeDetailsId = new FileID(
                     shard, realm, Long.parseLong(spec.startupProperties().get("files.nodeDetails")));
             assertEquals(nodeDetailsId, toPbj(synthOp.getFileID()));
@@ -566,13 +567,13 @@ public class SystemFileExportsTest {
             final var targetId = new FileID(
                     shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             final var updateItem = items.entries().stream()
-                    .filter(item -> item.function() == FileUpdate)
-                    .filter(item ->
-                            toPbj(item.body().getFileUpdate().getFileID()).equals(targetId))
+                    .filter(item -> fromPbj(item.function()) == FileUpdate)
+                    .filter(item -> toPbj(fromPbj(item.body()).getFileUpdate().getFileID())
+                            .equals(targetId))
                     .findFirst()
                     .orElse(null);
             assertNotNull(updateItem, "No update for " + fileNumProperty + " found in post-upgrade txn");
-            final var synthOp = updateItem.body().getFileUpdate();
+            final var synthOp = fromPbj(updateItem.body()).getFileUpdate();
             final var addressBookId = new FileID(
                     shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             assertEquals(addressBookId, toPbj(synthOp.getFileID()));
@@ -615,20 +616,22 @@ public class SystemFileExportsTest {
         // Also check we export a node stake update at genesis
         assertEquals(Map.of(SUCCESS, 1), histogram.get(NodeStakeUpdate));
         final var postGenesisContents = SysFileLookups.getSystemFileContents(spec, fileNum -> true);
-        items.entries().stream().filter(item -> item.function() == FileCreate).forEach(item -> {
-            final var fileId = item.createdFileId();
-            final var preContents = requireNonNull(
-                    preGenesisContents.get(item.createdFileId()), "No pre-genesis contents for " + fileId);
-            final var postContents = requireNonNull(
-                    postGenesisContents.get(item.createdFileId()), "No post-genesis contents for " + fileId);
-            final var exportedContents =
-                    fromByteString(item.body().getFileCreate().getContents());
-            if (fileId.fileNum()
-                    != 102) { // for nodedetail, the node's weight changed between preContent and exportedContents
-                assertEquals(exportedContents, preContents, fileId + " contents don't match pre-genesis query");
-            }
-            assertEquals(exportedContents, postContents, fileId + " contents don't match post-genesis query");
-        });
+        items.entries().stream()
+                .filter(item -> fromPbj(item.function()) == FileCreate)
+                .forEach(item -> {
+                    final var fileId = item.createdFileId();
+                    final var preContents = requireNonNull(
+                            preGenesisContents.get(item.createdFileId()), "No pre-genesis contents for " + fileId);
+                    final var postContents = requireNonNull(
+                            postGenesisContents.get(item.createdFileId()), "No post-genesis contents for " + fileId);
+                    final var exportedContents =
+                            fromByteString(fromPbj(item.body()).getFileCreate().getContents());
+                    if (fileId.fileNum() != 102) { // for nodedetail, the node's weight changed between preContent and
+                        // exportedContents
+                        assertEquals(exportedContents, preContents, fileId + " contents don't match pre-genesis query");
+                    }
+                    assertEquals(exportedContents, postContents, fileId + " contents don't match post-genesis query");
+                });
     }
 
     private static VisibleItemsValidator validatorSpecificSysFileFor(
@@ -654,13 +657,13 @@ public class SystemFileExportsTest {
         // Also check we export a node stake update at genesis
         assertEquals(Map.of(SUCCESS, 1), histogram.get(NodeStakeUpdate));
         final var fileItem = items.entries().stream()
-                .filter(item -> item.function() == FileCreate)
+                .filter(item -> fromPbj(item.function()) == FileCreate)
                 .filter(item -> item.createdFileId().equals(new FileID(shard, realm, fileNumb)))
                 .findFirst()
                 .orElse(null);
 
         assertNotNull(fileItem, "No create item for " + fileNumProperty + " found in " + specTxnIds + " txn");
-        final var fileCreateContents = fileItem.body().getFileCreate().getContents();
+        final var fileCreateContents = fromPbj(fileItem.body()).getFileCreate().getContents();
         assertNotNull(
                 fileCreateContents, "No create content for " + fileNumProperty + " found in " + specTxnIds + " txn");
         if (fileNumProperty.equals("files.nodeDetails")) {

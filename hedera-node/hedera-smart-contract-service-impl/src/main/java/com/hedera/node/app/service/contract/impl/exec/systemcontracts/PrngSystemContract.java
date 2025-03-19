@@ -2,18 +2,18 @@
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.hapi.utils.ValidationUtils.validateTrue;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.systemContractGasCalculatorOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.successResultOfZeroValueTraceable;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FAIL_INVALID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERATION;
 
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.UtilPrngTransactionBody;
@@ -23,7 +23,6 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import javax.inject.Inject;
@@ -139,7 +138,7 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
 
             updater.enhancement()
                     .systemOperations()
-                    .externalizePreemptedDispatch(synthBody(), toPbj(responseCode), UTIL_PRNG)
+                    .externalizePreemptedDispatch(synthBody(), responseCode, UTIL_PRNG)
                     .contractCallResult(contractResult);
         }
     }

@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureD
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.rethrowSummaryError;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.io.ByteSink;
@@ -192,7 +193,7 @@ public class HapiGetAccountRecords extends HapiQueryOp<HapiGetAccountRecords> {
         return spec.fees()
                 .forOp(
                         HederaFunctionality.CryptoGetAccountRecords,
-                        CryptoFeeBuilder.getCostCryptoAccountRecordsQueryFeeMatrices());
+                        fromPbj(CryptoFeeBuilder.getCostCryptoAccountRecordsQueryFeeMatrices()));
     }
 
     @Override

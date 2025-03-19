@@ -5,6 +5,8 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asFileString;
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.defaultExpiryNowFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -240,7 +242,7 @@ public class HapiFileCreate extends HapiTxnOp<HapiFileCreate> {
     }
 
     private FeeData usageEstimate(TransactionBody txn, SigValueObj svo) {
-        return fileOpsUsage.fileCreateUsage(txn, suFrom(svo));
+        return fromPbj(fileOpsUsage.fileCreateUsage(toPbj(txn), suFrom(svo)));
     }
 
     @Override

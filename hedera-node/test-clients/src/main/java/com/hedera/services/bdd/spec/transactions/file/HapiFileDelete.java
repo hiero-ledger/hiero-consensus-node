@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.file;
 
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
+
 import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -82,7 +85,10 @@ public class HapiFileDelete extends HapiTxnOp<HapiFileDelete> {
     protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
         return spec.fees()
                 .forActivityBasedOp(
-                        HederaFunctionality.FileDelete, fileFees::getFileDeleteTxFeeMatrices, txn, numPayerKeys);
+                        HederaFunctionality.FileDelete,
+                        (txBody, sigValObj) -> fromPbj(fileFees.getFileDeleteTxFeeMatrices(toPbj(txBody), sigValObj)),
+                        txn,
+                        numPayerKeys);
     }
 
     @Override

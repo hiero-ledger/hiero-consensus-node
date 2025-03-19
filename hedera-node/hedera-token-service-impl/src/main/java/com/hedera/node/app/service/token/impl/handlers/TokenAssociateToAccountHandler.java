@@ -19,14 +19,15 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.fees.usage.token.TokenAssociateUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -45,7 +46,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -216,15 +216,11 @@ public class TokenAssociateToAccountHandler extends BaseTokenHandler implements 
             return feeContext
                     .feeCalculatorFactory()
                     .feeCalculator(DEFAULT)
-                    .legacyCalculate(
-                            sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(body), sigValueObj, account));
+                    .legacyCalculate(sigValueObj -> usageGiven(body, sigValueObj, account));
         }
     }
 
-    private FeeData usageGiven(
-            final com.hederahashgraph.api.proto.java.TransactionBody txn,
-            final SigValueObj svo,
-            final Account account) {
+    private FeeData usageGiven(final TransactionBody txn, final SigValueObj svo, final Account account) {
         if (account == null) {
             return CONSTANT_FEE_DATA;
         } else {

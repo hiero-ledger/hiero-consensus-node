@@ -3,17 +3,17 @@ package com.hedera.node.app.hapi.utils.fee;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hederahashgraph.api.proto.java.AccountAmount;
-import com.hederahashgraph.api.proto.java.CryptoCreateTransactionBody;
-import com.hederahashgraph.api.proto.java.CryptoDeleteTransactionBody;
-import com.hederahashgraph.api.proto.java.Duration;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.ResponseType;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionRecord;
-import com.hederahashgraph.api.proto.java.TransferList;
+import com.hedera.hapi.node.base.AccountAmount;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.TransactionRecord;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,54 +30,52 @@ class CryptoFeeBuilderTest {
     @Test
     void getsCorrectCryptoCreateTxFeeMatrices() {
         final var sigValueObj = new SigValueObj(2, 1, 10);
-        final var networkFee = feeBuilder().setBpt(154L).setVpt(2L).setRbh(3L).build();
+        final var networkFee = feeBuilder().bpt(154L).vpt(2L).rbh(3L).build();
         final var nodeFee =
-                feeBuilder().setBpt(154L).setVpt(1L).setBpr(FeeBuilder.INT_SIZE).build();
-        final var serviceFee = feeBuilder().setRbh(6L);
+                feeBuilder().bpt(154L).vpt(1L).bpr(FeeBuilder.INT_SIZE).build();
+        final var serviceFee = feeBuilder().rbh(6L);
 
-        final var defaultCryptoCreate = CryptoCreateTransactionBody.getDefaultInstance();
+        final var defaultCryptoCreate = CryptoCreateTransactionBody.DEFAULT;
         var feeData = CryptoFeeBuilder.getCryptoCreateTxFeeMatrices(
-                txBuilder().setCryptoCreateAccount(defaultCryptoCreate).build(), sigValueObj);
-        assertEquals(networkFee, feeData.getNetworkdata());
-        assertEquals(nodeFee, feeData.getNodedata());
-        assertEquals(serviceFee.build(), feeData.getServicedata());
+                txBuilder().cryptoCreateAccount(defaultCryptoCreate).build(), sigValueObj);
+        assertEquals(networkFee, feeData.networkdata());
+        assertEquals(nodeFee, feeData.nodedata());
+        assertEquals(serviceFee.build(), feeData.servicedata());
 
         final var cryptoCreate = CryptoCreateTransactionBody.newBuilder()
-                .setAutoRenewPeriod(Duration.newBuilder().setSeconds(1000L))
-                .setNewRealmAdminKey(Key.getDefaultInstance());
+                .autoRenewPeriod(Duration.newBuilder().seconds(1000L))
+                .newRealmAdminKey(Key.DEFAULT);
         feeData = CryptoFeeBuilder.getCryptoCreateTxFeeMatrices(
-                txBuilder().setCryptoCreateAccount(cryptoCreate).build(), sigValueObj);
-        assertEquals(networkFee, feeData.getNetworkdata());
-        assertEquals(nodeFee, feeData.getNodedata());
-        assertEquals(serviceFee.setRbh(25L).build(), feeData.getServicedata());
+                txBuilder().cryptoCreateAccount(cryptoCreate).build(), sigValueObj);
+        assertEquals(networkFee, feeData.networkdata());
+        assertEquals(nodeFee, feeData.nodedata());
+        assertEquals(serviceFee.rbh(25L).build(), feeData.servicedata());
     }
 
     @Test
     void getsCorrectCryptoDeleteTxFeeMatrices() {
         final var sigValueObj = new SigValueObj(5, 3, 20);
-        final var networkFee = feeBuilder().setBpt(144L).setVpt(5L).setRbh(1L).build();
+        final var networkFee = feeBuilder().bpt(144L).vpt(5L).rbh(1L).build();
         final var nodeFee =
-                feeBuilder().setBpt(144L).setVpt(3L).setBpr(FeeBuilder.INT_SIZE).build();
-        final var serviceFee = feeBuilder().setRbh(6L).build();
+                feeBuilder().bpt(144L).vpt(3L).bpr(FeeBuilder.INT_SIZE).build();
+        final var serviceFee = feeBuilder().rbh(6L).build();
 
-        final var defaultCryptoDelete = CryptoDeleteTransactionBody.getDefaultInstance();
+        final var defaultCryptoDelete = CryptoDeleteTransactionBody.DEFAULT;
         var feeData = subject.getCryptoDeleteTxFeeMatrices(
-                txBuilder().setCryptoDelete(defaultCryptoDelete).build(), sigValueObj);
-        assertEquals(networkFee, feeData.getNetworkdata());
-        assertEquals(nodeFee, feeData.getNodedata());
-        assertEquals(serviceFee, feeData.getServicedata());
+                txBuilder().cryptoDelete(defaultCryptoDelete).build(), sigValueObj);
+        assertEquals(networkFee, feeData.networkdata());
+        assertEquals(nodeFee, feeData.nodedata());
+        assertEquals(serviceFee, feeData.servicedata());
     }
 
     @Test
     void getsCorrectCostTransactionRecordQueryFeeMatrices() {
-        assertEquals(FeeData.getDefaultInstance(), CryptoFeeBuilder.getCostTransactionRecordQueryFeeMatrices());
+        assertEquals(FeeData.DEFAULT, CryptoFeeBuilder.getCostTransactionRecordQueryFeeMatrices());
     }
 
     @Test
     void getsCorrectTransactionRecordQueryFeeMatrices() {
-        assertEquals(
-                FeeData.getDefaultInstance(),
-                subject.getTransactionRecordQueryFeeMatrices(null, ResponseType.COST_ANSWER));
+        assertEquals(FeeData.DEFAULT, subject.getTransactionRecordQueryFeeMatrices(null, ResponseType.COST_ANSWER));
 
         final var transRecord = txRecordBuilder().build();
         var feeData = subject.getTransactionRecordQueryFeeMatrices(transRecord, ResponseType.COST_ANSWER);
@@ -118,33 +116,35 @@ class CryptoFeeBuilderTest {
 
     @Test
     void getsCorrectCostCryptoAccountRecordsQueryFeeMatrices() {
-        assertEquals(FeeData.getDefaultInstance(), CryptoFeeBuilder.getCostCryptoAccountRecordsQueryFeeMatrices());
+        assertEquals(FeeData.DEFAULT, CryptoFeeBuilder.getCostCryptoAccountRecordsQueryFeeMatrices());
     }
 
     @Test
     void getsCorrectCostCryptoAccountInfoQueryFeeMatrices() {
-        assertEquals(FeeData.getDefaultInstance(), CryptoFeeBuilder.getCostCryptoAccountInfoQueryFeeMatrices());
+        assertEquals(FeeData.DEFAULT, CryptoFeeBuilder.getCostCryptoAccountInfoQueryFeeMatrices());
     }
 
     private void assertQueryFee(final FeeData feeData, final long expectedBpr) {
         final var expectedBpt = FeeBuilder.BASIC_QUERY_HEADER + FeeBuilder.BASIC_TX_ID_SIZE;
-        final var nodeFee = feeBuilder().setBpt(expectedBpt).setBpr(expectedBpr).build();
+        final var nodeFee = feeBuilder().bpt(expectedBpt).bpr(expectedBpr).build();
 
-        assertEquals(FeeComponents.getDefaultInstance(), feeData.getServicedata());
-        assertEquals(FeeComponents.getDefaultInstance(), feeData.getNetworkdata());
-        assertEquals(nodeFee, feeData.getNodedata());
+        assertEquals(FeeComponents.DEFAULT, feeData.servicedata());
+        assertEquals(FeeComponents.DEFAULT, feeData.networkdata());
+        assertEquals(nodeFee, feeData.nodedata());
     }
 
     private TransactionRecord recordWithMemo() {
-        return txRecordBuilder().setMemo("0123456789").build();
+        return txRecordBuilder().memo("0123456789").build();
     }
 
     private TransactionRecord recordWithTransferList() {
         final var transferList = TransferList.newBuilder();
+        List<AccountAmount> accountAmounts = new ArrayList<>();
         for (int i = -5; i <= 5; i++) {
-            transferList.addAccountAmounts(AccountAmount.newBuilder().setAmount(i));
+            accountAmounts.add(AccountAmount.newBuilder().amount(i).build());
         }
-        return txRecordBuilder().setTransferList(transferList).build();
+        transferList.accountAmounts(accountAmounts);
+        return txRecordBuilder().transferList(transferList).build();
     }
 
     private TransactionRecord.Builder txRecordBuilder() {
@@ -156,6 +156,6 @@ class CryptoFeeBuilderTest {
     }
 
     private FeeComponents.Builder feeBuilder() {
-        return FeeComponents.newBuilder().setConstant(FeeBuilder.FEE_MATRICES_CONST);
+        return FeeComponents.newBuilder().constant(FeeBuilder.FEE_MATRICES_CONST);
     }
 }

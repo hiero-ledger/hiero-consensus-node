@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.crypto;
 
+import static com.hedera.hapi.node.base.ResponseType.ANSWER_STATE_PROOF;
 import static com.hedera.node.app.hapi.fees.test.UsageUtils.A_USAGES_MATRIX;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
@@ -17,7 +18,6 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_ALLOWANCE_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_DELETE_ALLOWANCE_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.TOKEN_ALLOWANCE_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
-import static com.hederahashgraph.api.proto.java.ResponseType.ANSWER_STATE_PROOF;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
@@ -25,9 +25,26 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.google.protobuf.ByteString;
-import com.google.protobuf.Int32Value;
-import com.google.protobuf.StringValue;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.QueryHeader;
+import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SignaturePair;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.token.CryptoAllowance;
+import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
+import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.token.CryptoDeleteAllowanceTransactionBody;
+import com.hedera.hapi.node.token.CryptoGetInfoQuery;
+import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
+import com.hedera.hapi.node.token.NftAllowance;
+import com.hedera.hapi.node.token.NftRemoveAllowance;
+import com.hedera.hapi.node.token.TokenAllowance;
+import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.test.IdUtils;
 import com.hedera.node.app.hapi.fees.test.KeyUtils;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
@@ -38,26 +55,7 @@ import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.CryptoAllowance;
-import com.hederahashgraph.api.proto.java.CryptoApproveAllowanceTransactionBody;
-import com.hederahashgraph.api.proto.java.CryptoCreateTransactionBody;
-import com.hederahashgraph.api.proto.java.CryptoDeleteAllowanceTransactionBody;
-import com.hederahashgraph.api.proto.java.CryptoGetInfoQuery;
-import com.hederahashgraph.api.proto.java.CryptoUpdateTransactionBody;
-import com.hederahashgraph.api.proto.java.Duration;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.NftAllowance;
-import com.hederahashgraph.api.proto.java.NftRemoveAllowance;
-import com.hederahashgraph.api.proto.java.Query;
-import com.hederahashgraph.api.proto.java.QueryHeader;
-import com.hederahashgraph.api.proto.java.ResponseType;
-import com.hederahashgraph.api.proto.java.SignatureMap;
-import com.hederahashgraph.api.proto.java.SignaturePair;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TokenAllowance;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionID;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
@@ -79,22 +77,22 @@ class CryptoOpsUsageTest {
     private final int sigSize = 100;
     private final int numPayerKeys = 1;
     private final CryptoAllowance cryptoAllowances =
-            CryptoAllowance.newBuilder().setSpender(proxy).setAmount(10L).build();
+            CryptoAllowance.newBuilder().spender(proxy).amount(10L).build();
     private final TokenAllowance tokenAllowances = TokenAllowance.newBuilder()
-            .setSpender(proxy)
-            .setAmount(10L)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .spender(proxy)
+            .amount(10L)
+            .tokenId(IdUtils.asToken("0.0.1000"))
             .build();
     private final NftAllowance nftAllowances = NftAllowance.newBuilder()
-            .setSpender(proxy)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
-            .addAllSerialNumbers(List.of(1L))
+            .spender(proxy)
+            .tokenId(IdUtils.asToken("0.0.1000"))
+            .serialNumbers(List.of(1L))
             .build();
 
     private final NftRemoveAllowance nftDeleteAllowances = NftRemoveAllowance.newBuilder()
-            .setOwner(proxy)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
-            .addAllSerialNumbers(List.of(1L))
+            .owner(proxy)
+            .tokenId(IdUtils.asToken("0.0.1000"))
+            .serialNumbers(List.of(1L))
             .build();
 
     private final SigUsage sigUsage = new SigUsage(numSigs, sigSize, numPayerKeys);
@@ -172,15 +170,16 @@ class CryptoOpsUsageTest {
     @Test
     void accumulatesBptAndRbhAsExpectedForCryptoCreateWithMaxAutoAssociations() {
         givenCreationOpWithMaxAutoAssociaitons();
-        final ByteString canonicalSig =
-                ByteString.copyFromUtf8("0123456789012345678901234567890123456789012345678901234567890123");
+        final Bytes canonicalSig = Bytes.wrap("0123456789012345678901234567890123456789012345678901234567890123");
         final SignatureMap onePairSigMap = SignatureMap.newBuilder()
-                .addSigPair(SignaturePair.newBuilder()
-                        .setPubKeyPrefix(ByteString.copyFromUtf8("a"))
-                        .setEd25519(canonicalSig))
+                .sigPair(SignaturePair.newBuilder()
+                        .pubKeyPrefix(Bytes.wrap("a"))
+                        .ed25519(canonicalSig)
+                        .build())
                 .build();
-        final SigUsage singleSigUsage = new SigUsage(1, onePairSigMap.getSerializedSize(), 1);
-        final var opMeta = new CryptoCreateMeta(txn.getCryptoCreateAccount());
+        final SigUsage singleSigUsage = new SigUsage(
+                1, (int) SignatureMap.PROTOBUF.toBytes(onePairSigMap).length(), 1);
+        final var opMeta = new CryptoCreateMeta(txn.cryptoCreateAccount());
         final var baseMeta = new BaseTransactionMeta(memo.length(), 0);
 
         final var actual = new UsageAccumulator();
@@ -200,15 +199,16 @@ class CryptoOpsUsageTest {
     @Test
     void accumulatesBptAndRbhAsExpectedForCryptoCreateWithoutMaxAutoAssociations() {
         givenCreationOpWithOutMaxAutoAssociaitons();
-        final ByteString canonicalSig =
-                ByteString.copyFromUtf8("0123456789012345678901234567890123456789012345678901234567890123");
+        final Bytes canonicalSig = Bytes.wrap("0123456789012345678901234567890123456789012345678901234567890123");
         final SignatureMap onePairSigMap = SignatureMap.newBuilder()
-                .addSigPair(SignaturePair.newBuilder()
-                        .setPubKeyPrefix(ByteString.copyFromUtf8("a"))
-                        .setEd25519(canonicalSig))
+                .sigPair(SignaturePair.newBuilder()
+                        .pubKeyPrefix(Bytes.wrap("a"))
+                        .ed25519(canonicalSig)
+                        .build())
                 .build();
-        final SigUsage singleSigUsage = new SigUsage(1, onePairSigMap.getSerializedSize(), 1);
-        final var opMeta = new CryptoCreateMeta(txn.getCryptoCreateAccount());
+        final SigUsage singleSigUsage = new SigUsage(
+                1, (int) SignatureMap.PROTOBUF.toBytes(onePairSigMap).length(), 1);
+        final var opMeta = new CryptoCreateMeta(txn.cryptoCreateAccount());
         final var baseMeta = new BaseTransactionMeta(memo.length(), 0);
 
         final var actual = new UsageAccumulator();
@@ -253,12 +253,12 @@ class CryptoOpsUsageTest {
         final var expected = new UsageAccumulator();
         final var baseMeta = new BaseTransactionMeta(memo.length(), 0);
         final var opMeta = new CryptoUpdateMeta(
-                txn.getCryptoUpdateAccount(),
-                txn.getTransactionID().getTransactionValidStart().getSeconds());
+                txn.cryptoUpdateAccount(),
+                txn.transactionID().transactionValidStart().seconds());
 
         expected.resetForTransaction(baseMeta, sigUsage);
 
-        final Key oldKey = FileOpsUsage.asKey(KeyUtils.A_KEY_LIST.getKeyList());
+        final Key oldKey = FileOpsUsage.asKey(KeyUtils.A_KEY_LIST.keyList());
         final long oldExpiry = expiry - 1_234L;
         final String oldMemo = "Lettuce";
         final int oldMaxAutoAssociations = maxAutoAssociations - 5;
@@ -321,12 +321,12 @@ class CryptoOpsUsageTest {
         final var expected = new UsageAccumulator();
         final var baseMeta = new BaseTransactionMeta(memo.length(), 0);
         final var opMeta = new CryptoUpdateMeta(
-                txn.getCryptoUpdateAccount(),
-                txn.getTransactionID().getTransactionValidStart().getSeconds());
+                txn.cryptoUpdateAccount(),
+                txn.transactionID().transactionValidStart().seconds());
 
         expected.resetForTransaction(baseMeta, sigUsage);
 
-        final Key oldKey = FileOpsUsage.asKey(KeyUtils.A_KEY_LIST.getKeyList());
+        final Key oldKey = FileOpsUsage.asKey(KeyUtils.A_KEY_LIST.keyList());
         final long oldExpiry = expiry - 1_234L;
         final String oldMemo = "Lettuce";
         final int oldMaxAutoAssociations = maxAutoAssociations - 5;
@@ -390,12 +390,12 @@ class CryptoOpsUsageTest {
         final var expected = new UsageAccumulator();
         final var baseMeta = new BaseTransactionMeta(memo.length(), 0);
         final var opMeta = new CryptoUpdateMeta(
-                txn.getCryptoUpdateAccount(),
-                txn.getTransactionID().getTransactionValidStart().getSeconds());
+                txn.cryptoUpdateAccount(),
+                txn.transactionID().transactionValidStart().seconds());
 
         expected.resetForTransaction(baseMeta, sigUsage);
 
-        final Key oldKey = FileOpsUsage.asKey(KeyUtils.A_KEY_LIST.getKeyList());
+        final Key oldKey = FileOpsUsage.asKey(KeyUtils.A_KEY_LIST.keyList());
         final long oldExpiry = expiry - 1_234L;
         final String oldMemo = "Lettuce";
 
@@ -452,12 +452,12 @@ class CryptoOpsUsageTest {
         final var expected = new UsageAccumulator();
         final var baseMeta = new BaseTransactionMeta(0, 0);
         final var opMeta = new CryptoApproveAllowanceMeta(
-                txn.getCryptoApproveAllowance(),
-                txn.getTransactionID().getTransactionValidStart().getSeconds());
+                txn.cryptoApproveAllowance(),
+                txn.transactionID().transactionValidStart().seconds());
         final SigUsage sigUsage = new SigUsage(1, sigSize, 1);
         expected.resetForTransaction(baseMeta, sigUsage);
 
-        final Key oldKey = FileOpsUsage.asKey(KeyUtils.A_KEY_LIST.getKeyList());
+        final Key oldKey = FileOpsUsage.asKey(KeyUtils.A_KEY_LIST.keyList());
         final long oldExpiry = expiry - 1_234L;
         final String oldMemo = "Lettuce";
 
@@ -473,16 +473,16 @@ class CryptoOpsUsageTest {
                 .setCurrentTokenAllowances(Collections.emptyMap())
                 .build();
 
-        final long msgBytesUsed = (approveOp.getCryptoAllowancesCount() * CRYPTO_ALLOWANCE_SIZE)
-                + (approveOp.getTokenAllowancesCount() * TOKEN_ALLOWANCE_SIZE)
-                + (approveOp.getNftAllowancesCount() * NFT_ALLOWANCE_SIZE)
-                + countSerials(approveOp.getNftAllowancesList()) * LONG_SIZE;
+        final long msgBytesUsed = (approveOp.cryptoAllowances().size() * CRYPTO_ALLOWANCE_SIZE)
+                + (approveOp.tokenAllowances().size() * TOKEN_ALLOWANCE_SIZE)
+                + (approveOp.nftAllowances().size() * NFT_ALLOWANCE_SIZE)
+                + countSerials(approveOp.nftAllowances()) * LONG_SIZE;
 
         expected.addBpt(msgBytesUsed);
         final long lifetime = ESTIMATOR_UTILS.relativeLifetime(txn, oldExpiry);
-        final var expectedBytes = (approveOp.getCryptoAllowancesCount() * CRYPTO_ALLOWANCE_SIZE)
-                + (approveOp.getTokenAllowancesCount() * TOKEN_ALLOWANCE_SIZE)
-                + (approveOp.getNftAllowancesCount() * NFT_ALLOWANCE_SIZE);
+        final var expectedBytes = (approveOp.cryptoAllowances().size() * CRYPTO_ALLOWANCE_SIZE)
+                + (approveOp.tokenAllowances().size() * TOKEN_ALLOWANCE_SIZE)
+                + (approveOp.nftAllowances().size() * NFT_ALLOWANCE_SIZE);
 
         expected.addRbs(expectedBytes * lifetime);
 
@@ -500,13 +500,13 @@ class CryptoOpsUsageTest {
         final var expected = new UsageAccumulator();
         final var baseMeta = new BaseTransactionMeta(0, 0);
         final var opMeta = new CryptoDeleteAllowanceMeta(
-                txn.getCryptoDeleteAllowance(),
-                txn.getTransactionID().getTransactionValidStart().getSeconds());
+                txn.cryptoDeleteAllowance(),
+                txn.transactionID().transactionValidStart().seconds());
         final SigUsage sigUsage = new SigUsage(1, sigSize, 1);
         expected.resetForTransaction(baseMeta, sigUsage);
 
-        final long msgBytesUsed = (deleteAllowanceOp.getNftAllowancesCount() * NFT_DELETE_ALLOWANCE_SIZE)
-                + countNftDeleteSerials(deleteAllowanceOp.getNftAllowancesList()) * LONG_SIZE;
+        final long msgBytesUsed = (deleteAllowanceOp.nftAllowances().size() * NFT_DELETE_ALLOWANCE_SIZE)
+                + countNftDeleteSerials(deleteAllowanceOp.nftAllowances()) * LONG_SIZE;
 
         expected.addBpt(msgBytesUsed);
 
@@ -528,100 +528,100 @@ class CryptoOpsUsageTest {
 
     private void givenUpdateOpWithOutMaxAutoAssociations() {
         updateOp = CryptoUpdateTransactionBody.newBuilder()
-                .setExpirationTime(Timestamp.newBuilder().setSeconds(expiry))
-                .setProxyAccountID(proxy)
-                .setMemo(StringValue.newBuilder().setValue(memo))
-                .setKey(key)
+                .expirationTime(Timestamp.newBuilder().seconds(expiry))
+                .proxyAccountID(proxy)
+                .memo(memo)
+                .key(key)
                 .build();
         setUpdateTxn();
     }
 
     private void givenDeleteOp() {
         deleteAllowanceOp = CryptoDeleteAllowanceTransactionBody.newBuilder()
-                .addAllNftAllowances(List.of(nftDeleteAllowances))
+                .nftAllowances(List.of(nftDeleteAllowances))
                 .build();
         setDeleteAllowanceTxn();
     }
 
     private void givenApprovalOp() {
         approveOp = CryptoApproveAllowanceTransactionBody.newBuilder()
-                .addAllCryptoAllowances(List.of(cryptoAllowances))
-                .addAllTokenAllowances(List.of(tokenAllowances))
-                .addAllNftAllowances(List.of(nftAllowances))
+                .cryptoAllowances(List.of(cryptoAllowances))
+                .tokenAllowances(List.of(tokenAllowances))
+                .nftAllowances(List.of(nftAllowances))
                 .build();
         setApproveTxn();
     }
 
     private void setApproveTxn() {
         txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now))
-                        .setAccountID(owner))
-                .setCryptoApproveAllowance(approveOp)
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now))
+                        .accountID(owner))
+                .cryptoApproveAllowance(approveOp)
                 .build();
     }
 
     private void setDeleteAllowanceTxn() {
         txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now))
-                        .setAccountID(owner))
-                .setCryptoDeleteAllowance(deleteAllowanceOp)
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now))
+                        .accountID(owner))
+                .cryptoDeleteAllowance(deleteAllowanceOp)
                 .build();
     }
 
     private void givenUpdateOpWithMaxAutoAssociations() {
         updateOp = CryptoUpdateTransactionBody.newBuilder()
-                .setExpirationTime(Timestamp.newBuilder().setSeconds(expiry))
-                .setProxyAccountID(proxy)
-                .setMemo(StringValue.newBuilder().setValue(memo))
-                .setKey(key)
-                .setMaxAutomaticTokenAssociations(Int32Value.of(maxAutoAssociations))
+                .expirationTime(Timestamp.newBuilder().seconds(expiry))
+                .proxyAccountID(proxy)
+                .memo(memo)
+                .key(key)
+                .maxAutomaticTokenAssociations(maxAutoAssociations)
                 .build();
         setUpdateTxn();
     }
 
     private void setUpdateTxn() {
         txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now)))
-                .setCryptoUpdateAccount(updateOp)
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now)))
+                .cryptoUpdateAccount(updateOp)
                 .build();
     }
 
     private void givenCreationOpWithOutMaxAutoAssociaitons() {
         creationOp = CryptoCreateTransactionBody.newBuilder()
-                .setProxyAccountID(proxy)
-                .setAutoRenewPeriod(Duration.newBuilder().setSeconds(secs).build())
-                .setMemo(memo)
-                .setKey(key)
+                .proxyAccountID(proxy)
+                .autoRenewPeriod(Duration.newBuilder().seconds(secs).build())
+                .memo(memo)
+                .key(key)
                 .build();
         setCreateTxn();
     }
 
     private void givenCreationOpWithMaxAutoAssociaitons() {
         creationOp = CryptoCreateTransactionBody.newBuilder()
-                .setProxyAccountID(proxy)
-                .setAutoRenewPeriod(Duration.newBuilder().setSeconds(secs).build())
-                .setMemo(memo)
-                .setKey(key)
-                .setMaxAutomaticTokenAssociations(maxAutoAssociations)
+                .proxyAccountID(proxy)
+                .autoRenewPeriod(Duration.newBuilder().seconds(secs).build())
+                .memo(memo)
+                .key(key)
+                .maxAutomaticTokenAssociations(maxAutoAssociations)
                 .build();
         setCreateTxn();
     }
 
     private void setCreateTxn() {
         txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now)))
-                .setCryptoCreateAccount(creationOp)
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now)))
+                .cryptoCreateAccount(creationOp)
                 .build();
     }
 
     private void givenInfoOp() {
         query = Query.newBuilder()
-                .setCryptoGetInfo(CryptoGetInfoQuery.newBuilder()
-                        .setHeader(QueryHeader.newBuilder().setResponseType(ANSWER_STATE_PROOF)))
+                .cryptoGetInfo(CryptoGetInfoQuery.newBuilder()
+                        .header(QueryHeader.newBuilder().responseType(ANSWER_STATE_PROOF)))
                 .build();
     }
 }

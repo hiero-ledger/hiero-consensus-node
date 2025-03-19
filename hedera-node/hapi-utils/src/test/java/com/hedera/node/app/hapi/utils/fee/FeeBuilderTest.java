@@ -3,103 +3,94 @@ package com.hedera.node.app.hapi.utils.fee;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.google.protobuf.ByteString;
-import com.hederahashgraph.api.proto.java.AccountAmount;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ContractFunctionResult;
-import com.hederahashgraph.api.proto.java.CryptoTransferTransactionBody;
-import com.hederahashgraph.api.proto.java.Duration;
-import com.hederahashgraph.api.proto.java.ExchangeRate;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.KeyList;
-import com.hederahashgraph.api.proto.java.SignatureMap;
-import com.hederahashgraph.api.proto.java.SignaturePair;
-import com.hederahashgraph.api.proto.java.SignedTransaction;
-import com.hederahashgraph.api.proto.java.ThresholdKey;
-import com.hederahashgraph.api.proto.java.Transaction;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionID;
-import com.hederahashgraph.api.proto.java.TransactionRecord;
-import com.hederahashgraph.api.proto.java.TransferList;
+import com.hedera.hapi.node.base.AccountAmount;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SignaturePair;
+import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.ExchangeRate;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.Test;
 
 class FeeBuilderTest {
-    private final ByteString contractCallResult = ByteString.copyFromUtf8("contractCallResult");
-    private final ByteString contractCreateResult = ByteString.copyFromUtf8("contractCreateResult");
-    private final ByteString bloom = ByteString.copyFromUtf8("Bloom");
-    private final ByteString error = ByteString.copyFromUtf8("Error");
-    private final AccountID accountId = AccountID.newBuilder()
-            .setShardNum(0)
-            .setRealmNum(0)
-            .setAccountNum(1002)
-            .build();
-    private final AccountID designatedNodeAccount = AccountID.newBuilder()
-            .setShardNum(0)
-            .setRealmNum(0)
-            .setAccountNum(3)
-            .build();
+    private final Bytes contractCallResult = Bytes.wrap("contractCallResult");
+    private final Bytes contractCreateResult = Bytes.wrap("contractCreateResult");
+    private final Bytes bloom = Bytes.wrap("Bloom");
+    private final Bytes error = Bytes.wrap("Error");
+    private final AccountID accountId =
+            AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(1002).build();
+    private final AccountID designatedNodeAccount =
+            AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(3).build();
     private final ContractFunctionResult contractFunctionResult = ContractFunctionResult.newBuilder()
-            .setContractCallResult(contractCallResult)
-            .setBloom(bloom)
-            .setErrorMessageBytes(error)
+            .contractCallResult(contractCallResult)
+            .bloom(bloom)
+            .errorMessage(error.asUtf8String())
             .build();
     private final AccountAmount accountAmount =
-            AccountAmount.newBuilder().setAccountID(accountId).setAmount(1500L).build();
+            AccountAmount.newBuilder().accountID(accountId).amount(1500L).build();
     private final TransferList transferList =
-            TransferList.newBuilder().addAccountAmounts(accountAmount).build();
+            TransferList.newBuilder().accountAmounts(accountAmount).build();
     private final TransactionRecord.Builder transactionRecordBuilder =
-            TransactionRecord.newBuilder().setMemo("memo").setTransferList(transferList);
+            TransactionRecord.newBuilder().memo("memo").transferList(transferList);
     private final FeeComponents feeComponents = FeeComponents.newBuilder()
-            .setBpr(10L)
-            .setBpt(10L)
-            .setGas(1234L)
-            .setConstant(10L)
-            .setMax(10L)
-            .setMin(5L)
-            .setRbh(10L)
-            .setSbh(10L)
-            .setSbpr(10L)
-            .setTv(10L)
-            .setVpt(10L)
+            .bpr(10L)
+            .bpt(10L)
+            .gas(1234L)
+            .constant(10L)
+            .max(10L)
+            .min(5L)
+            .rbh(10L)
+            .sbh(10L)
+            .sbpr(10L)
+            .tv(10L)
+            .vpt(10L)
             .build();
     private final FeeData feeData = FeeData.newBuilder()
-            .setNetworkdata(feeComponents)
-            .setNodedata(feeComponents)
-            .setServicedata(feeComponents)
+            .networkdata(feeComponents)
+            .nodedata(feeComponents)
+            .servicedata(feeComponents)
             .build();
     private final FeeData feeMatrices = FeeData.newBuilder()
-            .setNetworkdata(feeComponents)
-            .setNodedata(feeComponents)
-            .setServicedata(feeComponents)
+            .networkdata(feeComponents)
+            .nodedata(feeComponents)
+            .servicedata(feeComponents)
             .build();
     private final Duration transactionDuration =
-            Duration.newBuilder().setSeconds(30L).build();
+            Duration.newBuilder().seconds(30L).build();
     private final TransactionID transactionId =
-            TransactionID.newBuilder().setAccountID(accountId).build();
-    private final ByteString bodyBytes = TransactionBody.newBuilder()
-            .setMemo("memo signed tx")
-            .setTransactionValidDuration(transactionDuration)
-            .setNodeAccountID(designatedNodeAccount)
-            .setTransactionID(transactionId)
-            .build()
-            .toByteString();
-    private final ByteString CANONICAL_SIG =
-            ByteString.copyFromUtf8("0123456789012345678901234567890123456789012345678901234567890123");
+            TransactionID.newBuilder().accountID(accountId).build();
+    private final Bytes bodyBytes = TransactionBody.PROTOBUF.toBytes(TransactionBody.newBuilder()
+            .memo("memo signed tx")
+            .transactionValidDuration(transactionDuration)
+            .nodeAccountID(designatedNodeAccount)
+            .transactionID(transactionId)
+            .build());
+    private final Bytes CANONICAL_SIG = Bytes.wrap("0123456789012345678901234567890123456789012345678901234567890123");
     private final SignaturePair signPair =
-            SignaturePair.newBuilder().setEd25519(CANONICAL_SIG).build();
+            SignaturePair.newBuilder().ed25519(CANONICAL_SIG).build();
     private final SignatureMap signatureMap =
-            SignatureMap.newBuilder().addSigPair(signPair).build();
+            SignatureMap.newBuilder().sigPair(signPair).build();
     private final Transaction signedTxn = Transaction.newBuilder()
-            .setSignedTransactionBytes(SignedTransaction.newBuilder()
-                    .setSigMap(signatureMap)
-                    .setBodyBytes(bodyBytes)
-                    .build()
-                    .toByteString())
+            .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(SignedTransaction.newBuilder()
+                    .sigMap(signatureMap)
+                    .bodyBytes(bodyBytes)
+                    .build()))
             .build();
     private final ExchangeRate exchangeRate =
-            ExchangeRate.newBuilder().setHbarEquiv(1000).setCentEquiv(100).build();
+            ExchangeRate.newBuilder().hbarEquiv(1000).centEquiv(100).build();
 
     @Test
     void assertCalculateBPT() {
@@ -109,7 +100,7 @@ class FeeBuilderTest {
     @Test
     void assertGetTinybarsFromTinyCents() {
         var exchangeRate =
-                ExchangeRate.newBuilder().setCentEquiv(10).setHbarEquiv(100).build();
+                ExchangeRate.newBuilder().centEquiv(10).hbarEquiv(100).build();
         assertEquals(100, FeeBuilder.getTinybarsFromTinyCents(exchangeRate, 10));
     }
 
@@ -131,7 +122,7 @@ class FeeBuilderTest {
     @Test
     void assertGetTransactionRecordSizeContractCall() {
         var transactionRecord = transactionRecordBuilder
-                .setContractCallResult(contractFunctionResult)
+                .contractCallResult(contractFunctionResult)
                 .build();
         assertEquals(220, FeeBuilder.getTransactionRecordSize(transactionRecord));
     }
@@ -139,12 +130,12 @@ class FeeBuilderTest {
     @Test
     void assertGetTransactionRecordSizeContractCreate() {
         var contractFunctionResult = ContractFunctionResult.newBuilder()
-                .setContractCallResult(contractCreateResult)
-                .setBloom(bloom)
-                .setErrorMessageBytes(error)
+                .contractCallResult(contractCreateResult)
+                .bloom(bloom)
+                .errorMessage(error.asUtf8String())
                 .build();
         var transactionRecord = transactionRecordBuilder
-                .setContractCreateResult(contractFunctionResult)
+                .contractCreateResult(contractFunctionResult)
                 .build();
 
         assertEquals(222, FeeBuilder.getTransactionRecordSize(transactionRecord));
@@ -158,7 +149,7 @@ class FeeBuilderTest {
     @Test
     void assertGetTxRecordUsageRBH() {
         var transactionRecord = transactionRecordBuilder
-                .setContractCallResult(contractFunctionResult)
+                .contractCallResult(contractFunctionResult)
                 .build();
 
         assertEquals(220, FeeBuilder.getTxRecordUsageRbh(transactionRecord, 100));
@@ -194,17 +185,17 @@ class FeeBuilderTest {
     @Test
     void assertGetComponentFeeInTinyCents() {
         var feeComponents = FeeComponents.newBuilder()
-                .setBpr(10L)
-                .setBpt(10L)
-                .setGas(1234L)
-                .setConstant(10L)
-                .setMax(2000000L)
-                .setMin(1600000L)
-                .setRbh(10L)
-                .setSbh(10L)
-                .setSbpr(10L)
-                .setTv(10L)
-                .setVpt(10L)
+                .bpr(10L)
+                .bpt(10L)
+                .gas(1234L)
+                .constant(10L)
+                .max(2000000L)
+                .min(1600000L)
+                .rbh(10L)
+                .sbh(10L)
+                .sbpr(10L)
+                .tv(10L)
+                .vpt(10L)
                 .build();
         var result = FeeBuilder.getComponentFeeInTinyCents(feeComponents, feeComponents);
         assertEquals(1600, result);
@@ -213,11 +204,11 @@ class FeeBuilderTest {
     @Test
     void assertGetBaseTransactionRecordSize() {
         var cryptoTransfer = CryptoTransferTransactionBody.newBuilder()
-                .setTransfers(transferList)
+                .transfers(transferList)
                 .build();
         var txBody = TransactionBody.newBuilder()
-                .setMemo("memotx")
-                .setCryptoTransfer(cryptoTransfer)
+                .memo("memotx")
+                .cryptoTransfer(cryptoTransfer)
                 .build();
         var result = FeeBuilder.getBaseTransactionRecordSize(txBody);
         assertEquals(170, result);
@@ -231,7 +222,7 @@ class FeeBuilderTest {
     @Test
     void assertGetSignatureCountReturnsZero() {
         Transaction signedTxn = Transaction.newBuilder()
-                .setSignedTransactionBytes(ByteString.copyFromUtf8("Wrong value"))
+                .signedTransactionBytes(Bytes.wrap("Wrong value"))
                 .build();
         assertEquals(0, FeeBuilder.getSignatureCount(signedTxn));
     }
@@ -244,7 +235,7 @@ class FeeBuilderTest {
     @Test
     void assertGetSignatureSizeReturnsZero() {
         Transaction signedTxn = Transaction.newBuilder()
-                .setSignedTransactionBytes(ByteString.copyFromUtf8("Wrong value"))
+                .signedTransactionBytes(Bytes.wrap("Wrong value"))
                 .build();
         assertEquals(0, FeeBuilder.getSignatureSize(signedTxn));
     }
@@ -253,21 +244,18 @@ class FeeBuilderTest {
     void assertCalculateKeysMetadata() {
         int[] countKeyMetatData = {0, 0};
         Key validKey = Key.newBuilder()
-                .setEd25519(
-                        ByteString.copyFromUtf8(
+                .ed25519(
+                        Bytes.wrap(
                                 "a479462fba67674b5a41acfb16cb6828626b61d3f389fa611005a45754130e5c749073c0b1b791596430f4a54649cc8a3f6d28147dd4099070a5c3c4811d1771"))
                 .build();
 
         Key validKey1 = Key.newBuilder()
-                .setEd25519(
-                        ByteString.copyFromUtf8(
+                .ed25519(
+                        Bytes.wrap(
                                 "a479462fba67674b5a41acfb16cb6828626b61d3f389fa611005a45754130e5c749073c0b1b791596430f4a54649cc8a3f6d28147dd4099070a5c3c4811d1771"))
                 .build();
         Key validED25519Keys = Key.newBuilder()
-                .setKeyList(KeyList.newBuilder()
-                        .addKeys(validKey)
-                        .addKeys(validKey1)
-                        .build())
+                .keyList(KeyList.newBuilder().keys(validKey, validKey1).build())
                 .build();
         assertEquals(
                 countKeyMetatData.length, FeeBuilder.calculateKeysMetadata(validED25519Keys, countKeyMetatData).length);
@@ -278,18 +266,15 @@ class FeeBuilderTest {
     void assertCalculateKeysMetadataThresholdKey() {
         int[] countKeyMetatData = {0, 0};
         KeyList thresholdKeyList = KeyList.newBuilder()
-                .addKeys(Key.newBuilder()
-                        .setEd25519(ByteString.copyFromUtf8("aaaaaaaa"))
-                        .build())
-                .addKeys(Key.newBuilder()
-                        .setEd25519(ByteString.copyFromUtf8("bbbbbbbbbbbbbbbbbbbbb"))
-                        .build())
+                .keys(
+                        Key.newBuilder().ed25519(Bytes.wrap("aaaaaaaa")).build(),
+                        Key.newBuilder()
+                                .ed25519(Bytes.wrap("bbbbbbbbbbbbbbbbbbbbb"))
+                                .build())
                 .build();
-        ThresholdKey thresholdKey = ThresholdKey.newBuilder()
-                .setKeys(thresholdKeyList)
-                .setThreshold(2)
-                .build();
-        Key validED25519Keys = Key.newBuilder().setThresholdKey(thresholdKey).build();
+        ThresholdKey thresholdKey =
+                ThresholdKey.newBuilder().keys(thresholdKeyList).threshold(2).build();
+        Key validED25519Keys = Key.newBuilder().thresholdKey(thresholdKey).build();
         assertEquals(
                 countKeyMetatData.length, FeeBuilder.calculateKeysMetadata(validED25519Keys, countKeyMetatData).length);
         assertEquals(2, FeeBuilder.calculateKeysMetadata(validED25519Keys, countKeyMetatData)[1]);
