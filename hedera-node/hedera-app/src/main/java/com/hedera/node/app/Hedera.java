@@ -256,6 +256,12 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     private final HistoryService historyService;
 
     /**
+     * The util service singleton, kept as a field here to avoid constructing twice
+     * (once in constructor to register schemas, again inside Dagger component).
+     */
+    private final UtilServiceImpl utilServiceImpl;
+
+    /**
      * The file service singleton, kept as a field here to avoid constructing twice
      * (once in constructor to register schemas, again inside Dagger component).
      */
@@ -478,11 +484,15 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                         ThrottleAccumulator::new,
                         ignore -> version),
                 () -> daggerApp.appFeeCharging(),
-                () -> daggerApp.transactionParser(),
                 new AppEntityIdFactory(bootstrapConfig));
         boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, configSupplier);
         hintsService = hintsServiceFactory.apply(appContext, bootstrapConfig);
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig);
+        utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> daggerApp
+                .transactionChecker()
+                .parseSignedAndCheck(
+                        txnBytes, config.getConfigData(HederaConfig.class).transactionMaxBytes())
+                .txBody());
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         blockStreamService = new BlockStreamService();
@@ -499,7 +509,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                         new FreezeServiceImpl(),
                         scheduleServiceImpl,
                         new TokenServiceImpl(),
-                        new UtilServiceImpl(),
+                        utilServiceImpl,
                         new RecordCacheService(),
                         new BlockRecordService(),
                         blockStreamService,
@@ -1146,6 +1156,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileServiceImpl)
                 .contractServiceImpl(contractServiceImpl)
+                .utilServiceImpl(utilServiceImpl)
                 .scheduleService(scheduleServiceImpl)
                 .initTrigger(trigger)
                 .softwareVersion(version.getPbjSemanticVersion())

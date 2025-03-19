@@ -6,7 +6,6 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_I
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.spi.validation.NoopTransactionParser.NOOP_TRANSACTION_PARSER;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.MAX_SIGNED_TXN_SIZE_PROPERTY;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
@@ -397,7 +396,6 @@ public class TransactionExecutorsTest {
                         ThrottleAccumulator::new,
                         v -> new ServicesSoftwareVersion()),
                 () -> NOOP_FEE_CHARGING,
-                () -> NOOP_TRANSACTION_PARSER,
                 new AppEntityIdFactory(config));
         registerServices(appContext, servicesRegistry);
         final var migrator = new FakeServiceMigrator();
@@ -461,7 +459,7 @@ public class TransactionExecutorsTest {
                         new FreezeServiceImpl(),
                         new ScheduleServiceImpl(appContext),
                         new TokenServiceImpl(),
-                        new UtilServiceImpl(),
+                        new UtilServiceImpl(appContext, null),
                         new RecordCacheService(),
                         new BlockRecordService(),
                         new FeeService(),

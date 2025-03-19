@@ -7,7 +7,6 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.app.spi.throttle.Throttle;
-import com.hedera.node.app.spi.validation.TransactionParser;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.EntityIdFactory;
@@ -38,7 +37,6 @@ public record AppContextImpl(
         @NonNull Supplier<Metrics> metricsSupplier,
         @NonNull Throttle.Factory throttleFactory,
         @NonNull Supplier<FeeCharging> feeChargingSupplier,
-        @NonNull Supplier<TransactionParser> transactionParserSupplier,
         @NonNull EntityIdFactory idFactory)
         implements AppContext {
     public AppContextImpl {
@@ -50,7 +48,6 @@ public record AppContextImpl(
         requireNonNull(metricsSupplier);
         requireNonNull(throttleFactory);
         requireNonNull(feeChargingSupplier);
-        requireNonNull(transactionParserSupplier);
         requireNonNull(idFactory);
     }
 }

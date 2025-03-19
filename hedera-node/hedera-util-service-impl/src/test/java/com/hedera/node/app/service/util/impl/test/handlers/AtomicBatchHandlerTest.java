@@ -15,9 +15,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -32,11 +32,11 @@ import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
 import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
+import com.hedera.node.app.service.util.impl.cache.TransactionParser;
 import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.validation.TransactionParser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -98,16 +98,16 @@ class AtomicBatchHandlerTest {
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         given(appContext.feeChargingSupplier()).willReturn(() -> feeCharging);
-        given(appContext.transactionParserSupplier()).willReturn(() -> transactionParser);
+        given(appContext.configSupplier()).willReturn(() -> config);
         given(preHandleContext.configuration()).willReturn(config);
 
-        subject = new AtomicBatchHandler(appContext);
+        subject = new AtomicBatchHandler(appContext, transactionParser);
     }
 
     @Test
     void pureChecksSucceeds() throws PreCheckException {
-        final var transaction = Transaction.DEFAULT;
-        final var bytes = transactionsToBytes(transaction);
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
                 .consensusCreateTopic(
@@ -116,7 +116,7 @@ class AtomicBatchHandlerTest {
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .build();
         given(pureChecksContext.body()).willReturn(txnBody);
-        given(transactionParser.parseSigned(any())).willReturn(innerTxnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
         assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
     }
 
@@ -136,11 +136,11 @@ class AtomicBatchHandlerTest {
                 .batchKey(SIMPLE_KEY_A)
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .build();
-        final var transaction = Transaction.newBuilder().body(innerTxnBody).build();
-        final var bytes = transactionsToBytes(transaction);
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         given(preHandleContext.body()).willReturn(txnBody);
-        given(transactionParser.parseSigned(bytes.getFirst())).willReturn(innerTxnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
         assertEquals(BATCH_TRANSACTION_IN_BLACKLIST, msg.responseCode());
     }
@@ -152,20 +152,20 @@ class AtomicBatchHandlerTest {
                 .batchKey(SIMPLE_KEY_A)
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .build();
-        final var transaction = Transaction.newBuilder().body(innerTxnBody).build();
-        final var bytes = transactionsToBytes(transaction);
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         given(preHandleContext.body()).willReturn(txnBody);
-        given(transactionParser.parseSigned(bytes.getFirst())).willReturn(innerTxnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
         assertEquals(BATCH_TRANSACTION_IN_BLACKLIST, msg.responseCode());
     }
 
     @Test
     void failsIfInnerTxDuplicate() throws PreCheckException {
-        final var transaction1 = Transaction.DEFAULT;
-        final var transaction2 = Transaction.DEFAULT;
-        final var bytes = transactionsToBytes(transaction1, transaction2);
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         given(pureChecksContext.body()).willReturn(txnBody);
         TransactionID transactionId = TransactionID.newBuilder()
@@ -186,8 +186,8 @@ class AtomicBatchHandlerTest {
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .transactionID(transactionId)
                 .build();
-        given(transactionParser.parseSigned(bytes.getFirst())).willReturn(innerTxnBody1);
-        given(transactionParser.parseSigned(bytes.getLast())).willReturn(innerTxnBody2);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody1);
+        given(transactionParser.parse(eq(bytes.getLast()), any())).willReturn(innerTxnBody2);
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(BATCH_LIST_CONTAINS_DUPLICATES, msg.responseCode());
@@ -195,8 +195,8 @@ class AtomicBatchHandlerTest {
 
     @Test
     void failsIfInnerTxNodeIdSetToOtherThanZero() throws PreCheckException {
-        final var transaction = Transaction.DEFAULT;
-        final var bytes = transactionsToBytes(transaction);
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
                 .consensusCreateTopic(
@@ -205,7 +205,7 @@ class AtomicBatchHandlerTest {
                 .nodeAccountID(AccountID.newBuilder().accountNum(1).build())
                 .build();
         given(pureChecksContext.body()).willReturn(txnBody);
-        given(transactionParser.parseSigned(bytes.getFirst())).willReturn(innerTxnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(INVALID_NODE_ACCOUNT_ID, msg.responseCode());
@@ -213,8 +213,8 @@ class AtomicBatchHandlerTest {
 
     @Test
     void failsIfInnerTxMissingBatchKey() throws PreCheckException {
-        final var transaction = Transaction.DEFAULT;
-        final var bytes = transactionsToBytes(transaction);
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
         final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp)
                 .consensusCreateTopic(
                         ConsensusCreateTopicTransactionBody.newBuilder().build())
@@ -222,7 +222,7 @@ class AtomicBatchHandlerTest {
                 .build();
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         given(pureChecksContext.body()).willReturn(txnBody);
-        given(transactionParser.parseSigned(bytes.getFirst())).willReturn(innerTxnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(MISSING_BATCH_KEY, msg.responseCode());
@@ -234,11 +234,11 @@ class AtomicBatchHandlerTest {
                 .consensusCreateTopic(
                         ConsensusCreateTopicTransactionBody.newBuilder().build())
                 .build();
-        final var transaction1 = Transaction.newBuilder().body(innerTxnBody1).build();
-        final var bytes = transactionsToBytes(transaction1);
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         given(preHandleContext.body()).willReturn(txnBody);
-        given(transactionParser.parseSigned(bytes.getFirst())).willReturn(innerTxnBody1);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody1);
         given(preHandleContext.requireKeyOrThrow(innerTxnBody1.batchKey(), INVALID_BATCH_KEY))
                 .willThrow(new PreCheckException(INVALID_BATCH_KEY));
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
@@ -247,36 +247,38 @@ class AtomicBatchHandlerTest {
 
     @Test
     void preHandleFailFreezeTransaction() throws PreCheckException {
-        final var transaction2 = mock(Transaction.class);
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
         final var innerTxnBody1 = newTxnBodyBuilder(payerId1, consensusTimestamp, SIMPLE_KEY_A)
                 .freeze(FreezeTransactionBody.newBuilder().build())
                 .build();
-        final var transaction1 = Transaction.newBuilder().body(innerTxnBody1).build();
-        final var bytes = transactionsToBytes(transaction1, transaction2);
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         given(preHandleContext.body()).willReturn(txnBody);
-        given(transactionParser.parseSigned(bytes.getFirst())).willReturn(innerTxnBody1);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody1);
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
         assertEquals(BATCH_TRANSACTION_IN_BLACKLIST, msg.responseCode());
     }
 
     @Test
     void preHandleFailAtomicBatchTransaction() throws PreCheckException {
-        final var transaction2 = mock(Transaction.class);
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
         final var innerTxnBody1 = newTxnBodyBuilder(payerId1, consensusTimestamp, SIMPLE_KEY_A)
                 .atomicBatch(AtomicBatchTransactionBody.newBuilder().build())
                 .build();
-        final var transaction1 = Transaction.newBuilder().body(innerTxnBody1).build();
-        final var bytes = transactionsToBytes(transaction1, transaction2);
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         given(preHandleContext.body()).willReturn(txnBody);
-        given(transactionParser.parseSigned(bytes.getFirst())).willReturn(innerTxnBody1);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody1);
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
         assertEquals(BATCH_TRANSACTION_IN_BLACKLIST, msg.responseCode());
     }
 
     @Test
     void preHandleValidScenario() throws PreCheckException {
+        final var transaction1 = innerTxnFrom("123");
+        final var transaction2 = innerTxnFrom("456");
         final var batchKey = SIMPLE_KEY_A;
         final var innerTxnBody1 = newTxnBodyBuilder(payerId1, consensusTimestamp, batchKey)
                 .consensusCreateTopic(
@@ -286,26 +288,24 @@ class AtomicBatchHandlerTest {
                 .consensusDeleteTopic(
                         ConsensusDeleteTopicTransactionBody.newBuilder().build())
                 .build();
-        final var transaction1 = Transaction.newBuilder().body(innerTxnBody1).build();
-        final var transaction2 = Transaction.newBuilder().body(innerTxnBody2).build();
         final var bytes = transactionsToBytes(transaction1, transaction2);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         given(preHandleContext.body()).willReturn(txnBody);
-        given(transactionParser.parseSigned(bytes.getFirst())).willReturn(innerTxnBody1);
-        given(transactionParser.parseSigned(bytes.getLast())).willReturn(innerTxnBody2);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody1);
+        given(transactionParser.parse(eq(bytes.getLast()), any())).willReturn(innerTxnBody2);
         assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
     }
 
     @Test
     void innerTransactionDispatchFailed() throws PreCheckException {
+        final var transaction = innerTxnFrom("123");
         final var innerTxnBody = newTxnBodyBuilder(payerId1, consensusTimestamp, SIMPLE_KEY_A)
                 .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
                 .build();
-        final var transaction = Transaction.newBuilder().body(innerTxnBody).build();
         final var bytes = transactionsToBytes(transaction);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         given(handleContext.body()).willReturn(txnBody);
-        given(transactionParser.parseSigned(bytes.getFirst())).willReturn(innerTxnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
         given(handleContext.dispatch(any())).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(UNKNOWN);
@@ -315,10 +315,10 @@ class AtomicBatchHandlerTest {
 
     @Test
     void handleBatchSizeExceedsMaxBatchSize() {
-        final var transaction1 = mock(Transaction.class);
-        final var transaction2 = mock(Transaction.class);
-        final var transaction3 = mock(Transaction.class);
-        final var bytes = transactionsToBytes(transaction1, transaction2, transaction3);
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
+        final var innerTxn3 = innerTxnFrom("789");
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2, innerTxn3);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         given(handleContext.body()).willReturn(txnBody);
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -327,14 +327,14 @@ class AtomicBatchHandlerTest {
 
     @Test
     void handleDispatched() throws PreCheckException {
+        final var innerTxn = innerTxnFrom("123");
         final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
                 .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
                 .build();
-        final var innerTxn = Transaction.newBuilder().body(innerTxnBody).build();
         final var bytes = transactionsToBytes(innerTxn);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         given(handleContext.body()).willReturn(txnBody);
-        given(transactionParser.parseSigned(bytes.getFirst())).willReturn(innerTxnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
         given(handleContext.dispatch(argThat(options -> options.payerId().equals(payerId2)
                         && options.body().equals(innerTxnBody)
                         && options.streamBuilderType().equals(ReplayableFeeStreamBuilder.class))))
@@ -345,19 +345,19 @@ class AtomicBatchHandlerTest {
 
     @Test
     void handleMultipleDispatched() throws PreCheckException {
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
         final var innerTxnBody1 = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
                 .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
                 .build();
-        final var innerTxn1 = Transaction.newBuilder().body(innerTxnBody1).build();
         final var innerTxnBody2 = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
                 .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
                 .build();
-        final var innerTxn2 = Transaction.newBuilder().body(innerTxnBody2).build();
         final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
         given(handleContext.body()).willReturn(txnBody);
-        given(transactionParser.parseSigned(bytes.getFirst())).willReturn(innerTxnBody1);
-        given(transactionParser.parseSigned(bytes.getLast())).willReturn(innerTxnBody2);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody1);
+        given(transactionParser.parse(eq(bytes.getLast()), any())).willReturn(innerTxnBody2);
         given(handleContext.dispatch(any())).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         subject.handle(handleContext);
@@ -386,5 +386,13 @@ class AtomicBatchHandlerTest {
         return Arrays.stream(transactions)
                 .map(Transaction::signedTransactionBytes)
                 .toList();
+    }
+
+    private Transaction innerTxnFrom(String s) {
+        return Transaction.newBuilder().signedTransactionBytes(toBytes(s)).build();
+    }
+
+    private Bytes toBytes(String s) {
+        return Bytes.wrap(s.getBytes());
     }
 }

@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_TRANSACTION_IN_BL
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -29,8 +30,9 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.node.app.service.util.impl.cache.InnerTxnCache;
+import com.hedera.node.app.service.util.impl.cache.TransactionParser;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
-import com.hedera.node.app.service.util.impl.util.InnerTxnCache;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -54,6 +56,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.ObjLongConsumer;
@@ -76,11 +79,13 @@ public class AtomicBatchHandler implements TransactionHandler {
      * Constructs a {@link AtomicBatchHandler}
      */
     @Inject
-    public AtomicBatchHandler(@NonNull final AppContext appContext) {
+    public AtomicBatchHandler(
+            @NonNull final AppContext appContext, @NonNull final TransactionParser transactionParser) {
         requireNonNull(appContext);
+        requireNonNull(transactionParser);
         this.appFeeCharging = appContext.feeChargingSupplier();
         this.innerTxnCache =
-                new InnerTxnCache(appContext.transactionParserSupplier().get());
+                new InnerTxnCache(transactionParser, appContext.configSupplier().get());
     }
 
     /**
@@ -98,7 +103,19 @@ public class AtomicBatchHandler implements TransactionHandler {
 
         Set<TransactionID> txIds = new HashSet<>();
         for (final var innerTxBytes : innerTxs) {
-            final var txBody = innerTxnCache.computeIfAbsent(innerTxBytes);
+            final TransactionBody txBody;
+            try {
+                // use the checked version to throw PreCheckException if we cant parse the transaction
+                txBody = innerTxnCache.computeIfAbsent(innerTxBytes);
+            } catch (ExecutionException e) {
+                if (e.getCause() instanceof PreCheckException) {
+                    // propagate the PreCheckException
+                    throw (PreCheckException) e.getCause();
+                }
+                // if the exception is not a PreCheckException which generally should not happen, throw an
+                // INVALID_TRANSACTION
+                throw new PreCheckException(INVALID_TRANSACTION);
+            }
 
             // throw if more than one tx has the same transactionID
             validateTruePreCheck(txIds.add(txBody.transactionID()), BATCH_LIST_CONTAINS_DUPLICATES);
@@ -124,7 +141,8 @@ public class AtomicBatchHandler implements TransactionHandler {
         final var txns = atomicBatchTransactionBody.transactions();
         // not using stream below as throwing exception from middle of functional pipeline is a terrible idea
         for (final var txnBytes : txns) {
-            final var innerTxBody = innerTxnCache.computeIfAbsent(txnBytes);
+            // Use the unchecked get because if the transaction is correct it should be in the cache by now
+            final var innerTxBody = innerTxnCache.computeIfAbsentUnchecked(txnBytes);
             validateFalsePreCheck(isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_TRANSACTION_IN_BLACKLIST);
             context.requireKeyOrThrow(innerTxBody.batchKey(), INVALID_BATCH_KEY);
             // the inner prehandle of each inner transaction happens in the prehandle workflow.
@@ -150,7 +168,8 @@ public class AtomicBatchHandler implements TransactionHandler {
         // Timebox, and duplication checks are done on dispatch. So, no need to repeat here
         final var recordedFeeCharging = new RecordedFeeCharging(appFeeCharging.get());
         for (final var txnBytes : txns) {
-            final var innerTxnBody = innerTxnCache.computeIfAbsent(txnBytes);
+            // Use the unchecked get because if the transaction is correct it should be in the cache by now
+            final var innerTxnBody = innerTxnCache.computeIfAbsentUnchecked(txnBytes);
             final var payerId = innerTxnBody.transactionIDOrThrow().accountIDOrThrow();
             // all the inner transactions' keys are verified in PreHandleWorkflow
             final var dispatchOptions =

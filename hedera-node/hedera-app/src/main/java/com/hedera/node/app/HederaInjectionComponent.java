@@ -32,6 +32,7 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
+import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.ServicesInjectionModule;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
@@ -41,8 +42,8 @@ import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.throttle.ThrottleServiceModule;
-import com.hedera.node.app.validation.TransactionParserImpl;
 import com.hedera.node.app.workflows.FacilityInitModule;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.WorkflowsInjectionModule;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
@@ -111,7 +112,7 @@ public interface HederaInjectionComponent {
 
     AppFeeCharging appFeeCharging();
 
-    TransactionParserImpl transactionParser();
+    TransactionChecker transactionChecker();
 
     PreHandleWorkflow preHandleWorkflow();
 
@@ -149,6 +150,9 @@ public interface HederaInjectionComponent {
 
     @Component.Builder
     interface Builder {
+        @BindsInstance
+        Builder utilServiceImpl(UtilServiceImpl utilService);
+
         @BindsInstance
         Builder hintsService(HintsService hintsService);
 

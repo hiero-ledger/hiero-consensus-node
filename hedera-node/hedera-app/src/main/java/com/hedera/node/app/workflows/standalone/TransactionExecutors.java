@@ -16,6 +16,7 @@ import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
@@ -265,10 +266,15 @@ public enum TransactionExecutors {
                         ThrottleAccumulator::new,
                         softwareVersionFactory),
                 () -> componentRef.get().appFeeCharging(),
-                () -> componentRef.get().transactionParser(),
                 entityIdFactory);
         final var contractService = new ContractServiceImpl(
                 appContext, NO_OP_METRICS, NOOP_VERIFICATION_STRATEGIES, tracerBinding, customOps);
+        final var utilService = new UtilServiceImpl(appContext, (signedTxn, config) -> componentRef
+                .get()
+                .transactionChecker()
+                .parseSignedAndCheck(
+                        signedTxn, config.getConfigData(HederaConfig.class).nodeTransactionMaxBytes())
+                .txBody());
         final var fileService = new FileServiceImpl();
         final var scheduleService = new ScheduleServiceImpl(appContext);
         final var hintsService =
@@ -282,6 +288,7 @@ public enum TransactionExecutors {
                 .fileServiceImpl(fileService)
                 .scheduleService(scheduleService)
                 .contractServiceImpl(contractService)
+                .utilServiceImpl(utilService)
                 .scheduleServiceImpl(scheduleService)
                 .hintsService(hintsService)
                 .historyService(historyService)
