@@ -117,7 +117,7 @@ public class HintsServiceImpl implements HintsService {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
-        registry.register(new V059HintsSchema(component.signingContext()));
+        registry.register(new V059HintsSchema());
         registry.register(new V060HintsSchema(component.signingContext(), library));
     }
 

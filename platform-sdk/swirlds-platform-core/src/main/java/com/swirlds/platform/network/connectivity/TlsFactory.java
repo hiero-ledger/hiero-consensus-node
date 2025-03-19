@@ -23,6 +23,7 @@ import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import javax.net.ssl.KeyManagerFactory;
@@ -110,30 +111,35 @@ public class TlsFactory implements SocketFactory {
     @Override
     public @NonNull Socket createClientSocket(@NonNull final String hostname, final int port) throws IOException {
         Objects.requireNonNull(hostname);
-        final SSLSocket clientSocket = (SSLSocket) sslSocketFactory.createSocket();
-        // ensure the connection is ALWAYS the exact cipher suite we've chosen
-        clientSocket.setEnabledCipherSuites(new String[] {CryptoConstants.TLS_SUITE});
-        clientSocket.setWantClientAuth(true);
-        clientSocket.setNeedClientAuth(true);
-        final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
-        SocketFactory.configureAndConnect(clientSocket, socketConfig, hostname, port);
-        clientSocket.startHandshake();
-        return clientSocket;
+        synchronized (this) {
+            final SSLSocket clientSocket = (SSLSocket) sslSocketFactory.createSocket();
+            // ensure the connection is ALWAYS the exact cipher suite we've chosen
+            clientSocket.setEnabledCipherSuites(new String[] {CryptoConstants.TLS_SUITE});
+            clientSocket.setWantClientAuth(true);
+            clientSocket.setNeedClientAuth(true);
+            final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
+            SocketFactory.configureAndConnect(clientSocket, socketConfig, hostname, port);
+            clientSocket.startHandshake();
+            return clientSocket;
+        }
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void reload(@NonNull final List<PeerInfo> peers) {
+    public void reload(@NonNull final Collection<PeerInfo> peers) {
         try {
-            // we just reset the list for now, until the work to calculate diffs is done
-            // then, we will have two lists of peers to add and to remove
-            final KeyStore signingTrustStore = CryptoStatic.createPublicKeyStore(Objects.requireNonNull(peers));
-            trustManagerFactory.init(signingTrustStore);
-            sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), nonDetRandom);
-            sslServerSocketFactory = sslContext.getServerSocketFactory();
-            sslSocketFactory = sslContext.getSocketFactory();
+            synchronized (this) {
+                // we just reset the list for now, until the work to calculate diffs is done
+                // then, we will have two lists of peers to add and to remove
+                final KeyStore signingTrustStore = CryptoStatic.createPublicKeyStore(Objects.requireNonNull(peers));
+                trustManagerFactory.init(signingTrustStore);
+                sslContext.init(
+                        keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), nonDetRandom);
+                sslServerSocketFactory = sslContext.getServerSocketFactory();
+                sslSocketFactory = sslContext.getSocketFactory();
+            }
         } catch (final KeyStoreException | KeyManagementException e) {
             throw new PlatformConstructionException("A problem occurred while initializing the SocketFactory", e);
         }

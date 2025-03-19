@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.schemas;
 
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
@@ -10,7 +8,6 @@ import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.node.app.hints.HintsService;
-import com.hedera.node.app.hints.impl.HintsContext;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -45,11 +42,8 @@ public class V059HintsSchema extends Schema {
     public static final String NEXT_HINT_CONSTRUCTION_KEY = "NEXT_HINT_CONSTRUCTION";
     public static final String PREPROCESSING_VOTES_KEY = "PREPROCESSING_VOTES";
 
-    private final HintsContext signingContext;
-
-    public V059HintsSchema(@NonNull final HintsContext signingContext) {
+    public V059HintsSchema() {
         super(VERSION);
-        this.signingContext = requireNonNull(signingContext);
     }
 
     @Override

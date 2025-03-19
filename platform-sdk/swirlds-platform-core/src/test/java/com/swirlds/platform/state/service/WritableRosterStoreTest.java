@@ -281,6 +281,36 @@ class WritableRosterStoreTest {
                 "Roster history should not contain the first roster");
     }
 
+    @Test
+    void testRotatesSameRoster() {
+        final Roster roster = createValidTestRoster(1);
+
+        // First set the active roster (and remember its hash)
+        writableRosterStore.putActiveRoster(roster, 1);
+        assertNull(readableRosterStore.getPreviousRosterHash());
+        assertEquals(roster, readableRosterStore.getActiveRoster());
+        final Bytes rosterHash = readableRosterStore.getCurrentRosterHash();
+
+        // Now set the same roster as active, but for the next round. Even though the active roster AND this roster are
+        // the same, we need to "rotate" the active roster to the previous roster
+        writableRosterStore.putActiveRoster(roster, 2);
+
+        final List<RoundRosterPair> history = readableRosterStore.getRosterHistory();
+        assertEquals(2, history.size());
+        assertEquals(rosterHash, history.getFirst().activeRosterHash());
+        assertEquals(rosterHash, history.getLast().activeRosterHash());
+    }
+
+    @Test
+    void testSetSameActiveRosterAndRoundThrows() {
+        final Roster roster = createValidTestRoster(1);
+
+        writableRosterStore.putActiveRoster(roster, 1);
+        assertEquals(roster, readableRosterStore.getActiveRoster());
+
+        assertThrows(IllegalArgumentException.class, () -> writableRosterStore.putActiveRoster(roster, 1));
+    }
+
     /**
      * Creates a valid test roster with the given number of entries.
      *

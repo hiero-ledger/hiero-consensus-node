@@ -7,6 +7,11 @@ on:
         description: "Build Number (ex: 43 = build-00043):"
         type: string
         required: true
+      alpha-release:
+        description: "Create Alpha Tag"
+        required: false
+        default: false
+        type: boolean
 
 defaults:
   run:
@@ -96,7 +101,7 @@ jobs:
         run: git push --set-upstream origin "${{ steps.branch.outputs.name }}"
 
       - name: Git-Semver Setup Action
-        uses: DJ-BBot/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
+        uses: DJ-BBot/setup-git-semver@de866aa3ff6d0ae6e9909ba51b7948c0cf8a1a93 # v1.0.3
 
       - name: Identify Current Version Number
         run: |
@@ -108,9 +113,16 @@ jobs:
       # stable = false WILL NO LONGER BE VALID
       - name: Compute Next Version Number
         id: next-release
+        env:
+          ALPHA_FLAG: ${{ inputs.alpha-release }}
         run: |
+          echo "Alpha Flag: ${ALPHA_FLAG}"
           echo "Compute next version number using git-semver"
-          OUTPUT="$(git-semver next --stable=false 2>&1)" || STATUS="${?}"
+          if [[ "${ALPHA_FLAG}" == "true" ]]; then
+            OUTPUT="$(git-semver next --stable=false --pre-release-tag=alpha --pre-release-counter 2>&1)" || STATUS="${?}"
+          else
+            OUTPUT="$(git-semver next --stable=false 2>&1)" || STATUS="${?}"
+          fi
           echo "${OUTPUT}"
           if [[ -n "${STATUS}" ]]; then
             echo "git-semver failed with status ${STATUS}"
@@ -126,7 +138,7 @@ jobs:
           echo "Applied tag v${{ steps.next-release.outputs.version }}"
           current_version="$(git-semver latest)"
           echo "Version Tag Applied: v${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
-          echo "Current Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
+          echo "Current Official Version: ${current_version}" >> ${GITHUB_STEP_SUMMARY}
 
       - name: Push Release Tag to Remote
         run: |
@@ -135,9 +147,30 @@ jobs:
           echo "Pushed new release tag to remote"
 
       - name: Create Release Notes with Markdown
+        id: release
+        if: ${{ inputs.alpha-release != true }} # Skip step if alpha-release is true
         run: |
-          echo git-semver log --markdown "${{ steps.next-release.outputs.version }}"
-          git-semver log --markdown "${{ steps.next-release.outputs.version }}"
+          echo git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
+          git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
+          echo "Now we cat the log:"
+          cat RELEASE.md
+
+      - name: Publish Release Notes
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
+        if: ${{ inputs.alpha-release != true }} # Skip step if alpha-release is true
+        with:
+          name: v${{ steps.next-release.outputs.version }}
+          tag_name: v${{ steps.next-release.outputs.version }}
+          prerelease: ${{ inputs.alpha-release == 'true' }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          body_path: "RELEASE.md"
+
+      - name: Clean Up Release Notes
+        if: ${{ inputs.alpha-release != true }} # Skip step if alpha-release is true
+        run: |
+          echo "Removing the release notes file RELEASE.md"
+          rm RELEASE.md
+          echo "Successfully removed the release notes file RELEASE.md"
 
       - name: Clean Up git-semver
         run: |
