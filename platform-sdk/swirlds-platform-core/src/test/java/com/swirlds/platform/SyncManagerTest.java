@@ -3,8 +3,6 @@ package com.swirlds.platform;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -67,7 +65,7 @@ class SyncManagerTest {
             syncManager = new SyncManagerImpl(
                     platformContext,
                     new FallenBehindManagerImpl(
-                            selfId, topology, mock(StatusActionSubmitter.class), () -> {}, reconnectConfig));
+                            selfId, peers.size(), mock(StatusActionSubmitter.class), () -> {}, reconnectConfig));
         }
     }
 
@@ -83,8 +81,6 @@ class SyncManagerTest {
 
         // we should not think we have fallen behind initially
         assertFalse(test.syncManager.hasFallenBehind());
-        // should be null as we have no indication of falling behind
-        assertNull(test.syncManager.getNeededForFallenBehind());
 
         // neighbors 0 and 1 report fallen behind
         test.syncManager.reportFallenBehind(peers.get(0).nodeId());
@@ -101,15 +97,6 @@ class SyncManagerTest {
 
         // we are still missing 1 report
         assertFalse(test.syncManager.hasFallenBehind());
-
-        // get the list of nodes we need to call
-        final List<NodeId> list = test.syncManager.getNeededForFallenBehind();
-        for (final NodeId nodeId : list) {
-            // none of the nodes we need to call should be those who already reported we have fallen behind
-            for (int i = 0; i < 10; i++) {
-                assertNotEquals(nodeId.id(), peers.get(i).nodeId().id());
-            }
-        }
 
         // add the report that will go over the [fallenBehindThreshold]
         test.syncManager.reportFallenBehind(peers.get(10).nodeId());
