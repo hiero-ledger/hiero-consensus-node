@@ -17,8 +17,9 @@ import java.util.Queue;
  * <lI>a queue of system transactions contained in the round</lI>
  * </ul>
  *
- * @param stateWithHashComplexity the state may null, if the round is not aligned with a block boundary
- * @param systemTransactions      the system transactions that reached consensus in the round
+ * @param stateWithHashComplexity a wrapper objects with a signed state and an estimate of its hash complexity, or null
+ *                                if no signed state was created for this round
+ * @param systemTransactions      any system transactions that reached consensus in the round
  */
 public record TransactionHandlerResult(
         @Nullable StateWithHashComplexity stateWithHashComplexity,

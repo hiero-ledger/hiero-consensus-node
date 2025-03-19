@@ -225,12 +225,9 @@ public class DefaultIssDetector implements IssDetector {
     @Override
     public List<IssNotification> handleStateSignatureTransactions(
             @NonNull final Collection<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {
-        // TODO Kelly remove this log statement
-        logger.info(STARTUP.getMarker(), "Handling state signature transactions in a round without a state");
-
         final List<IssNotification> issNotifications = new ArrayList<>();
-        // The state signatures in the queue may be for hashes of different rounds.
-        // Iterate through each one and handle each individually.
+        // The state signatures in the queue may be for state hashes of different rounds.
+        // Iterate through them and handle each individually.
         for (final ScopedSystemTransaction<StateSignatureTransaction> transaction : systemTransactions) {
             final StateSignatureTransaction signaturePayload = transaction.transaction();
             final long round = signaturePayload.round();

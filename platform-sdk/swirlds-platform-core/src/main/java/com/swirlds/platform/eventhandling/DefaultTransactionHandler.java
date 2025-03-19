@@ -103,7 +103,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * to estimate this value, which is ultimately used by the health monitor. Some states may not be hashed, so this
      * value is an accumulation.
      */
-    private long accumulatedHashComplexity;
+    private long accumulatedHashComplexity = 0;
 
     /**
      * Constructor
@@ -143,8 +143,6 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
         // If the application transaction prehandler is a no-op then we don't need to wait for it.
         waitForPrehandle = schedulersConfig.applicationTransactionPrehandler().type() != TaskSchedulerType.NO_OP;
-
-        accumulatedHashComplexity = 0L;
     }
 
     /**

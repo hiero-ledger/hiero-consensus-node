@@ -336,7 +336,7 @@ public class ISSTestingToolConsensusStateEventHandler implements ConsensusStateE
         /*
         Every few rounds, return true to trigger signed state creation and state signature generation. Do not
         trigger signed state creation on every round because we want to test that signatures are collected even
-        from rounds that do not have a signed state created.
+        if they are contained in rounds that do not generate a signed state.
          */
         return round.getRoundNum() % 5 == 0;
     }

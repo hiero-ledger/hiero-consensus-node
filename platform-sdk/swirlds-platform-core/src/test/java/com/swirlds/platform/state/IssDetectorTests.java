@@ -8,6 +8,7 @@ import static com.swirlds.platform.state.RoundHashValidatorTests.generateCatastr
 import static com.swirlds.platform.state.RoundHashValidatorTests.generateRegularNodeHashes;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -34,6 +35,7 @@ import com.swirlds.platform.system.state.notifications.IssNotification;
 import com.swirlds.platform.system.state.notifications.IssNotification.IssType;
 import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -48,6 +50,32 @@ import org.junit.jupiter.api.Test;
 
 @DisplayName("IssDetector Tests")
 class IssDetectorTests extends PlatformTest {
+
+    @Test
+    @DisplayName("State reservation is released")
+    void stateReservationIsReleased() {
+        final Randotron random = Randotron.create();
+        final RandomSignedStateGenerator stateGenerator = new RandomSignedStateGenerator(random);
+        final ReservedSignedState stateWrapperForTest = stateGenerator.build().reserve("Test caller reference");
+        final ReservedSignedState stateWrapperForIssDetector =
+                stateWrapperForTest.getAndReserve("ISS Detector caller reference");
+        assertEquals(
+                2,
+                stateWrapperForTest.get().getReservationCount(),
+                "The state should have a single reservation before being passed to the ISS Detector");
+
+        final PlatformContext platformContext = createDefaultPlatformContext();
+        final IssDetector issDetector = new DefaultIssDetector(
+                platformContext, mock(Roster.class), SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
+
+        issDetector.handleState(stateWrapperForIssDetector);
+        assertTrue(stateWrapperForIssDetector.isClosed(), "State passed to the ISS Detector should be closed");
+        assertFalse(stateWrapperForTest.isClosed(), "State held by the test should not be closed");
+        assertEquals(
+                1,
+                stateWrapperForTest.get().getReservationCount(),
+                "The test caller should still have a reservation on the state");
+    }
 
     @Test
     @DisplayName("No ISSes Test")
