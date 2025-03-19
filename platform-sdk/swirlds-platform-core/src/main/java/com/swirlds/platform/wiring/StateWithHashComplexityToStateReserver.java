@@ -33,8 +33,7 @@ public record StateWithHashComplexityToStateReserver(@NonNull String name)
     @NonNull
     @Override
     public ReservedSignedState transform(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
-        //        return stateWithHashComplexity.makeAdditionalReservation(name);
-        return stateWithHashComplexity.state().getAndReserve(name);
+        return stateWithHashComplexity.reservedSignedState().getAndReserve(name);
     }
 
     /**
@@ -42,7 +41,7 @@ public record StateWithHashComplexityToStateReserver(@NonNull String name)
      */
     @Override
     public void inputCleanup(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
-        stateWithHashComplexity.state().close();
+        stateWithHashComplexity.reservedSignedState().close();
     }
 
     /**
@@ -62,6 +61,9 @@ public record StateWithHashComplexityToStateReserver(@NonNull String name)
         return name;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public String getTransformerInputName() {

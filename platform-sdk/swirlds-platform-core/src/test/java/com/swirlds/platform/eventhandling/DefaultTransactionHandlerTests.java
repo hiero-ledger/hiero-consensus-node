@@ -102,7 +102,11 @@ class DefaultTransactionHandlerTests {
         assertNotEquals(null, handlerOutput, "new state should have been created");
         assertEquals(
                 1,
-                handlerOutput.stateWithHashComplexity().state().get().getReservationCount(),
+                handlerOutput
+                        .stateWithHashComplexity()
+                        .reservedSignedState()
+                        .get()
+                        .getReservationCount(),
                 "state should be returned with a reservation");
 
         // only the self event reaching consensus should be reported, no freeze action.
@@ -143,7 +147,11 @@ class DefaultTransactionHandlerTests {
                 "the running hash should be updated");
         assertEquals(
                 pcesRound,
-                handlerOutput.stateWithHashComplexity().state().get().isPcesRound(),
+                handlerOutput
+                        .stateWithHashComplexity()
+                        .reservedSignedState()
+                        .get()
+                        .isPcesRound(),
                 "the state should match the PCES boolean");
         verify(tester.getStateEventHandler())
                 .onSealConsensusRound(
@@ -163,7 +171,11 @@ class DefaultTransactionHandlerTests {
         assertNotNull(handlerOutput, "new state should have been created");
         assertEquals(
                 1,
-                handlerOutput.stateWithHashComplexity().state().get().getReservationCount(),
+                handlerOutput
+                        .stateWithHashComplexity()
+                        .reservedSignedState()
+                        .get()
+                        .getReservationCount(),
                 "state should be returned with a reservation");
         // In addition to the freeze action, the uptime tracker reports a self event coming to consensus in the round.
         assertEquals(2, tester.getSubmittedActions().size(), "the freeze status should have been submitted");

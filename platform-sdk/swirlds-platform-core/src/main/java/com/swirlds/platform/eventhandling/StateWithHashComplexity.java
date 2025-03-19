@@ -3,6 +3,7 @@ package com.swirlds.platform.eventhandling;
 
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 
 /**
  * A wrapper for a signed state that includes an estimate of how much work it will be to compute the hash of the state.
@@ -10,10 +11,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * is healthy. This estimate is the number of application transactions that were applied to this state. The hash
  * complexity must always be at least 1.
  *
- * @param state          the state to be hashed
- * @param hashComplexity the estimated complexity of the hash calculation. Minimum value is 1.
+ * @param reservedSignedState the state to be hashed
+ * @param hashComplexity      the estimated complexity of the hash calculation. Minimum value is 1.
  */
-public record StateWithHashComplexity(@NonNull ReservedSignedState state, long hashComplexity) {
+public record StateWithHashComplexity(@NonNull ReservedSignedState reservedSignedState, long hashComplexity) {
 
     public StateWithHashComplexity {
         if (hashComplexity < 1) {
@@ -29,6 +30,7 @@ public record StateWithHashComplexity(@NonNull ReservedSignedState state, long h
      */
     @NonNull
     public StateWithHashComplexity makeAdditionalReservation(@NonNull final String reservationReason) {
-        return new StateWithHashComplexity(state.getAndReserve(reservationReason), hashComplexity);
+        Objects.requireNonNull(reservedSignedState, "reservedSignedState cannot be null");
+        return new StateWithHashComplexity(reservedSignedState.getAndReserve(reservationReason), hashComplexity);
     }
 }

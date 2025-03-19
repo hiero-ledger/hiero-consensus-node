@@ -59,6 +59,9 @@ public record StateReserver(@NonNull String name)
         return name;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public String getTransformerInputName() {

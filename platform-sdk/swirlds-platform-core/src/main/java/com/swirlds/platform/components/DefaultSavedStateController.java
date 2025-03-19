@@ -47,7 +47,7 @@ public class DefaultSavedStateController implements SavedStateController {
     @Override
     @NonNull
     public StateWithHashComplexity markSavedState(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
-        final ReservedSignedState reservedSignedState = stateWithHashComplexity.state();
+        final ReservedSignedState reservedSignedState = stateWithHashComplexity.reservedSignedState();
         final SignedState signedState = reservedSignedState.get();
         final StateToDiskReason reason = shouldSaveToDisk(signedState, previousSavedStateTimestamp);
         if (reason != null) {

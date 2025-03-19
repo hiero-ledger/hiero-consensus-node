@@ -41,7 +41,7 @@ public record StateWithHashComplexityReserver(@NonNull String name)
      */
     @Override
     public void inputCleanup(@NonNull final TransactionHandlerResult transactionHandlerResult) {
-        transactionHandlerResult.stateWithHashComplexity().state().close();
+        transactionHandlerResult.stateWithHashComplexity().reservedSignedState().close();
     }
 
     /**
@@ -49,7 +49,7 @@ public record StateWithHashComplexityReserver(@NonNull String name)
      */
     @Override
     public void outputCleanup(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
-        stateWithHashComplexity.state().close();
+        stateWithHashComplexity.reservedSignedState().close();
     }
 
     /**
@@ -61,6 +61,9 @@ public record StateWithHashComplexityReserver(@NonNull String name)
         return name;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public String getTransformerInputName() {

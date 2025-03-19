@@ -42,7 +42,7 @@ public class DefaultStateHasher implements StateHasher {
     @Override
     @Nullable
     public ReservedSignedState hashState(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
-        final ReservedSignedState reservedSignedState = stateWithHashComplexity.state();
+        final ReservedSignedState reservedSignedState = stateWithHashComplexity.reservedSignedState();
         final Instant start = Instant.now();
         try {
             merkleCryptography
