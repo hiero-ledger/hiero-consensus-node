@@ -9,6 +9,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
@@ -20,7 +21,6 @@ import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.transaction.Transaction;
 import com.swirlds.platform.system.transaction.TransactionWrapper;
@@ -49,7 +49,7 @@ public class ConsistencyTestingToolStateTest {
     private Transaction consensusTransaction;
     private StateSignatureTransaction stateSignatureTransaction;
     private InitTrigger initTrigger;
-    private SoftwareVersion softwareVersion;
+    private SemanticVersion softwareVersion;
     private Configuration configuration;
     private ConsistencyTestingToolConfig consistencyTestingToolConfig;
     private StateCommonConfig stateCommonConfig;
@@ -65,7 +65,7 @@ public class ConsistencyTestingToolStateTest {
     void setUp() {
         platform = mock(Platform.class);
         initTrigger = InitTrigger.GENESIS;
-        softwareVersion = new BasicSoftwareVersion(1);
+        softwareVersion = new BasicSoftwareVersion(1).getPbjSemanticVersion();
         platformContext = mock(PlatformContext.class);
         configuration = mock(Configuration.class);
         consistencyTestingToolConfig = mock(ConsistencyTestingToolConfig.class);

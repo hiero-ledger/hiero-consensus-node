@@ -118,7 +118,7 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>It is another theorem that the d12 and d2 algorithm have more than two thirds of the
  * population creating unique famous witnesses (judges) in each round. It is a theorem that d1 does,
- * too, for the algorithmn described in 2016, and is conjectured to be true for the 2019 version,
+ * too, for the algorithm described in 2016, and is conjectured to be true for the 2019 version,
  * too.
  *
  * <p>Another new theorem used here:
@@ -786,7 +786,7 @@ public class ConsensusImpl implements Consensus {
      * @param judges the judges for this round
      * @param decidedRound the info for the round with the unique famous witnesses, which is also
      *     the round received for these events reaching consensus now
-     * @param whitening a XOR of all judge signatures in this round
+     * @param whitening a XOR of all judge hashes in this round
      */
     private @NonNull List<EventImpl> findConsensusEvents(
             @NonNull final List<EventImpl> judges, final long decidedRound, @NonNull final byte[] whitening) {
