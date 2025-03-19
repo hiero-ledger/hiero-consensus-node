@@ -62,27 +62,27 @@ public interface HistoryLibrary {
      * id's chain of trust that includes the given source address book, based on its own proof of belonging. (Unless the
      * source address book hash <i>is</i> the ledger id, which is the base case of the recursion).
      *
-     * @param ledgerId the ledger id, the concatenation of the genesis address book hash and the SNARK verification key
+     * @param genesisAddressBookHash the ledger id, the concatenation of the genesis address book hash and the SNARK verification key
      * @param sourceProof if not null, the proof the source address book is in the ledger id's chain of trust
-     * @param currentAddressBookVerifyingKeys the verifying keys of the current address book, indexed by node index in the roster
-     *                                        the same order as the weights
      * @param currentAddressBookWeights the weights of the current address book, indexed by node index in the roster
-     * @param  nextAddressBookVerifyingKeys the verifying keys of the next address book, indexed by node index in the roster
+     * @param currentAddressBookVerifyingKeys the verifying keys of the current address book, indexed by node index in the roster
+     * the same order as the weights
      * @param nextAddressBookWeights the weights of the next address book, indexed by node index in the roster
+     * @param nextAddressBookVerifyingKeys the verifying keys of the next address book, indexed by node index in the roster
      * @param sourceSignatures the source address book signatures on the target address book hash and its metadata
-     * @param targetMetadata the metadata of the target address book
+     * @param targetMetadataHash the hash of the metadata of the target address book
      * @return the SNARK proving the target address book and metadata belong to the ledger id's chain of trust
      */
     @NonNull
     Bytes proveChainOfTrust(
-            @NonNull Bytes ledgerId,
+            @NonNull Bytes genesisAddressBookHash,
             @Nullable Bytes sourceProof,
             @NonNull final long[] currentAddressBookWeights,
             @NonNull final byte[][] currentAddressBookVerifyingKeys,
             @NonNull final long[] nextAddressBookWeights,
             @NonNull final byte[][] nextAddressBookVerifyingKeys,
             @NonNull byte[][] sourceSignatures,
-            @NonNull Bytes targetMetadata);
+            @NonNull Bytes targetMetadataHash);
 
     /**
      * Verifies the given SNARK proves the given address book hash and associated metadata belong to the given

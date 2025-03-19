@@ -122,8 +122,18 @@ public class StateChangesValidator implements BlockStreamValidator {
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
     private MerkleNodeState state;
-    private final boolean isHintsEnabled;
+    private final HintsEnabled hintsEnabled;
     private final HintsLibrary hintsLibrary = new HintsLibraryImpl();
+
+    public enum HintsEnabled {
+        YES,
+        NO
+    }
+
+    public enum HistoryEnabled {
+        YES,
+        NO
+    }
 
     public static void main(String[] args) {
         final var node0Dir = Paths.get("hedera-node/test-clients")
@@ -132,12 +142,13 @@ public class StateChangesValidator implements BlockStreamValidator {
                 .normalize();
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
-                        "55f25cf2d3a2648f71f829fe1e16af00cb5da9598d4c787327a347291a9e32fa874e9f20e090b45d8a670c0b211b1e8c"),
+                        "00e8337bc1e1c5730c1a7f2dde8c53ed22f8664cd18069b71be52161a34071d6913d619f8867520e611dca03a2f71d15"),
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("config.txt"),
                 node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
-                true);
+                HintsEnabled.YES,
+                HistoryEnabled.YES);
         final var blocks =
                 BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-0.0.3"));
         validator.validateBlocks(blocks);
@@ -182,13 +193,15 @@ public class StateChangesValidator implements BlockStreamValidator {
             final var genesisConfigTxt = node0.metadata().workingDirOrThrow().resolve("genesis-config.txt");
             Files.writeString(genesisConfigTxt, subProcessNetwork.genesisConfigTxt());
             final var isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
+            final var isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
             return new StateChangesValidator(
                     rootHash,
                     node0.getExternalPath(SWIRLDS_LOG),
                     genesisConfigTxt,
                     node0.getExternalPath(APPLICATION_PROPERTIES),
                     node0.getExternalPath(DATA_CONFIG_DIR),
-                    isHintsEnabled);
+                    isHintsEnabled ? HintsEnabled.YES : HintsEnabled.NO,
+                    isHistoryEnabled ? HistoryEnabled.YES : HistoryEnabled.NO);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -200,7 +213,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             @NonNull final Path pathToAddressBook,
             @NonNull final Path pathToOverrideProperties,
             @NonNull final Path pathToUpgradeSysFilesLoc,
-            final boolean isHintsEnabled) {
+            @NonNull final HintsEnabled hintsEnabled,
+            @NonNull final HistoryEnabled historyEnabled) {
         this.expectedRootHash = requireNonNull(expectedRootHash);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
 
@@ -210,7 +224,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         System.setProperty(
                 "networkAdmin.upgradeSysFilesLoc",
                 pathToUpgradeSysFilesLoc.toAbsolutePath().toString());
-        System.setProperty("tss.hintsEnabled", "" + isHintsEnabled);
+        System.setProperty("tss.hintsEnabled", "" + (hintsEnabled == HintsEnabled.YES));
+        System.setProperty("tss.historyEnabled", "" + (historyEnabled == HistoryEnabled.YES));
         unarchiveGenesisNetworkJson(pathToUpgradeSysFilesLoc);
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
@@ -224,7 +239,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 state, GENESIS, DiskStartupNetworks.fromLegacyAddressBook(addressBook), platformConfig);
         final var stateToBeCopied = state;
         state = state.copy();
-        this.isHintsEnabled = isHintsEnabled;
+        this.hintsEnabled = hintsEnabled;
         // get the state hash before applying the state changes from current block
         this.genesisStateHash = CRYPTO.digestTreeSync(stateToBeCopied.getRoot());
 
@@ -238,7 +253,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         var startOfStateHash = requireNonNull(genesisStateHash).getBytes();
 
         final int n = blocks.size();
-        final var verificationKey = isHintsEnabled
+        final var verificationKey = (hintsEnabled == HintsEnabled.YES)
                 ? blocks.stream()
                         .flatMap(b -> b.items().stream())
                         .filter(BlockItem::hasStateChanges)
