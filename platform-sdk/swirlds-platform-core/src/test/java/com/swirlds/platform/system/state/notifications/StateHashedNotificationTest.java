@@ -39,9 +39,9 @@ class StateHashedNotificationTest {
 
     @Test
     void factoryWorksAsExpected() {
-        given(round.getRoundNum()).willReturn(ROUND);
         given(reservedSignedState.get()).willReturn(signedState);
         given(signedState.getState()).willReturn(merkleRoot);
+        given(signedState.getRound()).willReturn(ROUND);
         given(merkleRoot.getHash()).willReturn(HASH);
 
         final var notification = StateHashedNotification.from(reservedSignedState);
