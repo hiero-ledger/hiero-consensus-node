@@ -37,7 +37,6 @@ import com.hedera.node.app.hapi.utils.SignatureGenerator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
@@ -58,7 +57,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
-@OrderedInIsolation
 @DisplayName("Contract sign schedule")
 @HapiTestLifecycle
 public class ContractSignScheduleTest {
