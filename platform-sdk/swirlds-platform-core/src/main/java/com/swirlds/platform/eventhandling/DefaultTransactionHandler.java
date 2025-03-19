@@ -99,10 +99,11 @@ public class DefaultTransactionHandler implements TransactionHandler {
     private final boolean waitForPrehandle;
 
     /**
-     * The number of transactions in consensus rounds that have been handled but not yet included in a signed state.
-     * This value is an estimate of the hash complexity of a state which is used by the health monitor.
+     * An estimation of the hash complexity of the next state to be sent for hashing. The number of transactions is used
+     * to estimate this value, which is ultimately used by the health monitor. Some states may not be hashed, so this
+     * value is an accumulation.
      */
-    private long numTransactionsSinceLastSignedState;
+    private long accumulatedHashComplexity;
 
     /**
      * Constructor
@@ -143,7 +144,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         // If the application transaction prehandler is a no-op then we don't need to wait for it.
         waitForPrehandle = schedulersConfig.applicationTransactionPrehandler().type() != TaskSchedulerType.NO_OP;
 
-        numTransactionsSinceLastSignedState = 0L;
+        accumulatedHashComplexity = 0L;
     }
 
     /**
@@ -301,14 +302,15 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
             // Estimate the amount of work it will be to calculate the hash of this state. The primary modifier
             // of the state is transactions, so that's our best bet.
-            final long hashComplexity = Math.max(numTransactionsSinceLastSignedState, 1);
+            final long hashComplexity = Math.max(accumulatedHashComplexity, 1);
             final TransactionHandlerResult result = new TransactionHandlerResult(
                     new StateWithHashComplexity(reservedSignedState, hashComplexity), systemTransactions);
-            numTransactionsSinceLastSignedState = 0;
+            accumulatedHashComplexity = 0;
 
             return result;
         } else {
-            numTransactionsSinceLastSignedState += consensusRound.getNumAppTransactions();
+            // Only include non-system transactions, because system transactions do not modify the state
+            accumulatedHashComplexity += consensusRound.getNumAppTransactions() - systemTransactions.size();
             return new TransactionHandlerResult(null, systemTransactions);
         }
     }
