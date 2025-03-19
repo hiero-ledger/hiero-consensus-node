@@ -4,7 +4,6 @@ package com.swirlds.platform.cli;
 import com.swirlds.base.time.Time;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -14,10 +13,6 @@ import com.swirlds.component.framework.model.diagram.ModelManualLink;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.SolderType;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.util.BootstrapUtils;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
@@ -37,11 +32,6 @@ public final class DiagramLegendCommand extends AbstractCommand {
      */
     @Override
     public Integer call() throws IOException {
-
-        final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
-        BootstrapUtils.setupConstructableRegistry();
-
-        final PlatformContext platformContext = PlatformContext.create(configuration);
 
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
