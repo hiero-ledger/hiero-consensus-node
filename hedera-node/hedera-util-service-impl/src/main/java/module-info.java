@@ -4,10 +4,10 @@ module com.hedera.node.app.service.util.impl {
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.config.api;
     requires transitive dagger;
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
-    requires transitive com.swirlds.config.api;
     requires com.hedera.node.config;
     requires com.google.common;
     requires org.apache.logging.log4j;
