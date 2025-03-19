@@ -2470,7 +2470,7 @@ class SequentialTaskSchedulerTests {
     }
 
     @AfterEach
-    void tierDown() throws InterruptedException {
+    void tierDown() {
         // This is a "best effort" attempt to not leave any thread alive before finishing the test.
         // ONLY applies to SEQUENTIAL_THREAD.
 
