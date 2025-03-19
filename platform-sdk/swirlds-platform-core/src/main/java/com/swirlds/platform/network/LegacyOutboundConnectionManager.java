@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.locks.AutoClosableResourceLock;
 import com.swirlds.common.threading.locks.Locks;
@@ -12,7 +13,7 @@ import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
  * Manages a connection that is initiated by this node. If the connection in use is broken, it will try to establish a
  * new one.
  */
-public class OutboundConnectionManager implements ConnectionManager {
+public class LegacyOutboundConnectionManager implements ConnectionManager {
     private final NodeId peerId;
     private final OutboundConnectionCreator connectionCreator;
     /** the current connection in use, initially not connected. there is no synchronization on this variable */
@@ -20,7 +21,7 @@ public class OutboundConnectionManager implements ConnectionManager {
     /** locks the connection managed by this instance */
     private final AutoClosableResourceLock<Connection> lock = Locks.createResourceLock(currentConn);
 
-    public OutboundConnectionManager(final NodeId peerId, final OutboundConnectionCreator connectionCreator) {
+    public LegacyOutboundConnectionManager(final NodeId peerId, final OutboundConnectionCreator connectionCreator) {
         this.peerId = peerId;
         this.connectionCreator = connectionCreator;
     }
@@ -43,6 +44,7 @@ public class OutboundConnectionManager implements ConnectionManager {
     /**
      * {@inheritDoc}
      */
+    @VisibleForTesting
     @Override
     public Connection getConnection() {
         return currentConn;
