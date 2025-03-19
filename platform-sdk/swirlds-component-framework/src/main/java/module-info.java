@@ -19,5 +19,5 @@ module com.swirlds.component.framework {
     requires transitive com.swirlds.metrics.api;
     requires com.swirlds.logging;
     requires org.apache.logging.log4j;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 }

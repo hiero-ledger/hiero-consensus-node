@@ -15,7 +15,7 @@ module com.hedera.node.app.service.schedule.impl {
     requires com.swirlds.config.api;
     requires com.google.common;
     requires org.apache.logging.log4j;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 
     exports com.hedera.node.app.service.schedule.impl;
     exports com.hedera.node.app.service.schedule.impl.handlers;
