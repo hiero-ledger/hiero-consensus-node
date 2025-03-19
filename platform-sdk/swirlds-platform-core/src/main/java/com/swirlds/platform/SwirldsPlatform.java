@@ -379,6 +379,10 @@ public class SwirldsPlatform implements Platform {
             // We don't need the shim if we haven't migrated to birth round mode.
             return null;
         }
+        if (initialState.isGenesisState()) {
+            // We don't need the shim if we are starting from genesis.
+            return null;
+        }
 
         final State state = initialState.getState();
         return new DefaultBirthRoundMigrationShim(

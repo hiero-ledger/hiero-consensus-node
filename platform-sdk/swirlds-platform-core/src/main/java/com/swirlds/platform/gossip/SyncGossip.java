@@ -36,7 +36,6 @@ import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionTracker;
 import com.swirlds.platform.network.NetworkMetrics;
-import com.swirlds.platform.network.NetworkPeerIdentifier;
 import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.NegotiationProtocols;
@@ -185,7 +184,6 @@ public class SyncGossip implements ConnectionTracker, Gossip {
         }
 
         topology = new StaticTopology(peers, selfId);
-        final NetworkPeerIdentifier peerIdentifier = new NetworkPeerIdentifier(platformContext, peers);
         final SocketFactory socketFactory =
                 NetworkUtils.createSocketFactory(selfId, peers, keysAndCerts, platformContext.getConfiguration());
         // create an instance that can create new outbound connections
@@ -193,12 +191,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                 new OutboundConnectionCreator(platformContext, selfId, this, socketFactory, peers);
         connectionManagers = new StaticConnectionManagers(topology, connectionCreator);
         final InboundConnectionHandler inboundConnectionHandler = new InboundConnectionHandler(
-                platformContext,
-                this,
-                peerIdentifier,
-                selfId,
-                connectionManagers::newConnection,
-                platformContext.getTime());
+                platformContext, this, peers, selfId, connectionManagers::newConnection, platformContext.getTime());
         // allow other members to create connections to me
         final RosterEntry rosterEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         // Assume all ServiceEndpoints use the same port and use the port from the first endpoint.
@@ -220,7 +213,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
 
         fallenBehindManager = new FallenBehindManagerImpl(
                 selfId,
-                topology,
+                peers.size(),
                 statusActionSubmitter,
                 () -> getReconnectController().start(),
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class));
@@ -232,10 +225,10 @@ public class SyncGossip implements ConnectionTracker, Gossip {
 
         reconnectThrottle = new ReconnectThrottle(reconnectConfig, platformContext.getTime());
 
-        networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfId, peers);
+        networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfId);
         platformContext.getMetrics().addUpdater(networkMetrics::update);
 
-        reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics(), peers);
+        reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics());
 
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
 
