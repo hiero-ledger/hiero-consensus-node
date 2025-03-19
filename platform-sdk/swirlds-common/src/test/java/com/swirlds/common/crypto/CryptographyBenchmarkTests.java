@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 class CryptographyBenchmarkTests {
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     private record BenchmarkStats(long min, long max, long average, long median) {}
 
@@ -128,7 +128,7 @@ class CryptographyBenchmarkTests {
             final byte[] payload = messages[i].getPayloadDirect();
 
             final long startTime = System.nanoTime();
-            CRYPTOGRAPHY.digestSync(payload, DigestType.SHA_384);
+            CRYPTOGRAPHY.digestSync(payload);
             final long endTime = System.nanoTime();
 
             // discard first values, since they take a long time and aren't indicative of actual performance

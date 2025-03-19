@@ -40,8 +40,7 @@ import com.swirlds.base.utility.Pair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.DigestType;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.RunningHashable;
 import com.swirlds.common.crypto.Signature;
@@ -75,7 +74,7 @@ import org.junit.jupiter.api.Test;
  */
 class StreamUtilitiesTest {
     private static final Logger logger = LogManager.getLogger(StreamUtilitiesTest.class);
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
     private static final Marker LOGM_OBJECT_STREAM = MarkerManager.getMarker("OBJECT_STREAM");
     private static final Marker LOGM_EXCEPTION = MarkerManager.getMarker("EXCEPTION");
     private static final int logPeriodMs = 500;
@@ -280,7 +279,7 @@ class StreamUtilitiesTest {
                 assertFalse(iterator.hasNext());
             } else {
                 Hash objectHash = CRYPTOGRAPHY.digestSync(object);
-                runningHash = CRYPTOGRAPHY.calcRunningHash(runningHash, objectHash, DigestType.SHA_384);
+                runningHash = CRYPTOGRAPHY.calcRunningHash(runningHash, objectHash);
             }
             objectsCount++;
             logger.info(LOGM_OBJECT_STREAM, "parsed object: {}", object);

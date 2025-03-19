@@ -99,9 +99,6 @@ class WritableHistoryStoreImplTest {
     private HistoryLibrary library;
 
     @Mock
-    private HistoryLibraryCodec codec;
-
-    @Mock
     private NetworkInfo networkInfo;
 
     @Mock
@@ -399,12 +396,7 @@ class WritableHistoryStoreImplTest {
         Set.of(
                         new EntityIdService(),
                         new HistoryServiceImpl(
-                                NO_OP_METRICS,
-                                ForkJoinPool.commonPool(),
-                                appContext,
-                                library,
-                                codec,
-                                WITH_ENABLED_HISTORY))
+                                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, WITH_ENABLED_HISTORY))
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();

@@ -9,8 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.merkle.test.fixtures.FakeVirtualMap;
@@ -306,7 +306,7 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
             final int permittedLeaves, final int permittedInternals) {
         return (final VirtualMap<TestKey, TestValue> map) -> {
             // We need to hash the original tree before getting its view.
-            MerkleCryptoFactory.getInstance().digestTreeSync(map);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(map);
 
             final MerkleInternal imitationMap = new FakeVirtualMap();
 

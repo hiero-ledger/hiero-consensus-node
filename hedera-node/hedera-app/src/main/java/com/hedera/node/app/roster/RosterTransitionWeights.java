@@ -8,6 +8,7 @@ import java.math.BigInteger;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.stream.Stream;
 
 /**
@@ -18,13 +19,14 @@ import java.util.stream.Stream;
  * @param targetWeightThreshold the weight required for strictly more than 2/3 weight in the target roster
  */
 public record RosterTransitionWeights(
-        @NonNull Map<Long, Long> sourceNodeWeights,
-        @NonNull Map<Long, Long> targetNodeWeights,
+        @NonNull SortedMap<Long, Long> sourceNodeWeights,
+        @NonNull SortedMap<Long, Long> targetNodeWeights,
         long sourceWeightThreshold,
         long targetWeightThreshold) {
 
     public RosterTransitionWeights(
-            @NonNull final Map<Long, Long> sourceNodeWeights, @NonNull final Map<Long, Long> targetNodeWeights) {
+            @NonNull final SortedMap<Long, Long> sourceNodeWeights,
+            @NonNull final SortedMap<Long, Long> targetNodeWeights) {
         this(
                 requireNonNull(sourceNodeWeights),
                 requireNonNull(targetNodeWeights),
@@ -100,6 +102,13 @@ public record RosterTransitionWeights(
      */
     public long sourceWeightOf(final long nodeId) {
         return sourceNodeWeights.getOrDefault(nodeId, 0L);
+    }
+
+    /**
+     * Returns the total weight of the source roster.
+     */
+    public long totalSourceWeight() {
+        return sourceNodeWeights.values().stream().mapToLong(Long::longValue).sum();
     }
 
     /**

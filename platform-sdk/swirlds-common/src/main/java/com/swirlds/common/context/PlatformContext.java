@@ -4,8 +4,6 @@ package com.swirlds.common.context;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.concurrent.ExecutorFactory;
 import com.swirlds.common.context.internal.PlatformUncaughtExceptionHandler;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.common.io.utility.RecycleBin;
@@ -30,8 +28,7 @@ public interface PlatformContext {
     /**
      * Creates a new instance of the platform context. The instance uses a {@link NoOpMetrics} implementation for
      * metrics and a {@link com.swirlds.common.io.utility.NoOpRecycleBin}.
-     * The instance uses the {@link CryptographyFactory#create()} call to get the cryptography. The instance
-     * uses the static {@link Time#getCurrent()} call to get the time.
+     * The instance uses the static {@link Time#getCurrent()} call to get the time.
      *
      * @apiNote This method is meant for utilities and testing and not for a node's production operation
      * @param configuration the configuration
@@ -40,10 +37,9 @@ public interface PlatformContext {
     @NonNull
     static PlatformContext create(@NonNull final Configuration configuration) {
         final Metrics metrics = new NoOpMetrics();
-        final Cryptography cryptography = CryptographyFactory.create();
         final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
         final Time time = Time.getCurrent();
-        final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration, cryptography);
+        final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
         return create(configuration, time, metrics, fileSystemManager, new NoOpRecycleBin(), merkleCryptography);
     }
 

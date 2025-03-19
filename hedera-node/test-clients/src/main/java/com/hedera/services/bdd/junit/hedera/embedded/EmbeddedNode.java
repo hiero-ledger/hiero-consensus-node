@@ -95,6 +95,11 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
     }
 
     @Override
+    public CompletableFuture<Void> minLogsFuture(@NonNull final String pattern, final int n) {
+        throw new UnsupportedOperationException("TSS logs should not be expected in an embedded network");
+    }
+
+    @Override
     public CompletableFuture<Void> stopFuture() {
         throw new UnsupportedOperationException("Cannot stop a single node in an embedded network");
     }

@@ -20,7 +20,6 @@ import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
 import com.swirlds.common.merkle.utility.Keyed;
@@ -31,6 +30,7 @@ import com.swirlds.common.test.fixtures.dummy.Key;
 import com.swirlds.common.test.fixtures.dummy.Value;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleNode;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
@@ -84,7 +84,7 @@ class MerkleMapTests {
     static void setUp() throws ConstructableRegistryException {
         MerkleMapTestUtil.loadLogging();
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
-        cryptography = MerkleCryptoFactory.getInstance();
+        cryptography = TestMerkleCryptoFactory.getInstance();
     }
 
     @AfterAll
@@ -205,7 +205,7 @@ class MerkleMapTests {
             mm.remove(key);
         }
 
-        assertEquals(0, mm.size(), "expected map to be emtpy");
+        assertEquals(0, mm.size(), "expected map to be empty");
         mm.release();
     }
 
@@ -247,7 +247,7 @@ class MerkleMapTests {
 
         mm.clear();
 
-        assertEquals(0, mm.size(), "expected map to be emtpy");
+        assertEquals(0, mm.size(), "expected map to be empty");
         mm.release();
     }
 
@@ -861,7 +861,7 @@ class MerkleMapTests {
 
         root2.release();
         assertEquals(-1, map.getReservationCount(), "reference count should be -1");
-        assertTrue(map.isDestroyed(), "Expected map to be releaed");
+        assertTrue(map.isDestroyed(), "Expected map to be released");
     }
 
     @Test

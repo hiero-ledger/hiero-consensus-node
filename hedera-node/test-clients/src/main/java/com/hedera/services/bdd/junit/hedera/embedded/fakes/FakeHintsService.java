@@ -12,7 +12,6 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -24,9 +23,9 @@ public class FakeHintsService implements HintsService {
     private final HintsService delegate;
     private final Queue<Runnable> pendingHintsSubmissions = new ArrayDeque<>();
 
-    public FakeHintsService(@NonNull final AppContext appContext, @NonNull final Configuration bootstrapConfig) {
+    public FakeHintsService(@NonNull final AppContext appContext) {
         delegate = new HintsServiceImpl(
-                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, new HintsLibraryImpl(), bootstrapConfig);
+                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, new HintsLibraryImpl());
     }
 
     @Override
@@ -59,13 +58,15 @@ public class FakeHintsService implements HintsService {
             @NonNull final ActiveRosters activeRosters,
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
-        delegate.reconcile(activeRosters, hintsStore, now, tssConfig);
+            @NonNull final TssConfig tssConfig,
+            final boolean currentPlatformStatus) {
+        delegate.reconcile(activeRosters, hintsStore, now, tssConfig, currentPlatformStatus);
     }
 
     @Override
-    public void executeCrsWork(@NonNull final WritableHintsStore hintsStore, @NonNull final Instant now) {
-        delegate.executeCrsWork(hintsStore, now);
+    public void executeCrsWork(
+            @NonNull final WritableHintsStore hintsStore, @NonNull final Instant now, final boolean isActive) {
+        delegate.executeCrsWork(hintsStore, now, isActive);
     }
 
     @Override

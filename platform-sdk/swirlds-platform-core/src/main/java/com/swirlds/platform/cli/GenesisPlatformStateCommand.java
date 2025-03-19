@@ -10,7 +10,6 @@ import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.RosterStateId;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
@@ -83,7 +82,8 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
                 ((CommittableWritableStates) writableStates).commit();
             }
             System.out.printf("Hashing state %n");
-            MerkleCryptoFactory.getInstance()
+            platformContext
+                    .getMerkleCryptography()
                     .digestTreeAsync(reservedSignedState.get().getState().getRoot())
                     .get();
             System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());

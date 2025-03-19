@@ -3,6 +3,8 @@ import com.hedera.node.app.config.ServicesConfigExtension;
 import com.swirlds.config.api.ConfigurationExtension;
 
 module com.hedera.node.app {
+    requires transitive com.hedera.cryptography.hints;
+    requires transitive com.hedera.cryptography.rpm;
     requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.app.service.addressbook.impl;
     requires transitive com.hedera.node.app.service.consensus.impl;
@@ -119,6 +121,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.blocks.schemas;
     exports com.hedera.node.app.roster.schemas;
     exports com.hedera.node.app.ids.schemas;
+    exports com.hedera.node.app.hints.schemas;
 
     provides ConfigurationExtension with
             ServicesConfigExtension;

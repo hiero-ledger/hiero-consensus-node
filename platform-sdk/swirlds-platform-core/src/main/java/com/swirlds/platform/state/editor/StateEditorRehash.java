@@ -2,8 +2,14 @@
 package com.swirlds.platform.state.editor;
 
 import com.swirlds.cli.utility.SubcommandOf;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.merkle.utility.MerkleUtils;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import java.io.IOException;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -19,7 +25,13 @@ public class StateEditorRehash extends StateEditorOperation {
     @Override
     public void run() {
         try (final ReservedSignedState reservedSignedState = getStateEditor().getState("StateEditorRehash.run()")) {
-            MerkleUtils.rehashTree(reservedSignedState.get().getState().getRoot());
+            final Configuration configuration =
+                    DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
+            final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
+            MerkleUtils.rehashTree(
+                    merkleCryptography, reservedSignedState.get().getState().getRoot());
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
         }
     }
 }

@@ -44,6 +44,7 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.ConsensusEvent;
+import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -195,6 +196,8 @@ class HandleWorkflowTest {
             @NonNull final StreamMode mode, @NonNull final List<StateChanges.Builder> migrationStateChanges) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "" + mode)
+                .withValue("tss.hintsEnabled", "false")
+                .withValue("tss.historyEnabled", "false")
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
         subject = new HandleWorkflow(
@@ -223,6 +226,7 @@ class HandleWorkflowTest {
                 hintsService,
                 historyService,
                 congestionMetrics,
-                softwareVersionFactory);
+                softwareVersionFactory,
+                () -> PlatformStatus.ACTIVE);
     }
 }

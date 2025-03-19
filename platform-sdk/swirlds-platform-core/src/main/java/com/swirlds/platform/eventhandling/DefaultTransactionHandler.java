@@ -12,9 +12,10 @@ import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATIN
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATING_PLATFORM_STATE_RUNNING_HASH;
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.WAITING_FOR_PREHANDLE;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
@@ -30,7 +31,6 @@ import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
@@ -49,8 +49,6 @@ import org.apache.logging.log4j.Logger;
 public class DefaultTransactionHandler implements TransactionHandler {
 
     private static final Logger logger = LogManager.getLogger(DefaultTransactionHandler.class);
-
-    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
     /**
      * The class responsible for all interactions with the swirld state
@@ -82,7 +80,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      */
     private final StatusActionSubmitter statusActionSubmitter;
 
-    private final SoftwareVersion softwareVersion;
+    private final SemanticVersion softwareVersion;
 
     /**
      * The number of non-ancient rounds.
@@ -114,7 +112,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final PlatformContext platformContext,
             @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
-            @NonNull final SoftwareVersion softwareVersion,
+            @NonNull final SemanticVersion softwareVersion,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
@@ -128,7 +126,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
                 .roundsNonAncient();
         this.handlerMetrics = new RoundHandlingMetrics(platformContext);
 
-        previousRoundLegacyRunningEventHash = NULL_HASH;
+        previousRoundLegacyRunningEventHash = Cryptography.NULL_HASH;
         this.platformStateFacade = platformStateFacade;
 
         final PlatformSchedulersConfig schedulersConfig =
@@ -253,7 +251,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
             platformStateFacade.setLegacyRunningEventHashTo(consensusState, previousRoundLegacyRunningEventHash);
         } else {
-            platformStateFacade.setLegacyRunningEventHashTo(consensusState, NULL_HASH);
+            platformStateFacade.setLegacyRunningEventHashTo(consensusState, Cryptography.NULL_HASH);
         }
     }
 

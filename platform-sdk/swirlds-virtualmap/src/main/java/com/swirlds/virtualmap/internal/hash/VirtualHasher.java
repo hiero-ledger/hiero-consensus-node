@@ -8,7 +8,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashBuilder;
 import com.swirlds.virtualmap.VirtualKey;
@@ -75,7 +75,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
      * the {@link #hash(LongFunction, Iterator, long, long, VirtualMapConfig)} method and used by all hashing
      * tasks.
      */
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     /**
      * Tracks if this virtual hasher has been shut down. If true (indicating that the hasher
@@ -291,7 +291,6 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
 
         this.hashReader = hashReader;
         this.listener = listener;
-        final Hash NULL_HASH = CRYPTOGRAPHY.getNullHash();
 
         // Algo v6. This version is task based, where every task is responsible for hashing a small
         // chunk of the tree. Tasks are running in a fork-join pool, which is shared across all
@@ -441,7 +440,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
                     if (siblingPath > lastLeafPath) {
                         // Special case for a tree with one leaf at path 1
                         assert siblingPath == 2;
-                        parentTask.setHash((int) (siblingPath - firstSiblingPath), NULL_HASH);
+                        parentTask.setHash((int) (siblingPath - firstSiblingPath), Cryptography.NULL_HASH);
                     } else if ((siblingPath < curPath) && !firstLeaf) {
                         // Mark the sibling as clean, reducing the number of dependencies
                         parentTask.send();
@@ -500,7 +499,6 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
     }
 
     public Hash emptyRootHash() {
-        final Hash NULL_HASH = CRYPTOGRAPHY.getNullHash();
-        return ChunkHashTask.hash(ROOT_PATH, NULL_HASH, NULL_HASH);
+        return ChunkHashTask.hash(ROOT_PATH, Cryptography.NULL_HASH, Cryptography.NULL_HASH);
     }
 }

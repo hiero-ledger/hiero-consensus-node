@@ -4,8 +4,7 @@ package com.swirlds.common.stream;
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.DigestType;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.RunningHashable;
 import com.swirlds.common.crypto.SerializableHashable;
@@ -26,7 +25,7 @@ public class RunningHashCalculatorForStream<T extends RunningHashable & Serializ
     /** use this for all logging, as controlled by the optional data/log4j2.xml file */
     private static final Logger logger = LogManager.getLogger(RunningHashCalculatorForStream.class);
     /** Used for hashing */
-    private static final Cryptography cryptography = CryptographyFactory.create();
+    private static final Cryptography cryptography = CryptographyProvider.getInstance();
     /** current running Hash */
     private Hash runningHash;
 
@@ -48,7 +47,7 @@ public class RunningHashCalculatorForStream<T extends RunningHashable & Serializ
 
         final Hash newHashToAdd = t.getHash();
         // calculates and updates runningHash
-        runningHash = cryptography.calcRunningHash(runningHash, newHashToAdd, DigestType.SHA_384);
+        runningHash = cryptography.calcRunningHash(runningHash, newHashToAdd);
         t.getRunningHash().setHash(runningHash);
         super.addObject(t);
     }

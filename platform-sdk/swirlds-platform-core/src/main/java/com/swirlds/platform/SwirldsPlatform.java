@@ -13,7 +13,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.io.IOIterator;
@@ -88,11 +88,6 @@ import org.apache.logging.log4j.Logger;
 public class SwirldsPlatform implements Platform {
 
     private static final Logger logger = LogManager.getLogger(SwirldsPlatform.class);
-
-    /**
-     * The null hash.
-     */
-    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
 
     /**
      * The unique ID of this node.
@@ -192,7 +187,8 @@ public class SwirldsPlatform implements Platform {
         // This method is a no-op if we are not in birth round mode, or if we have already migrated.
         final SoftwareVersion appVersion = blocks.appVersion();
         PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
-        modifyStateForBirthRoundMigration(initialState, ancientMode, appVersion, platformStateFacade);
+        modifyStateForBirthRoundMigration(
+                initialState, ancientMode, appVersion.getPbjSemanticVersion(), platformStateFacade);
 
         selfId = blocks.selfId();
 
@@ -290,7 +286,7 @@ public class SwirldsPlatform implements Platform {
 
         final Hash legacyRunningEventHash =
                 platformStateFacade.legacyRunningEventHashOf(initialState.getState()) == null
-                        ? NULL_HASH
+                        ? Cryptography.NULL_HASH
                         : platformStateFacade.legacyRunningEventHashOf((initialState.getState()));
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
@@ -381,6 +377,10 @@ public class SwirldsPlatform implements Platform {
 
         if (ancientMode == AncientMode.GENERATION_THRESHOLD) {
             // We don't need the shim if we haven't migrated to birth round mode.
+            return null;
+        }
+        if (initialState.isGenesisState()) {
+            // We don't need the shim if we are starting from genesis.
             return null;
         }
 

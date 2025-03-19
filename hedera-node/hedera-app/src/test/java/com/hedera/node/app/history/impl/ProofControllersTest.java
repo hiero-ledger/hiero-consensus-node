@@ -10,7 +10,6 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.roster.RosterTransitionWeights;
-import com.hedera.node.app.tss.TssKeyPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.util.concurrent.Executor;
@@ -24,7 +23,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ProofControllersTest {
-    private static final TssKeyPair MOCK_KEY_PAIR = new TssKeyPair(Bytes.EMPTY, Bytes.EMPTY);
+    private static final ProofKeysAccessorImpl.SchnorrKeyPair MOCK_KEY_PAIR =
+            new ProofKeysAccessorImpl.SchnorrKeyPair(Bytes.EMPTY, Bytes.EMPTY);
     private static final HistoryProofConstruction ONE_CONSTRUCTION =
             HistoryProofConstruction.newBuilder().constructionId(1L).build();
 
@@ -39,9 +39,6 @@ class ProofControllersTest {
 
     @Mock
     private HistoryLibrary library;
-
-    @Mock
-    private HistoryLibraryCodec codec;
 
     @Mock
     private HistorySubmissions submissions;
@@ -65,8 +62,8 @@ class ProofControllersTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ProofControllers(
-                executor, keyAccessor, library, codec, submissions, selfNodeInfoSupplier, proofConsumer);
+        subject =
+                new ProofControllers(executor, keyAccessor, library, submissions, selfNodeInfoSupplier, proofConsumer);
     }
 
     @Test

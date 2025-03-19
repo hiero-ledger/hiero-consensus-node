@@ -5,12 +5,13 @@ import static com.swirlds.common.utility.CommonUtils.hex;
 import static com.swirlds.demo.stats.signing.StatsSigningTestingToolMain.SYSTEM_TRANSACTION_MARKER;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.crypto.VerificationStatus;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
@@ -18,7 +19,6 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.Event;
 import com.swirlds.platform.system.transaction.ConsensusTransaction;
@@ -39,7 +39,7 @@ public class StatsSigningTestingToolConsensusStateEventHandler
      */
     private static final Logger logger = LogManager.getLogger(StatsSigningTestingToolConsensusStateEventHandler.class);
 
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     /** if true, artificially take {@link #HANDLE_MICROS} to handle each consensus transaction */
     private static final boolean SYNTHETIC_HANDLE_TIME = false;
@@ -55,10 +55,10 @@ public class StatsSigningTestingToolConsensusStateEventHandler
 
     @Override
     public void onStateInitialized(
-            @NonNull StatsSigningTestingToolState state,
-            @NonNull Platform platform,
-            @NonNull InitTrigger trigger,
-            @Nullable SoftwareVersion previousVersion) {}
+            @NonNull final StatsSigningTestingToolState state,
+            @NonNull final Platform platform,
+            @NonNull final InitTrigger trigger,
+            @Nullable final SemanticVersion previousVersion) {}
 
     @Override
     public void onPreHandle(

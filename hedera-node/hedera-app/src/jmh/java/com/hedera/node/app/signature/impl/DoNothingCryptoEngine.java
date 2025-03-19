@@ -2,63 +2,65 @@
 package com.hedera.node.app.signature.impl;
 
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.io.SelfSerializable;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 
 public class DoNothingCryptoEngine implements Cryptography {
 
+    @NonNull
     @Override
-    public Hash digestSync(byte[] bytes, DigestType digestType) {
+    public Hash digestSync(@NonNull byte[] bytes) {
         return null;
     }
 
     @Override
-    public byte[] digestBytesSync(final SelfSerializable serializable, final DigestType digestType) {
+    public byte[] digestBytesSync(final @NonNull SelfSerializable serializable) {
         return null;
     }
 
     @Override
-    public Hash digestSync(SelfSerializable selfSerializable, DigestType digestType) {
+    public Hash digestSync(@NonNull SelfSerializable selfSerializable) {
         return null;
     }
 
     @Override
-    public Hash digestSync(SerializableHashable serializableHashable, DigestType digestType, boolean b) {
+    public Hash digestSync(@NonNull SerializableHashable serializableHashable, boolean b) {
+        return null;
+    }
+
+    @NonNull
+    @Override
+    public byte[] digestBytesSync(@NonNull final byte[] message) {
         return null;
     }
 
     @Override
-    public byte[] digestBytesSync(final byte[] message, final DigestType digestType) {
-        return null;
-    }
-
-    @Override
-    public Hash getNullHash(DigestType digestType) {
-        return null;
-    }
-
-    @Override
-    public boolean verifySync(TransactionSignature transactionSignature) {
+    public boolean verifySync(@NonNull TransactionSignature transactionSignature) {
         return false;
     }
 
     @Override
-    public boolean verifySync(List<TransactionSignature> list) {
+    public boolean verifySync(@NonNull List<TransactionSignature> list) {
         return false;
     }
 
     @Override
-    public boolean verifySync(byte[] bytes, byte[] bytes1, byte[] bytes2, SignatureType signatureType) {
+    public boolean verifySync(
+            @NonNull byte[] bytes,
+            @NonNull byte[] bytes1,
+            @NonNull byte[] bytes2,
+            @NonNull SignatureType signatureType) {
         return false;
     }
 
+    @NonNull
     @Override
-    public Hash calcRunningHash(Hash hash, Hash hash1, DigestType digestType) {
+    public Hash calcRunningHash(@NonNull Hash hash, @NonNull Hash hash1) {
         return null;
     }
 }

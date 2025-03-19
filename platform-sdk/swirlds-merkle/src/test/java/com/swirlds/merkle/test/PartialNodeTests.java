@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
@@ -337,11 +337,11 @@ class PartialNodeTests {
     @MethodSource("merkleNodes")
     @DisplayName("Hash Test")
     void hashTest(final NodeImpl<MerkleNode> nodeImpl) {
-        final Cryptography cryptography = CryptographyFactory.create();
+        final Cryptography cryptography = CryptographyProvider.getInstance();
         final MerkleNode node = nodeImpl.constructor.get();
 
         assertNull(node.getHash(), "node should start with null hash");
-        final Hash hash1 = cryptography.getNullHash();
+        final Hash hash1 = Cryptography.NULL_HASH;
         node.setHash(hash1);
         assertSame(hash1, node.getHash(), "unexpected hash");
 

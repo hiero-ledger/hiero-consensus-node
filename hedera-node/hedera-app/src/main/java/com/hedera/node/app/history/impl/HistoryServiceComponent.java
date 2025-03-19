@@ -21,7 +21,6 @@ public interface HistoryServiceComponent {
     interface Factory {
         HistoryServiceComponent create(
                 @BindsInstance HistoryLibrary library,
-                @BindsInstance HistoryLibraryCodec codec,
                 @BindsInstance AppContext appContext,
                 @BindsInstance Executor executor,
                 @BindsInstance Metrics metrics,
@@ -32,6 +31,5 @@ public interface HistoryServiceComponent {
 
     ProofControllers controllers();
 
-    @Deprecated
     Supplier<Configuration> configSupplier();
 }

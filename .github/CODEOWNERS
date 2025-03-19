@@ -14,7 +14,7 @@
 ##### HAPI protobuf #####
 #########################
 
-/hapi/                                          @hiero-ledger/hcn-execution-codeowners @hiero-ledger/hcn-smart-contract-codeowners @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-tools-and-libs-codeowners
+/hapi/                                          @hiero-ledger/hcn-execution-codeowners @hiero-ledger/hcn-smart-contract-codeowners @hiero-ledger/hcn-consensus-codeowners
 /hapi/hedera-protobufs/services                 @hiero-ledger/hcn-execution-codeowners @hiero-ledger/hcn-smart-contract-codeowners @jsync-swirlds @hiero-ledger/hiero-mirror-node-maintainers
 
 
@@ -88,7 +88,7 @@
 ####################
 #####   HAPI  ######
 ####################
-/hapi/                                              @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-tools-and-libs-codeowners @hiero-ledger/hcn-execution-codeowners @hiero-ledger/hcn-smart-contract-codeowners
+/hapi/                                              @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-execution-codeowners @hiero-ledger/hcn-smart-contract-codeowners
 
 # Documentation
 /platform-sdk/docs/platformWiki.md                  @hiero-ledger/hcn-consensus-codeowners @hiero-ledger/hcn-tools-and-libs-codeowners

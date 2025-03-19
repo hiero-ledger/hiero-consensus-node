@@ -17,15 +17,12 @@ mainModuleInfo {
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
-    runtimeOnly("com.hedera.cryptography.altbn128")
 }
 
 testModuleInfo {
     requires("com.fasterxml.jackson.databind")
     requires("com.google.protobuf")
     requires("com.google.common.jimfs")
-    requires("com.hedera.cryptography.bls")
-    requires("com.hedera.cryptography.pairings.api")
     requires("com.hedera.node.app")
     requires("com.hedera.node.app.spi.test.fixtures")
     requires("com.hedera.node.config.test.fixtures")

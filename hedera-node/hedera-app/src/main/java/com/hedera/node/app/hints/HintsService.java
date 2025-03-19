@@ -59,6 +59,11 @@ public interface HintsService extends Service, BlockHashSigner {
     int MIGRATION_ORDER = RosterService.MIGRATION_ORDER - 1;
 
     /**
+     * Placeholder for the history service to use when hinTS is disabled.
+     */
+    Bytes DISABLED_HINTS_METADATA = Bytes.wrap(new byte[32]);
+
+    /**
      * Returns the active verification key, or throws if none is active.
      */
     @NonNull
@@ -67,7 +72,7 @@ public interface HintsService extends Service, BlockHashSigner {
     /**
      * Initializes hinTS signing from the next construction in the given {@link ReadableHintsStore}.
      */
-    void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore);
+    void initSigningForNextScheme(@NonNull ReadableHintsStore hintsStore);
 
     /**
      * Takes any actions needed to advance the state of the {@link HintsService} toward
@@ -81,31 +86,35 @@ public interface HintsService extends Service, BlockHashSigner {
      *     network state if this is the first time the network ever began reconciling a hinTS construction for
      *     the transition.</Li>
      *     <Li>For the resolved {@link HintsController} for the transition, invoke its
-     *     {@link HintsController#advanceConstruction(Instant, WritableHintsStore)} method.</li>
+     *     {@link HintsController#advanceConstruction(Instant, WritableHintsStore, boolean)} method.</li>
      * </ol>
      * <p>
      * <b>Important:</b> Note that whether a new {@link HintsController} is created, or an appropriate
      * one already exists, its subsequent behavior will be a deterministic function of the given consensus time and
      * {@link HintsService} states. That is, controllers are persistent objects <i>only</i> due to performance
      * considerations, but are <i>logically</i> functions of just the network state and consensus time.
+     *  @param activeRosters the active rosters
      *
-     * @param activeRosters the active rosters
-     * @param hintsStore the hints store, for recording progress if needed
-     * @param now the current consensus time
-     * @param tssConfig the TSS configuration
+     * @param hintsStore            the hints store, for recording progress if needed
+     * @param now                   the current consensus time
+     * @param tssConfig             the TSS configuration
+     * @param isActive              if the platform is active
      */
     void reconcile(
             @NonNull ActiveRosters activeRosters,
             @NonNull WritableHintsStore hintsStore,
             @NonNull Instant now,
-            @NonNull TssConfig tssConfig);
+            @NonNull TssConfig tssConfig,
+            boolean isActive);
 
     /**
      * Executes the work needed to set the CRS for the network and start the preprocessing vote.
-     * @param hintsStore the hints store
-     * @param now the current consensus time
+     *
+     * @param hintsStore            the hints store
+     * @param now                   the current consensus time
+     * @param isActive               if the platform is active
      */
-    void executeCrsWork(@NonNull WritableHintsStore hintsStore, @NonNull Instant now);
+    void executeCrsWork(@NonNull WritableHintsStore hintsStore, @NonNull Instant now, boolean isActive);
 
     /**
      * Stops the hinTS service, causing it to abandon any in-progress work.
@@ -140,16 +149,20 @@ public interface HintsService extends Service, BlockHashSigner {
     }
 
     /**
-     * Returns the unique party size {@code M=2^k} such that the given roster node count
-     * falls in the range {@code (2*(k-1), 2^k]}.
+     * Returns the smallest power of 2 {@code M = 2^k} such that
+     * {@code numSigners + 1 <= M}. Equivalently, if
+     * {@code 2^(k-1) <= numSigners < 2^k},
+     * then the returned party size is {@code 2^k}.
      *
-     * @param n the roster node count
+     * @param numSigners the number of signers (roster node count)
      * @return the party size
      */
-    static int partySizeForRosterNodeCount(final int n) {
-        if ((n & (n - 1)) == 0) {
-            return n;
+    static int partySizeForRosterNodeCount(final int numSigners) {
+        // We want the smallest power of two >= (numSigners + 1)
+        final var candidate = numSigners + 1;
+        if ((candidate & (candidate - 1)) == 0) {
+            return candidate;
         }
-        return Integer.highestOneBit(n) << 1;
+        return Integer.highestOneBit(candidate) << 1;
     }
 }

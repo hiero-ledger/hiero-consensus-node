@@ -4,7 +4,7 @@ package com.swirlds.common.merkle.synchronization.views;
 import static com.swirlds.common.constructable.ClassIdFormatter.classIdString;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
@@ -33,8 +33,6 @@ import java.util.concurrent.atomic.AtomicReference;
  * Implementation for a view of a standard in memory merkle tree.
  */
 public class LearnerPushMerkleTreeView implements LearnerTreeView<MerkleNode> {
-    private static final Hash NULL_HASH = CryptographyFactory.create().getNullHash();
-
     private final ReconnectConfig reconnectConfig;
 
     private final MerkleNode originalRoot;
@@ -131,7 +129,7 @@ public class LearnerPushMerkleTreeView implements LearnerTreeView<MerkleNode> {
     @Override
     public Hash getNodeHash(final MerkleNode node) {
         if (node == null) {
-            return NULL_HASH;
+            return Cryptography.NULL_HASH;
         } else {
             return node.getHash();
         }

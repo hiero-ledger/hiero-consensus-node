@@ -6,7 +6,7 @@ import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURA
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 
 @SuppressWarnings("jol")
 public class VirtualTestBase {
-    protected static final Cryptography CRYPTO = CryptographyFactory.create();
+    protected static final Cryptography CRYPTO = CryptographyProvider.getInstance();
 
     // Keys that we will use repeatedly in these tests.
     protected static final TestKey A_KEY = new TestKey('A');

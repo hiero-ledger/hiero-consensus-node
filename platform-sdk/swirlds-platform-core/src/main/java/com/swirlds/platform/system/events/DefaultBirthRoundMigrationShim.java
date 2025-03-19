@@ -4,10 +4,10 @@ package com.swirlds.platform.system.events;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_FIRST;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
@@ -39,7 +39,7 @@ public class DefaultBirthRoundMigrationShim implements BirthRoundMigrationShim {
      * not modified by this object. Events from earlier software versions have their birth rounds modified by this
      * object.
      */
-    private final SoftwareVersion firstVersionInBirthRoundMode;
+    private final SemanticVersion firstVersionInBirthRoundMode;
 
     /**
      * The last round before the birth round mode was enabled.
@@ -63,7 +63,7 @@ public class DefaultBirthRoundMigrationShim implements BirthRoundMigrationShim {
      */
     public DefaultBirthRoundMigrationShim(
             @NonNull final PlatformContext platformContext,
-            @NonNull final SoftwareVersion firstVersionInBirthRoundMode,
+            @NonNull final SemanticVersion firstVersionInBirthRoundMode,
             final long lastRoundBeforeBirthRoundMode,
             final long lowestJudgeGenerationBeforeBirthRoundMode) {
 
@@ -89,8 +89,7 @@ public class DefaultBirthRoundMigrationShim implements BirthRoundMigrationShim {
     @Override
     @NonNull
     public PlatformEvent migrateEvent(@NonNull final PlatformEvent event) {
-        if (HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(
-                        event.getSoftwareVersion(), firstVersionInBirthRoundMode.getPbjSemanticVersion())
+        if (HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(event.getSoftwareVersion(), firstVersionInBirthRoundMode)
                 < 0) {
             // The event was created before the birth round mode was enabled.
             // We need to migrate the event's birth round.
