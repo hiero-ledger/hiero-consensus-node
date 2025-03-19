@@ -10,7 +10,6 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.JumboTransactionsConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,17 +32,12 @@ class CacheWarmerTest {
     VersionedConfiguration versionedConfiguration;
 
     @Mock
-    JumboTransactionsConfig jumboTransactionsConfig;
-
-    @Mock
     HederaConfig hederaConfig;
 
     @Test
     @DisplayName("Instantiation test")
     void testInstantiation() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
-        when(versionedConfiguration.getConfigData(JumboTransactionsConfig.class))
-                .thenReturn(jumboTransactionsConfig);
         when(versionedConfiguration.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
 
         final var cacheWarmer =
