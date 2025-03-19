@@ -236,7 +236,8 @@ public class AddressBookUtils {
             @NonNull final PlatformContext platformContext,
             @NonNull final ConsensusStateEventHandler<?> consensusStateEventHandler,
             @NonNull final PlatformStateFacade platformStateFacade) {
-        final boolean softwareUpgrade = detectSoftwareUpgrade(version, initialState.get(), platformStateFacade);
+        final boolean softwareUpgrade =
+                detectSoftwareUpgrade(version.getPbjSemanticVersion(), initialState.get(), platformStateFacade);
         // Initialize the address book from the configuration and platform saved state.
         final AddressBookInitializer addressBookInitializer = new AddressBookInitializer(
                 selfId,

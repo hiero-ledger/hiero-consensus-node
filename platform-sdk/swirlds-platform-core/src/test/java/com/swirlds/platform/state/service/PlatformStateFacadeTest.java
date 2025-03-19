@@ -19,22 +19,17 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.EmptyReadableStates;
 import java.time.Instant;
-import java.util.function.Function;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 class PlatformStateFacadeTest {
 
-    public static final Function<SemanticVersion, SoftwareVersion> VERSION_FACTORY =
-            v -> new BasicSoftwareVersion(v.major());
     private static TestPlatformStateFacade platformStateFacade;
     private static MerkleNodeState state;
     private static MerkleNodeState emptyState;
