@@ -95,7 +95,7 @@ public class BlockNodeSimulatorVerbs {
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp restartImmediately() {
+        public BlockNodeSimulatorOp startImmediately() {
             return BlockNodeSimulatorOp.restartImmediately(nodeIndex).build();
         }
 

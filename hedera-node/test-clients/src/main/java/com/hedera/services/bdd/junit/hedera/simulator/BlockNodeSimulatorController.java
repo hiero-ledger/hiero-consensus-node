@@ -67,7 +67,6 @@ public class BlockNodeSimulatorController {
 
     /**
      * Send an EndOfStream response immediately to all active streams on all simulated block nodes.
-     * This will end all active streams with the specified response code.
      *
      * @param responseCode the response code to send
      * @param blockNumber the block number to include in the response
@@ -92,7 +91,6 @@ public class BlockNodeSimulatorController {
 
     /**
      * Send an EndOfStream response immediately to all active streams on a specific simulated block node.
-     * This will end all active streams with the specified response code.
      *
      * @param index the index of the simulated block node (0-based)
      * @param responseCode the response code to send
@@ -118,7 +116,6 @@ public class BlockNodeSimulatorController {
 
     /**
      * Send a SkipBlock response immediately to all active streams on all simulated block nodes.
-     * This will instruct all active streams to skip the specified block.
      *
      * @param blockNumber the block number to skip
      */
@@ -131,7 +128,6 @@ public class BlockNodeSimulatorController {
 
     /**
      * Send a SkipBlock response immediately to all active streams on a specific simulated block node.
-     * This will instruct all active streams to skip the specified block.
      *
      * @param index the index of the simulated block node (0-based)
      * @param blockNumber the block number to skip
@@ -148,7 +144,6 @@ public class BlockNodeSimulatorController {
 
     /**
      * Send a ResendBlock response immediately to all active streams on all simulated block nodes.
-     * This will instruct all active streams to resend the specified block.
      *
      * @param blockNumber the block number to resend
      */
@@ -161,7 +156,6 @@ public class BlockNodeSimulatorController {
 
     /**
      * Send a ResendBlock response immediately to all active streams on a specific simulated block node.
-     * This will instruct all active streams to resend the specified block.
      *
      * @param index the index of the simulated block node (0-based)
      * @param blockNumber the block number to resend
@@ -211,7 +205,7 @@ public class BlockNodeSimulatorController {
 
     /**
      * Shutdown all simulated block nodes to simulate connection drops.
-     * The servers can be restarted using {@link #restartAllSimulators()}.
+     * The servers can be restarted using {@link #startAllSimulators()}.
      */
     public void shutdownAllSimulators() {
         shutdownSimulatorPorts.clear();
@@ -226,7 +220,7 @@ public class BlockNodeSimulatorController {
 
     /**
      * Shutdown a specific simulated block node to simulate a connection drop.
-     * The server can be restarted using {@link #restartSimulator(int)}.
+     * The server can be restarted using {@link #startSimulator(int)}.
      *
      * @param index the index of the simulated block node (0-based)
      */
@@ -243,29 +237,29 @@ public class BlockNodeSimulatorController {
     }
 
     /**
-     * Restart all previously shutdown simulated block nodes.
+     * Start all previously shutdown simulated block nodes.
      * This will recreate the servers on the same ports they were running on before shutdown.
      *
      * @throws IOException if a server fails to start
      */
-    public void restartAllSimulators() throws IOException {
+    public void startAllSimulators() throws IOException {
         for (Map.Entry<Integer, Integer> entry : shutdownSimulatorPorts.entrySet()) {
             int index = entry.getKey();
-            restartSimulator(index);
+            startSimulator(index);
             shutdownSimulatorPorts.remove(index);
         }
 
-        log.info("Restarted simulators");
+        log.info("Started simulators");
     }
 
     /**
-     * Restart a specific previously shutdown simulated block node.
+     * Start a specific previously shutdown simulated block node.
      * This will recreate the server on the same port it was running on before shutdown.
      *
      * @param index the index of the simulated block node (0-based)
      * @throws IOException if the server fails to start
      */
-    public void restartSimulator(int index) throws IOException {
+    public void startSimulator(int index) throws IOException {
         if (!shutdownSimulatorPorts.containsKey(index)) {
             log.error("Simulator {} was not previously shutdown or has already been restarted", index);
             return;

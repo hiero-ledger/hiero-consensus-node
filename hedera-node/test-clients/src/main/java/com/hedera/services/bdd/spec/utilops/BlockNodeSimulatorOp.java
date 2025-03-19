@@ -104,13 +104,13 @@ public class BlockNodeSimulatorOp extends UtilOp {
                 controller.shutdownSimulator(nodeIndex);
                 log.info("Shutdown simulator {}", nodeIndex);
                 break;
-            case RESTART_SIMULATOR:
+            case START_SIMULATOR:
                 if (!controller.isSimulatorShutdown(nodeIndex)) {
                     log.error("Cannot restart simulator {} because it has not been shut down", nodeIndex);
                     return false;
                 }
                 try {
-                    controller.restartSimulator(nodeIndex);
+                    controller.startSimulator(nodeIndex);
                     log.info("Restarted simulator {}", nodeIndex);
                 } catch (IOException e) {
                     log.error("Failed to restart simulator {}", nodeIndex, e);
@@ -121,13 +121,13 @@ public class BlockNodeSimulatorOp extends UtilOp {
                 controller.shutdownAllSimulators();
                 log.info("Shutdown all simulators to simulate connection drops");
                 break;
-            case RESTART_ALL_SIMULATORS:
+            case START_ALL_SIMULATORS:
                 if (!controller.areAnySimulatorsShutdown()) {
                     log.error("Cannot restart simulators because none have been shut down");
                     return false;
                 }
                 try {
-                    controller.restartAllSimulators();
+                    controller.startAllSimulators();
                     log.info("Restarted all previously shutdown simulators");
                 } catch (IOException e) {
                     log.error("Failed to restart simulators", e);
@@ -175,9 +175,9 @@ public class BlockNodeSimulatorOp extends UtilOp {
         SET_END_OF_STREAM_RESPONSE,
         RESET_RESPONSES,
         SHUTDOWN_SIMULATOR,
-        RESTART_SIMULATOR,
+        START_SIMULATOR,
         SHUTDOWN_ALL_SIMULATORS,
-        RESTART_ALL_SIMULATORS,
+        START_ALL_SIMULATORS,
         ASSERT_BLOCK_RECEIVED,
         GET_LAST_VERIFIED_BLOCK
     }
@@ -241,8 +241,8 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * @param nodeIndex the index of the block node simulator (0-based)
      * @return a builder for the operation
      */
-    public static RestartBuilder restartImmediately(int nodeIndex) {
-        return new RestartBuilder(nodeIndex);
+    public static StartBuilder restartImmediately(int nodeIndex) {
+        return new StartBuilder(nodeIndex);
     }
 
     /**
@@ -250,8 +250,8 @@ public class BlockNodeSimulatorOp extends UtilOp {
      *
      * @return a builder for the operation
      */
-    public static RestartAllBuilder restartAll() {
-        return new RestartAllBuilder();
+    public static StartAllBuilder restartAll() {
+        return new StartAllBuilder();
     }
 
     /**
@@ -442,10 +442,10 @@ public class BlockNodeSimulatorOp extends UtilOp {
         }
     }
 
-    public static class RestartBuilder extends UtilOp {
+    public static class StartBuilder extends UtilOp {
         private final int nodeIndex;
 
-        private RestartBuilder(int nodeIndex) {
+        private StartBuilder(int nodeIndex) {
             this.nodeIndex = nodeIndex;
         }
 
@@ -455,7 +455,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
          * @return the operation
          */
         public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(nodeIndex, BlockNodeSimulatorAction.RESTART_SIMULATOR, null, 0, null, null);
+            return new BlockNodeSimulatorOp(nodeIndex, BlockNodeSimulatorAction.START_SIMULATOR, null, 0, null, null);
         }
 
         @Override
@@ -464,14 +464,14 @@ public class BlockNodeSimulatorOp extends UtilOp {
         }
     }
 
-    public static class RestartAllBuilder extends UtilOp {
+    public static class StartAllBuilder extends UtilOp {
         /**
          * Builds the operation.
          *
          * @return the operation
          */
         public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(0, BlockNodeSimulatorAction.RESTART_ALL_SIMULATORS, null, 0, null, null);
+            return new BlockNodeSimulatorOp(0, BlockNodeSimulatorAction.START_ALL_SIMULATORS, null, 0, null, null);
         }
 
         @Override
