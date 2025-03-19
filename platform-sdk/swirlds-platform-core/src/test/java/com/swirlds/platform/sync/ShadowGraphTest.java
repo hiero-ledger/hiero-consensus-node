@@ -3,6 +3,7 @@ package com.swirlds.platform.sync;
 
 import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
 import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -25,7 +26,6 @@ import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphInsertionException;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterCreator;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.sync.SyncTestUtils;
 import java.time.Instant;
@@ -81,7 +81,10 @@ class ShadowgraphTest {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        emitter = EventEmitterCreator.newStandardEmitter(random.nextLong(), numNodes);
+        emitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(random.nextLong())
+                .setNumNodes(numNodes)
+                .buildStandardEventEmitter();
         shadowgraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
         shadowgraph.updateEventWindow(EventWindow.getGenesisEventWindow(GENERATION_THRESHOLD));
 
@@ -697,7 +700,10 @@ class ShadowgraphTest {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        emitter = EventEmitterCreator.newStandardEmitter(random.nextLong(), numNodes);
+        emitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(random.nextLong())
+                .setNumNodes(numNodes)
+                .buildStandardEventEmitter();
         shadowgraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
         for (int i = 0; i < numEvents; i++) {
             shadowgraph.addEvent(emitter.emitEvent().getBaseEvent());

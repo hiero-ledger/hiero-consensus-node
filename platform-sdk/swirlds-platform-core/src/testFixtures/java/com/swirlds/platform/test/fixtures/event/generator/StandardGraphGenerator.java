@@ -137,22 +137,15 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
         initializeInternalConsensus();
     }
 
-    /**
-     * Construct a new StandardEventGenerator.
-     *
-     * @param seed         The random seed used to generate events.
-     * @param eventSources One or more event sources.
-     * @param addressBook  The address book to use with the event sources.
-     */
     public StandardGraphGenerator(
             @NonNull final PlatformContext platformContext,
             final long seed,
             @NonNull final List<EventSource> eventSources,
-            @NonNull final AddressBook addressBook) {
+            @NonNull final Roster roster) {
         super(seed);
+        addressBook = RosterUtils.buildAddressBook(roster);
         this.platformContext = Objects.requireNonNull(platformContext);
         this.sources = Objects.requireNonNull(eventSources);
-        Objects.requireNonNull(addressBook);
 
         if (eventSources.isEmpty()) {
             throw new IllegalArgumentException("At least one event source is required");
@@ -161,14 +154,6 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
         setAddressBookInitializeEventSources(eventSources, addressBook);
         buildDefaultOtherParentAffinityMatrix();
         initializeInternalConsensus();
-    }
-
-    public StandardGraphGenerator(
-            @NonNull final PlatformContext platformContext,
-            final long seed,
-            @NonNull final List<EventSource> eventSources,
-            @NonNull final Roster roster) {
-        this(platformContext, seed, eventSources, RosterUtils.buildAddressBook(roster));
     }
 
     /**

@@ -10,10 +10,8 @@ import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.NoOpConsensusMetrics;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -49,13 +47,13 @@ public class ConsensusBenchmark {
 
     @Setup(Level.Iteration)
     public void setup() {
-        final List<EventSource> eventSources =
-                EventSourceFactory.newStandardEventSources(WeightGenerators.balancedNodeWeights(numNodes));
-
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
-        final StandardGraphGenerator generator = new StandardGraphGenerator(platformContext, seed, eventSources);
-        final StandardEventEmitter emitter = new StandardEventEmitter(generator);
+        final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(seed)
+                .setNumNodes(numNodes)
+                .setWeightGenerator(WeightGenerators.BALANCED)
+                .buildStandardEventEmitter();
         events = emitter.emitEvents(numEvents);
         final AddressBook addressBook = emitter.getGraphGenerator().getAddressBook();
 

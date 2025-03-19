@@ -6,6 +6,7 @@ import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_
 import static com.swirlds.platform.test.fixtures.event.EventUtils.areEventListsEquivalent;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.areGenerationNumbersValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.isEventOrderValid;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -19,8 +20,6 @@ import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.PriorityEventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.ShuffledEventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -223,14 +222,10 @@ public class EventEmitterTests {
     public void testStandardEmitter(final boolean birthRoundAsAncientThreshold) {
         final PlatformContext platformContext =
                 birthRoundAsAncientThreshold ? BIRTH_ROUND_PLATFORM_CONTEXT : DEFAULT_PLATFORM_CONTEXT;
-        final StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext,
-                0,
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource());
-        final StandardEventEmitter emitter = new StandardEventEmitter(generator);
+        final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(0)
+                .setPlatformContext(platformContext)
+                .buildStandardEventEmitter();
         emitterSanityChecks(emitter);
     }
 
@@ -242,21 +237,17 @@ public class EventEmitterTests {
     public void testShuffledEmitter(final boolean birthRoundAsAncientThreshold) {
         final PlatformContext platformContext =
                 birthRoundAsAncientThreshold ? BIRTH_ROUND_PLATFORM_CONTEXT : DEFAULT_PLATFORM_CONTEXT;
-        final StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext,
-                0,
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource());
+        final StandardEventEmitter standardEmitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(0)
+                .setPlatformContext(platformContext)
+                .buildStandardEventEmitter();
 
         final int numberOfEvents = 1000;
 
-        final ShuffledEventEmitter shuffledEmitter = new ShuffledEventEmitter(generator, 0);
+        final ShuffledEventEmitter shuffledEmitter = new ShuffledEventEmitter(standardEmitter.getGraphGenerator(), 0);
 
         shuffledEmitterSanityChecks(shuffledEmitter);
 
-        final StandardEventEmitter standardEmitter = new StandardEventEmitter(generator);
         standardEmitter.setCheckpoint(numberOfEvents);
 
         // We expect for the events that come out of this emitter to be the same as a standard emitter,
@@ -272,23 +263,19 @@ public class EventEmitterTests {
     public void testPriorityEmitter(final boolean birthRoundAsAncientThreshold) {
         final PlatformContext platformContext =
                 birthRoundAsAncientThreshold ? BIRTH_ROUND_PLATFORM_CONTEXT : DEFAULT_PLATFORM_CONTEXT;
-        final StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext,
-                0,
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource());
+        final StandardEventEmitter standardEmitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(0)
+                .setPlatformContext(platformContext)
+                .buildStandardEventEmitter();
 
         final int numberOfEvents = 1000;
 
         final List<Integer> nodePriorities = List.of(0, 1, 2, 3);
-        final PriorityEventEmitter priorityEmitter = new PriorityEventEmitter(generator, nodePriorities);
+        final PriorityEventEmitter priorityEmitter = new PriorityEventEmitter(standardEmitter.getGraphGenerator(), nodePriorities);
         priorityEmitter.setCheckpoint(numberOfEvents);
 
         emitterSanityChecks(priorityEmitter);
 
-        final StandardEventEmitter standardEmitter = new StandardEventEmitter(generator);
         standardEmitter.setCheckpoint(numberOfEvents);
 
         // We expect for the events that come out of this emitter to be the same as a standard emitter,
@@ -307,15 +294,12 @@ public class EventEmitterTests {
 
         final PlatformContext platformContext =
                 birthRoundAsAncientThreshold ? BIRTH_ROUND_PLATFORM_CONTEXT : DEFAULT_PLATFORM_CONTEXT;
-        final StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext,
-                0,
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource());
+        final StandardEventEmitter standardEmitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(0)
+                .setPlatformContext(platformContext)
+                .buildStandardEventEmitter();
 
-        final ShuffledEventEmitter shuffledEmitter = new ShuffledEventEmitter(generator, 0L);
+        final ShuffledEventEmitter shuffledEmitter = new ShuffledEventEmitter(standardEmitter.getGraphGenerator(), 0L);
         shuffledEmitter.setCheckpoint(numberOfEvents);
 
         for (int i = 0; i < 10; i++) {
@@ -348,15 +332,10 @@ public class EventEmitterTests {
 
         final PlatformContext platformContext =
                 birthRoundAsAncientThreshold ? BIRTH_ROUND_PLATFORM_CONTEXT : DEFAULT_PLATFORM_CONTEXT;
-        final StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext,
-                0,
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource());
-
-        final StandardEventEmitter emitter = new StandardEventEmitter(generator);
+        final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(0)
+                .setPlatformContext(platformContext)
+                .buildStandardEventEmitter();
 
         CollectingEventEmitter collectingEmitter = new CollectingEventEmitter(emitter);
 

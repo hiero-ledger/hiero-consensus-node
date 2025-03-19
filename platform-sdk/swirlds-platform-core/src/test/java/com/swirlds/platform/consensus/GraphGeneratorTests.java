@@ -8,6 +8,7 @@ import static com.swirlds.platform.test.fixtures.event.EventUtils.gatherOtherPar
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.isEventOrderValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import static java.util.Arrays.asList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -475,13 +476,11 @@ public class GraphGeneratorTests {
     public void testStandardGenerator(final boolean birthRoundAsAncientThreshold) {
         final PlatformContext platformContext =
                 birthRoundAsAncientThreshold ? BIRTH_ROUND_PLATFORM_CONTEXT : DEFAULT_PLATFORM_CONTEXT;
-        final StandardGraphGenerator generator = new StandardGraphGenerator(
-                platformContext,
-                0,
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource(),
-                new StandardEventSource());
+        final StandardGraphGenerator generator = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(0)
+                .setNumNodes(4)
+                .setPlatformContext(platformContext)
+                .buildStandardGraphGenerator();
 
         generatorSanityChecks(generator);
     }

@@ -3,6 +3,7 @@ package com.swirlds.platform.sync;
 
 import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_FIRST;
 import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -28,7 +29,6 @@ import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphInsertionException;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterCreator;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.sync.SyncTestUtils;
 import java.util.ArrayList;
@@ -86,7 +86,10 @@ class ShadowgraphByBirthRoundTests {
         platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .build();
-        emitter = EventEmitterCreator.newStandardEmitter(random.nextLong(), numNodes);
+        emitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(random.nextLong())
+                .setNumNodes(numNodes)
+                .buildStandardEventEmitter();
 
         shadowGraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
         shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(BIRTH_ROUND_THRESHOLD));
