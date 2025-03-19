@@ -92,15 +92,14 @@ public class HintsServiceImpl implements HintsService {
             @NonNull final WritableHintsStore hintsStore, @NonNull final Instant now, final boolean isActive) {
         requireNonNull(hintsStore);
         requireNonNull(now);
-
         final var controller = component.controllers().getAnyInProgress();
+        // On the very first round the hinTS controller won't be available yet
         if (controller.isEmpty()) {
-            logger.info("No controller present to proceed for executing CRS work");
             return;
         }
         // Do the work needed to set the CRS for network and start the preprocessing vote
         if (hintsStore.getCrsState().stage() != COMPLETED) {
-            controller.get().advanceCRSWork(now, hintsStore, isActive);
+            controller.get().advanceCrsWork(now, hintsStore, isActive);
         }
     }
 

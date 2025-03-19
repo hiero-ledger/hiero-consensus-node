@@ -230,7 +230,7 @@ import org.junit.jupiter.api.Assertions;
 
 public class UtilVerbs {
     public static final int DEFAULT_COLLISION_AVOIDANCE_FACTOR = 2;
-    private static final Duration HISTORY_PROOF_WAIT_TIMEOUT = Duration.ofMinutes(25);
+    private static final Duration HISTORY_PROOF_WAIT_TIMEOUT = Duration.ofMinutes(50);
 
     /**
      * Private constructor to prevent instantiation.

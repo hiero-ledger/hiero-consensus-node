@@ -354,7 +354,7 @@ public class ProofControllerImpl implements ProofController {
      */
     private void ensureProofKeyPublished() {
         if (publicationFuture == null && weights.targetIncludes(selfId) && !targetProofKeys.containsKey(selfId)) {
-            log.info("Publishing schnorr key for construction #{}", construction.constructionId());
+            log.info("Publishing Schnorr key for construction #{}", construction.constructionId());
             publicationFuture = CompletableFuture.runAsync(
                             () -> submissions
                                     .submitProofKeyPublication(schnorrKeyPair.publicKey())

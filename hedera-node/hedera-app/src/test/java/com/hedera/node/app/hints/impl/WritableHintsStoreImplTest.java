@@ -385,7 +385,7 @@ class WritableHintsStoreImplTest {
                         ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
 
         subject = new WritableHintsStoreImpl(writableStates);
-        subject.setCRSState(crsState);
+        subject.setCrsState(crsState);
         return crsState;
     }
 
