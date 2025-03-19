@@ -52,19 +52,23 @@ public class BlockNodeConnectionManager {
     private final Random random = new Random();
 
     private final Map<BlockNodeConfig, BlockNodeConnection> activeConnections;
-    private BlockNodeConfigExtractor blockNodeConfigurations;
-
     private final Object connectionLock = new Object();
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService streamingExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService retryExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private BlockNodeConfigExtractor blockNodeConfigurations;
+    private BlockAcknowledgementsTracker acknowledgementTracker;
 
     /**
      * Creates a new BlockNodeConnectionManager with the given configuration from disk.
      * @param configProvider the configuration provider
+     * @param blockStreamStateManager the block stream state manager
      */
-    public BlockNodeConnectionManager(@NonNull final ConfigProvider configProvider) {
+    public BlockNodeConnectionManager(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final BlockStreamStateManager blockStreamStateManager) {
         requireNonNull(configProvider);
+        requireNonNull(blockStreamStateManager);
         this.activeConnections = new ConcurrentHashMap<>();
 
         final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
@@ -72,6 +76,9 @@ public class BlockNodeConnectionManager {
             return;
         }
         this.blockNodeConfigurations = new BlockNodeConfigExtractor(blockStreamConfig.blockNodeConnectionFileDir());
+        // Initialize the block acknowledgment tracker
+        this.acknowledgementTracker =
+                new BlockAcknowledgementsTracker(blockStreamStateManager, blockStreamConfig.deleteFilesOnDisk());
     }
 
     /**
@@ -110,8 +117,10 @@ public class BlockNodeConnectionManager {
                                     .build())
                     .build());
 
-            BlockNodeConnection connection = new BlockNodeConnection(node, grpcServiceClient, this);
+            BlockNodeConnection connection =
+                    new BlockNodeConnection(node, grpcServiceClient, this, acknowledgementTracker);
             connection.establishStream();
+
             synchronized (connectionLock) {
                 activeConnections.put(node, connection);
             }

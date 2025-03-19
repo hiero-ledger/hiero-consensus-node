@@ -46,6 +46,9 @@ class BlockNodeConnectionManagerTest {
     @Mock
     BlockNodeConnection mockConnection;
 
+    @Mock
+    BlockStreamStateManager blockStreamStateManager;
+
     @BeforeEach
     public void setUp() {
         final var config = HederaTestConfigBuilder.create()
@@ -53,7 +56,7 @@ class BlockNodeConnectionManagerTest {
                 .withValue("blockStream.blockNodeConnectionFileDir", "./src/test/resources/bootstrap")
                 .getOrCreateConfig();
         given(mockConfigProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        blockNodeConnectionManager = new BlockNodeConnectionManager(mockConfigProvider);
+        blockNodeConnectionManager = new BlockNodeConnectionManager(mockConfigProvider, blockStreamStateManager);
     }
 
     @Test

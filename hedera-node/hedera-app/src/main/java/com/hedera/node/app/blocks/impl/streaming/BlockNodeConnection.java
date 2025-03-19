@@ -24,6 +24,8 @@ public class BlockNodeConnection {
     private final BlockNodeConnectionManager blockNodeConnectionManager;
     private StreamObserver<PublishStreamRequest> requestObserver;
     private volatile boolean isActive = false;
+    private final String connectionId;
+    private final BlockAcknowledgementsTracker acknowledgmentTracker;
 
     /**
      * Construct a new BlockNodeConnection.
@@ -31,15 +33,19 @@ public class BlockNodeConnection {
      * @param nodeConfig the configuration for the block node
      * @param grpcServiceClient the gRPC service client
      * @param blockNodeConnectionManager the connection manager for block node connections
+     * @param acknowledgmentTracker the block acknowledgement tracker
      */
     public BlockNodeConnection(
             @NonNull final BlockNodeConfig nodeConfig,
             @NonNull final GrpcServiceClient grpcServiceClient,
-            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
+            @NonNull final BlockAcknowledgementsTracker acknowledgmentTracker) {
         this.node = requireNonNull(nodeConfig, "nodeConfig must not be null");
         this.grpcServiceClient = requireNonNull(grpcServiceClient, "grpcServiceClient must not be null");
         this.blockNodeConnectionManager =
                 requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
+        this.acknowledgmentTracker = requireNonNull(acknowledgmentTracker);
+        this.connectionId = generateConnectionId(nodeConfig);
         logger.info("BlockNodeConnection INITIALIZED");
     }
 
@@ -76,7 +82,9 @@ public class BlockNodeConnection {
 
     private void handleAcknowledgement(PublishStreamResponse.Acknowledgement acknowledgement) {
         if (acknowledgement.hasBlockAck()) {
-            logger.info("Block acknowledgment received for a full block: {}", acknowledgement.getBlockAck());
+            final var ackBlockNumber = acknowledgement.getBlockAck().getBlockNumber();
+
+            acknowledgmentTracker.trackBlockAcknowledgements(connectionId, ackBlockNumber);
         }
     }
 
@@ -95,6 +103,10 @@ public class BlockNodeConnection {
 
     private void scheduleReconnect() {
         blockNodeConnectionManager.scheduleReconnect(this);
+    }
+
+    private String generateConnectionId(BlockNodeConfig nodeConfig) {
+        return nodeConfig.address() + ":" + nodeConfig.port();
     }
 
     /**
