@@ -40,7 +40,7 @@ class V059HintsSchemaTest {
 
     @BeforeEach
     void setUp() {
-        subject = new V059HintsSchema(signingContext);
+        subject = new V059HintsSchema();
     }
 
     @Test

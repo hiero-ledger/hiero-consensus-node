@@ -3,6 +3,7 @@ package com.swirlds.platform.network;
 
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.common.threading.locks.AutoClosableResourceLock;
 import com.swirlds.common.threading.locks.Locks;
 import com.swirlds.common.threading.locks.locked.LockedResource;
@@ -26,7 +27,7 @@ public class InboundConnectionManager implements ConnectionManager {
     /** locks the connection managed by this instance */
     private final AutoClosableResourceLock<Connection> lock = Locks.createResourceLock(currentConn);
     /** condition to wait on for a new connection */
-    private final Condition newConnection = lock.newCondition();
+    private final Condition newConnectionSignal = lock.newCondition();
 
     /**
      * {@inheritDoc}
@@ -46,6 +47,7 @@ public class InboundConnectionManager implements ConnectionManager {
      *
      * @return the current connection
      */
+    @VisibleForTesting
     @Override
     public Connection getConnection() {
         return currentConn;
@@ -61,7 +63,7 @@ public class InboundConnectionManager implements ConnectionManager {
     private Connection waitForNewConnection() throws InterruptedException {
         try (final LockedResource<Connection> lockedConn = lock.lock()) {
             while (!lockedConn.getResource().connected()) {
-                newConnection.await();
+                newConnectionSignal.await();
             }
             return lockedConn.getResource();
         }
@@ -92,7 +94,7 @@ public class InboundConnectionManager implements ConnectionManager {
             }
             old.disconnect();
             lockedConn.setResource(connection);
-            newConnection.signalAll();
+            newConnectionSignal.signalAll();
         }
     }
 
