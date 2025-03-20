@@ -6,7 +6,6 @@ import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_
 import static com.swirlds.platform.test.fixtures.event.EventUtils.areEventListsEquivalent;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.areGenerationNumbersValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.isEventOrderValid;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -17,6 +16,7 @@ import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.emitter.CollectingEventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.PriorityEventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.ShuffledEventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
@@ -271,7 +271,8 @@ public class EventEmitterTests {
         final int numberOfEvents = 1000;
 
         final List<Integer> nodePriorities = List.of(0, 1, 2, 3);
-        final PriorityEventEmitter priorityEmitter = new PriorityEventEmitter(standardEmitter.getGraphGenerator(), nodePriorities);
+        final PriorityEventEmitter priorityEmitter =
+                new PriorityEventEmitter(standardEmitter.getGraphGenerator(), nodePriorities);
         priorityEmitter.setCheckpoint(numberOfEvents);
 
         emitterSanityChecks(priorityEmitter);

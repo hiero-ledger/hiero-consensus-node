@@ -40,8 +40,7 @@ public class ForkingEventSource extends AbstractEventSource {
         this(useFakeHashes, DEFAULT_TRANSACTION_GENERATOR);
     }
 
-    public ForkingEventSource(
-            final boolean useFakeHashes, final TransactionGenerator transactionGenerator) {
+    public ForkingEventSource(final boolean useFakeHashes, final TransactionGenerator transactionGenerator) {
         super(useFakeHashes, transactionGenerator);
         maximumBranchCount = 3;
         forkProbability = 0.01;

@@ -91,8 +91,7 @@ public abstract class AbstractEventSource implements EventSource {
      * @param useFakeHashes        indicates if fake hashes should be used instead of real ones
      * @param transactionGenerator a transaction generator to use when creating events
      */
-    protected AbstractEventSource(
-            final boolean useFakeHashes, final TransactionGenerator transactionGenerator) {
+    protected AbstractEventSource(final boolean useFakeHashes, final TransactionGenerator transactionGenerator) {
         this.useFakeHashes = useFakeHashes;
         this.transactionGenerator = transactionGenerator;
         nodeId = NodeId.UNDEFINED_NODE_ID;

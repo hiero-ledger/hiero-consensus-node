@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.generator;
 
+import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
+import static com.swirlds.platform.test.fixtures.event.EventUtils.weightedChoice;
+import static com.swirlds.platform.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -24,9 +28,6 @@ import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
-import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
-import static com.swirlds.platform.test.fixtures.event.EventUtils.weightedChoice;
-import static com.swirlds.platform.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -134,8 +135,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
         final int eventSourceCount = eventSources.size();
 
         this.roster = RandomRosterBuilder.create(getRandom())
-                        .withSize(eventSourceCount)
-                                .build();
+                .withSize(eventSourceCount)
+                .build();
         setAddressBookInitializeEventSources(eventSources, roster);
         buildDefaultOtherParentAffinityMatrix();
         initializeInternalConsensus();
@@ -187,8 +188,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     }
 
     private void initializeInternalConsensus() {
-        consensus = new ConsensusImpl(
-                platformContext, new NoOpConsensusMetrics(), roster);
+        consensus = new ConsensusImpl(platformContext, new NoOpConsensusMetrics(), roster);
         linker = new SimpleLinker(platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
@@ -252,7 +252,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
             final long nodeId = roster.rosterEntries().get(nodeIndex).nodeId();
             final List<Double> affinityVector = new ArrayList<>(sources.size());
             for (int otherNodeIndex = 0; otherNodeIndex < sources.size(); otherNodeIndex++) {
-                final long otherNodeId = roster.rosterEntries().get(otherNodeIndex).nodeId();
+                final long otherNodeId =
+                        roster.rosterEntries().get(otherNodeIndex).nodeId();
                 if (Objects.equals(nodeId, otherNodeId)) {
                     affinityVector.add(0.0);
                 } else {
@@ -358,8 +359,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * @param source The node that is creating the event.
      */
     private EventSource getNextOtherParentSource(final long eventIndex, final EventSource source) {
-        final List<Double> affinityVector =
-                getOtherParentAffinityVector(eventIndex, RosterUtils.getIndex(roster, source.getNodeId().id()));
+        final List<Double> affinityVector = getOtherParentAffinityVector(
+                eventIndex, RosterUtils.getIndex(roster, source.getNodeId().id()));
         final int nodeIndex = weightedChoice(getRandom(), affinityVector);
         return sources.get(nodeIndex);
     }

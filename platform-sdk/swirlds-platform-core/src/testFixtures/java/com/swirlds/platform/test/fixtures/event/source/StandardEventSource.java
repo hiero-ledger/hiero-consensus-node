@@ -17,8 +17,7 @@ public class StandardEventSource extends AbstractEventSource {
         this(useFakeHashes, DEFAULT_TRANSACTION_GENERATOR);
     }
 
-    public StandardEventSource(
-            final boolean useFakeHashes, final TransactionGenerator transactionGenerator) {
+    public StandardEventSource(final boolean useFakeHashes, final TransactionGenerator transactionGenerator) {
         super(useFakeHashes, transactionGenerator);
         latestEvents = new LinkedList<>();
     }

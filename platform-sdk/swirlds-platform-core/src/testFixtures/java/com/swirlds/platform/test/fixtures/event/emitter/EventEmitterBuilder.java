@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.emitter;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -20,8 +21,7 @@ public class EventEmitterBuilder {
     private WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
     private PlatformContext platformContext = null;
 
-    private EventEmitterBuilder() {
-    }
+    private EventEmitterBuilder() {}
 
     public static EventEmitterBuilder newBuilder() {
         return new EventEmitterBuilder();
@@ -78,15 +78,14 @@ public class EventEmitterBuilder {
      */
     public StandardGraphGenerator buildStandardGraphGenerator() {
         final Randotron random = Randotron.create(randomSeed);
-        if(platformContext == null){
-            platformContext =
-                    TestPlatformContextBuilder.create().build();
+        if (platformContext == null) {
+            platformContext = TestPlatformContextBuilder.create().build();
         }
 
-        final Roster roster =
-                RandomRosterBuilder.create(random)
-                        .withWeightGenerator(weightGenerator)
-                        .withSize(numNodes).build();
+        final Roster roster = RandomRosterBuilder.create(random)
+                .withWeightGenerator(weightGenerator)
+                .withSize(numNodes)
+                .build();
 
         final EventSourceFactory eventSourceFactory = new EventSourceFactory(numNodes);
 

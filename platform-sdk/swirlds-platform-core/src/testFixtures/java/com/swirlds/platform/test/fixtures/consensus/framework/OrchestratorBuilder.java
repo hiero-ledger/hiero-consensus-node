@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import static com.swirlds.common.test.fixtures.WeightGenerators.BALANCED;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.ResettableRandom;
@@ -16,7 +16,6 @@ import com.swirlds.platform.test.fixtures.event.emitter.ShuffledEventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -24,7 +23,6 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 /** A builder for {@link ConsensusTestOrchestrator} instances */
 public class OrchestratorBuilder {
@@ -94,7 +92,8 @@ public class OrchestratorBuilder {
                 .withWeightGenerator(weightGenerator)
                 .build();
 
-        final List<Long> weights = roster.rosterEntries().stream().map(RosterEntry::weight).toList();
+        final List<Long> weights =
+                roster.rosterEntries().stream().map(RosterEntry::weight).toList();
         final List<EventSource> eventSources;
         if (eventSourceBuilder != null) {
             eventSources = eventSourceBuilder.apply(weights);

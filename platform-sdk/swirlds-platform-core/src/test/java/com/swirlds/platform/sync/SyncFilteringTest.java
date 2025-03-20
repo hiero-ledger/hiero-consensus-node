@@ -2,8 +2,6 @@
 package com.swirlds.platform.sync;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
-import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -18,6 +16,8 @@ import com.swirlds.platform.gossip.shadowgraph.SyncUtils;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
+import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -120,11 +120,10 @@ class SyncFilteringTest {
         final FakeTime time = new FakeTime(startingTime, Duration.ZERO);
 
         final int eventCount = 1000;
-        final List<PlatformEvent> events =
-                generateEvents(eventEmitter, time, timeStep, eventCount).stream()
-                        .map(EventImpl::getBaseEvent)
-                        .sorted(Comparator.comparingLong(PlatformEvent::getGeneration))
-                        .toList();
+        final List<PlatformEvent> events = generateEvents(eventEmitter, time, timeStep, eventCount).stream()
+                .map(EventImpl::getBaseEvent)
+                .sorted(Comparator.comparingLong(PlatformEvent::getGeneration))
+                .toList();
 
         final Map<Hash, PlatformEvent> eventMap =
                 events.stream().collect(Collectors.toMap(PlatformEvent::getHash, Function.identity()));
