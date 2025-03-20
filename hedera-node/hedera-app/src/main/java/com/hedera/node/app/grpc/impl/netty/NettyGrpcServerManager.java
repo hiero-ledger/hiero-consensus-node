@@ -16,6 +16,7 @@ import com.hedera.node.app.workflows.query.annotations.UserQueries;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.node.config.types.Profile;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
@@ -412,13 +413,25 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                 .getConfiguration()
                 .getConfigData(HederaConfig.class)
                 .transactionMaxBytes();
+        final int maxJumboSize = configProvider
+                .getConfiguration()
+                .getConfigData(JumboTransactionsConfig.class)
+                .maxTxnSize();
         final var bufferThreadLocal = ThreadLocal.withInitial(() -> BufferedData.allocate(maxMessageSize + 1));
+        final var jumboBufferThreadLocal = ThreadLocal.withInitial(() -> BufferedData.allocate(maxJumboSize + 1));
         final var dataBufferMarshaller = new DataBufferMarshaller(maxMessageSize, bufferThreadLocal::get);
+        final var jumboDataBufferMarshaller = new DataBufferMarshaller(maxJumboSize, jumboBufferThreadLocal::get);
         return rpcServiceDefinitions
                 .get()
                 .map(d -> {
-                    final var builder =
-                            new GrpcServiceBuilder(d.basePath(), ingestWorkflow, queryWorkflow, dataBufferMarshaller);
+                    // create builder
+                    final var builder = new GrpcServiceBuilder(
+                            d.basePath(),
+                            ingestWorkflow,
+                            queryWorkflow,
+                            dataBufferMarshaller,
+                            jumboDataBufferMarshaller);
+                    // add methods to builder
                     d.methods().stream().filter(methodFilter).forEach(m -> {
                         if (Transaction.class.equals(m.requestType())) {
                             builder.transaction(m.path());
@@ -426,7 +439,8 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                             builder.query(m.path());
                         }
                     });
-                    return builder.build(metrics, maxMessageSize);
+                    // build service
+                    return builder.build(metrics, configProvider);
                 })
                 .collect(Collectors.toUnmodifiableSet());
     }

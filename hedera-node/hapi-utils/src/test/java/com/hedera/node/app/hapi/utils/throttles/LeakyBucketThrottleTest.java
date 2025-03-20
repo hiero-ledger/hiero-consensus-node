@@ -8,17 +8,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-class GasLimitBucketThrottleTest {
+class LeakyBucketThrottleTest {
 
     private static final long BUCKET_CAPACITY = 1_234_568;
     private static final long BEYOND_CAPACITY = 1_234_569;
 
-    GasLimitBucketThrottle subject = new GasLimitBucketThrottle(BUCKET_CAPACITY);
+    LeakyBucketThrottle subject = new LeakyBucketThrottle(BUCKET_CAPACITY);
 
     @Test
     void hasExpectedPercentUsed() {
         final var capacity = 1_000_000;
-        var subject = new GasLimitBucketThrottle(capacity);
+        var subject = new LeakyBucketThrottle(capacity);
         subject.bucket().useCapacity(capacity / 2);
 
         assertEquals(50.0, subject.percentUsed(0));
@@ -28,7 +28,7 @@ class GasLimitBucketThrottleTest {
     @Test
     void hasExpectedInstantaneousPercentUsed() {
         final var capacity = 1_000_000;
-        var subject = new GasLimitBucketThrottle(capacity);
+        var subject = new LeakyBucketThrottle(capacity);
         subject.bucket().useCapacity(capacity / 2);
         assertEquals(50.0, subject.instantaneousPercentUsed());
     }
@@ -36,7 +36,7 @@ class GasLimitBucketThrottleTest {
     @Test
     void hasExpectedUsageRatio() {
         final var capacity = 1_000_000;
-        var subject = new GasLimitBucketThrottle(capacity);
+        var subject = new LeakyBucketThrottle(capacity);
         subject.bucket().useCapacity(capacity / 4);
 
         assertEquals(3, subject.freeToUsedRatio());
@@ -45,7 +45,7 @@ class GasLimitBucketThrottleTest {
     @Test
     void hasExpectedUsageRatioIfAllFree() {
         final var capacity = 1_000_000;
-        var subject = new GasLimitBucketThrottle(capacity);
+        var subject = new LeakyBucketThrottle(capacity);
 
         assertEquals(Long.MAX_VALUE, subject.freeToUsedRatio());
     }

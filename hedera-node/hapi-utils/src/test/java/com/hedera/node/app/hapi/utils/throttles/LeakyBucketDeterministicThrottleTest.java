@@ -14,16 +14,17 @@ import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class GasLimitDeterministicThrottleTest {
+class LeakyBucketDeterministicThrottleTest {
 
+    private static final String THROTTLE_NAME = "Gas";
     private static final long DEFAULT_CAPACITY = 1_000_000;
     private static final long ONE_SECOND_IN_NANOSECONDS = 1_000_000_000;
 
-    GasLimitDeterministicThrottle subject;
+    LeakyBucketDeterministicThrottle subject;
 
     @BeforeEach
     void setup() {
-        subject = new GasLimitDeterministicThrottle(DEFAULT_CAPACITY);
+        subject = new LeakyBucketDeterministicThrottle(DEFAULT_CAPACITY, THROTTLE_NAME);
     }
 
     @Test
@@ -44,14 +45,14 @@ class GasLimitDeterministicThrottleTest {
     @Test
     void implementsCongestibleThrottle() {
         assertEquals(DEFAULT_CAPACITY * 1000, subject.mtps());
-        assertEquals("Gas", subject.name());
+        assertEquals(THROTTLE_NAME, subject.name());
     }
 
     @Test
     void canGetPercentUsed() {
         final var now = Instant.ofEpochSecond(1_234_567L);
         final var capacity = 1_000_000;
-        final var subject = new GasLimitDeterministicThrottle(capacity);
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME);
         assertEquals(0.0, subject.percentUsed(now));
         subject.allow(now, capacity / 2);
         assertEquals(50.0, subject.percentUsed(now));
@@ -62,7 +63,7 @@ class GasLimitDeterministicThrottleTest {
     void canGetInstantaneousPercentUsed() {
         final var now = Instant.ofEpochSecond(1_234_567L);
         final var capacity = 1_000_000;
-        final var subject = new GasLimitDeterministicThrottle(capacity);
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME);
         assertEquals(0.0, subject.instantaneousPercentUsed());
         subject.allow(now, capacity / 2);
         assertEquals(50.0, subject.instantaneousPercentUsed());
@@ -72,7 +73,7 @@ class GasLimitDeterministicThrottleTest {
     void canGetFreeToUsedRatio() {
         final var now = Instant.ofEpochSecond(1_234_567L);
         final var capacity = 1_000_000;
-        final var subject = new GasLimitDeterministicThrottle(capacity);
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME);
         subject.allow(now, capacity / 4);
         assertEquals(3, subject.instantaneousFreeToUsedRatio());
     }
@@ -80,7 +81,7 @@ class GasLimitDeterministicThrottleTest {
     @Test
     void leaksUntilNowBeforeEstimatingFreeToUsed() {
         final var capacity = 1_000_000;
-        final var subject = new GasLimitDeterministicThrottle(capacity);
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME);
         assertEquals(Long.MAX_VALUE, subject.instantaneousFreeToUsedRatio());
     }
 

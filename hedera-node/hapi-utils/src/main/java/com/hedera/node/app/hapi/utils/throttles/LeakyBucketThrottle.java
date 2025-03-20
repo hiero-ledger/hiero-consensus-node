@@ -7,10 +7,10 @@ import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
 /**
  * Responsible for throttling transaction by gas limit. Uses a {@link DiscreteLeakyBucket} under the
  * hood. Calculates the amount of gas that should be leaked from the bucket based on the amount of
- * elapsed nanoseconds since the last time {@link GasLimitBucketThrottle#allow(long, long)} was
+ * elapsed nanoseconds since the last time {@link LeakyBucketThrottle#allow(long, long)} was
  * called.
  */
-public class GasLimitBucketThrottle {
+public class LeakyBucketThrottle {
     private static final long TIME_TO_EMPTY = SECONDS_TO_NANOSECONDS;
 
     private final DiscreteLeakyBucket bucket;
@@ -21,7 +21,7 @@ public class GasLimitBucketThrottle {
      *
      * @param capacity - the capacity for the throttle
      */
-    public GasLimitBucketThrottle(final long capacity) {
+    public LeakyBucketThrottle(final long capacity) {
         this.bucket = new DiscreteLeakyBucket(capacity);
     }
 

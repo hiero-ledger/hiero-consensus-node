@@ -235,6 +235,7 @@ public final class EmbeddedVerbs {
                     ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE,
                     v -> new ServicesSoftwareVersion());
             throttleAccumulator.applyGasConfig();
+            throttleAccumulator.applyBytesConfig();
             throttleAccumulator.rebuildFor(hedera.activeThrottleDefinitions());
             final var now = spec.consensusTime();
             final var state = spec.embeddedStateOrThrow();

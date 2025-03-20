@@ -22,7 +22,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
-import com.hedera.node.app.hapi.utils.throttles.GasLimitDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -61,6 +61,7 @@ class AppThrottleFactoryTest {
             List.of(
                     new ThrottleUsageSnapshot(1L, new Timestamp(234567, 8)),
                     new ThrottleUsageSnapshot(2L, new Timestamp(345678, 9))),
+            new ThrottleUsageSnapshot(3L, new Timestamp(456789, 0)),
             ThrottleUsageSnapshot.DEFAULT);
 
     @Mock
@@ -79,7 +80,10 @@ class AppThrottleFactoryTest {
     private DeterministicThrottle lastThrottle;
 
     @Mock
-    private GasLimitDeterministicThrottle gasThrottle;
+    private LeakyBucketDeterministicThrottle gasThrottle;
+
+    @Mock
+    private LeakyBucketDeterministicThrottle bytesThrottle;
 
     @Mock
     private AppThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;
@@ -108,6 +112,7 @@ class AppThrottleFactoryTest {
                 .willReturn(throttleAccumulator);
         given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
         given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);
+        given(throttleAccumulator.bytesLimitThrottle()).willReturn(bytesThrottle);
 
         final var throttle = subject.newThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS);
 
@@ -116,6 +121,7 @@ class AppThrottleFactoryTest {
         verify(firstThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getFirst());
         verify(lastThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getLast());
         verify(gasThrottle).resetUsageTo(FAKE_SNAPSHOTS.gasThrottleOrThrow());
+        verify(bytesThrottle).resetUsageTo(FAKE_SNAPSHOTS.bytesThrottleOrThrow());
 
         given(throttleAccumulator.checkAndEnforceThrottle(TXN_INFO, CONSENSUS_NOW, state))
                 .willReturn(true);
@@ -127,6 +133,7 @@ class AppThrottleFactoryTest {
         given(lastThrottle.usageSnapshot())
                 .willReturn(FAKE_SNAPSHOTS.tpsThrottles().getLast());
         given(gasThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.gasThrottleOrThrow());
+        given(bytesThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.bytesThrottleOrThrow());
         assertEquals(FAKE_SNAPSHOTS, throttle.usageSnapshots());
     }
 }
