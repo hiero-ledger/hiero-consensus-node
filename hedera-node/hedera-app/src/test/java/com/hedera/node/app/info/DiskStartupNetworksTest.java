@@ -56,6 +56,7 @@ import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -175,6 +176,25 @@ class DiskStartupNetworksTest {
         assertThat(Files.exists(genesisJson)).isFalse();
         final var archivedGenesisJson = tempDir.resolve(ARCHIVE + File.separator + GENESIS_NETWORK_JSON);
         assertThat(Files.exists(archivedGenesisJson)).isTrue();
+    }
+
+    @Test
+    void archivesConfigTxt() throws IOException {
+        try (final var fin = DiskStartupNetworks.class.getClassLoader().getResourceAsStream("bootstrap/config.txt")) {
+            new FileOutputStream(tempDir.resolve("config.txt").toFile()).write(fin.readAllBytes());
+        }
+
+        givenConfig();
+
+        final var configTx = tempDir.resolve("config.txt");
+
+        assertThat(Files.exists(configTx)).isTrue();
+
+        subject.archiveStartupNetworks();
+
+        assertThat(Files.exists(configTx)).isFalse();
+        final var archivedConfigTxt = tempDir.resolve(ARCHIVE + File.separator + "config.txt");
+        assertThat(Files.exists(archivedConfigTxt)).isTrue();
     }
 
     @Test
@@ -312,6 +332,7 @@ class DiskStartupNetworksTest {
     private Configuration givenConfig() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("networkAdmin.upgradeSysFilesLoc", tempDir.toString())
+                .withValue("networkAdmin.configTxtPath", tempDir.toString())
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 123L));
         return config;
