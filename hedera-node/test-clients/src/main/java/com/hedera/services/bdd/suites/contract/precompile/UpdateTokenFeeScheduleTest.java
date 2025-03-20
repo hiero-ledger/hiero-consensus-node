@@ -181,6 +181,7 @@ public class UpdateTokenFeeScheduleTest {
     }
 
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("non fungible token with royalty fee ℏ fallback")
     public Stream<DynamicTest> updateNonFungibleTokenWithRoyaltyFeeHbarFallback() {
         return hapiTest(
@@ -193,6 +194,7 @@ public class UpdateTokenFeeScheduleTest {
     }
 
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("non fungible token with royalty fee token fallback")
     public Stream<DynamicTest> updateNonFungibleTokenWithRoyaltyFeeTokenFallback() {
         return hapiTest(
@@ -276,8 +278,14 @@ public class UpdateTokenFeeScheduleTest {
     @HapiTest
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("fungible token custom fees reset")
-    public Stream<DynamicTest> resetFungibleTokenCustomFees() {
+    public Stream<DynamicTest> resetFungibleTokenCustomFees(
+            @FungibleToken(keys = {ADMIN_KEY, FEE_SCHEDULE_KEY}) SpecFungibleToken fungibleToken) {
         return hapiTest(
+                fungibleToken
+                        .authorizeContracts(updateTokenFeeSchedules)
+                        .alsoAuthorizing(TokenKeyType.FEE_SCHEDULE_KEY),
+                feeCollector.associateTokens(fungibleToken),
+                updateTokenFeeSchedules.call("updateFungibleFixedTokenFee", fungibleToken, 1L, feeCollector),
                 updateTokenFeeSchedules.call("resetFungibleTokenFees", fungibleToken),
                 fungibleToken.getInfo().andAssert(HapiGetTokenInfo::hasEmptyCustom),
                 updateTokenFeeSchedules
