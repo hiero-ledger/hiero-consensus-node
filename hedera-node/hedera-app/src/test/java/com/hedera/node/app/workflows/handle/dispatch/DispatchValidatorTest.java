@@ -105,7 +105,7 @@ class DispatchValidatorTest {
 
     @BeforeEach
     void setUp() {
-        subject = new DispatchValidator(recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck));
+        subject = new DispatchValidator(recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck), null);
     }
 
     @Test
