@@ -24,7 +24,7 @@ public interface StartupNetworks {
      * onto another nt network with a different roster and TSS keys.
      *
      * @param roundNumber the round number to check for an override
-     * @param platformConfig
+     * @param platformConfig the current node's configuration
      */
     Optional<Network> overrideNetworkFor(long roundNumber, Configuration platformConfig);
 

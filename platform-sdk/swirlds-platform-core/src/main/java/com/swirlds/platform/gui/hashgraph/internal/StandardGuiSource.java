@@ -64,4 +64,12 @@ public class StandardGuiSource implements HashgraphGuiSource {
     public boolean isReady() {
         return true;
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public GuiEventStorage getEventStorage() {
+        return eventStorage;
+    }
 }

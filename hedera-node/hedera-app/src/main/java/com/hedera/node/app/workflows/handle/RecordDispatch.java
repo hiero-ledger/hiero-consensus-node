@@ -23,7 +23,7 @@ import java.time.Instant;
 import java.util.Set;
 
 public record RecordDispatch(
-        @NonNull StreamBuilder recordBuilder,
+        @NonNull StreamBuilder streamBuilder,
         @NonNull Configuration config,
         @NonNull Fees fees,
         @NonNull TransactionInfo txnInfo,

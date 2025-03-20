@@ -31,10 +31,10 @@ import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
-import com.hedera.node.app.workflows.handle.record.SystemSetup;
+import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
+import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
-import com.hedera.node.app.workflows.handle.steps.UserTxnFactory;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -60,6 +60,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class HandleWorkflowTest {
+    private static final Instant NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final Timestamp BLOCK_TIME = new Timestamp(1_234_567L, 890);
 
     @Mock
@@ -117,7 +118,7 @@ class HandleWorkflowTest {
     private HollowAccountCompletions hollowAccountCompletions;
 
     @Mock
-    private SystemSetup systemSetup;
+    private SystemTransactions systemTransactions;
 
     @Mock
     private HederaRecordCache recordCache;
@@ -132,10 +133,13 @@ class HandleWorkflowTest {
     private Round round;
 
     @Mock
+    private ConsensusEvent event;
+
+    @Mock
     private StakeInfoHelper stakeInfoHelper;
 
     @Mock
-    private UserTxnFactory userTxnFactory;
+    private ParentTxnFactory parentTxnFactory;
 
     @Mock
     private CongestionMetrics congestionMetrics;
@@ -164,6 +168,7 @@ class HandleWorkflowTest {
         given(networkInfo.nodeInfo(missingCreatorId.id())).willReturn(null);
         given(eventFromPresentCreator.consensusTransactionIterator()).willReturn(emptyIterator());
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(12345L));
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
 
         givenSubjectWith(RECORDS, emptyList());
 
@@ -176,13 +181,14 @@ class HandleWorkflowTest {
 
     @Test
     void writesEachMigrationStateChangeWithBlockTimestamp() {
-        given(round.iterator()).willReturn(emptyIterator());
+        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(event.getConsensusTimestamp()).willReturn(NOW);
+        given(systemTransactions.startupWorkConsTimeFor(any())).willReturn(NOW);
         final var firstBuilder = StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT));
         final var secondBuilder =
                 StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT, StateChange.DEFAULT));
         final var builders = List.of(firstBuilder, secondBuilder);
         givenSubjectWith(BOTH, builders);
-        given(blockStreamManager.blockTimestamp()).willReturn(BLOCK_TIME);
 
         subject.handleRound(state, round, txns -> {});
 
@@ -213,13 +219,13 @@ class HandleWorkflowTest {
                 version,
                 initTrigger,
                 hollowAccountCompletions,
-                systemSetup,
+                systemTransactions,
                 stakeInfoHelper,
                 recordCache,
                 exchangeRateManager,
                 stakePeriodManager,
                 migrationStateChanges,
-                userTxnFactory,
+                parentTxnFactory,
                 kvStateChangeListener,
                 boundaryStateChangeListener,
                 scheduleService,
@@ -227,6 +233,7 @@ class HandleWorkflowTest {
                 historyService,
                 congestionMetrics,
                 softwareVersionFactory,
-                () -> PlatformStatus.ACTIVE);
+                () -> PlatformStatus.ACTIVE,
+                null);
     }
 }

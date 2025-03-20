@@ -156,6 +156,15 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         this.roundDuration = requireNonNull(roundDuration);
     }
 
+    @Override
+    protected void handleRoundWith(@NonNull final byte[] serializedTxn) {
+        final var round = platform.roundWith(serializedTxn);
+        hedera.onPreHandle(round.iterator().next(), state, preHandleStateSignatureCallback);
+        hedera.handleWorkflow().handleRound(state, round, handleStateSignatureCallback);
+        hedera.onSealConsensusRound(round, state);
+        notifyStateHashed(round.getRoundNum());
+    }
+
     /**
      * Executes the transaction in the last-created event within its own round.
      */
@@ -188,6 +197,28 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         @Override
         public void start() {
             // No-op
+        }
+
+        /**
+         * Creates a new round with the given transaction.
+         * @param serializedTxn the serialized transaction
+         * @return the new round
+         */
+        private Round roundWith(@NonNull final byte[] serializedTxn) {
+            time.tick(roundDuration);
+            final var firstRoundTime = time.now();
+            return new FakeRound(
+                    roundNo.getAndIncrement(),
+                    requireNonNull(roster),
+                    List.of(new FakeConsensusEvent(
+                            new FakeEvent(
+                                    defaultNodeId,
+                                    firstRoundTime,
+                                    version.getPbjSemanticVersion(),
+                                    createAppPayloadWrapper(serializedTxn)),
+                            consensusOrder.getAndIncrement(),
+                            firstRoundTime,
+                            version.getPbjSemanticVersion())));
         }
 
         private Round nextConsensusRound() {

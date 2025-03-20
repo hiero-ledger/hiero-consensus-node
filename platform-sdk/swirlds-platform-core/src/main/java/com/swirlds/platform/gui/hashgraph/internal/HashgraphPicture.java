@@ -4,6 +4,8 @@ package com.swirlds.platform.gui.hashgraph.internal;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants.HASHGRAPH_PICTURE_FONT;
 
+import com.swirlds.platform.Consensus;
+import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.HashgraphPictureOptions;
@@ -22,6 +24,7 @@ import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.Serial;
 import java.time.Instant;
+import java.util.Iterator;
 import java.util.List;
 import javax.swing.JPanel;
 import org.apache.logging.log4j.LogManager;
@@ -164,6 +167,7 @@ public class HashgraphPicture extends JPanel {
 
     private void drawEventCircle(
             final Graphics g, final EventImpl event, final HashgraphPictureOptions options, final int d) {
+        final Consensus consensus = hashgraphSource.getEventStorage().getConsensus();
         final FontMetrics fm = g.getFontMetrics();
         final int fa = fm.getMaxAscent();
         final int fd = fm.getMaxDescent();
@@ -193,6 +197,23 @@ public class HashgraphPicture extends JPanel {
 
         if (options.writeRoundCreated()) {
             s += " " + event.getRoundCreated();
+        }
+        if (options.writeVote() && event.isWitness()) {
+            for (final Iterator<CandidateWitness> it =
+                            consensus.getRounds().getElectionRound().undecidedWitnesses();
+                    it.hasNext(); ) {
+                final CandidateWitness candidateWitnessI = it.next();
+                String vote = event.getVote(candidateWitnessI) ? "T" : "F";
+                // showing T or F from true/false for readability on the picture
+                s += vote
+                        // showing first two characters from the hash of the witness
+                        // current event is voting on(example H:aa)
+                        + candidateWitnessI.getWitness().shortString().substring(5, 10) + "|";
+            }
+        }
+        if (options.writeEventHash()) {
+            // showing first two characters from the hash of the event
+            s += " h:" + event.getBaseHash().toString().substring(0, 2);
         }
         if (options.writeRoundReceived() && event.getRoundReceived() > 0) {
             s += " " + event.getRoundReceived();
