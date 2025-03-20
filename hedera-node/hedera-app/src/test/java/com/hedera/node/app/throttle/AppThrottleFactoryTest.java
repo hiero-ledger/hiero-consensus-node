@@ -83,6 +83,9 @@ class AppThrottleFactoryTest {
     private LeakyBucketDeterministicThrottle gasThrottle;
 
     @Mock
+    private LeakyBucketDeterministicThrottle bytesThrottle;
+
+    @Mock
     private AppThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;
 
     private AppThrottleFactory subject;
@@ -109,6 +112,7 @@ class AppThrottleFactoryTest {
                 .willReturn(throttleAccumulator);
         given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
         given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);
+        given(throttleAccumulator.bytesLimitThrottle()).willReturn(bytesThrottle);
 
         final var throttle = subject.newThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS);
 
@@ -117,6 +121,7 @@ class AppThrottleFactoryTest {
         verify(firstThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getFirst());
         verify(lastThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getLast());
         verify(gasThrottle).resetUsageTo(FAKE_SNAPSHOTS.gasThrottleOrThrow());
+        verify(bytesThrottle).resetUsageTo(FAKE_SNAPSHOTS.bytesThrottleOrThrow());
 
         given(throttleAccumulator.checkAndEnforceThrottle(TXN_INFO, CONSENSUS_NOW, state))
                 .willReturn(true);
@@ -128,6 +133,7 @@ class AppThrottleFactoryTest {
         given(lastThrottle.usageSnapshot())
                 .willReturn(FAKE_SNAPSHOTS.tpsThrottles().getLast());
         given(gasThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.gasThrottleOrThrow());
+        given(bytesThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.bytesThrottleOrThrow());
         assertEquals(FAKE_SNAPSHOTS, throttle.usageSnapshots());
     }
 }

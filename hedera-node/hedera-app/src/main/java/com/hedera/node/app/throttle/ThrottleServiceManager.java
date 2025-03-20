@@ -221,6 +221,9 @@ public class ThrottleServiceManager {
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
         }
+        if (usageSnapshots.hasBytesThrottle()) {
+            backendThrottle.bytesLimitThrottle().resetUsageTo(usageSnapshots.bytesThrottleOrThrow());
+        }
     }
 
     public void resetThrottlesUnconditionally(@NonNull final ReadableStates serviceStates) {
