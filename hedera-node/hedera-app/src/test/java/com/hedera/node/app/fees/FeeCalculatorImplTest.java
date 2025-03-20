@@ -61,14 +61,14 @@ public class FeeCalculatorImplTest {
                 ExchangeRate.DEFAULT,
                 false,
                 congestionMultipliers,
-                new ReadableStoreFactory(new FakeState(), softwareVersionFactory));
+                new ReadableStoreFactory(new FakeState()));
         assertNotNull(calculator);
 
         calculator = new FeeCalculatorImpl(
                 feeData,
                 new ExchangeRate(0, 0, null),
                 congestionMultipliers,
-                new ReadableStoreFactory(new FakeState(), softwareVersionFactory),
+                new ReadableStoreFactory(new FakeState()),
                 HederaFunctionality.CONTRACT_CALL);
         assertNotNull(calculator);
     }
@@ -89,12 +89,12 @@ public class FeeCalculatorImplTest {
                         ExchangeRate.DEFAULT,
                         false,
                         congestionMultipliers,
-                        new ReadableStoreFactory(new FakeState(), softwareVersionFactory)));
+                        new ReadableStoreFactory(new FakeState())));
     }
 
     @Test
     void willReturnMultiplier() {
-        var storeFactory = new ReadableStoreFactory(new FakeState(), softwareVersionFactory);
+        var storeFactory = new ReadableStoreFactory(new FakeState());
         var calculator = new FeeCalculatorImpl(
                 feeData,
                 new ExchangeRate(0, 0, null),

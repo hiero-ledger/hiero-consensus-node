@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -63,7 +64,8 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     private long lastGenerateTime = System.nanoTime();
 
     public static final int SOFTWARE_VERSION = 8;
-    public static final BasicSoftwareVersion PREVIOUS_SOFTWARE_VERSION = new BasicSoftwareVersion(SOFTWARE_VERSION - 1);
+    public static final SemanticVersion PREVIOUS_SOFTWARE_VERSION =
+            SemanticVersion.newBuilder().major(SOFTWARE_VERSION - 1).build();
     private final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(SOFTWARE_VERSION);
 
     /**

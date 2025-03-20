@@ -69,7 +69,7 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
                     notification.getRoundNumber(),
                     notification.getSequence());
             try (final var wrappedState = stateAccessor.get()) {
-                final var readableStoreFactory = new ReadableStoreFactory(wrappedState.get(), softwareVersionFactory);
+                final var readableStoreFactory = new ReadableStoreFactory(wrappedState.get());
                 final var readableFreezeStore = readableStoreFactory.getStore(ReadableFreezeStore.class);
                 final var readableUpgradeFileStore = readableStoreFactory.getStore(ReadableUpgradeFileStore.class);
                 final var readableNodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);

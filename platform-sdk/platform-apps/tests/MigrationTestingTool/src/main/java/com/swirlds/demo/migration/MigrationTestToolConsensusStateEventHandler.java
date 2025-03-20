@@ -60,7 +60,7 @@ public class MigrationTestToolConsensusStateEventHandler
             selfId = platform.getSelfId();
         }
 
-        final SemanticVersion staticPrevVersion = PREVIOUS_SOFTWARE_VERSION.getPbjSemanticVersion();
+        final SemanticVersion staticPrevVersion = PREVIOUS_SOFTWARE_VERSION;
         if (previousVersion == null
                 || HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(previousVersion, staticPrevVersion) != 0) {
             logger.warn(
