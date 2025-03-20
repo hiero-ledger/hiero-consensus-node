@@ -48,6 +48,7 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.system.address.AddressBook;
@@ -62,6 +63,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.IntStream;
 import org.assertj.core.api.Assertions;
@@ -136,6 +138,15 @@ class DiskStartupNetworksTest {
     }
 
     @Test
+    void permitsMissingOverrideNetwork() {
+        final var configB = givenConfig(
+                HederaTestConfigBuilder.create().withValue("addressBook.forceUseOfConfigAddressBook", "true"));
+
+        final Optional<Network> object = subject.overrideNetworkFor(ROUND_NO, configB);
+        assertThat(object).isEmpty();
+    }
+
+    @Test
     void computesFromLegacyAddressBook() {
         final int n = 3;
         final var legacyBook = new AddressBook(IntStream.range(0, n)
@@ -179,25 +190,6 @@ class DiskStartupNetworksTest {
     }
 
     @Test
-    void archivesConfigTxt() throws IOException {
-        try (final var fin = DiskStartupNetworks.class.getClassLoader().getResourceAsStream("bootstrap/config.txt")) {
-            new FileOutputStream(tempDir.resolve("config.txt").toFile()).write(fin.readAllBytes());
-        }
-
-        givenConfig();
-
-        final var configTx = tempDir.resolve("config.txt");
-
-        assertThat(Files.exists(configTx)).isTrue();
-
-        subject.archiveStartupNetworks();
-
-        assertThat(Files.exists(configTx)).isFalse();
-        final var archivedConfigTxt = tempDir.resolve(ARCHIVE + File.separator + "config.txt");
-        assertThat(Files.exists(archivedConfigTxt)).isTrue();
-    }
-
-    @Test
     void archivesUnscopedOverrideNetwork() throws IOException {
         givenConfig();
         putJsonAt(OVERRIDE_NETWORK_JSON);
@@ -227,6 +219,24 @@ class DiskStartupNetworksTest {
         final var archivedGenesisJson =
                 tempDir.resolve(ARCHIVE + File.separator + ROUND_NO + File.separator + OVERRIDE_NETWORK_JSON);
         assertThat(Files.exists(archivedGenesisJson)).isTrue();
+    }
+
+    @Test
+    void archivesConfigTxt() throws IOException {
+        try (final var fin = DiskStartupNetworks.class.getClassLoader().getResourceAsStream("bootstrap/config.txt")) {
+            new FileOutputStream(tempDir.resolve("config.txt").toFile()).write(fin.readAllBytes());
+        }
+        givenConfig(HederaTestConfigBuilder.create().withValue("networkAdmin.configTxtPath", tempDir.toString()));
+
+        final var configTx = tempDir.resolve("config.txt");
+
+        assertThat(Files.exists(configTx)).isTrue();
+
+        subject.archiveStartupNetworks();
+
+        assertThat(Files.exists(configTx)).isFalse();
+        final var archivedConfigTxt = tempDir.resolve(ARCHIVE + File.separator + "config.txt");
+        assertThat(Files.exists(archivedConfigTxt)).isTrue();
     }
 
     @Test
@@ -330,10 +340,12 @@ class DiskStartupNetworksTest {
     }
 
     private Configuration givenConfig() {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("networkAdmin.upgradeSysFilesLoc", tempDir.toString())
-                .withValue("networkAdmin.configTxtPath", tempDir.toString())
-                .getOrCreateConfig();
+        return givenConfig(HederaTestConfigBuilder.create());
+    }
+
+    private Configuration givenConfig(TestConfigBuilder builder) {
+        builder = builder.withValue("networkAdmin.upgradeSysFilesLoc", tempDir.toString());
+        final var config = builder.getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 123L));
         return config;
     }
