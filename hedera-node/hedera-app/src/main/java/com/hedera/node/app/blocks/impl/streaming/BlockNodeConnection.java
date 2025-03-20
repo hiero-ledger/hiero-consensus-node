@@ -26,7 +26,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     private final BlockNodeConfig node;
-    private final ManagedChannel channel;
+    private ManagedChannel channel;
     private final BlockNodeConnectionManager manager;
     private StreamObserver<PublishStreamRequest> requestObserver;
 
@@ -36,13 +36,12 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     public BlockNodeConnection(BlockNodeConfig nodeConfig, BlockNodeConnectionManager manager) {
         this.node = nodeConfig;
         this.manager = manager;
-        this.channel = ManagedChannelBuilder.forAddress(nodeConfig.address(), nodeConfig.port())
-                .usePlaintext() // 🔥🔥 For development only! change to use TLS in production 🔥🔥
-                .build();
-        logger.info("BlockNodeConnection INITIALIZED");
     }
 
     public Void establishStream() {
+        this.channel = ManagedChannelBuilder.forAddress(node.address(), node.port())
+                .usePlaintext() // 🔥🔥 For development only! change to use TLS in production 🔥🔥
+                .build();
         BlockStreamServiceGrpc.BlockStreamServiceStub stub = BlockStreamServiceGrpc.newStub(channel);
         synchronized (isActiveLock) {
             requestObserver = stub.publishBlockStream(this);
