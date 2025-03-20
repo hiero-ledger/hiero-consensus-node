@@ -10,7 +10,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.hapiPrng;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
@@ -25,7 +24,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
 public class MiscellaneousFeesSuite {
-    private static final String PRNG_IS_ENABLED = "utilPrng.isEnabled";
     private static final String BOB = "bob";
     private static final String ALICE = "alice";
     private static final double BASE_FEE_MISC_GET_VERSION = 0.0001;
@@ -41,7 +39,6 @@ public class MiscellaneousFeesSuite {
         final var plusRangeTxn = "prngWithRange";
 
         return hapiTest(
-                overridingAllOf(Map.of(PRNG_IS_ENABLED, "true")),
                 cryptoCreate(BOB).balance(ONE_HUNDRED_HBARS),
                 hapiPrng().payingWith(BOB).via(baseTxn).blankMemo().logged(),
                 getTxnRecord(baseTxn).hasOnlyPseudoRandomBytes().logged(),
