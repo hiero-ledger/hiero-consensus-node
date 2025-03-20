@@ -18,7 +18,6 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -44,7 +43,6 @@ public class CacheWarmer {
     private final TransactionChecker checker;
     private final TransactionDispatcher dispatcher;
     private final Executor executor;
-    private final JumboTransactionsConfig jumboTransactionsConfig;
     private final HederaConfig hederaConfig;
 
     @NonNull
@@ -61,7 +59,6 @@ public class CacheWarmer {
         this.dispatcher = requireNonNull(dispatcher);
         this.executor = requireNonNull(executor);
         this.softwareVersionFactory = softwareVersionFactory;
-        this.jumboTransactionsConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
         this.hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
     }
 
@@ -107,11 +104,8 @@ public class CacheWarmer {
             final Bytes buffer = platformTransaction.getApplicationTransaction();
             // There is no cache warming to do for oversize TSS transactions, so it's fine
             // to fail with TRANSACTION_OVERSIZE here in any case
-            final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
-            final var jumboMaxTxnSize = jumboTransactionsConfig.maxTxnSize();
             final var transactionMaxBytes = hederaConfig.transactionMaxBytes();
-            final var maxSignedTxnSize = jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
-            return checker.parseAndCheck(buffer, maxSignedTxnSize).txBody();
+            return checker.parseAndCheck(buffer, transactionMaxBytes).txBody();
         } catch (PreCheckException ex) {
             return null;
         }
