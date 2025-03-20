@@ -557,7 +557,7 @@ public class PlatformWiring {
         // The state hasher needs to pass its data through a bunch of transformers. Construct those here.
         final OutputWire<ReservedSignedState> hashedStateOutputWire = stateHasherWiring
                 .getOutputWire()
-                .buildAdvancedTransformer(new StateReserver("postHasher_stateReserver"));
+                .buildAdvancedTransformer(new SignedStateReserver("postHasher_stateReserver"));
 
         hashedStateOutputWire.solderTo(hashLoggerWiring.getInputWire(HashLogger::logHashes));
         hashedStateOutputWire.solderTo(stateSignerWiring.getInputWire(StateSigner::signState));
