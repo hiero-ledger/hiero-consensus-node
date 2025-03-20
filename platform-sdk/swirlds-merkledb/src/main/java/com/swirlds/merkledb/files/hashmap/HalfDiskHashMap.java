@@ -609,7 +609,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 // Read from bytes
                 bucket.readFrom(bucketData);
                 if (bucketIndex != bucket.getBucketIndex()) {
-                    logger.warn(
+                    logger.error(
                             MERKLE_DB.getMarker(),
                             "Bucket index integrity check " + bucketIndex + " != " + bucket.getBucketIndex());
                     bucket.clear();
