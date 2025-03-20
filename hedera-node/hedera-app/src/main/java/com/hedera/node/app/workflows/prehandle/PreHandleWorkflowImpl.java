@@ -199,7 +199,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
 
             // The transaction account ID MUST have matched the creator!
             if (innerTransaction == InnerTransaction.NO
-                    && !creatorInfo.equals(txInfo.txBody().nodeAccountID())) {
+                    && !creatorInfo.accountId().equals(txInfo.txBody().nodeAccountID())) {
                 throw new DueDiligenceException(INVALID_NODE_ACCOUNT, txInfo);
             }
 

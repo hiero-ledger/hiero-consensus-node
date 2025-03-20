@@ -27,7 +27,11 @@ public class FakeHintsService implements HintsService {
 
     public FakeHintsService(@NonNull final AppContext appContext, @NonNull final Configuration bootstrapConfig) {
         delegate = new HintsServiceImpl(
-                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, new HintsLibraryImpl(), bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
+                new NoOpMetrics(),
+                pendingHintsSubmissions::offer,
+                appContext,
+                new HintsLibraryImpl(),
+                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
     }
 
     @Override
