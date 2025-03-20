@@ -216,7 +216,7 @@ public class PlatformWiring {
                 model,
                 StateHasher.class,
                 config.stateHasher(),
-                data -> data instanceof final StateWithHashComplexity swhc ? Math.max(swhc.hashComplexity(), 1) : 1);
+                data -> data instanceof final StateWithHashComplexity swhc ? swhc.hashComplexity() : 1);
 
         gossipWiring = new GossipWiring(platformContext, model);
 

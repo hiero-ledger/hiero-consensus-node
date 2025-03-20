@@ -17,6 +17,7 @@ import java.util.Objects;
 public record StateWithHashComplexity(@NonNull ReservedSignedState reservedSignedState, long hashComplexity) {
 
     public StateWithHashComplexity {
+        Objects.requireNonNull(reservedSignedState, "reservedSignedState cannot be null");
         if (hashComplexity < 1) {
             throw new IllegalArgumentException("Hash complexity must be at least 1");
         }
@@ -30,7 +31,6 @@ public record StateWithHashComplexity(@NonNull ReservedSignedState reservedSigne
      */
     @NonNull
     public StateWithHashComplexity makeAdditionalReservation(@NonNull final String reservationReason) {
-        Objects.requireNonNull(reservedSignedState, "reservedSignedState cannot be null");
         return new StateWithHashComplexity(reservedSignedState.getAndReserve(reservationReason), hashComplexity);
     }
 }
