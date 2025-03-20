@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.event.source;
 
 import com.swirlds.base.utility.Pair;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -56,18 +55,6 @@ public class EventSourceFactory {
 
     public static StandardEventSource newStandardEventSource() {
         return new StandardEventSource(false);
-    }
-
-    public static StandardEventSource newStandardEventSource(final long weight) {
-        return new StandardEventSource(false, weight);
-    }
-
-    public static List<EventSource> newStandardEventSources(final List<Long> nodeWeights) {
-        final List<EventSource> eventSources = new ArrayList<>(nodeWeights.size());
-        for (final Long nodeWeight : nodeWeights) {
-            eventSources.add(newStandardEventSource(nodeWeight));
-        }
-        return eventSources;
     }
 
     public static ForkingEventSource newForkingEventSource() {

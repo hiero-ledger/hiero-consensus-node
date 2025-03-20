@@ -222,7 +222,6 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
         for (int index = 0; index < eventSourceCount; index++) {
             final EventSource source = eventSources.get(index);
             final NodeId nodeId = addressBook.getNodeId(index);
-            addressBook.updateWeight(nodeId, source.getWeight());
             source.setNodeId(nodeId);
         }
     }

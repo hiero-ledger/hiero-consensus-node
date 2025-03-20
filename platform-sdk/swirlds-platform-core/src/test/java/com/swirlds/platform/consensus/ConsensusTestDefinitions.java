@@ -118,11 +118,11 @@ public final class ConsensusTestDefinitions {
             for (int i = 0; i < nodeWeights.size(); i++) {
                 final long weight = nodeWeights.get(i);
                 if (i == forkingNodeId) {
-                    eventSources.add(new ForkingEventSource(weight)
+                    eventSources.add(new ForkingEventSource()
                             .setForkProbability(forkProbability)
                             .setMaximumBranchCount(numberOfForkedBranches));
                 } else {
-                    eventSources.add(new StandardEventSource(weight));
+                    eventSources.add(new StandardEventSource());
                 }
             }
             return eventSources;

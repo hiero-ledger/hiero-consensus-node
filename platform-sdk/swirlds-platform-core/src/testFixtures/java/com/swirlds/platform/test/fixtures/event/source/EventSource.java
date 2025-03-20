@@ -45,11 +45,6 @@ public interface EventSource {
     EventSource setNodeId(@NonNull NodeId nodeId);
 
     /**
-     * Get the weight held by this event source.
-     */
-    long getWeight();
-
-    /**
      * Get the probabilistic weight that this node will create the next new event. A node with a weight of 1 will
      * create new events half as often as a node with a weight of 2.0. A node with a weight of 0 will
      * never create new events.
