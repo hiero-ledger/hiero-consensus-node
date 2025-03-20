@@ -16,6 +16,7 @@ import com.hedera.node.app.workflows.query.annotations.UserQueries;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.node.config.types.Profile;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
@@ -407,13 +408,30 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             @NonNull final IngestWorkflow ingestWorkflow,
             @NonNull final QueryWorkflow queryWorkflow,
             @NonNull final Metrics metrics) {
-        final var dataBufferMarshaller = new DataBufferMarshaller(configProvider);
+
+        final var maxTxnSize = configProvider
+                .getConfiguration()
+                .getConfigData(HederaConfig.class)
+                .transactionMaxBytes();
+        final var isJumboEnabled = configProvider
+                .getConfiguration()
+                .getConfigData(JumboTransactionsConfig.class)
+                .isEnabled();
+        final var jumboMaxTxnSize = configProvider
+                .getConfiguration()
+                .getConfigData(JumboTransactionsConfig.class)
+                .maxTxnSize();
+
+        // set buffer capacity
+        final var bufferCapacity = isJumboEnabled ? jumboMaxTxnSize + 1 : maxTxnSize + 1;
+        final var dataBufferMarshaller = new DataBufferMarshaller(bufferCapacity, maxTxnSize);
+        final var jumboBufferMarshaller = new DataBufferMarshaller(bufferCapacity, jumboMaxTxnSize);
         return rpcServiceDefinitions
                 .get()
                 .map(d -> {
                     // create builder
-                    final var builder =
-                            new GrpcServiceBuilder(d.basePath(), ingestWorkflow, queryWorkflow, dataBufferMarshaller);
+                    final var builder = new GrpcServiceBuilder(
+                            d.basePath(), ingestWorkflow, queryWorkflow, dataBufferMarshaller, jumboBufferMarshaller);
                     // add methods to builder
                     d.methods().stream().filter(methodFilter).forEach(m -> {
                         if (Transaction.class.equals(m.requestType())) {

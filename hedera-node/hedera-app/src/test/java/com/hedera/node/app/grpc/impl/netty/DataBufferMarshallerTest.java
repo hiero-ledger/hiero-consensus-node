@@ -3,14 +3,10 @@ package com.hedera.node.app.grpc.impl.netty;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.utils.TestUtils;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.VersionedConfiguration;
-import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import java.io.ByteArrayInputStream;
@@ -36,7 +32,7 @@ final class DataBufferMarshallerTest {
 
     private final VersionedConfiguration configuration =
             new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1);
-    private final DataBufferMarshaller marshaller = new DataBufferMarshaller(() -> configuration);
+    private final DataBufferMarshaller marshaller = new DataBufferMarshaller(130 * 1024, 6 * 1024);
 
     @Test
     void nullBufferThrows() {
@@ -157,33 +153,5 @@ final class DataBufferMarshallerTest {
                 assertEquals(b, buf.readByte());
             }
         }
-    }
-
-    @Test
-    @DisplayName("Increase buffer size if jumbo transactions are enabled")
-    void buildDefinitionWithJumboSizedMethod() {
-        // enable jumbo transactions
-        final var config = enableJumboTransactions();
-        final var jumboTransactionSize =
-                config.getConfigData(JumboTransactionsConfig.class).maxTxnSize();
-        final var jumboMarshaller = new DataBufferMarshaller(() -> config);
-
-        final var arr = TestUtils.randomBytes(1024 * 1024);
-        final var stream = new ByteArrayInputStream(arr);
-
-        final var jumboBuff = jumboMarshaller.parse(stream);
-        // assert buffer size limits
-        assertThat(jumboBuff.length()).isEqualTo(jumboTransactionSize + 1);
-    }
-
-    private VersionedConfiguration enableJumboTransactions() {
-        final var spyConfig = spy(configuration);
-        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-        final var jumboConfig = configuration.getConfigData(JumboTransactionsConfig.class);
-        final var spyJumboConfig = spy(jumboConfig);
-        when(spyConfig.getConfigData(JumboTransactionsConfig.class)).thenReturn(spyJumboConfig);
-        when(spyConfig.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
-        when(spyJumboConfig.isEnabled()).thenReturn(true);
-        return spyConfig;
     }
 }

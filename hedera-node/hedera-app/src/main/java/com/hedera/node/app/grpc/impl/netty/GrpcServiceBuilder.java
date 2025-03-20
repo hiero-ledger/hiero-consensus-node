@@ -56,6 +56,8 @@ final class GrpcServiceBuilder {
      */
     private final DataBufferMarshaller marshaller;
 
+    private final DataBufferMarshaller jumboMarshaller;
+
     /** The name of the service we are building. For example, the TokenService. */
     private final String serviceName;
 
@@ -98,6 +100,7 @@ final class GrpcServiceBuilder {
      * @param ingestWorkflow The workflow to use for handling all transaction ingestion API calls
      * @param queryWorkflow The workflow to use for handling all queries
      * @param marshaller The marshaller to use for reading/writing byte arrays to/from InputStreams
+     * @param jumboMarshaller The marshaller to use for handling jumbo transactions
      * @throws NullPointerException if any of the parameters are null
      * @throws IllegalArgumentException if the serviceName is blank
      */
@@ -105,7 +108,8 @@ final class GrpcServiceBuilder {
             @NonNull final String serviceName,
             @NonNull final IngestWorkflow ingestWorkflow,
             @NonNull final QueryWorkflow queryWorkflow,
-            @NonNull final DataBufferMarshaller marshaller) {
+            @NonNull final DataBufferMarshaller marshaller,
+            @NonNull final DataBufferMarshaller jumboMarshaller) {
         this.ingestWorkflow = requireNonNull(ingestWorkflow);
         this.queryWorkflow = requireNonNull(queryWorkflow);
         this.serviceName = requireNonNull(serviceName);
@@ -113,6 +117,7 @@ final class GrpcServiceBuilder {
             throw new IllegalArgumentException("serviceName cannot be blank");
         }
         this.marshaller = requireNonNull(marshaller);
+        this.jumboMarshaller = requireNonNull(jumboMarshaller);
     }
 
     /**
@@ -162,7 +167,8 @@ final class GrpcServiceBuilder {
     public ServerServiceDefinition build(@NonNull final Metrics metrics, ConfigProvider configProvider) {
         final var jumboTxnConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
         final var jumboTxnIsEnabled = jumboTxnConfig.isEnabled();
-        final var maxMessageSize = configProvider
+        final var jumboTxnMaxSize = jumboTxnConfig.maxTxnSize();
+        final var messageMaxSize = configProvider
                 .getConfiguration()
                 .getConfigData(HederaConfig.class)
                 .transactionMaxBytes();
@@ -171,18 +177,20 @@ final class GrpcServiceBuilder {
         txMethodNames.forEach(methodName -> {
             logger.debug("Registering gRPC transaction method {}.{}", serviceName, methodName);
             TransactionMethod method;
-            if (jumboTxnIsEnabled && jumboTxnConfig.grpcMethodNames().contains(methodName)) {
-                method = new TransactionMethod(
-                        serviceName, methodName, ingestWorkflow, metrics, jumboTxnConfig.maxTxnSize());
-            } else {
-                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, maxMessageSize);
-            }
 
-            addMethod(builder, serviceName, methodName, method, marshaller);
+            if (jumboTxnIsEnabled && jumboTxnConfig.grpcMethodNames().contains(methodName)) {
+                // add jumbo transaction methods
+                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, jumboTxnMaxSize);
+                addMethod(builder, serviceName, methodName, method, jumboMarshaller);
+            } else {
+                // add regular transaction methods
+                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, messageMaxSize);
+                addMethod(builder, serviceName, methodName, method, marshaller);
+            }
         });
         queryMethodNames.forEach(methodName -> {
             logger.debug("Registering gRPC query method {}.{}", serviceName, methodName);
-            final var method = new QueryMethod(serviceName, methodName, queryWorkflow, metrics, maxMessageSize);
+            final var method = new QueryMethod(serviceName, methodName, queryWorkflow, metrics, messageMaxSize);
             addMethod(builder, serviceName, methodName, method, marshaller);
         });
         return builder.build();

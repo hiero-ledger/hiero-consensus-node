@@ -3,9 +3,6 @@ package com.hedera.node.app.grpc.impl.netty;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.MethodDescriptor;
@@ -20,6 +17,7 @@ import java.nio.ByteBuffer;
 /*@ThreadSafe*/
 final class DataBufferMarshaller implements MethodDescriptor.Marshaller<BufferedData> {
 
+    private final int bufferCapacity;
     private final int tooBigMessageSize;
 
     /**
@@ -33,21 +31,9 @@ final class DataBufferMarshaller implements MethodDescriptor.Marshaller<Buffered
     private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL = new ThreadLocal<>();
 
     /** Constructs a new {@link DataBufferMarshaller}. Only called by {@link GrpcServiceBuilder}. */
-    DataBufferMarshaller(ConfigProvider configProvider) {
-        final var maxTxnSize = configProvider
-                .getConfiguration()
-                .getConfigData(HederaConfig.class)
-                .transactionMaxBytes();
-        final var isJumboEnabled = configProvider
-                .getConfiguration()
-                .getConfigData(JumboTransactionsConfig.class)
-                .isEnabled();
-        final var jumboMaxTxnSize = configProvider
-                .getConfiguration()
-                .getConfigData(JumboTransactionsConfig.class)
-                .maxTxnSize();
-        // set buffer capacity
-        tooBigMessageSize = isJumboEnabled ? jumboMaxTxnSize + 1 : maxTxnSize + 1;
+    DataBufferMarshaller(int bufferCapacity, int maxMessageSize) {
+        this.bufferCapacity = bufferCapacity + 1;
+        this.tooBigMessageSize = maxMessageSize + 1;
     }
 
     /** {@inheritDoc} */
@@ -69,8 +55,8 @@ final class DataBufferMarshaller implements MethodDescriptor.Marshaller<Buffered
 
         // Each thread has a single buffer instance that gets reused over and over.
         BufferedData buffer = BUFFER_THREAD_LOCAL.get();
-        if (buffer == null || buffer.capacity() != tooBigMessageSize) {
-            buffer = BufferedData.wrap(ByteBuffer.allocate(tooBigMessageSize));
+        if (buffer == null) {
+            buffer = BufferedData.wrap(ByteBuffer.allocate(bufferCapacity));
             BUFFER_THREAD_LOCAL.set(buffer);
         }
         buffer.reset();

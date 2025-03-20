@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl.netty;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.utils.TestUtils;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
@@ -10,8 +13,10 @@ import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
+import java.io.ByteArrayInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,11 +42,12 @@ final class GrpcServiceBuilderTest {
     private final VersionedConfiguration configuration =
             new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1);
     private final ConfigProvider configProvider = () -> configuration;
-    private final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller(configProvider);
+    private final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller(130 * 1024, 6 * 1024);
+    private final DataBufferMarshaller JUMBO_MARSHALLER = new DataBufferMarshaller(130 * 1024, 130 * 1024);
 
     @BeforeEach
     void setUp() {
-        builder = new GrpcServiceBuilder(SERVICE_NAME, ingestWorkflow, queryWorkflow, MARSHALLER);
+        builder = new GrpcServiceBuilder(SERVICE_NAME, ingestWorkflow, queryWorkflow, MARSHALLER, JUMBO_MARSHALLER);
     }
 
     @Test
@@ -50,7 +56,7 @@ final class GrpcServiceBuilderTest {
         //noinspection ConstantConditions
         assertThrows(
                 NullPointerException.class,
-                () -> new GrpcServiceBuilder(SERVICE_NAME, ingestWorkflow, null, MARSHALLER));
+                () -> new GrpcServiceBuilder(SERVICE_NAME, ingestWorkflow, null, MARSHALLER, JUMBO_MARSHALLER));
     }
 
     @Test
@@ -59,7 +65,7 @@ final class GrpcServiceBuilderTest {
         //noinspection ConstantConditions
         assertThrows(
                 NullPointerException.class,
-                () -> new GrpcServiceBuilder(null, ingestWorkflow, queryWorkflow, MARSHALLER));
+                () -> new GrpcServiceBuilder(null, ingestWorkflow, queryWorkflow, MARSHALLER, JUMBO_MARSHALLER));
     }
 
     @ParameterizedTest()
@@ -68,7 +74,7 @@ final class GrpcServiceBuilderTest {
     void serviceIsBlank(final String value) {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new GrpcServiceBuilder(value, ingestWorkflow, queryWorkflow, MARSHALLER));
+                () -> new GrpcServiceBuilder(value, ingestWorkflow, queryWorkflow, MARSHALLER, JUMBO_MARSHALLER));
     }
 
     @Test
@@ -158,5 +164,42 @@ final class GrpcServiceBuilderTest {
         final var sd = builder.query("qA").query("qA").build(metrics, configProvider);
 
         assertNotNull(sd.getMethod(SERVICE_NAME + "/qA"));
+    }
+
+    @Test
+    @DisplayName("Building a service with a jumbo transaction")
+    void buildDefinitionWithJumboSizedMethod() {
+        final var config = enableJumboTransactions();
+        // add normal transaction
+        builder.transaction("txnA");
+        // add jumbo transaction
+        final var sd = builder.transaction("callEthereum").build(metrics, () -> config);
+
+        final var arr = TestUtils.randomBytes(1024 * 1024);
+        final var stream = new ByteArrayInputStream(arr);
+
+        // parse normal transaction
+        final var marshaller = (DataBufferMarshaller)
+                sd.getMethod(SERVICE_NAME + "/txnA").getMethodDescriptor().getRequestMarshaller();
+        final var buff = marshaller.parse(stream);
+        // assert buffer size limits
+        assertThat(buff.length()).isEqualTo(6 * 1024 + 1);
+
+        // parse jumbo transaction
+        final var jumboMarshaller = (DataBufferMarshaller) sd.getMethod(SERVICE_NAME + "/callEthereum")
+                .getMethodDescriptor()
+                .getRequestMarshaller();
+        final var jumboBuff = jumboMarshaller.parse(stream);
+        // assert buffer size limits
+        assertThat(jumboBuff.length()).isEqualTo(130 * 1024 + 1);
+    }
+
+    private VersionedConfiguration enableJumboTransactions() {
+        final var spyConfig = spy(configuration);
+        final var jumboConfig = configuration.getConfigData(JumboTransactionsConfig.class);
+        final var spyJumboConfig = spy(jumboConfig);
+        when(spyConfig.getConfigData(JumboTransactionsConfig.class)).thenReturn(spyJumboConfig);
+        when(spyJumboConfig.isEnabled()).thenReturn(true);
+        return spyConfig;
     }
 }
