@@ -20,6 +20,7 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.res
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockStatic;
 
@@ -189,7 +190,7 @@ final class TransactionCheckerTest extends AppTestBase {
         @SuppressWarnings("ConstantConditions")
         @DisplayName("`parseAndCheck` requires Bytes")
         void parseAndCheck() {
-            assertThatThrownBy(() -> checker.parse(null)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> checker.parse(null, any())).isInstanceOf(NullPointerException.class);
         }
 
         @Test
@@ -211,7 +212,7 @@ final class TransactionCheckerTest extends AppTestBase {
         void parseAndCheckWithNoBytes() throws PreCheckException {
             // Given a transaction with no bytes at all
             // Then the checker should throw a PreCheckException
-            final var transaction = checker.parse(Bytes.EMPTY);
+            final var transaction = checker.parse(Bytes.EMPTY, MAX_TX_SIZE);
             assertThatThrownBy(() -> checker.check(transaction, null))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
@@ -227,7 +228,7 @@ final class TransactionCheckerTest extends AppTestBase {
         @DisplayName("A valid transaction passes parse and check")
         void happyPath() throws PreCheckException {
             // Given a valid serialized transaction, when we parseStrict and check
-            final var transaction = checker.parse(inputBuffer);
+            final var transaction = checker.parse(inputBuffer, MAX_TX_SIZE);
             final var info = checker.check(transaction, null);
 
             // Then the parsed data is as we expected
@@ -257,7 +258,7 @@ final class TransactionCheckerTest extends AppTestBase {
             inputBuffer = Bytes.wrap(asByteArray(localTx));
 
             // When we parseStrict and check
-            final var transaction = checker.parse(inputBuffer);
+            final var transaction = checker.parse(inputBuffer, MAX_TX_SIZE);
             final var info = checker.check(transaction, null);
 
             // Then everything works because the deprecated fields are supported
@@ -285,7 +286,7 @@ final class TransactionCheckerTest extends AppTestBase {
             inputBuffer = Bytes.wrap(asByteArray(localTx));
 
             // When we check, then we get a PreCheckException with INVALID_TRANSACTION_BODY
-            final var transaction = checker.parse(inputBuffer);
+            final var transaction = checker.parse(inputBuffer, MAX_TX_SIZE);
             assertThatThrownBy(() -> checker.check(transaction, null))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
@@ -303,7 +304,7 @@ final class TransactionCheckerTest extends AppTestBase {
             inputBuffer = Bytes.wrap(invalidProtobuf());
 
             // When we parse and check, then the parsing fails because this is an INVALID_TRANSACTION
-            assertThatThrownBy(() -> checker.parse(inputBuffer))
+            assertThatThrownBy(() -> checker.parse(inputBuffer, MAX_TX_SIZE))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TRANSACTION));
         }
@@ -315,7 +316,7 @@ final class TransactionCheckerTest extends AppTestBase {
             inputBuffer = Bytes.wrap(appendUnknownField(asByteArray(tx)));
 
             // When we parse and check, then the parsing fails because has unknown fields
-            assertThatThrownBy(() -> checker.parse(inputBuffer))
+            assertThatThrownBy(() -> checker.parse(inputBuffer, MAX_TX_SIZE))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(TRANSACTION_HAS_UNKNOWN_FIELDS));
         }

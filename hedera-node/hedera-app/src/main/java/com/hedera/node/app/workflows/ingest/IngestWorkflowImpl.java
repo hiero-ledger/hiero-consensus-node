@@ -8,7 +8,9 @@ import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
@@ -28,6 +30,7 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
 
     private final Supplier<AutoCloseableWrapper<State>> stateAccessor;
     private final IngestChecker ingestChecker;
+    private final TransactionChecker transactionChecker;
     private final SubmissionManager submissionManager;
     private final ConfigProvider configProvider;
 
@@ -44,10 +47,12 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
     public IngestWorkflowImpl(
             @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull final IngestChecker ingestChecker,
+            @NonNull final TransactionChecker transactionChecker,
             @NonNull final SubmissionManager submissionManager,
             @NonNull final ConfigProvider configProvider) {
         this.stateAccessor = requireNonNull(stateAccessor);
         this.ingestChecker = requireNonNull(ingestChecker);
+        this.transactionChecker = requireNonNull(transactionChecker);
         this.submissionManager = requireNonNull(submissionManager);
         this.configProvider = requireNonNull(configProvider);
     }
@@ -66,9 +71,10 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
             ingestChecker.verifyReadyForTransactions();
 
             // 1.-6. Parse and check the transaction
-            final var tx = transactionChecker.parse(requestBuffer);
             final var state = wrappedState.get();
             final var configuration = configProvider.getConfiguration();
+            final int maxBytes = configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
+            final var tx = transactionChecker.parse(requestBuffer, maxBytes);
             final var transactionInfo = ingestChecker.runAllChecks(state, tx, configuration);
 
             // 7. Submit to platform

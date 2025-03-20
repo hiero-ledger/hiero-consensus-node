@@ -124,12 +124,7 @@ public class TransactionChecker {
      */
     @NonNull
     public TransactionInfo parseAndCheck(@NonNull final Bytes buffer, final int maxBytes) throws PreCheckException {
-        // Fail fast if there are too many transaction bytes
-        if (buffer.length() > maxBytes) {
-            throw new PreCheckException(TRANSACTION_OVERSIZE);
-        }
-
-        final var tx = parse(buffer);
+        final var tx = parse(buffer, maxBytes);
         return check(tx, buffer);
     }
 
@@ -143,12 +138,7 @@ public class TransactionChecker {
     @NonNull
     public TransactionInfo parseSignedAndCheck(@NonNull final Bytes buffer, final int maxBytes)
             throws PreCheckException {
-        // Fail fast if there are too many transaction bytes
-        if (buffer.length() > maxBytes) {
-            throw new PreCheckException(TRANSACTION_OVERSIZE);
-        }
-
-        final var signedTx = parseSigned(buffer);
+        final var signedTx = parseSigned(buffer, maxBytes);
         return checkSigned(signedTx, buffer);
     }
 
@@ -164,7 +154,11 @@ public class TransactionChecker {
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @NonNull
-    public Transaction parse(@NonNull final Bytes buffer) throws PreCheckException {
+    public Transaction parse(@NonNull final Bytes buffer, final int maxBytes) throws PreCheckException {
+        // Fail fast if there are too many transaction bytes
+        if (buffer.length() > maxBytes) {
+            throw new PreCheckException(TRANSACTION_OVERSIZE);
+        }
         return parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
     }
 
@@ -180,7 +174,11 @@ public class TransactionChecker {
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @NonNull
-    public SignedTransaction parseSigned(@NonNull final Bytes buffer) throws PreCheckException {
+    public SignedTransaction parseSigned(@NonNull final Bytes buffer, final int maxBytes) throws PreCheckException {
+        // Fail fast if there are too many transaction bytes
+        if (buffer.length() > maxBytes) {
+            throw new PreCheckException(TRANSACTION_OVERSIZE);
+        }
         return parseStrict(buffer.toReadableSequentialData(), SignedTransaction.PROTOBUF, INVALID_TRANSACTION);
     }
 
