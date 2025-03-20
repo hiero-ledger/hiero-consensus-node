@@ -24,7 +24,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.file.FileGetInfoQuery;
 import com.hedera.hapi.node.file.FileGetInfoResponse;
-import com.hedera.hapi.node.file.FileInfo;
+import com.hedera.hapi.node.file.FileGetInfoResponse.FileInfo;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
