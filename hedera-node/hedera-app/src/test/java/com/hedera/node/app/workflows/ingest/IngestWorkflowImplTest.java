@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doThrow;
@@ -120,7 +121,7 @@ class IngestWorkflowImplTest extends AppTestBase {
 
         // Mock out the onset to always return a valid parsed object
         transaction = Transaction.newBuilder().body(transactionBody).build();
-        when(transactionChecker.parse(eq(requestBuffer), any())).thenReturn(transaction);
+        when(transactionChecker.parse(eq(requestBuffer), anyInt())).thenReturn(transaction);
         final var transactionInfo = new TransactionInfo(
                 transaction,
                 transactionBody,
@@ -219,7 +220,7 @@ class IngestWorkflowImplTest extends AppTestBase {
         @DisplayName("If some random exception is thrown from TransactionChecker, the exception is bubbled up")
         void randomException() throws PreCheckException, ParseException {
             // Given a WorkflowOnset that will throw a RuntimeException
-            when(transactionChecker.parse(any(), any())).thenThrow(new RuntimeException("parseAndCheck exception"));
+            when(transactionChecker.parse(any(), anyInt())).thenThrow(new RuntimeException("parseAndCheck exception"));
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);
