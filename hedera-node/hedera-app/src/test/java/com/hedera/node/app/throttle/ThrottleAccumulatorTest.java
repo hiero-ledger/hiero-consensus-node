@@ -78,6 +78,7 @@ import com.hedera.node.config.data.AutoCreationConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
@@ -166,6 +167,9 @@ class ThrottleAccumulatorTest {
 
     @Mock
     private LazyCreationConfig lazyCreationConfig;
+
+    @Mock
+    private JumboTransactionsConfig jumboTransactionsConfig;
 
     @Mock
     private TokensConfig tokensConfig;
@@ -977,9 +981,12 @@ class ThrottleAccumulatorTest {
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+        given(transactionInfo.transaction()).willReturn(Transaction.DEFAULT);
 
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
@@ -1025,9 +1032,12 @@ class ThrottleAccumulatorTest {
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+        given(transactionInfo.transaction()).willReturn(Transaction.DEFAULT);
 
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
@@ -1073,6 +1083,8 @@ class ThrottleAccumulatorTest {
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1086,6 +1098,7 @@ class ThrottleAccumulatorTest {
                 .willReturn(TransactionBody.newBuilder()
                         .ethereumTransaction(ethTxnBody)
                         .build());
+        given(transactionInfo.transaction()).willReturn(Transaction.DEFAULT);
 
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
@@ -1122,9 +1135,12 @@ class ThrottleAccumulatorTest {
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+        given(transactionInfo.transaction()).willReturn(Transaction.DEFAULT);
 
         final var defs = getThrottleDefs("bootstrap/throttles-sans-creation.json");
 
@@ -1168,6 +1184,8 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
         given(contractsConfig.maxGasPerSec()).willReturn(0L);
 
@@ -1182,6 +1200,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.applyGasConfig();
+        subject.applyBytesConfig();
 
         // then
         assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
@@ -1204,6 +1223,8 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
         given(contractsConfig.maxGasPerSec()).willReturn(1L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(true);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1218,6 +1239,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.applyGasConfig();
+        subject.applyBytesConfig();
 
         // then
         assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
@@ -1240,6 +1262,8 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
         given(contractsConfig.maxGasPerSec()).willReturn(0L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(true);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1252,6 +1276,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.applyGasConfig();
+        subject.applyBytesConfig();
 
         // then
         assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
@@ -1274,6 +1299,8 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
         given(contractsConfig.maxGasPerSec()).willReturn(1L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(true);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1288,6 +1315,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.applyGasConfig();
+        subject.applyBytesConfig();
 
         // then
         assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
@@ -1315,6 +1343,8 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
         given(contractsConfig.maxGasPerSec()).willReturn(0L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1327,6 +1357,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.applyGasConfig();
+        subject.applyBytesConfig();
 
         // then
         assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
@@ -1349,6 +1380,8 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
         given(contractsConfig.maxGasPerSec()).willReturn(1L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1364,6 +1397,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.applyGasConfig();
+        subject.applyBytesConfig();
 
         // then
         assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));

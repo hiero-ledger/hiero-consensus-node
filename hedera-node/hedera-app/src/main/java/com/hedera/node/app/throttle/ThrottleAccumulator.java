@@ -437,7 +437,7 @@ public class ThrottleAccumulator {
                         now,
                         configuration,
                         implicitCreations,
-                        txnInfo.transaction().protobufSize());
+                        txnInfo.transaction().signedTransactionBytes().length());
             }
             default -> !manager.allReqsMetAt(now);
         };
