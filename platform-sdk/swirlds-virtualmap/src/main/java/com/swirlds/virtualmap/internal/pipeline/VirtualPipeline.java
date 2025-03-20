@@ -439,8 +439,13 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
      * Check if this copy should be flushed.
      */
     private boolean shouldBeFlushed(final VirtualRoot<K, V> copy) {
-        return copy.shouldBeFlushed() // either explicitly marked to flush or based on its size
-                && (copy.isDestroyed() || copy.isDetached()); // destroyed or detached
+        // Check if a copy is explicitly set to flush
+        if (copy.shouldBeFlushed()) {
+            return true;
+        }
+        // Then check if its live data size exceeds the flush threshold
+        final long flushThreshold = config.copyFlushThreshold();
+        return (flushThreshold > 0) && (copy.estimatedDataSize() >= flushThreshold);
     }
 
     /**
@@ -455,7 +460,7 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
             if (!copy.isImmutable()) {
                 break;
             }
-            final long estimatedSize = copy.estimatedSize();
+            final long estimatedSize = copy.estimatedSizeInMemory();
             totalEstimatedSize += estimatedSize;
         }
         return totalEstimatedSize;
@@ -479,14 +484,18 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
     /**
      * Copies can only be merged into younger copies that are themselves immutable. Check if that is the case.
      */
-    private boolean canBeMerged(final PipelineListNode<VirtualRoot<K, V>> mergeCandidate) {
-        final VirtualRoot<K, V> copy = mergeCandidate.getValue();
-        final PipelineListNode<VirtualRoot<K, V>> mergeTarget = mergeCandidate.getNext();
-
-        return !copy.shouldBeFlushed() // shouldn't be flushed
-                && (copy.isDestroyed() || copy.isDetached()) // copy must be destroyed or detached
-                && mergeTarget != null // target must exist
-                && mergeTarget.getValue().isImmutable(); // target must be immutable
+    private boolean canBeMerged(final VirtualRoot<K, V> copy, final PipelineListNode<VirtualRoot<K, V>> target) {
+        // Either merge, or flush, but not both
+        if (copy.shouldBeFlushed()) {
+            return false;
+        }
+        // Target must exist and must be immutable
+        if ((target == null) || !target.getValue().isImmutable()) {
+            return false;
+        }
+        // Check if total size in memory is below the merge threshold
+        final long mergeThreshold = config.copyMergeThreshold();
+        return (mergeThreshold <= 0) || (copy.estimatedSizeInMemory() < mergeThreshold);
     }
 
     /**
@@ -515,32 +524,55 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
         copy.merge();
     }
 
+    private boolean shouldBeCompacted(final VirtualRoot<K, V> copy) {
+        if (copy.shouldBeFlushed()) {
+            return false;
+        }
+        // Check if total size in memory exceeds the merge threshold
+        final long mergeThreshold = config.copyMergeThreshold();
+        return (mergeThreshold > 0) && (copy.estimatedSizeInMemory() >= mergeThreshold);
+    }
+
+    private void compact(final VirtualRoot<K, V> copy) {
+        if (!copy.isHashed()) {
+            hashCopy(copy);
+        }
+        copy.compact();
+    }
+
     /**
      * Hash, flush, and merge all copies currently capable of these operations.
      */
     private void hashFlushMerge() {
-        PipelineListNode<VirtualRoot<K, V>> next = copies.getFirst();
-        // Iterate from the oldest copy to the newest
-        while ((next != null) && !Thread.currentThread().isInterrupted()) {
-            final VirtualRoot<K, V> copy = next.getValue();
-            // The newest copy. Nothing can be done to it
-            if (!copy.isImmutable()) {
+        PipelineListNode<VirtualRoot<K, V>> node = copies.getFirst();
+        assert node != null;
+        while ((node == copies.getFirst()) && !Thread.currentThread().isInterrupted()) {
+            final VirtualRoot<K, V> copy = node.getValue();
+            final PipelineListNode<VirtualRoot<K, V>> next = node.getNext();
+            if (!copy.isDestroyed() && !copy.isDetached()) {
                 break;
             }
-            if ((next == copies.getFirst()) && shouldBeFlushed(copy)) {
+            if (shouldBeFlushed(copy)) {
                 logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flush {}", copy.getFastCopyVersion());
                 flush(copy);
-                copies.remove(next);
-            } else if (canBeMerged(next)) {
+                copies.remove(node);
+                node = next;
+            } else if (canBeMerged(copy, next)) {
                 assert !copy.isMerged();
                 logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Merge {}", copy.getFastCopyVersion());
-                merge(next);
-                copies.remove(next);
+                merge(node);
+                copies.remove(node);
+                node = next;
+            } else if (shouldBeCompacted(copy)) {
+                logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Compact {}", copy.getFastCopyVersion());
+                compact(copy);
+                // Compacted copy will be mergeable or flushable in the next loop iteration
+            } else {
+                break;
             }
             statistics.setPipelineSize(copies.getSize());
             final long totalSize = currentTotalSize();
             statistics.setNodeCacheSize(totalSize);
-            next = next.getNext();
         }
     }
 
@@ -655,14 +687,15 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
         sb.append("  size = ").append(copies.getSize()).append("\n");
         sb.append("Copies listed oldest to newest:\n");
 
-        PipelineListNode<VirtualRoot<K, V>> next = copies.getFirst();
+        PipelineListNode<VirtualRoot<K, V>> node = copies.getFirst();
         int index = 0;
-        while (next != null) {
-            final VirtualRoot<K, V> copy = next.getValue();
+        while (node != null) {
+            final VirtualRoot<K, V> copy = node.getValue();
+            final PipelineListNode<VirtualRoot<K, V>> next = node.getNext();
 
             sb.append(index);
             sb.append(", should be flushed = ").append(uppercaseBoolean(shouldBeFlushed(copy)));
-            sb.append(", can be merged = ").append(uppercaseBoolean(canBeMerged(next)));
+            sb.append(", can be merged = ").append(uppercaseBoolean(canBeMerged(copy, next)));
             sb.append(", flushed = ").append(uppercaseBoolean(copy.isFlushed()));
             sb.append(", destroyed = ").append(uppercaseBoolean(copy.isDestroyed()));
             sb.append(", hashed = ").append(uppercaseBoolean(copy.isHashed()));
@@ -670,7 +703,7 @@ public class VirtualPipeline<K extends VirtualKey, V extends VirtualValue> {
             sb.append("\n");
 
             index++;
-            next = next.getNext();
+            node = next;
         }
 
         sb.append("There is no problem if this has happened during a freeze.\n");
