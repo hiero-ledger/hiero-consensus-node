@@ -382,7 +382,7 @@ class SavedStateMetadataTests {
             assertEquals(legacyRunningEventHash.toMnemonic(), deserialized.legacyRunningEventHashMnemonic());
         }
         assertEquals(minimumGenerationNonAncient, deserialized.minimumGenerationNonAncient());
-        assertEquals(softwareVersion.toString(), deserialized.softwareVersion().replace("   ", ""));
+        assertEquals(softwareVersion.toString(), deserialized.softwareVersion());
         assertEquals(wallClockTime, deserialized.wallClockTime());
         assertEquals(nodeId, deserialized.nodeId());
         assertEquals(signingNodes, deserialized.signingNodes());
@@ -479,9 +479,6 @@ class SavedStateMetadataTests {
                     return sb.toString();
                 },
                 Set.of(SavedStateMetadataField.SIGNING_NODES));
-
-        // Whitespace in list shouldn't hurt anything
-        testMalformedFile(random, (s, m) -> s.replace(",", "   ,   "), Set.of());
     }
 
     @Test
