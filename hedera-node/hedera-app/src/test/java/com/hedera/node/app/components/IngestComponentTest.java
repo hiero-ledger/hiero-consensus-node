@@ -87,7 +87,7 @@ class IngestComponentTest {
     private static final Metrics NO_OP_METRICS = new NoOpMetrics();
 
     private static final NodeInfo DEFAULT_NODE_INFO =
-            new NodeInfoImpl(0, asAccount(0L, 0L, 3L), 10, List.of(), Bytes.EMPTY);
+            new NodeInfoImpl(0, asAccount(0L, 0L, 3L), 10, List.of(), Bytes.EMPTY, List.of());
 
     @BeforeEach
     void setUp() {
@@ -101,7 +101,8 @@ class IngestComponentTest {
                 AccountID.newBuilder().accountNum(1001).build(),
                 10,
                 List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
-                Bytes.wrap("cert7"));
+                Bytes.wrap("cert7"),
+                List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)));
 
         final var configProvider = new ConfigProviderImpl(false);
         final var appContext = new AppContextImpl(
@@ -117,8 +118,8 @@ class IngestComponentTest {
                 throttleFactory,
                 () -> NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(configuration));
-        final var hintsService = new HintsServiceImpl(
-                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl(), configuration);
+        final var hintsService =
+                new HintsServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl());
         final var historyService = new HistoryServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), DEFAULT_CONFIG);
         app = DaggerHederaInjectionComponent.builder()

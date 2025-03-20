@@ -450,12 +450,7 @@ class WritableHintsStoreImplTest {
         final var servicesRegistry = new FakeServicesRegistry();
         Set.of(
                         new EntityIdService(),
-                        new HintsServiceImpl(
-                                NO_OP_METRICS,
-                                ForkJoinPool.commonPool(),
-                                appContext,
-                                library,
-                                WITH_ENABLED_HINTS_AND_CRS))
+                        new HintsServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library))
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
@@ -467,7 +462,6 @@ class WritableHintsStoreImplTest {
                         bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion()),
                 new ConfigProviderImpl().getConfiguration(),
                 DEFAULT_CONFIG,
-                networkInfo,
                 NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,

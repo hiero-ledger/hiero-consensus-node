@@ -120,7 +120,7 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
     public void setUp() {
         super.setUp();
         when(configProvider.getConfiguration()).thenReturn(versionedConfig);
-        subject = new FinalizeRecordHandler(stakingRewardsHandler, configProvider, entityIdFactory);
+        subject = new FinalizeRecordHandler(stakingRewardsHandler, configProvider, entityIdFactory, null);
     }
 
     @Test

@@ -21,6 +21,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.node.internal.network.Network;
@@ -181,14 +182,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * Creates a shared network of sub-process nodes with the given size.
      *
      * @param size the number of nodes in the network
-     * @param simulateIss true if we want to simulate an ISS event in the network
      * @return the shared network
      */
-    public static synchronized HederaNetwork newSharedNetwork(final int size, final boolean simulateIss) {
+    public static synchronized HederaNetwork newSharedNetwork(final int size) {
         if (NetworkTargetingExtension.SHARED_NETWORK.get() != null) {
             throw new UnsupportedOperationException("Only one shared network allowed per launcher session");
         }
-        final var sharedNetwork = liveNetwork(SHARED_NETWORK_NAME, size, simulateIss);
+        final var sharedNetwork = liveNetwork(SHARED_NETWORK_NAME, size);
         NetworkTargetingExtension.SHARED_NETWORK.set(sharedNetwork);
         return sharedNetwork;
     }
@@ -431,11 +431,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             final var deferredRun = new DeferredRun(() -> {
                 final var deadline = Instant.now().plus(timeout);
                 // Block until all nodes are ACTIVE
-                nodes.forEach(node -> awaitStatus(node, ACTIVE, Duration.between(Instant.now(), deadline)));
-                // This should be uncommented when TSS is enabled
-                //                nodes.forEach(node -> node.logFuture("Set LedgerID to")
-                //                        .orTimeout(10, TimeUnit.MINUTES)
-                //                        .join());
+                nodes.forEach(node -> awaitStatus(node, Duration.between(Instant.now(), deadline), ACTIVE));
+                nodes.forEach(node -> node.logFuture(HandleWorkflow.SYSTEM_ENTITIES_CREATED_MSG)
+                        .orTimeout(10, TimeUnit.SECONDS)
+                        .join());
+                nodes.forEach(node -> node.logFuture("TSS protocol ready")
+                        .orTimeout(30, TimeUnit.MINUTES)
+                        .join());
                 this.clients = HapiClients.clientsFor(this);
             });
             if (ready.compareAndSet(null, deferredRun)) {
@@ -544,8 +546,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         nextExternalGossipPort + (int) nodeId * 2,
                         nextPrometheusPort + (int) nodeId),
                 GRPC_PINGER,
-                PROMETHEUS_CLIENT,
-                false);
+                PROMETHEUS_CLIENT);
         final var accountId = pendingNodeAccounts.remove(nodeId);
         if (accountId != null) {
             node.reassignNodeAccountIdFrom(accountId);
@@ -592,11 +593,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      *
      * @param name the name of the network
      * @param size the number of nodes in the network
-     * @param simulateIss true to simulate an ISS event
      * @return the network
      */
-    private static synchronized HederaNetwork liveNetwork(
-            @NonNull final String name, final int size, final boolean simulateIss) {
+    private static synchronized HederaNetwork liveNetwork(@NonNull final String name, final int size) {
         if (!nextPortsInitialized) {
             initializeNextPortsForNetwork(size);
         }
@@ -616,8 +615,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                                         nextExternalGossipPort,
                                         nextPrometheusPort),
                                 GRPC_PINGER,
-                                PROMETHEUS_CLIENT,
-                                simulateIss))
+                                PROMETHEUS_CLIENT))
                         .toList());
         Runtime.getRuntime().addShutdownHook(new Thread(network::terminate));
         return network;

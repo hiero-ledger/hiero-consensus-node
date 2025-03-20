@@ -4,7 +4,7 @@ package com.hedera.node.app.workflows.handle.steps;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.workflows.handle.TransactionType.GENESIS_TRANSACTION;
+import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -37,7 +37,6 @@ import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
@@ -69,7 +68,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class UserTxnTest {
+class ParentTxnTest {
     private static final long CONGESTION_MULTIPLIER = 2L;
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final ConsensusTransaction PLATFORM_TXN = new TransactionWrapper(Bytes.EMPTY);
@@ -145,9 +144,6 @@ class UserTxnTest {
     @Mock
     private Consumer<StateSignatureTransaction> stateSignatureTxnCallback;
 
-    @Mock
-    private DeduplicationCache deduplicationCache;
-
     private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory = ServicesSoftwareVersion::new;
 
     @BeforeEach
@@ -168,9 +164,9 @@ class UserTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject = factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback);
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback);
 
-        assertSame(GENESIS_TRANSACTION, subject.type());
+        assertSame(ORDINARY_TRANSACTION, subject.type());
         assertSame(CONSENSUS_CREATE_TOPIC, subject.functionality());
         assertSame(CONSENSUS_NOW, subject.consensusNow());
         assertSame(state, subject.state());
@@ -192,7 +188,7 @@ class UserTxnTest {
 
         final var factory = createUserTxnFactory();
         assertNull(factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback));
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback));
     }
 
     @Test
@@ -204,6 +200,7 @@ class UserTxnTest {
                         .transactionID(TransactionID.DEFAULT)
                         .build());
         given(txnInfo.transaction()).willReturn(Transaction.DEFAULT);
+        given(preHandleResult.txnInfoOrThrow()).willReturn(txnInfo);
         given(txnInfo.signatureMap()).willReturn(SignatureMap.DEFAULT);
         given(preHandleResult.payerKey()).willReturn(AN_ED25519_KEY);
         given(preHandleResult.getVerificationResults()).willReturn(emptyMap());
@@ -214,7 +211,7 @@ class UserTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject = factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback);
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -239,6 +236,7 @@ class UserTxnTest {
         given(txnInfo.transaction()).willReturn(Transaction.DEFAULT);
         given(txnInfo.signatureMap()).willReturn(SignatureMap.DEFAULT);
         given(preHandleResult.getVerificationResults()).willReturn(emptyMap());
+        given(preHandleResult.txnInfoOrThrow()).willReturn(txnInfo);
         given(feeManager.congestionMultiplierFor(any(), eq(CONSENSUS_CREATE_TOPIC), any(ReadableStoreFactory.class)))
                 .willReturn(1L);
         given(serviceScopeLookup.getServiceName(any())).willReturn(ConsensusServiceImpl.NAME);
@@ -246,7 +244,7 @@ class UserTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject = factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, GENESIS_TRANSACTION, stateSignatureTxnCallback);
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -260,8 +258,8 @@ class UserTxnTest {
         assertEquals(0L, result.congestionPricingMultiplier());
     }
 
-    private UserTxnFactory createUserTxnFactory() {
-        return new UserTxnFactory(
+    private ParentTxnFactory createUserTxnFactory() {
+        return new ParentTxnFactory(
                 configProvider,
                 kvStateChangeListener,
                 boundaryStateChangeListener,
@@ -278,6 +276,7 @@ class UserTxnTest {
                 blockStreamManager,
                 childDispatchFactory,
                 softwareVersionFactory,
-                transactionChecker);
+                transactionChecker,
+                null);
     }
 }

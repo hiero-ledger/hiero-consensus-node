@@ -336,6 +336,7 @@ class PlatformTestingToolStateTest {
         final Platform platform = mock(Platform.class);
         final InitTrigger initTrigger = InitTrigger.GENESIS;
         final PlatformContext platformContext = mock(PlatformContext.class);
+        final SemanticVersion softwareVersion = new BasicSoftwareVersion(1).getPbjSemanticVersion();
 
         givenPlatform(platform, platformContext, nodeId);
         givenPlatformContextConfig(platformContext, config);
@@ -346,7 +347,7 @@ class PlatformTestingToolStateTest {
         when(parameterProviderInstance.getParameters()).thenReturn(new String[] {config});
 
         state.initChildren();
-        main.consensusStateEventHandler.onStateInitialized(state, platform, initTrigger, new BasicSoftwareVersion(1));
+        main.consensusStateEventHandler.onStateInitialized(state, platform, initTrigger, softwareVersion);
         main.init(platform, nodeId);
     }
 

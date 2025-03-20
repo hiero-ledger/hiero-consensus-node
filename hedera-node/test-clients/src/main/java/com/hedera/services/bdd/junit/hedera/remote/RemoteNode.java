@@ -42,7 +42,7 @@ public class RemoteNode extends AbstractNode implements HederaNode {
 
     @Override
     public CompletableFuture<Void> statusFuture(
-            @NonNull final PlatformStatus status, @Nullable final Consumer<NodeStatus> nodeStatusObserver) {
+            @Nullable final Consumer<NodeStatus> nodeStatusObserver, @NonNull final PlatformStatus... statuses) {
         // (FUTURE) Implement this via Prometheus and gRPC if it turns out to be useful
         throw new UnsupportedOperationException("Cannot check the status of a remote node");
     }
@@ -54,7 +54,7 @@ public class RemoteNode extends AbstractNode implements HederaNode {
     }
 
     @Override
-    public CompletableFuture<Void> logFuture(@NonNull final String pattern) {
-        throw new UnsupportedOperationException("Cannot await log file creation in an embedded network");
+    public CompletableFuture<Void> minLogsFuture(@NonNull final String pattern, final int n) {
+        throw new UnsupportedOperationException("Cannot scan the logs of a remote node");
     }
 }

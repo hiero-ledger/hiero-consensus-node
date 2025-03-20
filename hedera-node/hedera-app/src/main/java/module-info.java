@@ -55,7 +55,7 @@ module com.hedera.node.app {
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;
     requires org.apache.commons.lang3;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
     requires static com.google.auto.service;
     requires static java.compiler;
 
@@ -121,6 +121,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.blocks.schemas;
     exports com.hedera.node.app.roster.schemas;
     exports com.hedera.node.app.ids.schemas;
+    exports com.hedera.node.app.hints.schemas;
 
     provides ConfigurationExtension with
             ServicesConfigExtension;

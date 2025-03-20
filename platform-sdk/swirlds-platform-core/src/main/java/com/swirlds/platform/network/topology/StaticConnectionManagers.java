@@ -5,13 +5,9 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
 
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.ConnectionManager;
-import com.swirlds.platform.network.InboundConnectionManager;
-import com.swirlds.platform.network.OutboundConnectionManager;
+import com.swirlds.platform.network.*;
 import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -20,18 +16,24 @@ import org.apache.logging.log4j.Logger;
  */
 public class StaticConnectionManagers {
     private static final Logger logger = LogManager.getLogger(StaticConnectionManagers.class);
-    private final Map<NodeId, ConnectionManager> connectionManagers;
+    private final ConcurrentHashMap<NodeId, ConnectionManager> connectionManagers;
+    private final OutboundConnectionCreator connectionCreator;
 
     public StaticConnectionManagers(final NetworkTopology topology, final OutboundConnectionCreator connectionCreator) {
-        // is thread safe because it never changes
-        connectionManagers = new HashMap<>();
+        this.connectionCreator = connectionCreator;
+        connectionManagers = new ConcurrentHashMap<>();
         for (final NodeId neighbor : topology.getNeighbors()) {
-            if (topology.shouldConnectToMe(neighbor)) {
-                connectionManagers.put(neighbor, new InboundConnectionManager());
-            }
-            if (topology.shouldConnectTo(neighbor)) {
-                connectionManagers.put(neighbor, new OutboundConnectionManager(neighbor, connectionCreator));
-            }
+            updateManager(topology, neighbor);
+        }
+    }
+
+    private void updateManager(NetworkTopology topology, NodeId neighbor) {
+        if (topology.shouldConnectToMe(neighbor)) {
+            connectionManagers.put(neighbor, new InboundConnectionManager());
+        } else if (topology.shouldConnectTo(neighbor)) {
+            connectionManagers.put(neighbor, new LegacyOutboundConnectionManager(neighbor, connectionCreator));
+        } else {
+            connectionManagers.remove(neighbor);
         }
     }
 

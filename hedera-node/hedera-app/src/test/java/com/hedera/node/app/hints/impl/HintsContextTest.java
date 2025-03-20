@@ -108,7 +108,7 @@ class HintsContextTest {
 
         subject.setConstruction(CONSTRUCTION);
 
-        final var signing = subject.newSigning(BLOCK_HASH, currentRoster);
+        final var signing = subject.newSigning(BLOCK_HASH, currentRoster, () -> {});
         final var future = signing.future();
 
         signing.incorporate(CRS, CONSTRUCTION.constructionId() + 1, 0L, signature);

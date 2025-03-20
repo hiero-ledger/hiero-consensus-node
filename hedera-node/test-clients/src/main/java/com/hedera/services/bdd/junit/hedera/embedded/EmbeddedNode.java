@@ -90,13 +90,13 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
 
     @Override
     public CompletableFuture<Void> statusFuture(
-            @NonNull final PlatformStatus status, @Nullable final Consumer<NodeStatus> nodeStatusObserver) {
+            @Nullable final Consumer<NodeStatus> nodeStatusObserver, @NonNull final PlatformStatus... statuses) {
         throw new UnsupportedOperationException("Prefer awaiting status of the embedded network");
     }
 
     @Override
-    public CompletableFuture<Void> logFuture(@NonNull final String pattern) {
-        throw new UnsupportedOperationException("Cannot await log file creation in an embedded network");
+    public CompletableFuture<Void> minLogsFuture(@NonNull final String pattern, final int n) {
+        throw new UnsupportedOperationException("Logs not reliably written in an embedded network");
     }
 
     @Override
