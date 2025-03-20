@@ -42,8 +42,11 @@ final class GrpcServiceBuilderTest {
     private final VersionedConfiguration configuration =
             new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1);
     private final ConfigProvider configProvider = () -> configuration;
-    private final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller(130 * 1024, 6 * 1024);
-    private final DataBufferMarshaller JUMBO_MARSHALLER = new DataBufferMarshaller(130 * 1024, 130 * 1024);
+    private static final int MAX_MESSAGE_SIZE = 6144;
+    private static final int MAX_JUMBO_TXN_SIZE = 133120;
+    private static final int BUFFER_CAPACITY = 133120;
+    private final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller(BUFFER_CAPACITY, MAX_MESSAGE_SIZE);
+    private final DataBufferMarshaller JUMBO_MARSHALLER = new DataBufferMarshaller(BUFFER_CAPACITY, MAX_JUMBO_TXN_SIZE);
 
     @BeforeEach
     void setUp() {
@@ -170,10 +173,8 @@ final class GrpcServiceBuilderTest {
     @DisplayName("Building a service with a jumbo transaction")
     void buildDefinitionWithJumboSizedMethod() {
         final var config = enableJumboTransactions();
-        // add normal transaction
-        builder.transaction("txnA");
-        // add jumbo transaction
-        final var sd = builder.transaction("callEthereum").build(metrics, () -> config);
+        // add one regular and one jumbo transactions
+        final var sd = builder.transaction("txnA").transaction("callEthereum").build(metrics, () -> config);
 
         final var arr = TestUtils.randomBytes(1024 * 1024);
         final var stream = new ByteArrayInputStream(arr);
@@ -182,16 +183,16 @@ final class GrpcServiceBuilderTest {
         final var marshaller = (DataBufferMarshaller)
                 sd.getMethod(SERVICE_NAME + "/txnA").getMethodDescriptor().getRequestMarshaller();
         final var buff = marshaller.parse(stream);
-        // assert buffer size limits
-        assertThat(buff.length()).isEqualTo(6 * 1024 + 1);
+        // assert the buffer size limit
+        assertThat(buff.length()).isEqualTo(MAX_MESSAGE_SIZE + 1);
 
         // parse jumbo transaction
         final var jumboMarshaller = (DataBufferMarshaller) sd.getMethod(SERVICE_NAME + "/callEthereum")
                 .getMethodDescriptor()
                 .getRequestMarshaller();
         final var jumboBuff = jumboMarshaller.parse(stream);
-        // assert buffer size limits
-        assertThat(jumboBuff.length()).isEqualTo(130 * 1024 + 1);
+        // assert the buffer size limits
+        assertThat(jumboBuff.length()).isEqualTo(MAX_JUMBO_TXN_SIZE + 1);
     }
 
     private VersionedConfiguration enableJumboTransactions() {

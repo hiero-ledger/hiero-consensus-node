@@ -5,9 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.node.app.utils.TestUtils;
-import com.hedera.node.config.VersionedConfigImpl;
-import com.hedera.node.config.VersionedConfiguration;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -16,23 +13,16 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
 final class DataBufferMarshallerTest {
     private static final int MAX_MESSAGE_SIZE = 6144;
-    private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL =
-            ThreadLocal.withInitial(() -> BufferedData.allocate(MAX_MESSAGE_SIZE + 1));
-
-    private final VersionedConfiguration configuration =
-            new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1);
-    private final DataBufferMarshaller marshaller = new DataBufferMarshaller(130 * 1024, 6 * 1024);
+    private static final int BUFFER_CAPACITY = 133120;
+    private final DataBufferMarshaller marshaller = new DataBufferMarshaller(BUFFER_CAPACITY, MAX_MESSAGE_SIZE);
 
     @Test
     void nullBufferThrows() {

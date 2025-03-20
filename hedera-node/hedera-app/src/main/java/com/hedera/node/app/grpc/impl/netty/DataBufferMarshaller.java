@@ -31,7 +31,7 @@ final class DataBufferMarshaller implements MethodDescriptor.Marshaller<Buffered
     private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL = new ThreadLocal<>();
 
     /** Constructs a new {@link DataBufferMarshaller}. Only called by {@link GrpcServiceBuilder}. */
-    DataBufferMarshaller(int bufferCapacity, int maxMessageSize) {
+    DataBufferMarshaller(final int bufferCapacity, final int maxMessageSize) {
         this.bufferCapacity = bufferCapacity + 1;
         this.tooBigMessageSize = maxMessageSize + 1;
     }
