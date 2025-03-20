@@ -212,6 +212,7 @@ class ThrottleAccumulatorTest {
                 NOOP_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
         assertFalse(subject.checkAndEnforceThrottle(
