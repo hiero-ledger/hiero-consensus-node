@@ -20,7 +20,6 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.res
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockStatic;
 
@@ -190,7 +189,7 @@ final class TransactionCheckerTest extends AppTestBase {
         @SuppressWarnings("ConstantConditions")
         @DisplayName("`parseAndCheck` requires Bytes")
         void parseAndCheck() {
-            assertThatThrownBy(() -> checker.parse(null, any())).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> checker.parse(null, MAX_TX_SIZE)).isInstanceOf(NullPointerException.class);
         }
 
         @Test
