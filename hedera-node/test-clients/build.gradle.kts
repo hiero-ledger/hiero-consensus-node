@@ -105,7 +105,7 @@ val prCheckPropOverrides =
         "hapiTestSmartContract" to "tss.historyEnabled=true,staking.periodMins=1440",
     )
 val prCheckPrepareUpgradeOffsets =
-    mapOf("hapiTestAdhoc" to "PT30S", "hapiTestSmartContract" to "PT45")
+    mapOf("hapiTestAdhoc" to "PT30S", "hapiTestSmartContract" to "PT45M")
 val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "0", "hapiTestSmartContract" to "1")
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
