@@ -6,10 +6,8 @@ import static com.hedera.node.app.service.addressbook.impl.test.handlers.Address
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -48,41 +46,6 @@ class V057AddressBookSchemaTest {
     private WritableKVState<EntityNumber, Node> nodes;
 
     private final V057AddressBookSchema subject = new V057AddressBookSchema();
-
-    @Test
-    void usesGenesisNodeMetadataIfPresent() {
-        final var bootstrapAdminKey = Key.newBuilder()
-                .ed25519(DEFAULT_CONFIG.getConfigData(BootstrapConfig.class).genesisPublicKey())
-                .build();
-        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
-        given(ctx.startupNetworks()).willReturn(startupNetworks);
-        given(startupNetworks.genesisNetworkOrThrow(DEFAULT_CONFIG)).willReturn(NETWORK);
-        given(ctx.newStates()).willReturn(writableStates);
-        given(ctx.isGenesis()).willReturn(true);
-        given(ctx.platformConfig()).willReturn(DEFAULT_CONFIG);
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodes);
-
-        subject.migrate(ctx);
-
-        verify(nodes)
-                .put(
-                        new EntityNumber(1L),
-                        NETWORK.nodeMetadata()
-                                .getFirst()
-                                .nodeOrThrow()
-                                .copyBuilder()
-                                .adminKey(bootstrapAdminKey)
-                                .build());
-        verify(nodes)
-                .put(
-                        new EntityNumber(2L),
-                        NETWORK.nodeMetadata()
-                                .getLast()
-                                .nodeOrThrow()
-                                .copyBuilder()
-                                .adminKey(bootstrapAdminKey)
-                                .build());
-    }
 
     @Test
     void usesOverrideMetadataIfPresent() {

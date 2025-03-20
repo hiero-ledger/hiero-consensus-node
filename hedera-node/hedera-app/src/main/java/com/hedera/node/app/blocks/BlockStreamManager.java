@@ -8,7 +8,6 @@ import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -137,7 +136,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     /**
      * Synchronous method that, when invoked, blocks until the block stream manager signals a successful
      * completion of its fatal shutdown logic.
-     * @param maybeTimeout the maximum time to wait for block stream shutdown
+     * @param timeout the maximum time to wait for block stream shutdown
      */
-    void awaitFatalShutdown(@Nullable Duration maybeTimeout);
+    void awaitFatalShutdown(@NonNull Duration timeout);
 }

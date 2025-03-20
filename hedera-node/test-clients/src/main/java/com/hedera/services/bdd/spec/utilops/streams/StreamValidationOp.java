@@ -86,8 +86,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         this.historyProofTimeout = historyProofTimeout;
     }
 
-    public static void main(String[] args) {}
-
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         // Prepare streams for record validators that depend on querying the network and hence

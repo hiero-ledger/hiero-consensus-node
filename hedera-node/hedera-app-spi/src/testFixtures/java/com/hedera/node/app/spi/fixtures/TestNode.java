@@ -41,6 +41,12 @@ public record TestNode(
             public List<ServiceEndpoint> gossipEndpoints() {
                 return List.of();
             }
+
+            @NonNull
+            @Override
+            public List<ServiceEndpoint> hapiEndpoints() {
+                return List.of();
+            }
         };
     }
 }

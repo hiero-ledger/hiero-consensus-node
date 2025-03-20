@@ -5,6 +5,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.CommonUtils;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
@@ -59,12 +60,18 @@ public interface NodeInfo {
     Bytes sigCertBytes();
 
     /**
-     * The list of service endpoints of this node, as known by the internal and external worlds.
+     * The list of gossip endpoints of this node, as known by the internal and external worlds.
      * This has an IP address and port.
      *
      * @return The host name (IP Address) of this node
      */
     List<ServiceEndpoint> gossipEndpoints();
+
+    /**
+     * The list of HAPI endpoints of this node.
+     */
+    @NonNull
+    List<ServiceEndpoint> hapiEndpoints();
 
     /**
      * The gossip X.509 certificate of this node.

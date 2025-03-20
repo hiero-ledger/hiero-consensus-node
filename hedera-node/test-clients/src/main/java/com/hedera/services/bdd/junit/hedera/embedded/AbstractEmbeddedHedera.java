@@ -186,13 +186,17 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         } else {
             trigger = RESTART;
         }
-        hedera.initializeStatesApi(state, trigger, network, ServicesMain.buildPlatformConfig());
+        hedera.initializeStatesApi(state, trigger, ServicesMain.buildPlatformConfig());
 
         hedera.setInitialStateHash(FAKE_START_OF_STATE_HASH);
         hedera.onStateInitialized(state, fakePlatform(), GENESIS);
         hedera.init(fakePlatform(), defaultNodeId);
         fakePlatform().start();
         fakePlatform().notifyListeners(ACTIVE_NOTIFICATION);
+        if (trigger == GENESIS) {
+            // Trigger creation of system entities
+            handleRoundWith(mockStateSignatureTxn());
+        }
     }
 
     @Override
@@ -283,6 +287,18 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         }
     }
 
+    /**
+     * Handles an empty round to trigger system work like genesis entity creations.
+     */
+    protected abstract void handleRoundWith(@NonNull byte[] serializedTxn);
+
+    /**
+     * Submits a transaction to the given node account with the given version.
+     * @param transaction the transaction to submit
+     * @param nodeAccountId the account ID of the node to submit the transaction to
+     * @param version the version of the transaction
+     * @return the response to the transaction
+     */
     protected abstract TransactionResponse submit(
             @NonNull Transaction transaction, @NonNull AccountID nodeAccountId, @NonNull SemanticVersion version);
 
@@ -308,6 +324,18 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         if (syntheticVersion != SyntheticVersion.PRESENT) {
             throw new UnsupportedOperationException("Event version used at ingest by default node is always PRESENT");
         }
+    }
+
+    /**
+     * Gives a pretend state signature transaction.
+     */
+    private byte[] mockStateSignatureTxn() {
+        return hedera.encodeSystemTransaction(com.hedera.hapi.platform.event.StateSignatureTransaction.newBuilder()
+                        .round(1L)
+                        .hash(Bytes.wrap(new byte[48]))
+                        .signature(Bytes.wrap(new byte[256]))
+                        .build())
+                .toByteArray();
     }
 
     protected static TransactionResponse parseTransactionResponse(@NonNull final BufferedData responseBuffer) {

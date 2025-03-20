@@ -20,6 +20,12 @@ public class EntityIdService implements Service {
         return NAME;
     }
 
+    @Override
+    public int migrationOrder() {
+        // Traditionally the entity id service was migrated first, so preserve that harmless convention
+        return Integer.MIN_VALUE;
+    }
+
     /** {@inheritDoc} */
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {

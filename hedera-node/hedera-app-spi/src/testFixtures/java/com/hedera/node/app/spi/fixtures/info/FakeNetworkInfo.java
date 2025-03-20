@@ -26,19 +26,22 @@ public class FakeNetworkInfo implements NetworkInfo {
                     AccountID.newBuilder().accountNum(3).build(),
                     30,
                     List.of(endpointFor("333.333.333.333", 50233), endpointFor("127.0.0.1", 20)),
-                    Bytes.wrap("cert1")),
+                    Bytes.wrap("cert1"),
+                    List.of(endpointFor("333.333.333.333", 50233))),
             fakeInfoWith(
                     4L,
                     AccountID.newBuilder().accountNum(4).build(),
                     40,
                     List.of(endpointFor("444.444.444.444", 50244), endpointFor("127.0.0.2", 21)),
-                    Bytes.wrap("cert2")),
+                    Bytes.wrap("cert2"),
+                    List.of(endpointFor("444.444.444.444", 50211))),
             fakeInfoWith(
                     8L,
                     AccountID.newBuilder().accountNum(5).build(),
                     50,
                     List.of(endpointFor("555.555.555.555", 50255), endpointFor("127.0.0.3", 22)),
-                    Bytes.wrap("cert3")));
+                    Bytes.wrap("cert3"),
+                    List.of(endpointFor("555.555.555.555", 50211))));
 
     @NonNull
     @Override
@@ -79,7 +82,8 @@ public class FakeNetworkInfo implements NetworkInfo {
             @NonNull final AccountID nodeAccountId,
             long weight,
             List<ServiceEndpoint> gossipEndpoints,
-            @Nullable Bytes sigCertBytes) {
+            @Nullable Bytes sigCertBytes,
+            List<ServiceEndpoint> hapiEndpoints) {
         return new NodeInfo() {
             @Override
             public long nodeId() {
@@ -104,6 +108,11 @@ public class FakeNetworkInfo implements NetworkInfo {
             @Override
             public List<ServiceEndpoint> gossipEndpoints() {
                 return gossipEndpoints;
+            }
+
+            @Override
+            public @NonNull List<ServiceEndpoint> hapiEndpoints() {
+                return hapiEndpoints;
             }
         };
     }

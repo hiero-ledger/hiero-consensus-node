@@ -4,6 +4,9 @@ package com.hedera.services.bdd.junit.hedera.embedded;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.PENDING;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.REACHED;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicMetadataFor;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.configTxtForLocal;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateBootstrapProperties;
@@ -31,6 +34,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
@@ -128,6 +132,11 @@ public class EmbeddedNetwork extends AbstractNetwork {
     public void awaitReady(@NonNull Duration timeout) {
         if (embeddedHedera == null) {
             throw new IllegalStateException("EmbeddedNetwork is meant for single-threaded startup, please start it");
+        }
+        if (!embeddedHedera.hedera().systemEntitiesCreated()) {
+            conditionFuture(() -> embeddedHedera.hedera().systemEntitiesCreated() ? REACHED : PENDING, () -> 1)
+                    .orTimeout(1, TimeUnit.SECONDS)
+                    .join();
         }
     }
 
