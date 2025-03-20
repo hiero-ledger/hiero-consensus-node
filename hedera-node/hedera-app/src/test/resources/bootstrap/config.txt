@@ -1,0 +1,11 @@
+swirld, SHARED_NETWORK
+
+# This next line is, hopefully, ignored.
+app, HederaNode.jar
+
+#The following nodes make up this network
+address, 0, 0, node1, 1, 127.0.0.1, 31012, 127.0.0.1, 31013, 0.0.3
+address, 1, 1, node2, 1, 127.0.0.1, 31014, 127.0.0.1, 31015, 0.0.4
+address, 2, 2, node3, 1, 127.0.0.1, 31016, 127.0.0.1, 31017, 0.0.5
+address, 3, 3, node4, 1, 127.0.0.1, 31018, 127.0.0.1, 31019, 0.0.6
+
