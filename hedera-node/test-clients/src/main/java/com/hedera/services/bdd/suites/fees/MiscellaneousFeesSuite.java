@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -10,6 +11,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.hapiPrng;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
@@ -18,6 +20,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -51,18 +54,14 @@ public class MiscellaneousFeesSuite {
                 validateChargedUsd(plusRangeTxn, EXPECTED_FEE_PRNG_RANGE_TRX, 0.5));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
     @DisplayName("USD base fee as expected for get version info")
     final Stream<DynamicTest> miscGetInfoBaseUSDFee() {
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 cryptoCreate(BOB).balance(ONE_HUNDRED_HBARS),
-                getVersionInfo()
-                        .signedBy(BOB)
-                        .payingWith(BOB)
-                        .via("versionInfo")
-                        .logged(),
-                sleepFor(1000),
+                getVersionInfo().signedBy(BOB).payingWith(BOB).via("versionInfo"),
+                handleAnyRepeatableQueryPayment(),
                 validateChargedUsd("versionInfo", BASE_FEE_MISC_GET_VERSION));
     }
 
