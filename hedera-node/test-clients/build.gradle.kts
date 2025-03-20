@@ -101,7 +101,7 @@ val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.blockPeriod=3s",
-        "hapiTestCrypto" to "tss.hintsEnabled=true,blockStream.blockPeriod=3s",
+        "hapiTestCrypto" to "tss.hintsEnabled=true,blockStream.blockPeriod=1s",
         "hapiTestSmartContract" to "tss.historyEnabled=true",
     )
 val prCheckPrepareUpgradeOffsets =

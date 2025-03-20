@@ -226,7 +226,8 @@ public class UserTxnFactory {
         final var stack = createRootSavepointStack(state, type);
         final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
         final var functionality = functionOfTxn(body);
-        final var preHandleResult = preHandleSyntheticTransaction(body, payerId, config, readableStoreFactory);
+        final var preHandleResult =
+                preHandleSyntheticTransaction(body, payerId, config, readableStoreFactory, creatorInfo);
         final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
         final var tokenContext =
                 new TokenContextImpl(config, stack, consensusNow, entityIdStore, softwareVersionFactory);
@@ -395,12 +396,13 @@ public class UserTxnFactory {
             @NonNull final TransactionBody body,
             @NonNull final AccountID syntheticPayerId,
             @NonNull final Configuration config,
-            @NonNull final ReadableStoreFactory readableStoreFactory) {
+            @NonNull final ReadableStoreFactory readableStoreFactory,
+            @NonNull final NodeInfo creatorInfo) {
         try {
             final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             final var preHandleContext = new PreHandleContextImpl(
-                    readableStoreFactory, body, syntheticPayerId, config, dispatcher, transactionChecker);
+                    readableStoreFactory, body, syntheticPayerId, config, dispatcher, transactionChecker, creatorInfo);
             dispatcher.dispatchPreHandle(preHandleContext);
             final var txInfo = getTxnInfoFrom(syntheticPayerId, body);
             return new PreHandleResult(

@@ -20,7 +20,7 @@ import java.util.List;
 public class FakeNetworkInfo implements NetworkInfo {
     private static final Bytes DEV_LEDGER_ID = Bytes.wrap(new byte[] {0x03});
     private static final List<NodeId> FAKE_NODE_INFO_IDS = List.of(NodeId.of(2), NodeId.of(4), NodeId.of(8));
-    private static final List<NodeInfo> FAKE_NODE_INFOS = List.of(
+    public static final List<NodeInfo> FAKE_NODE_INFOS = List.of(
             fakeInfoWith(
                     2L,
                     AccountID.newBuilder().accountNum(3).build(),

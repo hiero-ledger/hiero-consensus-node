@@ -396,7 +396,12 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 InstantSource.system(),
                 DiskStartupNetworks::new,
                 (appContext, bootstrapConfig) ->
-                        new HintsServiceImpl(metrics, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl()),
+                        new HintsServiceImpl(
+                                metrics,
+                                ForkJoinPool.commonPool(),
+                                appContext,
+                                new HintsLibraryImpl(),
+                                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
                 TssBlockHashSigner::new,

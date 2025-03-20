@@ -34,6 +34,8 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.util.Set;
+
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -73,6 +75,9 @@ class PreHandleContextImplTest implements Scenarios {
     Configuration configuration;
 
     @Mock
+    NodeInfo creatorInfo;
+
+    @Mock
     TransactionDispatcher dispatcher;
 
     @Mock
@@ -87,7 +92,7 @@ class PreHandleContextImplTest implements Scenarios {
         given(account.keyOrThrow()).willReturn(payerKey);
 
         final var txn = createAccountTransaction();
-        subject = new PreHandleContextImpl(storeFactory, txn, configuration, dispatcher, transactionChecker);
+        subject = new PreHandleContextImpl(storeFactory, txn, configuration, dispatcher, transactionChecker, creatorInfo);
     }
 
     @Test
