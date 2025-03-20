@@ -144,6 +144,9 @@ class ThrottleAccumulatorTest {
     private LeakyBucketDeterministicThrottle gasThrottle;
 
     @Mock
+    private LeakyBucketDeterministicThrottle bytesThrottle;
+
+    @Mock
     private ThrottleMetrics throttleMetrics;
 
     @Mock
@@ -204,6 +207,7 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -240,6 +244,7 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
         subject.rebuildFor(defs);
@@ -284,6 +289,7 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
         subject.rebuildFor(defs);
@@ -331,6 +337,7 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
         subject.rebuildFor(defs);
@@ -378,6 +385,7 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -429,6 +437,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -472,6 +481,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -518,6 +528,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -562,6 +573,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -601,6 +613,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -646,6 +659,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -692,6 +706,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -736,6 +751,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -779,6 +795,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -823,6 +840,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -865,6 +883,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -908,6 +927,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -950,6 +970,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -997,6 +1018,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -1044,6 +1066,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -1091,6 +1114,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
@@ -1417,6 +1441,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -1481,6 +1506,7 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
@@ -1497,6 +1523,7 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
@@ -1517,6 +1544,7 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
@@ -1535,6 +1563,7 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
@@ -1568,6 +1597,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
 
         given(configProvider.getConfiguration()).willReturn(configuration);
@@ -1620,6 +1650,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
 
         given(configProvider.getConfiguration()).willReturn(configuration);
@@ -1671,6 +1702,7 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
+                bytesThrottle,
                 softwareVersionFactory);
 
         given(configProvider.getConfiguration()).willReturn(configuration);

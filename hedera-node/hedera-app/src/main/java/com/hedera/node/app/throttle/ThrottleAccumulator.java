@@ -157,11 +157,13 @@ public class ThrottleAccumulator {
             @NonNull final ThrottleType throttleType,
             @NonNull final ThrottleMetrics throttleMetrics,
             @NonNull final LeakyBucketDeterministicThrottle gasThrottle,
+            @NonNull final LeakyBucketDeterministicThrottle bytesThrottle,
             @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         this.configSupplier = requireNonNull(configSupplier, "configProvider must not be null");
         this.capacitySplitSource = requireNonNull(capacitySplitSource, "capacitySplitSource must not be null");
         this.throttleType = requireNonNull(throttleType, "throttleType must not be null");
         this.gasThrottle = requireNonNull(gasThrottle, "gasThrottle must not be null");
+        this.bytesThrottle = requireNonNull(bytesThrottle, "bytesThrottle must not be null");
         this.softwareVersionFactory = softwareVersionFactory;
 
         this.throttleMetrics = throttleMetrics;
