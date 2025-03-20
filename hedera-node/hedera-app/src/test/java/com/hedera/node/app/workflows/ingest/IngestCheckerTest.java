@@ -194,7 +194,8 @@ class IngestCheckerTest extends AppTestBase {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                ServicesSoftwareVersion::new);
+                ServicesSoftwareVersion::new,
+                null);
     }
 
     @Nested
@@ -261,7 +262,8 @@ class IngestCheckerTest extends AppTestBase {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                ServicesSoftwareVersion::new);
+                ServicesSoftwareVersion::new,
+                null);
 
         // Then the checker should throw a PreCheckException
         assertThatThrownBy(() -> subject.runAllChecks(state, tx, configuration))

@@ -160,36 +160,6 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                 deduplicationCache);
     }
 
-    /** Null arguments are not permitted to the constructor. */
-    @Test
-    @DisplayName("Null constructor args throw NPE")
-    @SuppressWarnings("DataFlowIssue") // Suppress the warning about null args
-    void nullConstructorArgsTest() {
-        assertThatThrownBy(() -> new PreHandleWorkflowImpl(
-                        null,
-                        transactionChecker,
-                        signatureVerifier,
-                        signatureExpander,
-                        configProvider,
-                        deduplicationCache))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new PreHandleWorkflowImpl(
-                        dispatcher, null, signatureVerifier, signatureExpander, configProvider, deduplicationCache))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new PreHandleWorkflowImpl(
-                        dispatcher, transactionChecker, null, signatureExpander, configProvider, deduplicationCache))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new PreHandleWorkflowImpl(
-                        dispatcher, transactionChecker, signatureVerifier, null, configProvider, deduplicationCache))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new PreHandleWorkflowImpl(
-                        dispatcher, transactionChecker, signatureVerifier, signatureExpander, null, deduplicationCache))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new PreHandleWorkflowImpl(
-                        dispatcher, transactionChecker, signatureVerifier, signatureExpander, configProvider, null))
-                .isInstanceOf(NullPointerException.class);
-    }
-
     /** Null arguments are not permitted to the preHandle method */
     @Test
     @DisplayName("Null pre-handle args throw NPE")

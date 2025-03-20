@@ -25,13 +25,22 @@ import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 import javax.inject.Singleton;
 
 @Module
 public interface StandaloneModule {
+    @Provides
+    @Nullable
+    @Singleton
+    static AtomicBoolean provideMaybeSystemEntitiesCreatedFlag() {
+        return null;
+    }
+
     @Binds
     @Singleton
     NetworkInfo bindNetworkInfo(@NonNull StandaloneNetworkInfo simulatedNetworkInfo);

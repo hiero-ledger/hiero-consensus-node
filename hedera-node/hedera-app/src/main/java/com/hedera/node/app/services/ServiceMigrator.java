@@ -11,7 +11,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -25,18 +24,17 @@ public interface ServiceMigrator {
     /**
      * Perform the migrations on the given state.
      *
-     * @param state               The state to migrate
-     * @param servicesRegistry    The services registry to use for the migrations
-     * @param previousVersion     The previous version of the state
-     * @param currentVersion      The current version of the state
-     * @param appConfig           The app configuration to use for the migrations
-     * @param platformConfig      The platform configuration to use for subsequent object initializations
-     * @param genesisNetworkInfo  The network information to use for the migrations
-     * @param metrics             The metrics to use for the migrations
-     * @param startupNetworks     The startup networks to use for the migrations
+     * @param state The state to migrate
+     * @param servicesRegistry The services registry to use for the migrations
+     * @param previousVersion The previous version of the state
+     * @param currentVersion The current version of the state
+     * @param appConfig The app configuration to use for the migrations
+     * @param platformConfig The platform configuration to use for subsequent object initializations
+     * @param metrics The metrics to use for the migrations
+     * @param startupNetworks The startup networks to use for the migrations
      * @param storeMetricsService The store metrics service to use for the migrations
-     * @param configProvider     The config provider to use for the migrations
-     * @param platformStateFacade  The facade object to access platform state properties
+     * @param configProvider The config provider to use for the migrations
+     * @param platformStateFacade The facade object to access platform state properties
      * @return The list of builders for state changes that occurred during the migrations
      */
     List<StateChanges.Builder> doMigrations(
@@ -46,7 +44,6 @@ public interface ServiceMigrator {
             @NonNull SoftwareVersion currentVersion,
             @NonNull Configuration appConfig,
             @NonNull Configuration platformConfig,
-            @Nullable NetworkInfo genesisNetworkInfo,
             @NonNull Metrics metrics,
             @NonNull StartupNetworks startupNetworks,
             @NonNull StoreMetricsServiceImpl storeMetricsService,

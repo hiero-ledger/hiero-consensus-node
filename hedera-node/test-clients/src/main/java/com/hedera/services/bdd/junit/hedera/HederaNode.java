@@ -81,12 +81,12 @@ public interface HederaNode {
     /**
      * Returns a future that resolves when the node has the given status.
      *
-     * @param status the status to wait for
      * @param nodeStatusObserver if non-null, an observer that will receive the node's status each time it is checked
+     * @param statuses the status to wait for
      * @return a future that resolves when the node has the given status
      */
     CompletableFuture<Void> statusFuture(
-            @NonNull PlatformStatus status, @Nullable Consumer<NodeStatus> nodeStatusObserver);
+            @Nullable Consumer<NodeStatus> nodeStatusObserver, @NonNull PlatformStatus... statuses);
 
     /**
      * Returns a future that resolves when the node has written the specified log pattern.

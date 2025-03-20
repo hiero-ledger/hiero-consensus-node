@@ -8,7 +8,6 @@ import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -28,7 +27,6 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
     private static final Logger logger = LogManager.getLogger(IngestWorkflowImpl.class);
 
     private final Supplier<AutoCloseableWrapper<State>> stateAccessor;
-    private final TransactionChecker transactionChecker;
     private final IngestChecker ingestChecker;
     private final SubmissionManager submissionManager;
     private final ConfigProvider configProvider;
@@ -37,7 +35,6 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
      * Constructor of {@code IngestWorkflowImpl}
      *
      * @param stateAccessor a {@link Supplier} that provides the latest immutable state
-     * @param transactionChecker the {@link TransactionChecker} that pre-processes the bytes of a transaction
      * @param ingestChecker the {@link IngestChecker} with specific checks of an ingest-workflow
      * @param submissionManager the {@link SubmissionManager} to submit transactions to the platform
      * @param configProvider the {@link ConfigProvider} to provide the configuration
@@ -46,12 +43,10 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
     @Inject
     public IngestWorkflowImpl(
             @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
-            @NonNull final TransactionChecker transactionChecker,
             @NonNull final IngestChecker ingestChecker,
             @NonNull final SubmissionManager submissionManager,
             @NonNull final ConfigProvider configProvider) {
         this.stateAccessor = requireNonNull(stateAccessor);
-        this.transactionChecker = requireNonNull(transactionChecker);
         this.ingestChecker = requireNonNull(ingestChecker);
         this.submissionManager = requireNonNull(submissionManager);
         this.configProvider = requireNonNull(configProvider);

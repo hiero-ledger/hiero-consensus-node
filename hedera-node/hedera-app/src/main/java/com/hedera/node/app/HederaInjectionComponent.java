@@ -65,9 +65,11 @@ import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import dagger.BindsInstance;
 import dagger.Component;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
 import java.time.InstantSource;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.inject.Provider;
@@ -111,6 +113,9 @@ public interface HederaInjectionComponent {
     NetworkInfo networkInfo();
 
     AppFeeCharging appFeeCharging();
+
+    @Nullable
+    AtomicBoolean systemEntitiesCreationFlag();
 
     TransactionChecker transactionChecker();
 

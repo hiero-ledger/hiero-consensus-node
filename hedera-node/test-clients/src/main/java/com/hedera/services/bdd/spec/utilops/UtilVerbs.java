@@ -182,6 +182,7 @@ import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
+import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -505,7 +506,21 @@ public class UtilVerbs {
     }
 
     public static WaitForStatusOp waitForActive(@NonNull final NodeSelector selector, @NonNull final Duration timeout) {
-        return new WaitForStatusOp(selector, ACTIVE, timeout);
+        return new WaitForStatusOp(selector, timeout, ACTIVE);
+    }
+
+    /**
+     * Returns an operation that waits for the target node to be any of the given statuses.
+     * @param selector the selector for the node to wait for
+     * @param timeout the maximum time to wait for the node to reach one of the desired statuses
+     * @param statuses the statuses to wait for
+     * @return the operation that waits for the node to reach one of the desired statuses
+     */
+    public static WaitForStatusOp waitForAny(
+            @NonNull final NodeSelector selector,
+            @NonNull final Duration timeout,
+            @NonNull final PlatformStatus... statuses) {
+        return new WaitForStatusOp(selector, timeout, statuses);
     }
 
     /**
@@ -515,7 +530,7 @@ public class UtilVerbs {
      * @return the operation that waits for the network to become active
      */
     public static SpecOperation waitForActiveNetworkWithReassignedPorts(@NonNull final Duration timeout) {
-        return blockingOrder(new WaitForStatusOp(NodeSelector.allNodes(), ACTIVE, timeout), doingContextual(spec -> {
+        return blockingOrder(new WaitForStatusOp(NodeSelector.allNodes(), timeout, ACTIVE), doingContextual(spec -> {
             if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
                 subProcessNetwork.refreshClients();
             }
@@ -565,7 +580,7 @@ public class UtilVerbs {
 
     public static WaitForStatusOp waitForFrozenNetwork(
             @NonNull final Duration timeout, @NonNull final NodeSelector selector) {
-        return new WaitForStatusOp(selector, FREEZE_COMPLETE, timeout);
+        return new WaitForStatusOp(selector, timeout, FREEZE_COMPLETE);
     }
 
     /**
@@ -590,7 +605,7 @@ public class UtilVerbs {
             spec.targetNetworkOrThrow()
                     .nodes()
                     .getFirst()
-                    .statusFuture(FREEZE_COMPLETE, (status) -> {})
+                    .statusFuture((status) -> {}, FREEZE_COMPLETE)
                     .thenRun(() -> {
                         stopTraffic.set(true);
                         opLog.info("Stopping background traffic after freeze complete");
