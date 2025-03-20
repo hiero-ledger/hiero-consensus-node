@@ -56,8 +56,6 @@ final class GrpcServiceBuilder {
      */
     private final DataBufferMarshaller marshaller;
 
-    private final DataBufferMarshaller jumboMarshaller;
-
     /** The name of the service we are building. For example, the TokenService. */
     private final String serviceName;
 
@@ -100,7 +98,6 @@ final class GrpcServiceBuilder {
      * @param ingestWorkflow The workflow to use for handling all transaction ingestion API calls
      * @param queryWorkflow The workflow to use for handling all queries
      * @param marshaller The marshaller to use for reading/writing byte arrays to/from InputStreams
-     * @param jumboMarshaller The marshaller to use for handling jumbo transactions
      * @throws NullPointerException if any of the parameters are null
      * @throws IllegalArgumentException if the serviceName is blank
      */
@@ -108,8 +105,7 @@ final class GrpcServiceBuilder {
             @NonNull final String serviceName,
             @NonNull final IngestWorkflow ingestWorkflow,
             @NonNull final QueryWorkflow queryWorkflow,
-            @NonNull final DataBufferMarshaller marshaller,
-            @NonNull final DataBufferMarshaller jumboMarshaller) {
+            @NonNull final DataBufferMarshaller marshaller) {
         this.ingestWorkflow = requireNonNull(ingestWorkflow);
         this.queryWorkflow = requireNonNull(queryWorkflow);
         this.serviceName = requireNonNull(serviceName);
@@ -117,7 +113,6 @@ final class GrpcServiceBuilder {
             throw new IllegalArgumentException("serviceName cannot be blank");
         }
         this.marshaller = requireNonNull(marshaller);
-        this.jumboMarshaller = requireNonNull(jumboMarshaller);
     }
 
     /**
@@ -175,13 +170,14 @@ final class GrpcServiceBuilder {
         final var builder = ServerServiceDefinition.builder(serviceName);
         txMethodNames.forEach(methodName -> {
             logger.debug("Registering gRPC transaction method {}.{}", serviceName, methodName);
+            TransactionMethod method;
             if (jumboTxnIsEnabled && jumboTxnConfig.grpcMethodNames().contains(methodName)) {
-                final var method = new TransactionMethod(
+                method = new TransactionMethod(
                         serviceName, methodName, ingestWorkflow, metrics, jumboTxnConfig.maxTxnSize());
-                addMethod(builder, serviceName, methodName, method, jumboMarshaller);
-                return;
+            } else {
+                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, maxMessageSize);
             }
-            final var method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, maxMessageSize);
+
             addMethod(builder, serviceName, methodName, method, marshaller);
         });
         queryMethodNames.forEach(methodName -> {
