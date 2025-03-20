@@ -273,4 +273,9 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         savedSignatures.clear();
         lastStateRound = ConsensusConstants.ROUND_UNDEFINED;
     }
+
+    /**
+     * A signature for a state hash that was received when this node does not yet have a state with a matching round.
+     */
+    private record SavedSignature(long round, @NonNull NodeId memberId, @NonNull Signature signature) {}
 }
