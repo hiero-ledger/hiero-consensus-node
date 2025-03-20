@@ -8,19 +8,13 @@ import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.node.app.fees.ExchangeRateManager;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
-import com.hedera.node.app.service.addressbook.AddressBookService;
-import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
-import com.hedera.node.app.store.WritableStoreFactory;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -31,7 +25,7 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * Orchestrates changes that happen before the first transaction in a new staking period. See
- * {@link StakePeriodChanges#process(Dispatch, SavepointStackImpl, TokenContext, StreamMode, boolean, Instant)}
+ * {@link #process(Dispatch, SavepointStackImpl, TokenContext, StreamMode, Instant)}
  * for details.
  */
 @Singleton
@@ -68,15 +62,13 @@ public class StakePeriodChanges {
      * @param stack the savepoint stack
      * @param tokenContext the token context
      * @param streamMode the stream mode
-     * @param isGenesis whether the current transaction is the genesis transaction
      * @param lastHandleTime the last instant at which a transaction was handled
      */
-    public boolean process(
+    public void process(
             @NonNull final Dispatch dispatch,
             @NonNull final SavepointStackImpl stack,
             @NonNull final TokenContext tokenContext,
             @NonNull final StreamMode streamMode,
-            final boolean isGenesis,
             @NonNull final Instant lastHandleTime) {
         requireNonNull(stack);
         requireNonNull(dispatch);
@@ -84,7 +76,7 @@ public class StakePeriodChanges {
         requireNonNull(streamMode);
         requireNonNull(lastHandleTime);
         final var isStakePeriodBoundary = isStakingPeriodBoundary(streamMode, tokenContext, lastHandleTime);
-        if (isGenesis || isStakePeriodBoundary) {
+        if (isStakePeriodBoundary) {
             try {
                 exchangeRateManager.updateMidnightRates(stack);
                 stack.commitSystemStateChanges();
@@ -103,7 +95,6 @@ public class StakePeriodChanges {
                 stack.rollbackFullStack();
             }
         }
-        return !isGenesis && isStakePeriodBoundary;
     }
 
     private boolean isStakingPeriodBoundary(
@@ -145,13 +136,6 @@ public class StakePeriodChanges {
             final var periodMs = stakingPeriod * MINUTES_TO_MILLISECONDS;
             return getPeriod(currentConsensusTime, periodMs) > getPeriod(previousConsensusTime, periodMs);
         }
-    }
-
-    private WritableNodeStore newWritableNodeStore(
-            @NonNull final SavepointStackImpl stack, @NonNull final Configuration config) {
-        final var entityCounters = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
-        final var writableFactory = new WritableStoreFactory(stack, AddressBookService.NAME, entityCounters);
-        return writableFactory.getStore(WritableNodeStore.class);
     }
 
     private static boolean isLaterUtcDay(@NonNull final Instant now, @NonNull final Instant then) {

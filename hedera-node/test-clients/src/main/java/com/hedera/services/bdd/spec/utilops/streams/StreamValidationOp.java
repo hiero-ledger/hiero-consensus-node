@@ -14,7 +14,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.FREEZE_TIMEOUT;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
@@ -86,8 +85,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         this.historyProofsToWaitFor = historyProofsToWaitFor;
         this.historyProofTimeout = historyProofTimeout;
     }
-
-    public static void main(String[] args) {}
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {

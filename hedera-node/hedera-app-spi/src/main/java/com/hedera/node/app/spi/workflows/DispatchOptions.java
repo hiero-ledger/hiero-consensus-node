@@ -359,7 +359,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 UsePresetTxnId.NO,
                 PREAUTHORIZED_KEYS,
                 emptySet(),
-                TransactionCategory.BATCH,
+                TransactionCategory.BATCH_INNER,
                 ConsensusThrottling.ON,
                 streamBuilderType,
                 ReversingBehavior.REVERSIBLE,

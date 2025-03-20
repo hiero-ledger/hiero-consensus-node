@@ -33,6 +33,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -97,9 +99,11 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
 
     @Override
     public CompletableFuture<Void> statusFuture(
-            @NonNull final PlatformStatus status, @Nullable Consumer<NodeStatus> nodeStatusObserver) {
-        requireNonNull(status);
+            @Nullable Consumer<NodeStatus> nodeStatusObserver, @NonNull final PlatformStatus... statuses) {
+        requireNonNull(statuses);
         final var retryCount = new AtomicInteger();
+        final var acceptanceSet = EnumSet.noneOf(PlatformStatus.class);
+        Collections.addAll(acceptanceSet, statuses);
         return conditionFuture(
                 () -> {
                     final var nominalSoFar = retryCount.get() <= MAX_PROMETHEUS_RETRIES;
@@ -107,8 +111,9 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
                             ? prometheusClient.statusFromLocalEndpoint(metadata.prometheusPort())
                             : statusFromLog();
                     var grpcStatus = NA;
-                    var statusReached = lookupAttempt.status() == status;
-                    if (statusReached && status == ACTIVE) {
+                    final var statusNow = lookupAttempt.status();
+                    var statusReached = acceptanceSet.contains(statusNow);
+                    if (statusReached && lookupAttempt.status() == ACTIVE) {
                         grpcStatus = grpcPinger.isLive(metadata.grpcPort()) ? UP : DOWN;
                         statusReached = grpcStatus == UP;
                     }
@@ -118,7 +123,7 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
                     // practice these are never transient; it also lets us try reassigning
                     // ports when first starting the network to maybe salvage the run
                     if (!statusReached
-                            && status == ACTIVE
+                            && statusNow == ACTIVE
                             && !nominalSoFar
                             && retryCount.get() % BINDING_CHECK_INTERVAL == 0) {
                         if (swirldsLogContains("java.net.BindException")) {
@@ -243,14 +248,6 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
 
     private boolean swirldsLogContains(@NonNull final String text) {
         try (var lines = Files.lines(getExternalPath(SWIRLDS_LOG))) {
-            return lines.anyMatch(line -> line.contains(text));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    private boolean applicationLogContains(@NonNull final String text) {
-        try (var lines = Files.lines(getExternalPath(APPLICATION_LOG))) {
             return lines.anyMatch(line -> line.contains(text));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
