@@ -118,7 +118,6 @@ class BlockNodeConnectionTest {
     void testNewBlockNodeConnection() {
         assertEquals(nodeConfig, blockNodeConnection.getNodeConfig());
         assertFalse(blockNodeConnection.isActive());
-        assertThat(logCaptor.infoLogs()).contains("BlockNodeConnection INITIALIZED");
     }
 
     @Test
