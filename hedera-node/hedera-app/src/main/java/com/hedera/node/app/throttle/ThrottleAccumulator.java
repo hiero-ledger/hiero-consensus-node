@@ -443,7 +443,7 @@ public class ThrottleAccumulator {
                         now,
                         configuration,
                         implicitCreations,
-                        txnInfo.transaction().signedTransactionBytes().length());
+                        txnInfo.transaction().protobufSize());
             }
             default -> !manager.allReqsMetAt(now);
         };

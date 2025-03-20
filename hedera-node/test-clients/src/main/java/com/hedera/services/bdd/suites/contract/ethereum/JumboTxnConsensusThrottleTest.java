@@ -115,6 +115,7 @@ public class JumboTxnConsensusThrottleTest {
                 final var payload = new byte[size];
                 final var op1 = sourcingContextual(spec -> ethereumCall(contract, function, payload)
                         .markAsJumboTxn()
+                        .noLogging()
                         .setNode(asEntityString(3 + nextNode.accumulateAndGet(1, (a, b) -> a == 3 ? 0 : a + b)))
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -122,8 +123,7 @@ public class JumboTxnConsensusThrottleTest {
                         .gasLimit(1_000_000L)
                         .hasPrecheckFrom(OK, BUSY)
                         .hasKnownStatusFrom(SUCCESS, WRONG_NONCE, THROTTLED_AT_CONSENSUS)
-                        .deferStatusResolution()
-                        .noLogging());
+                        .deferStatusResolution());
 
                 return Optional.of(op1);
             }
