@@ -112,13 +112,13 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
                     new FakeEvent(nodeId, time.now(), semanticVersion, createAppPayloadWrapper(payload));
         }
         if (response.getNodeTransactionPrecheckCode() == OK) {
-            handleNextRound();
+            handleNextRoundIfPresent();
             // If handling this transaction scheduled node transactions, handle them now
             while (!pendingNodeSubmissions.isEmpty()) {
                 platform.lastCreatedEvent = null;
                 pendingNodeSubmissions.poll().run();
                 if (platform.lastCreatedEvent != null) {
-                    handleNextRound();
+                    handleNextRoundIfPresent();
                 }
             }
         }
@@ -168,13 +168,15 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     /**
      * Executes the transaction in the last-created event within its own round.
      */
-    public void handleNextRound() {
-        hedera.onPreHandle(platform.lastCreatedEvent, state, preHandleStateSignatureCallback);
-        final var round = platform.nextConsensusRound();
-        // Handle each transaction in own round
-        hedera.handleWorkflow().handleRound(state, round, handleStateSignatureCallback);
-        hedera.onSealConsensusRound(round, state);
-        notifyStateHashed(round.getRoundNum());
+    public void handleNextRoundIfPresent() {
+        if (platform.lastCreatedEvent != null) {
+            hedera.onPreHandle(platform.lastCreatedEvent, state, preHandleStateSignatureCallback);
+            final var round = platform.nextConsensusRound();
+            // Handle each transaction in own round
+            hedera.handleWorkflow().handleRound(state, round, handleStateSignatureCallback);
+            hedera.onSealConsensusRound(round, state);
+            notifyStateHashed(round.getRoundNum());
+        }
     }
 
     private class SynchronousFakePlatform extends AbstractFakePlatform implements Platform {
