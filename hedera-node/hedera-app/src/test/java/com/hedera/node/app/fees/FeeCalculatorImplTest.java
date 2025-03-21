@@ -14,12 +14,8 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.store.ReadableStoreFactory;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.OneOf;
-import com.swirlds.platform.system.SoftwareVersion;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,10 +31,6 @@ public class FeeCalculatorImplTest {
 
     @Mock
     private TransactionBody txnBody;
-
-    @NonNull
-    private static final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory =
-            ServicesSoftwareVersion::new;
 
     @BeforeEach
     void setUp() {
