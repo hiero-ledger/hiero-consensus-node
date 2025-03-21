@@ -12,8 +12,6 @@ import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.MerkleStateRoot;
-import com.swirlds.state.merkle.disk.OnDiskKey;
-import com.swirlds.state.merkle.disk.OnDiskValue;
 import com.swirlds.state.merkle.memory.InMemoryKey;
 import com.swirlds.state.merkle.memory.InMemoryValue;
 import com.swirlds.state.test.fixtures.StateTestBase;
@@ -109,20 +107,6 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
                 FIRST_SERVICE, new TestSchema(1), StateDefinition.queue(STEAM_STATE_KEY, STRING_CODEC));
     }
 
-    /** Creates a new arbitrary virtual map with the given label, storageDir, and metadata */
-    @SuppressWarnings("unchecked")
-    protected VirtualMap<OnDiskKey<String>, OnDiskValue<String>> createVirtualMap(
-            String label, StateMetadata<String, String> md) {
-        return createVirtualMap(
-                label,
-                md.onDiskKeySerializerClassId(),
-                md.onDiskKeyClassId(),
-                md.stateDefinition().keyCodec(),
-                md.onDiskValueSerializerClassId(),
-                md.onDiskValueClassId(),
-                md.stateDefinition().valueCodec());
-    }
-
     /**
      * Looks within the merkle tree for a node with the given label. This is useful for tests that
      * need to verify some change actually happened in the merkle tree.
@@ -152,19 +136,8 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
     }
 
     /** A convenience method for adding a k/v pair to a virtual map */
-    protected void add(
-            VirtualMap<OnDiskKey<String>, OnDiskValue<String>> map,
-            StateMetadata<String, String> md,
-            String key,
-            String value) {
-        super.add(
-                map,
-                md.onDiskKeyClassId(),
-                md.stateDefinition().keyCodec(),
-                md.onDiskValueClassId(),
-                md.stateDefinition().valueCodec(),
-                key,
-                value);
+    protected void add(VirtualMap map, StateMetadata<String, String> md, String key, String value) {
+        super.add(map, md.stateDefinition().keyCodec(), md.stateDefinition().valueCodec(), key, value);
     }
 
     @AfterEach

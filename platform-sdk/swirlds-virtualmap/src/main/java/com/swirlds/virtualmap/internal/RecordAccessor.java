@@ -1,24 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
 /**
  * Provides access to all records.
- * @param <K>
- *     The key
- * @param <V>
- *     The value
  */
-public interface RecordAccessor<K extends VirtualKey, V extends VirtualValue> {
+@SuppressWarnings("rawtypes")
+public interface RecordAccessor {
 
     /**
      * Gets the {@link Hash} at a given path. If there is no record at the path, null is returned.
@@ -55,16 +51,13 @@ public interface RecordAccessor<K extends VirtualKey, V extends VirtualValue> {
      * it in memory, set <code>cache</code> to true. If the key cannot be found in
      * the data source, then null is returned.
      *
-     * @param key
-     * 		The key. Must not be null.
-     * @param copy
-     * 		Whether to make a fast copy if needed.
+     * @param key The key. Must not be null.
      * @return The leaf, or null if there is not one.
      * @throws UncheckedIOException
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		an UncheckedIOException is thrown.
      */
-    VirtualLeafRecord<K, V> findLeafRecord(final K key, final boolean copy);
+    VirtualLeafBytes findLeafRecord(final Bytes key);
 
     /**
      * Locates and returns a leaf node based on the path. If the leaf
@@ -75,22 +68,19 @@ public interface RecordAccessor<K extends VirtualKey, V extends VirtualValue> {
      *
      * @param path
      * 		The path
-     * @param copy
-     * 		Whether to make a fast copy if needed.
      * @return The leaf, or null if there is not one.
      * @throws UncheckedIOException
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		an UncheckedIOException is thrown.
      */
-    VirtualLeafRecord<K, V> findLeafRecord(final long path, final boolean copy);
+    VirtualLeafBytes findLeafRecord(final long path);
 
     /**
      * Finds the path of the given key.
-     * @param key
-     * 		The key. Must not be null.
+     * @param key The key. Must not be null.
      * @return The path or INVALID_PATH if the key is not found.
      */
-    long findKey(final K key);
+    long findKey(final Bytes key);
 
     /**
      * Gets the data source backed by this {@link RecordAccessor}
@@ -113,5 +103,5 @@ public interface RecordAccessor<K extends VirtualKey, V extends VirtualValue> {
      * @return
      * 		The cache. This will never be null.
      */
-    VirtualNodeCache<K, V> getCache();
+    VirtualNodeCache getCache();
 }
