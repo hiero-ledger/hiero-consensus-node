@@ -13,7 +13,6 @@ import com.hedera.node.app.service.token.ReadableNodeRewardsStore;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.math.BigInteger;
 import java.util.List;
 
@@ -48,10 +47,14 @@ public class ReadableNodeRewardsStoreImpl implements ReadableNodeRewardsStore {
      * @param minJudgeRoundPercentage The minimum percentage of rounds an "active" node would have created judges in
      * @return The list of active node ids.
      */
-    public List<Long> getActiveNodeIds(@NonNull final List<RosterEntry> rosterEntries, final int minJudgeRoundPercentage) {
+    public List<Long> getActiveNodeIds(
+            @NonNull final List<RosterEntry> rosterEntries, final int minJudgeRoundPercentage) {
         requireNonNull(rosterEntries);
         final long roundsLastPeriod = requireNonNull(nodeRewardsState.get()).numRoundsInStakingPeriod();
-        final long maxMissedJudges = BigInteger.valueOf(roundsLastPeriod).multiply(BigInteger.valueOf(100 - minJudgeRoundPercentage)).divide(BigInteger.valueOf(100)).longValueExact();
+        final long maxMissedJudges = BigInteger.valueOf(roundsLastPeriod)
+                .multiply(BigInteger.valueOf(100 - minJudgeRoundPercentage))
+                .divide(BigInteger.valueOf(100))
+                .longValueExact();
         final var missedJudgeCounts = get().nodeActivities().stream()
                 .collect(toMap(NodeActivity::nodeId, NodeActivity::numMissedJudgeRounds));
         return rosterEntries.stream()

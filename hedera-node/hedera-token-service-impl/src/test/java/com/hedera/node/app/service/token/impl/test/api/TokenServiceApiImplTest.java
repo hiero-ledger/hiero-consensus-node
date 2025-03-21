@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -48,6 +49,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -101,6 +103,9 @@ class TokenServiceApiImplTest {
 
     @Mock
     private Predicate<CryptoTransferTransactionBody> customFeeTest;
+
+    @Mock
+    private LongConsumer onNodeFee;
 
     private WritableEntityCounters entityCounters;
 
@@ -483,7 +488,8 @@ class TokenServiceApiImplTest {
                     NODE_ACCOUNT_ID,
                     fees,
                     rb,
-                    (id, amount) -> adjustments.merge(id, amount, Long::sum));
+                    (id, amount) -> adjustments.merge(id, amount, Long::sum),
+                    onNodeFee);
 
             // Then we find that 10% go to node rewards, 20% to staking rewards, and the rest to the funding account
             final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
@@ -505,6 +511,7 @@ class TokenServiceApiImplTest {
             final var nodeAccount = requireNonNull(accountState.get(NODE_ACCOUNT_ID));
             assertThat(nodeAccount.tinybarBalance()).isEqualTo(2);
             assertThat(adjustments.get(NODE_ACCOUNT_ID)).isEqualTo(2);
+            verify(onNodeFee).accept(2L);
 
             assertThat(rb.transactionFee()).isEqualTo(ALL_FEES);
         }
@@ -524,7 +531,8 @@ class TokenServiceApiImplTest {
                     NODE_ACCOUNT_ID,
                     fees,
                     rb,
-                    (id, amount) -> adjustments.merge(id, amount, Long::sum));
+                    (id, amount) -> adjustments.merge(id, amount, Long::sum),
+                    onNodeFee);
 
             // Then we find that all the fees go to the funding account
             final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
@@ -552,7 +560,7 @@ class TokenServiceApiImplTest {
             // When we try to charge a payer account that DOES NOT EXIST, then we get an IllegalStateException.
             final var unknownAccountId =
                     AccountID.newBuilder().accountNum(12345678L).build();
-            assertThatThrownBy(() -> subject.chargeFees(unknownAccountId, NODE_ACCOUNT_ID, fees, rb, null))
+            assertThatThrownBy(() -> subject.chargeFees(unknownAccountId, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Payer account %s does not exist", unknownAccountId);
         }
@@ -569,7 +577,7 @@ class TokenServiceApiImplTest {
             subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
 
             // When we try to charge a payer account that DOES exist, then we get an IllegalStateException
-            assertThatThrownBy(() -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null))
+            assertThatThrownBy(() -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Funding account %s does not exist", unknownAccountId);
         }
@@ -586,7 +594,7 @@ class TokenServiceApiImplTest {
             subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
 
             // When we try to charge a payer account that DOES exist, then we get an IllegalStateException
-            assertThatThrownBy(() -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null))
+            assertThatThrownBy(() -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Staking reward account %s does not exist", unknownAccountId);
         }
@@ -603,7 +611,7 @@ class TokenServiceApiImplTest {
             subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
 
             // When we try to charge a payer account that DOES exist, then we get an IllegalStateException
-            assertThatThrownBy(() -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null))
+            assertThatThrownBy(() -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Node reward account %s does not exist", unknownAccountId);
         }
@@ -615,7 +623,7 @@ class TokenServiceApiImplTest {
 
             subject = new TokenServiceApiImpl(
                     configBuilder.getOrCreateConfig(), writableStates, customFeeTest, entityCounters);
-            subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null);
+            subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee);
 
             final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
             assertThat(payerAccount.tinybarBalance()).isEqualTo(0);
@@ -629,7 +637,7 @@ class TokenServiceApiImplTest {
 
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null));
+                    () -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee));
         }
 
         @Test
@@ -639,7 +647,7 @@ class TokenServiceApiImplTest {
 
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null));
+                    () -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee));
         }
     }
 }

@@ -68,17 +68,19 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     private static final int ENTITY_COUNTS_STATE_ID =
             BlockImplUtils.stateIdFor(EntityIdService.NAME, ENTITY_COUNTS_KEY);
 
+    @NonNull
+    private final StoreMetricsService storeMetricsService;
+
+    @NonNull
+    private final Supplier<Configuration> configurationSupplier;
+
     @Nullable
     private Instant lastConsensusTime;
 
     @Nullable
     private Timestamp boundaryTimestamp;
 
-    @NonNull
-    private final StoreMetricsService storeMetricsService;
-
-    @NonNull
-    private final Supplier<Configuration> configurationSupplier;
+    private long nodeFeesCollected;
 
     /**
      * Constructor for the {@link BoundaryStateChangeListener} class.
@@ -90,6 +92,23 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             @NonNull final Supplier<Configuration> configurationSupplier) {
         this.storeMetricsService = requireNonNull(storeMetricsService);
         this.configurationSupplier = requireNonNull(configurationSupplier);
+    }
+
+    /**
+     * Returns the node fees collected in this block.
+     */
+    public long getAndResetNodeFeesThisBlock() {
+        final long collected = nodeFeesCollected;
+        nodeFeesCollected = 0;
+        return collected;
+    }
+
+    /**
+     * Tracks the collected node fees.
+     * @param nodeFeesCollected the node fees collected
+     */
+    public void trackCollectedNodeFees(final long nodeFeesCollected) {
+        this.nodeFeesCollected += nodeFeesCollected;
     }
 
     /**
@@ -334,9 +353,5 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             default -> throw new IllegalArgumentException(
                     "Unknown value type " + value.getClass().getName());
         }
-    }
-
-    private static BlockItem itemWith(@NonNull final StateChanges stateChanges) {
-        return BlockItem.newBuilder().stateChanges(stateChanges).build();
     }
 }

@@ -141,6 +141,11 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     void awaitFatalShutdown(@NonNull Duration timeout);
 
     /**
+     * Resets state associated to node rewards.
+     */
+    void resetNodeRewards();
+
+    /**
      * Records the nodes that missed creating judges during the last round. This information is
      * accumulated and recorded in node rewards state for each block. This also increments the number
      * of rounds in the staking period.

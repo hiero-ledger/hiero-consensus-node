@@ -4,12 +4,12 @@ package com.hedera.node.app.service.token.impl;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_KEY;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 
 /**
  * Default implementation of {@link ReadableNetworkStakingRewardsStore}.
@@ -41,10 +41,14 @@ public class WritableNodeRewardsStoreImpl extends ReadableNodeRewardsStoreImpl {
         nodeRewardsState.put(nodeRewards);
     }
 
-    public void resetCountsForNewPaymentPeriod() {
+    /**
+     * Resets the node rewards state for a new payment period.
+     */
+    public void resetForNewStakingPeriod() {
         nodeRewardsState.put(NodeRewards.newBuilder()
                 .numRoundsInStakingPeriod(0)
-                .nodeActivities(NodeActivity.DEFAULT)
+                .feesCollectedByRewardEligibleNodes(0)
+                .nodeActivities(List.of())
                 .build());
     }
 }

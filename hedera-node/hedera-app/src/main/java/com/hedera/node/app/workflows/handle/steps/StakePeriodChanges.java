@@ -79,7 +79,7 @@ public class StakePeriodChanges {
         if (isStakePeriodBoundary) {
             try {
                 exchangeRateManager.updateMidnightRates(stack);
-                stack.commitSystemStateChanges();
+                stack.commitFullStack();
             } catch (Exception e) {
                 logger.error("CATASTROPHIC failure updating midnight rates", e);
                 stack.rollbackFullStack();

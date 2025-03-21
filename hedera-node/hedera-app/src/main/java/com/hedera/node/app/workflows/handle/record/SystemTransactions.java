@@ -281,7 +281,7 @@ public class SystemTransactions {
                                 .rewardSumHistory(Arrays.asList(rewardSumHistory))
                                 .weight(DEFAULT_GENESIS_WEIGHT)
                                 .build());
-                stack.commitSystemStateChanges();
+                stack.commitFullStack();
             });
             systemContext.dispatchAdmin(b -> b.nodeCreate(NodeCreateTransactionBody.newBuilder()
                     .adminKey(adminKey)
@@ -588,7 +588,7 @@ public class SystemTransactions {
             if (controlledNum != null) {
                 controlledNum.put(new EntityNumber(
                         config.getConfigData(HederaConfig.class).firstUserEntity() - 1));
-                dispatch.stack().commitSystemStateChanges();
+                dispatch.stack().commitFullStack();
             }
             final var handleOutput =
                     parentTxn.stack().buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates());
@@ -634,7 +634,7 @@ public class SystemTransactions {
                             recordBuilder.status());
                 }
                 controlledNum.put(new EntityNumber(firstUserNum - 1));
-                dispatch.stack().commitSystemStateChanges();
+                dispatch.stack().commitFullStack();
             }
 
             @Override

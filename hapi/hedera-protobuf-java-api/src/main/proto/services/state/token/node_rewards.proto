@@ -44,6 +44,11 @@ message NodeRewards {
   uint64 num_rounds_in_staking_period = 1;
 
   /**
+   * The fees collected by reward-eligible node accounts in this period.
+   */
+  uint64 fees_collected_by_reward_eligible_nodes = 2;
+
+  /**
    * A list of node activities.<br/>
    * This records the number of rounds when each node created
    * judges for the consensus algorithm.
@@ -51,7 +56,7 @@ message NodeRewards {
    * This list SHALL contain one entry for each node participating
    * in consensus during this staking period.
    */
-  repeated NodeActivity node_activities = 2;
+  repeated NodeActivity node_activities = 3;
 }
 
 /**

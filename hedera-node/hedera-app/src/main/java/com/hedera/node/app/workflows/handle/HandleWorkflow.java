@@ -52,6 +52,8 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.schedule.ExecutableTxn;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.WritableScheduleStoreImpl;
@@ -82,6 +84,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -105,6 +108,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -291,38 +295,61 @@ public class HandleWorkflow {
      * @param now the current consensus time
      */
     private void rewardActiveNodesIfNewPeriod(@NonNull final State state, @NonNull final Instant now) {
+        final var config = configProvider.getConfiguration();
+        final var nodesConfig = config.getConfigData(NodesConfig.class);
+        if (!nodesConfig.nodeRewardsEnabled()) {
+            return;
+        }
         final var lastNodeRewardsPaymentTime = classifyLastNodeRewardsPaymentTime(state, now);
+        System.out.println("lastNodeRewardsPaymentTime: " + lastNodeRewardsPaymentTime);
         if (lastNodeRewardsPaymentTime == LastNodeRewardsPaymentTime.CURRENT_PERIOD) {
             return;
         }
-        final var config = configProvider.getConfiguration();
         final var writableStates = state.getWritableStates(TokenService.NAME);
+        final var nodeRewardStore = new WritableNodeRewardsStoreImpl(writableStates);
         // Don't try to pay rewards in the genesis edge case
         if (lastNodeRewardsPaymentTime == LastNodeRewardsPaymentTime.PREVIOUS_PERIOD) {
             // Identify the nodes active in the last staking period
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-            final var nodeRewardStore = new WritableNodeRewardsStoreImpl(writableStates);
-            final var nodeConfig = config.getConfigData(NodesConfig.class);
+            final var currentRoster =
+                    requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
             final var activeNodeIds =
-                    nodeRewardStore.getActiveNodeIds(requireNonNull(rosterStore.getActiveRoster()).rosterEntries(), nodeConfig.activeRoundsPercent());
+                    nodeRewardStore.getActiveNodeIds(currentRoster, nodesConfig.activeRoundsPercent());
 
             // And pay whatever rewards the network can afford
-            final var rewardsAccountId = entityIdFactory.newAccountId(config.getConfigData(AccountsConfig.class).nodeRewardAccount());
-            final var accountStore = new ReadableAccountStoreImpl(writableStates, new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME)));
+            final var rewardsAccountId = entityIdFactory.newAccountId(
+                    config.getConfigData(AccountsConfig.class).nodeRewardAccount());
+            final var entityCounters = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
+            final var accountStore = new ReadableAccountStoreImpl(writableStates, entityCounters);
             final long rewardBalance = requireNonNull(accountStore.getAccountById(rewardsAccountId))
                     .tinybarBalance();
-            // TODO: Calculate the average node fees collected
-            final long avgNodeFeesEarned = 0L;
-            final long totalReward = Math.min(rewardBalance, activeNodeIds.size() * Math.max(0, nodeConfig.minNodeReward() - avgNodeFeesEarned));
+            final var nodeStore =
+                    new ReadableNodeStoreImpl(state.getReadableStates(AddressBookService.NAME), entityCounters);
+            final long firstRewardEligibleNum =
+                    config.getConfigData(LedgerConfig.class).numSystemAccounts() + 1;
+            final int numRewardEligibleNodes = (int) currentRoster.stream()
+                    .filter(entry -> Optional.ofNullable(nodeStore.get(entry.nodeId()))
+                            .map(node -> node.accountIdOrThrow().accountNumOrThrow() >= firstRewardEligibleNum)
+                            .orElse(false))
+                    .count();
+            final long prePaidRewards = nodesConfig.adjustNodeFees()
+                    ? nodeRewardStore.get().feesCollectedByRewardEligibleNodes() / numRewardEligibleNodes
+                    : 0L;
+            final long totalReward = Math.min(
+                    rewardBalance, activeNodeIds.size() * Math.max(0, nodesConfig.minNodeReward() - prePaidRewards));
             if (totalReward > 0) {
                 systemTransactions.dispatchNodeRewards(state, now, activeNodeIds, totalReward, rewardsAccountId);
             }
-            nodeRewardStore.resetCountsForNewPaymentPeriod();
         }
-
         // Record this as the last time node rewards were paid
         final var rewardsStore = new WritableNetworkStakingRewardsStore(writableStates);
-        rewardsStore.put(rewardsStore.get().copyBuilder().lastNodeRewardPaymentsTime(asTimestamp(now)).build());
+        rewardsStore.put(rewardsStore
+                .get()
+                .copyBuilder()
+                .lastNodeRewardPaymentsTime(asTimestamp(now))
+                .build());
+        nodeRewardStore.resetForNewStakingPeriod();
+        blockStreamManager.resetNodeRewards();
         ((CommittableWritableStates) writableStates).commit();
     }
 
@@ -341,7 +368,8 @@ public class HandleWorkflow {
      * @param now the current time
      * @return whether the last time node rewards were paid was a different staking period
      */
-    private LastNodeRewardsPaymentTime classifyLastNodeRewardsPaymentTime(@NonNull final State state, @NonNull final Instant now) {
+    private LastNodeRewardsPaymentTime classifyLastNodeRewardsPaymentTime(
+            @NonNull final State state, @NonNull final Instant now) {
         final var networkRewardsStore =
                 new ReadableNetworkStakingRewardsStoreImpl(state.getReadableStates(TokenService.NAME));
         final var lastPaidTime = networkRewardsStore.get().lastNodeRewardPaymentsTime();
@@ -352,7 +380,9 @@ public class HandleWorkflow {
                 .getConfiguration()
                 .getConfigData(StakingConfig.class)
                 .periodMins();
-        return isNextStakingPeriod(asInstant(lastPaidTime), now, stakePeriodMins) ? LastNodeRewardsPaymentTime.PREVIOUS_PERIOD : LastNodeRewardsPaymentTime.CURRENT_PERIOD;
+        return isNextStakingPeriod(asInstant(lastPaidTime), now, stakePeriodMins)
+                ? LastNodeRewardsPaymentTime.PREVIOUS_PERIOD
+                : LastNodeRewardsPaymentTime.CURRENT_PERIOD;
     }
 
     /**
@@ -721,7 +751,7 @@ public class HandleWorkflow {
                     if (streamMode == RECORDS) {
                         // Only update this if we are relying on RecordManager state for post-upgrade processing
                         blockRecordManager.markMigrationRecordsStreamed();
-                        parentTxn.stack().commitSystemStateChanges();
+                        parentTxn.stack().commitFullStack();
                     }
                 }
 
