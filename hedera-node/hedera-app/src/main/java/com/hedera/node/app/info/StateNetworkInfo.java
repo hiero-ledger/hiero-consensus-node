@@ -84,16 +84,12 @@ public class StateNetworkInfo implements NetworkInfo {
         requireNonNull(state);
         requireNonNull(configProvider);
         this.activeRoster = requireNonNull(roster);
-<<<<<<< HEAD
-        this.configuration = configProvider.getConfiguration();
-        this.ledgerId = configuration.getConfigData(LedgerConfig.class).id();
-=======
         this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
+        this.configuration = configProvider.getConfiguration();
         this.ledgerId = configProvider
                 .getConfiguration()
                 .getConfigData(LedgerConfig.class)
                 .id();
->>>>>>> 6b17cd5c6ba04d125609bbd56d44bc2940b04239
         this.nodeInfos = nodeInfosFrom(state);
         this.selfId = selfId;
     }
@@ -141,33 +137,6 @@ public class StateNetworkInfo implements NetworkInfo {
      * @return a map of node information
      */
     private Map<Long, NodeInfo> nodeInfosFrom(@NonNull final State state) {
-<<<<<<< HEAD
-        final ReadableKVState<EntityNumber, Node> nodes =
-                state.getReadableStates(AddressBookService.NAME).get(NODES_KEY);
-        final Map<Long, NodeInfo> nodeInfos = new LinkedHashMap<>();
-        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-        for (final var rosterEntry : activeRoster.rosterEntries()) {
-            // At genesis the node store is derived from the roster, hence must have info for every
-            // node id; and from then on, the roster is derived from the node store, and hence the
-            // node store must have every node id in the roster.
-            final var node = nodes.get(new EntityNumber(rosterEntry.nodeId()));
-            if (node != null) {
-                // Notice it's possible the node could be deleted here, because a DAB transaction removed
-                // it from the future address book; that doesn't mean we should stop using it in the current
-                // version of the software
-                nodeInfos.put(rosterEntry.nodeId(), fromRosterEntry(rosterEntry, node));
-            } else {
-                nodeInfos.put(
-                        rosterEntry.nodeId(),
-                        fromRosterEntry(
-                                rosterEntry,
-                                AccountID.newBuilder()
-                                        .shardNum(hederaConfig.shard())
-                                        .realmNum(hederaConfig.realm())
-                                        .accountNum(rosterEntry.nodeId() + 3)
-                                        .build()));
-                log.warn("Node {} not found in node store", rosterEntry.nodeId());
-=======
         final var entityCounts = state.getReadableStates(EntityIdService.NAME)
                 .<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY);
         final var nodeInfos = new LinkedHashMap<Long, NodeInfo>();
@@ -190,6 +159,7 @@ public class StateNetworkInfo implements NetworkInfo {
         } else {
             final ReadableKVState<EntityNumber, Node> nodes =
                     state.getReadableStates(AddressBookService.NAME).get(NODES_KEY);
+            final var hederaConfig = configuration.getConfigData(HederaConfig.class);
             for (final var rosterEntry : activeRoster.rosterEntries()) {
                 // At genesis the node store is derived from the roster, hence must have info for every
                 // node id; and from then on, the roster is derived from the node store, and hence the
@@ -206,11 +176,12 @@ public class StateNetworkInfo implements NetworkInfo {
                             fromRosterEntry(
                                     rosterEntry,
                                     AccountID.newBuilder()
+                                            .shardNum(hederaConfig.shard())
+                                            .realmNum(hederaConfig.realm())
                                             .accountNum(rosterEntry.nodeId() + 3)
                                             .build()));
                     log.warn("Node {} not found in node store", rosterEntry.nodeId());
                 }
->>>>>>> 6b17cd5c6ba04d125609bbd56d44bc2940b04239
             }
         }
         return Collections.unmodifiableMap(nodeInfos);
