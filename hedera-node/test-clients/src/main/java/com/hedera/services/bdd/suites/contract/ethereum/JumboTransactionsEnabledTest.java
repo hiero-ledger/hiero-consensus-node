@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -31,17 +32,24 @@ import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.api.DynamicTest;
 
 @Tag(UPGRADE)
 @Order(Integer.MAX_VALUE - 123)
 @HapiTestLifecycle
 @OrderedInIsolation
 public class JumboTransactionsEnabledTest implements LifecycleTest {
+
+    private static final int SMALL_TXN_SIZE = 6 * 1024;
+    private static final int MAX_ALLOWED_SIZE = 128 * 1024;
+    private static final int ABOVE_MAX_SIZE = 129 * 1024;
+    private static final int OVERSIZED_TXN_SIZE = 130 * 1024;
+    private static final String CONTRACT_NAME = "CalldataSize";
+    private static final String FUNCTION_NAME = "callme";
 
     private static HapiEthereumCall jumboEthCall(String contract, String function, byte[] payload) {
         return ethereumCall(contract, function, payload)
@@ -54,119 +62,74 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
     @HapiTest
     @Order(1)
-    @DisplayName("Jumbo transaction should pass")
-    public Stream<DynamicTest> jumboTransactionShouldPass() {
-        final var contract = "CalldataSize";
-        final var function = "callme";
+    @DisplayName("Enable jumbo transactions")
+    public Stream<DynamicTest> jumboTransactionShouldBeEnabled() {
         final var size = 10 * 1024;
-        final var payload = new byte[size];
         return hapiTest(
-                // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),
-                // so we can't toggle it via overriding(). Instead, we need to upgrade to the config version.
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                uploadInitCode(contract),
-                contractCreate(contract),
-                contractCall(contract, function, payload)
-                        .gas(1_000_000L)
-                        // gRPC request terminated immediately
-                        .orUnavailableStatus(),
-                ethereumCall(contract, function, payload)
-                        .markAsJumboTxn()
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .payingWith(RELAYER)
-                        .gasLimit(1_000_000L)
-                        // Ethereum call should pass
-                        // (TRANSACTION_OVERSIZE will be returned on ingest until we merge the ingest checks)
-                        .hasPrecheckFrom(OK, TRANSACTION_OVERSIZE));
+                upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()));
     }
 
     @Nested
     @DisplayName("Jumbo Ethereum Transactions Positive Tests")
     class JumboEthereumTransactionsPositiveTests {
-        private static final int UNDER_SMALL_TXN_SIZE = 2 * 1024;
-        private static final int SMALL_TXN_SIZE = 6 * 1024;
-        private static final int MAX_ALLOWED_SIZE = 128 * 1024;
-        private static final String CONTRACT_NAME = "CalldataSize";
-        private static final String FUNCTION_NAME = "callme";
+        private final Stream<Integer> positiveTestCases = Stream.of(SMALL_TXN_SIZE, MAX_ALLOWED_SIZE);
+
 
         @HapiTest
         @Order(2)
         @DisplayName("Jumbo Ethereum transactions should pass for valid sizes")
-        @TestFactory
-        // JUMBO_P_01, JUMBO_P_03, JUMBO_P_03, JUMBO_P_04
         public Stream<DynamicTest> jumboTxnWithEthereumDataLessThanAllowedKbShouldPass() {
-            return Stream.of(UNDER_SMALL_TXN_SIZE, SMALL_TXN_SIZE)
-                    .map(txnSize -> DynamicTest.dynamicTest("Valid Jumbo Txn with size: " + txnSize, () -> {
-                        final var payload = new byte[txnSize];
-
-                        hapiTest(
-                                prepareFakeUpgrade(),
-                                upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
-                                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                                cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
-                                cryptoTransfer(tinyBarsFromAccountToAlias(
-                                        GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                                uploadInitCode(CONTRACT_NAME),
-                                contractCreate(CONTRACT_NAME),
-                                jumboEthCall(CONTRACT_NAME, FUNCTION_NAME, payload)
-                                        .hasPrecheckFrom(OK, TRANSACTION_OVERSIZE));
-                    }));
+            return positiveTestCases.flatMap(txnSize -> hapiTest(
+                    logIt("Valid Jumbo Txn with size: " + (txnSize / 1024) + "KB"),
+                    prepareFakeUpgrade(),
+                    upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
+                    uploadInitCode(CONTRACT_NAME),
+                    contractCreate(CONTRACT_NAME),
+                    jumboEthCall(CONTRACT_NAME, FUNCTION_NAME, new byte[txnSize])
+                            .hasPrecheckFrom(OK, TRANSACTION_OVERSIZE)
+            ));
         }
     }
 
     @Nested
     @DisplayName("Jumbo Ethereum Transactions Negative Tests")
     class JumboEthereumTransactionsNegativeTests {
-        private static final int SMALL_TXN_SIZE = 6 * 1024;
-        private static final int MAX_ALLOWED_SIZE = 128 * 1024;
-        private static final int ABOVE_MAX_SIZE = 129 * 1024;
-        private static final int OVERSIZED_TXN_SIZE = 130 * 1024;
-        private static final String CONTRACT_NAME = "CalldataSize";
-        private static final String FUNCTION_NAME = "callme";
+        private final Stream<Integer> oversizedCases = Stream.of(ABOVE_MAX_SIZE, OVERSIZED_TXN_SIZE);
+        private final Stream<Integer> insufficientFeeCases = Stream.of(SMALL_TXN_SIZE, MAX_ALLOWED_SIZE);
 
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail for oversized data")
-        @TestFactory
         @Order(3)
-        // JUMBO_N_01, JUMBO_N_02
-        Stream<DynamicTest> jumboTxnWithOversizedDataShouldFail() {
-            return Stream.of(ABOVE_MAX_SIZE, OVERSIZED_TXN_SIZE)
-                    .map(txnSize -> DynamicTest.dynamicTest("Oversized Jumbo Txn with size: " + txnSize, () -> {
-                        final var payload = new byte[txnSize];
-
-                        hapiTest(
-                                prepareFakeUpgrade(),
-                                upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
-                                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                                cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
-                                jumboEthCall(CONTRACT_NAME, FUNCTION_NAME, payload)
-                                        .hasPrecheck(TRANSACTION_OVERSIZE));
-                    }));
+        public Stream<DynamicTest> jumboTxnWithOversizedDataShouldFail() {
+            return oversizedCases.flatMap(txnSize -> hapiTest(
+                    logIt("Invalid Jumbo Txn with size: " + (txnSize / 1024) + "KB"),
+                    prepareFakeUpgrade(),
+                    upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                    jumboEthCall(CONTRACT_NAME, FUNCTION_NAME, new byte[txnSize])
+                            .hasPrecheck(TRANSACTION_OVERSIZE)
+            ));
         }
 
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail due to insufficient fees")
         @TestFactory
         @Order(4)
-        // JUMBO_N_14
-        Stream<DynamicTest> jumboTxnWithInsufficientFeesShouldFail() {
-            return Stream.of(SMALL_TXN_SIZE, MAX_ALLOWED_SIZE)
-                    .map(txnSize -> DynamicTest.dynamicTest("Jumbo Txn with insufficient fee, size: " + txnSize, () -> {
-                        final var payload = new byte[txnSize];
-
-                        hapiTest(
-                                prepareFakeUpgrade(),
-                                upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
-                                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                                cryptoCreate(RELAYER).balance(1L),
-                                jumboEthCall(CONTRACT_NAME, FUNCTION_NAME, payload)
-                                        .hasPrecheck(INSUFFICIENT_TX_FEE));
-                    }));
+        public Stream<DynamicTest> jumboTxnWithInsufficientFeesShouldFail() {
+            return insufficientFeeCases.flatMap(txnSize -> hapiTest(
+                    logIt("Invalid Jumbo Txn with insufficient fees and size: " + (txnSize / 1024) + "KB"),
+                    prepareFakeUpgrade(),
+                    upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(RELAYER).balance(1L),
+                    jumboEthCall(CONTRACT_NAME, FUNCTION_NAME, new byte[txnSize])
+                            .hasPrecheck(INSUFFICIENT_TX_FEE)
+            ));
         }
     }
 }
