@@ -3,6 +3,8 @@ plugins { id("org.hiero.gradle.module.library") }
 
 description = "Default Hedera Util Service Implementation"
 
+configurations.all { resolutionStrategy { force("com.github.ben-manes.caffeine:caffeine:3.2.0") } }
+
 mainModuleInfo { annotationProcessor("dagger.compiler") }
 
 testModuleInfo {

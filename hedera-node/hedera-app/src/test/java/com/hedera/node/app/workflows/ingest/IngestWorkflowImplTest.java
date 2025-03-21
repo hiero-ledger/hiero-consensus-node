@@ -13,8 +13,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -89,9 +87,6 @@ class IngestWorkflowImplTest extends AppTestBase {
     IngestChecker ingestChecker;
 
     @Mock(strictness = LENIENT)
-    TransactionChecker transactionChecker;
-
-    @Mock(strictness = LENIENT)
     SubmissionManager submissionManager;
 
     @Mock(strictness = LENIENT)
@@ -121,7 +116,6 @@ class IngestWorkflowImplTest extends AppTestBase {
 
         // Mock out the onset to always return a valid parsed object
         transaction = Transaction.newBuilder().body(transactionBody).build();
-        when(transactionChecker.parse(eq(requestBuffer), anyInt())).thenReturn(transaction);
         final var transactionInfo = new TransactionInfo(
                 transaction,
                 transactionBody,
@@ -129,11 +123,10 @@ class IngestWorkflowImplTest extends AppTestBase {
                 randomBytes(100), // Not used in this test, so random bytes is OK
                 HederaFunctionality.CONSENSUS_CREATE_TOPIC,
                 null);
-        when(ingestChecker.runAllChecks(state, transaction, configuration)).thenReturn(transactionInfo);
+        when(ingestChecker.runAllChecks(state, requestBuffer, configuration)).thenReturn(transactionInfo);
 
         // Create the workflow we are going to test with
-        workflow = new IngestWorkflowImpl(
-                stateAccessor, ingestChecker, transactionChecker, submissionManager, configProvider);
+        workflow = new IngestWorkflowImpl(stateAccessor, ingestChecker, submissionManager, configProvider);
     }
 
     @Test
@@ -217,14 +210,14 @@ class IngestWorkflowImplTest extends AppTestBase {
         }
 
         @Test
-        @DisplayName("If some random exception is thrown from TransactionChecker, the exception is bubbled up")
+        @DisplayName("If some random exception is thrown from IngestChecker, the exception is bubbled up")
         void randomException() throws PreCheckException, ParseException {
             // Given a WorkflowOnset that will throw a RuntimeException
-            when(transactionChecker.parse(any(), anyInt())).thenThrow(new RuntimeException("parseAndCheck exception"));
+            when(ingestChecker.runAllChecks(any(), any(), any()))
+                    .thenThrow(new RuntimeException("parseAndCheck exception"));
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);
-
             // Then the response will indicate the platform rejected the transaction
             final TransactionResponse response = parseResponse(responseBuffer);
             assertThat(response.nodeTransactionPrecheckCode()).isEqualTo(FAIL_INVALID);
@@ -251,7 +244,7 @@ class IngestWorkflowImplTest extends AppTestBase {
         @DisplayName("When ingest checks fail, the transaction should be rejected")
         void testIngestChecksFail(ResponseCodeEnum failureReason) throws PreCheckException, ParseException {
             // Given a throttle on CONSENSUS_CREATE_TOPIC transactions (i.e. it is time to throttle)
-            when(ingestChecker.runAllChecks(state, transaction, configuration))
+            when(ingestChecker.runAllChecks(state, requestBuffer, configuration))
                     .thenThrow(new PreCheckException(failureReason));
 
             // When the transaction is submitted
@@ -270,7 +263,7 @@ class IngestWorkflowImplTest extends AppTestBase {
         @DisplayName("If some random exception is thrown from IngestChecker, the exception is bubbled up")
         void randomException() throws PreCheckException, ParseException {
             // Given a ThrottleAccumulator that will throw a RuntimeException
-            when(ingestChecker.runAllChecks(state, transaction, configuration))
+            when(ingestChecker.runAllChecks(state, requestBuffer, configuration))
                     .thenThrow(new RuntimeException("runAllChecks exception"));
 
             // When the transaction is submitted

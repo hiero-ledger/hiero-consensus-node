@@ -9,7 +9,7 @@ module com.hedera.node.app.service.util.impl {
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
     requires com.hedera.node.config;
-    requires com.google.common;
+    requires com.github.benmanes.caffeine;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 
