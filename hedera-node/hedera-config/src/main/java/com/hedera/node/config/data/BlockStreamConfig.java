@@ -24,6 +24,7 @@ import java.time.Duration;
  * @param waitPeriodForActiveConnection the time in minutes to wait for an active connection
  * @param grpcAddress the address of the gRPC server
  * @param grpcPort the port of the gRPC server
+ * @param streamBlockHeaderSeparately whether to stream the block header separately from other items in order to reduce latency
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
@@ -38,7 +39,8 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "0") @Min(0) @NetworkProperty Duration blockPeriod,
         @ConfigProperty(defaultValue = "2") @NetworkProperty long waitPeriodForActiveConnection,
         @ConfigProperty(defaultValue = "localhost") String grpcAddress,
-        @ConfigProperty(defaultValue = "8080") @Min(0) @Max(65535) int grpcPort) {
+        @ConfigProperty(defaultValue = "8080") @Min(0) @Max(65535) int grpcPort,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean streamBlockHeaderSeparately) {
 
     /**
      * Whether to stream to block nodes.

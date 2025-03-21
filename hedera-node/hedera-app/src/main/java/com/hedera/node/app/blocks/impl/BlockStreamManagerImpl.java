@@ -94,6 +94,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
+    private final boolean streamBlockHeaderSeparately;
 
     // The status of pending work
     private PendingWork pendingWork = NONE;
@@ -183,6 +184,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
         this.blockPeriod = blockStreamConfig.blockPeriod();
         this.hashCombineBatchSize = blockStreamConfig.hashCombineBatchSize();
+        this.streamBlockHeaderSeparately = blockStreamConfig.streamBlockHeaderSeparately();
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
@@ -644,7 +646,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (header != null) {
                 writer.openBlock(header.number());
             }
-            writer.writePbjItem(serialized);
+
+            if (streamBlockHeaderSeparately && header != null) {
+                writer.writeBlockHeaderItem(serialized);
+            } else {
+                writer.writePbjItem(serialized);
+            }
 
             next.send();
             return true;
