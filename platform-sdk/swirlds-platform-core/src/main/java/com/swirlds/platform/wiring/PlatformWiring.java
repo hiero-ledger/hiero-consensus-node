@@ -33,6 +33,7 @@ import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.AncientMode;
+import com.swirlds.platform.event.FutureEventBuffer;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
@@ -102,6 +103,8 @@ public class PlatformWiring {
     private final PlatformContext platformContext;
     private final PlatformSchedulersConfig config;
 
+    private final AncientMode ancientMode;
+
     private final ComponentWiring<EventHasher, PlatformEvent> eventHasherWiring;
     private final ComponentWiring<InternalEventValidator, PlatformEvent> internalEventValidatorWiring;
     private final ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring;
@@ -114,6 +117,7 @@ public class PlatformWiring {
     private final ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring;
     private final PcesReplayerWiring pcesReplayerWiring;
     private final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring;
+    private final ComponentWiring<FutureEventBuffer, PlatformEvent> futureEventBufferWiring;
     private final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             applicationTransactionPrehandlerWiring;
     private final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring;
@@ -168,7 +172,7 @@ public class PlatformWiring {
 
         config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
 
-        final AncientMode ancientMode = platformContext
+        ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
@@ -224,6 +228,7 @@ public class PlatformWiring {
         pcesReplayerWiring = PcesReplayerWiring.create(model);
 
         pcesInlineWriterWiring = new ComponentWiring<>(model, InlinePcesWriter.class, config.pcesInlineWriter());
+        futureEventBufferWiring = new ComponentWiring<>(model, FutureEventBuffer.class, config.futureEventBuffer());
 
         eventWindowManagerWiring =
                 new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
@@ -288,7 +293,8 @@ public class PlatformWiring {
                 statusStateMachineWiring,
                 branchDetectorWiring,
                 branchReporterWiring,
-                pcesInlineWriterWiring);
+                pcesInlineWriterWiring,
+                futureEventBufferWiring);
 
         wire();
     }
@@ -324,6 +330,8 @@ public class PlatformWiring {
                 transactionResubmitterWiring.getInputWire(TransactionResubmitter::updateEventWindow));
         eventWindowOutputWire.solderTo(branchDetectorWiring.getInputWire(BranchDetector::updateEventWindow), INJECT);
         eventWindowOutputWire.solderTo(branchReporterWiring.getInputWire(BranchReporter::updateEventWindow), INJECT);
+        eventWindowOutputWire.solderTo(
+                futureEventBufferWiring.getInputWire(FutureEventBuffer::updateEventWindow), INJECT);
     }
 
     /**
@@ -383,18 +391,34 @@ public class PlatformWiring {
         final OutputWire<PlatformEvent> splitOrphanBufferOutput = orphanBufferWiring.getSplitOutput();
 
         splitOrphanBufferOutput.solderTo(pcesInlineWriterWiring.getInputWire(InlinePcesWriter::writeEvent));
-        // make sure that an event is persisted before being sent to consensus, this avoids the situation where we
-        // reach consensus with events that might be lost due to a crash
-        pcesInlineWriterWiring.getOutputWire().solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
-        // make sure events are persisted before being gossipped, this prevents accidental branching in the case
-        // where an event is created, gossipped, and then the node crashes before the event is persisted.
-        // after restart, a node will not be aware of this event, so it can create a branch
-        pcesInlineWriterWiring.getOutputWire().solderTo(gossipWiring.getEventInput(), INJECT);
-        // avoid using events as parents before they are persisted
-        pcesInlineWriterWiring
-                .getOutputWire()
-                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
 
+        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
+            pcesInlineWriterWiring
+                    .getOutputWire()
+                    .solderTo(futureEventBufferWiring.getInputWire(FutureEventBuffer::addEvent));
+
+            futureEventBufferWiring
+                    .getOutputWire()
+                    .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
+            futureEventBufferWiring.getOutputWire().solderTo(gossipWiring.getEventInput(), INJECT);
+            futureEventBufferWiring
+                    .getOutputWire()
+                    .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
+        } else {
+            // make sure that an event is persisted before being sent to consensus, this avoids the situation where we
+            // reach consensus with events that might be lost due to a crash
+            pcesInlineWriterWiring
+                    .getOutputWire()
+                    .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
+            // make sure events are persisted before being gossipped, this prevents accidental branching in the case
+            // where an event is created, gossipped, and then the node crashes before the event is persisted.
+            // after restart, a node will not be aware of this event, so it can create a branch
+            pcesInlineWriterWiring.getOutputWire().solderTo(gossipWiring.getEventInput(), INJECT);
+            // avoid using events as parents before they are persisted
+            pcesInlineWriterWiring
+                    .getOutputWire()
+                    .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
+        }
         model.getHealthMonitorWire()
                 .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::reportUnhealthyDuration));
 
@@ -718,6 +742,7 @@ public class PlatformWiring {
         gossipWiring.bind(builder.buildGossip());
         branchDetectorWiring.bind(builder::buildBranchDetector);
         branchReporterWiring.bind(builder::buildBranchReporter);
+        futureEventBufferWiring.bind(builder::buildFutureEventBuffer);
     }
 
     /**

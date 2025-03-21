@@ -9,7 +9,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 
 # Add the flag "--less-mystery" to add back labels for mystery input wires (noisy diagram warning)
 
-pcli diagram \
+../../../../../../../../swirlds-cli/pcli.sh diagram \
     -l 'TransactionPrehandler:futures:TransactionHandler' \
     -l 'EventCreationManager:get transactions:TransactionPool' \
     -l 'ConsensusEventStream:future hash:TransactionHandler' \
@@ -32,7 +32,7 @@ pcli diagram \
     -s 'StatusStateMachine:PlatformStatus:🚦' \
     -s 'HealthMonitor:health info:🏥' \
     -g 'Orphan Buffer:OrphanBuffer,OrphanBufferSplitter' \
-    -g 'Event Intake:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer' \
+    -g 'Event Intake:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter,FutureEventBuffer' \
     -g 'Consensus Engine:ConsensusEngine,ConsensusEngineSplitter,EventWindowManager,getCesEvents' \
     -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumGenerationOnDisk,toStateWrittenToDiskAction,toNotification' \
     -g 'State File Management:State Snapshot Manager,📀,💾' \
