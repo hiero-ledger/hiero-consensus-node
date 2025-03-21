@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractBytecode;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
@@ -76,7 +77,6 @@ public class ContractGetBytecodeSuite {
                             });
                     allRunFor(spec, getBytecode);
 
-                    @SuppressWarnings("UnstableApiUsage")
                     final var originalBytecode =
                             Hex.decode(Files.toByteArray(new File(getResourcePath(contract, ".bin"))));
                     final var actualBytecode = spec.registry().getBytes("contractByteCode");
@@ -106,5 +106,21 @@ public class ContractGetBytecodeSuite {
         return hapiTest(getContractBytecode(NON_EXISTING_CONTRACT)
                 .nodePayment(27_159_182L)
                 .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_CONTRACT_ID));
+    }
+
+    // TODO Glib: work on this test? add bytecode check?
+    @HapiTest
+    final Stream<DynamicTest> getByteCodeWorksForToken() {
+        final var token = "TokenCreateContract";
+        return hapiTest(tokenCreate(token).asCallableContract(), withOpContext((spec, opLog) -> {
+            final var getBytecode = getContractBytecode(token).saveResultTo("tokenByteCode");
+            allRunFor(spec, getBytecode);
+
+            final var originalBytecode = Hex.decode(Files.toByteArray(new File(getResourcePath(token, ".bin"))));
+            final var actualBytecode = spec.registry().getBytes("tokenByteCode");
+            // The original bytecode is modified on deployment
+            final var expectedBytecode = Arrays.copyOfRange(originalBytecode, 29, originalBytecode.length);
+            Assertions.assertArrayEquals(expectedBytecode, actualBytecode);
+        }));
     }
 }

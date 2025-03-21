@@ -601,6 +601,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         return null;
     }
 
+    // TODO Glib: is this should be used in ContractGetBytecodeHandler for token?
     private Bytes proxyBytecodeFor(@NonNull final Address address) {
         requireNonNull(address);
         return Bytes.fromHexString(
