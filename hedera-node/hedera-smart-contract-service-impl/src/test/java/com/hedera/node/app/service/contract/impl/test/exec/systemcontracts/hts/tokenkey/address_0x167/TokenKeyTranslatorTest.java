@@ -15,8 +15,9 @@ import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyCommons;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.address_0x167.TokenKeyTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -98,8 +99,6 @@ class TokenKeyTranslatorTest extends CallAttemptTestBase {
     }
 
     private Key keyBuilder(final String keyName) {
-        return Key.newBuilder()
-                .ed25519(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(keyName.getBytes()))
-                .build();
+        return Key.newBuilder().ed25519(Bytes.wrap(keyName.getBytes())).build();
     }
 }
