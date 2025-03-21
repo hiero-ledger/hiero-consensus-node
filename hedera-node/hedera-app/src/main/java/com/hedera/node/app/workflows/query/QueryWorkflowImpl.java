@@ -257,7 +257,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             null);
                 }
 
-                // 4. Check validity of query //TODO Glib: why the query validation happen adter computeFees?
+                // 4. Check validity of query
                 handler.validate(context);
 
                 // 5. Check query throttles

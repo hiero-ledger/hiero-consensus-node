@@ -192,7 +192,7 @@ public class ConversionUtils {
     /**
      * Given a {@link TokenID}, returns its address as a headlong address.
      *
-     * @param tokenId
+     * @param tokenId the
      * @return
      */
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final TokenID tokenId) {
@@ -913,6 +913,31 @@ public class ConversionUtils {
                     .accountNum(contractId.contractNumOrElse(0L))
                     .build());
         }
+    }
+
+    /**
+     * Given a {@link ContractID} return the corresponding Long entity id
+     * The id can be tokenId, scheduleId, etc. Depends on what user is sending in the 'contractID' field
+     *
+     * @param entityIdFactory the entity id factory
+     * @param contractId the contract id
+     * @return the equivalent entity id
+     */
+    public static @NonNull Long contractIDToNum(
+            @NonNull final EntityIdFactory entityIdFactory, final ContractID contractId) {
+        final Long id;
+        // For convenience also translate a long-zero address to a token ID
+        if (contractId.hasEvmAddress()) {
+            final var evmAddress = contractId.evmAddressOrThrow().toByteArray();
+            if (isLongZeroAddress(entityIdFactory, evmAddress)) {
+                id = numberOfLongZero(evmAddress);
+            } else {
+                id = 0L;
+            }
+        } else {
+            id = contractId.contractNumOrElse(0L);
+        }
+        return id;
     }
 
     /**

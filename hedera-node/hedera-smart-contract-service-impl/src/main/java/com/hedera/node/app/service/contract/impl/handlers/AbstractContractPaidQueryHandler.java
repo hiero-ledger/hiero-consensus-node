@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.handlers;
 
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
@@ -49,15 +50,15 @@ public abstract class AbstractContractPaidQueryHandler<T> extends PaidQueryHandl
     }
 
     protected @Nullable Token tokenFrom(@NonNull final QueryContext context, @NonNull final ContractID contractId) {
-        var tokenNum = contractId.contractNumOrElse(0L);
-        // For convenience also translate a long-zero address to a token ID
-        if (contractId.hasEvmAddress()) {
-            final var evmAddress = contractId.evmAddressOrThrow().toByteArray();
-            if (isLongZeroAddress(entityIdFactory, evmAddress)) {
-                tokenNum = numberOfLongZero(evmAddress);
-            }
-        }
-        final var tokenID = entityIdFactory.newTokenId(tokenNum);
+        // TODO Glib: Should we use entityIdFactory instead of new ... everywhere?
+        final var tokenID = entityIdFactory.newTokenId(ConversionUtils.contractIDToNum(entityIdFactory, contractId));
         return context.createStore(ReadableTokenStore.class).get(tokenID);
+    }
+
+    protected @Nullable Schedule scheduleFrom(
+            @NonNull final QueryContext context, @NonNull final ContractID contractId) {
+        final var scheduleId =
+                entityIdFactory.newScheduleId(ConversionUtils.contractIDToNum(entityIdFactory, contractId));
+        return context.createStore(ReadableScheduleStore.class).get(scheduleId);
     }
 }

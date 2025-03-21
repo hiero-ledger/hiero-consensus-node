@@ -6,10 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbjResponseType;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
-import static com.hedera.node.app.spi.validation.Validations.mustExist;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -18,16 +14,22 @@ import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.contract.ContractGetBytecodeQuery;
 import com.hedera.hapi.node.contract.ContractGetBytecodeResponse;
+import com.hedera.hapi.node.state.schedule.Schedule;
+import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
+import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.app.service.contract.impl.utils.RedirectBytecodeUtils;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -62,25 +64,27 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
 
     @Override
     public void validate(@NonNull final QueryContext context) throws PreCheckException {
-        // TODO Glib: use this validate in ContractCallLocalHandler.validate, ContractGetInfoHandler.validate mb
-        // somewhere else?
         requireNonNull(context);
-        // contract id validation
-        final var contractId = getContractId(context);
-        mustExist(contractId, INVALID_CONTRACT_ID);
-        if (contractId.hasEvmAddress()) {
-            validateTruePreCheck(
-                    contractId.evmAddressOrThrow().length() == EVM_ADDRESS_LENGTH_AS_INT, INVALID_CONTRACT_ID);
-        }
-        // contract account/token validation
-        final var contract = contractFrom(context, contractId);
-        if (contract == null) {
-            final var token = tokenFrom(context, contractId);
-            mustExist(token, INVALID_CONTRACT_ID);
-            // TODO Glib: mb return TOKEN_WAS_DELETED?
-            validateFalsePreCheck(token.deleted(), CONTRACT_DELETED);
+        final ContractID contractId;
+        final Account contract;
+        final Token token;
+        final Schedule schedule;
+        if ((contractId = getContractId(context)) == null) {
+            throw new PreCheckException(INVALID_CONTRACT_ID);
+        } else if ((contract = contractFrom(context, contractId)) != null) {
+            if (contract.deleted()) {
+                throw new PreCheckException(CONTRACT_DELETED);
+            }
+        } else if ((token = tokenFrom(context, contractId)) != null) {
+            if (token.deleted()) {
+                throw new PreCheckException(CONTRACT_DELETED);
+            }
+        } else if ((schedule = scheduleFrom(context, contractId)) != null) {
+            if (schedule.deleted()) {
+                throw new PreCheckException(CONTRACT_DELETED);
+            }
         } else {
-            validateFalsePreCheck(contract.deleted(), CONTRACT_DELETED);
+            throw new PreCheckException(INVALID_CONTRACT_ID);
         }
     }
 
@@ -119,28 +123,45 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
         return context.feeCalculator().legacyCalculate(sigValueObj -> usage);
     }
 
+    /**
+     * Checks if the current contractId from the context is: account(contract), token or schedule and return the related
+     * bytecode
+     *
+     * @param context Context of a single query. Contains all query specific information.
+     * @return Bytecode
+     */
     private Bytes bytecodeFrom(@NonNull final QueryContext context) {
-        final var contractId = getContractId(context);
-        if (contractId == null) {
+        final ContractID contractId;
+        final Account contract;
+        final Token token;
+        final Schedule schedule;
+        if ((contractId = getContractId(context)) == null) {
             return null;
-        } else {
-            final var contract = contractFrom(context, contractId);
-            if (contract == null) {
-                final var token = tokenFrom(context, contractId);
-                if (token == null || token.deleted()) {
-                    return null;
-                } else {
-                    // TODO Glib: how to get token bytecode?
-                    return bytecodeFrom(context, contractId);
-                }
+        } else if ((contract = contractFrom(context, contractId)) != null) {
+            if (contract.deleted()) {
+                return null;
             } else {
-                if (contract.deleted()) {
-                    return null;
-                } else {
-                    // TODO Glib: what bytecode will be returned if contract or token is deleted?
-                    return bytecodeFrom(context, contractId);
-                }
+                final var bytecode = bytecodeFrom(context, contractId);
+                return Objects.requireNonNullElseGet(
+                        bytecode,
+                        () -> RedirectBytecodeUtils.accountProxyBytecodePjb(
+                                ConversionUtils.contractIDToBesuAddress(contractId)));
             }
+        } else if ((token = tokenFrom(context, contractId)) != null) {
+            if (token.deleted()) {
+                return null;
+            } else {
+                return RedirectBytecodeUtils.tokenProxyBytecodePjb(ConversionUtils.contractIDToBesuAddress(contractId));
+            }
+        } else if ((schedule = scheduleFrom(context, contractId)) != null) {
+            if (schedule.deleted()) {
+                return null;
+            } else {
+                return RedirectBytecodeUtils.scheduleProxyBytecodePjb(
+                        ConversionUtils.contractIDToBesuAddress(contractId));
+            }
+        } else {
+            return null;
         }
     }
 
