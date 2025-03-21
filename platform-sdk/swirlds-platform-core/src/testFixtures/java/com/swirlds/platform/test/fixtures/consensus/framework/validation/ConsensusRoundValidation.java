@@ -14,8 +14,9 @@ public interface ConsensusRoundValidation {
     /**
      * Perform validation on all consensus rounds.
      *
-     * @param output1 the rounds from one node
-     * @param output2 the rounds from another node
+     * @param firstRoundsList the rounds from one node
+     * @param secondRoundsList the rounds from another node
      */
-    void validate(@NonNull final List<ConsensusRound> output1, @NonNull final List<ConsensusRound> output2);
+    void validate(
+            @NonNull final List<ConsensusRound> firstRoundsList, @NonNull final List<ConsensusRound> secondRoundsList);
 }

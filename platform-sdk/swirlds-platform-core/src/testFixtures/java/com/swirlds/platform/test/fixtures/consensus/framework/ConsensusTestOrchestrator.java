@@ -5,8 +5,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.EventConstants;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidation;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.gui.ListEventProvider;
 import com.swirlds.platform.test.fixtures.gui.TestGuiSource;
@@ -93,26 +92,27 @@ public class ConsensusTestOrchestrator {
     /**
      * Validates the output of all nodes against the given validations and clears the output
      *
-     * @param validations the validations to run
+     * @param consensusOutputValidator the validator to run all neeeded validations
      */
-    public void validateAndClear(final Validations validations) {
-        validate(validations);
+    public void validateAndClear(final ConsensusOutputValidator consensusOutputValidator) {
+        validate(consensusOutputValidator);
         clearOutput();
     }
 
     /**
      * Validates the output of all nodes against the given validations
      *
-     * @param validations the validations to run
+     * @param consensusOutputValidator the validator to run
      */
-    public void validate(final Validations validations) {
-        final ConsensusTestNode node1 = nodes.get(0);
+    public void validate(final ConsensusOutputValidator consensusOutputValidator) {
+        final ConsensusTestNode node1 = nodes.getFirst();
         for (int i = 1; i < nodes.size(); i++) {
-            final ConsensusTestNode node2 = nodes.get(i);
-            for (final ConsensusOutputValidation validator :
-                    validations.getConsensusValidator().getOutputValidations()) {
-                validator.validate(node1.getOutput(), node2.getOutput());
-            }
+            final ConsensusTestNode otherNode = nodes.get(i);
+
+            consensusOutputValidator.validateOutputs(node1.getOutput(), otherNode.getOutput());
+            consensusOutputValidator.validateRounds(
+                    node1.getOutput().getConsensusRounds(),
+                    otherNode.getOutput().getConsensusRounds());
         }
     }
 

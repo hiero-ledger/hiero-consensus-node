@@ -3,51 +3,22 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * This class provides a set of static methods that validate the list of ConsensusRounds
- * as well as the ConsensusRound internal fields coming from multiple nodes.
- *
- */
-public class RoundContentValidation {
+public class RoundInternalEqualityValidation implements ConsensusRoundValidation {
 
-    /**
-     * Validates that the threshold info of the rounds in the list is increasing for each next round
-     *
-     * @param rounds to validate
-     */
-    public static void validateAncientThresholdIncreases(@NonNull final List<ConsensusRound> rounds) {
-        long lastAncientThreshold = EventConstants.ANCIENT_THRESHOLD_UNDEFINED;
-        for (final ConsensusRound round : rounds) {
-            final MinimumJudgeInfo thresholdInfo =
-                    round.getSnapshot().minimumJudgeInfoList().getLast();
-            assertEquals(
-                    round.getRoundNum(), thresholdInfo.round(), "the last threshold should be for the current round");
-            assertTrue(
-                    thresholdInfo.minimumJudgeAncientThreshold() >= lastAncientThreshold,
-                    "the ancient threshold should never decrease");
-            lastAncientThreshold = thresholdInfo.minimumJudgeAncientThreshold();
-        }
-    }
-    /**
-     * Validates the rounds from two different sources including the round field values and the nested events content
-     *
-     * @param rndIt1 the first source of rounds
-     * @param rndIt2 the second source of rounds
-     */
-    public static void validateIterableRounds(
-            final Iterator<ConsensusRound> rndIt1, final Iterator<ConsensusRound> rndIt2) {
+    @Override
+    public void validate(@NonNull List<ConsensusRound> output1, @NonNull List<ConsensusRound> output2) {
         int roundIndex = 0;
+
+        final Iterator<ConsensusRound> rndIt1 = output1.iterator();
+        final Iterator<ConsensusRound> rndIt2 = output1.iterator();
         while (rndIt1.hasNext() && rndIt2.hasNext()) {
             final ConsensusRound round1 = rndIt1.next();
             final ConsensusRound round2 = rndIt2.next();
@@ -83,6 +54,7 @@ public class RoundContentValidation {
             roundIndex++;
         }
     }
+
     /**
      * Assert that two events are equal. If they are not equal then cause the test to fail and print
      * a meaningful error message.
@@ -104,6 +76,7 @@ public class RoundContentValidation {
             throw new RuntimeException(sb.toString());
         }
     }
+
     /** Add a description to a string builder as to why two events are different. */
     private static void getEventDifference(
             final StringBuilder sb, final PlatformEvent event1, final PlatformEvent event2) {

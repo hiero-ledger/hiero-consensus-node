@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Assertions;
 /**
  * Validates that the timestamps in consensus rounds are correct.
  */
-public class ConsensusRoundsTimestampChecker implements ConsensusRoundValidation {
+public class RoundTimestampCheckerValidation implements ConsensusRoundValidation {
 
     /**
      * Validate the timestamps in consensus rounds are properly increasing.

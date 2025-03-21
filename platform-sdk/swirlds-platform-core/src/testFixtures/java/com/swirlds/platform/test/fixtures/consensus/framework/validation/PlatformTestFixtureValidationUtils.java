@@ -6,7 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;
 
-public class InputEventsValidation {
+public class PlatformTestFixtureValidationUtils {
 
     /**
      * Assert that base events for equality. This does not check any consensus data, only pre-consensus. If the equality
@@ -17,7 +17,7 @@ public class InputEventsValidation {
      * @param l2 the second list of events
      * @param shouldBeEqual true if we expect lists have equal events, false if we expect unequal
      */
-    public static void assertBaseEventLists(
+    static void assertBaseEventLists(
             @NonNull final String description,
             @NonNull final List<PlatformEvent> l1,
             @NonNull final List<PlatformEvent> l2,

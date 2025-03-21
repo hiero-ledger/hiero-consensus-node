@@ -8,7 +8,7 @@ import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 
-public class EventRatioValidation implements ConsensusOutputValidation {
+public class OutputEventRatioValidation implements ConsensusOutputValidation {
     /**
      * The minimum fraction of events (out of 1.0) that are expected to have reached consensus at
      * the end of the sequence.
@@ -27,7 +27,7 @@ public class EventRatioValidation implements ConsensusOutputValidation {
     /** Get the maximum ratio of expected stale events. */
     private double maximumStaleRatio;
 
-    private EventRatioValidation(
+    private OutputEventRatioValidation(
             final double minimumConsensusRatio,
             final double maximumConsensusRatio,
             final double minimumStaleRatio,
@@ -38,19 +38,19 @@ public class EventRatioValidation implements ConsensusOutputValidation {
         this.maximumStaleRatio = maximumStaleRatio;
     }
 
-    public static @NonNull EventRatioValidation blank() {
-        return new EventRatioValidation(0d, Double.MAX_VALUE, 0d, Double.MAX_VALUE);
+    public static @NonNull OutputEventRatioValidation blank() {
+        return new OutputEventRatioValidation(0d, Double.MAX_VALUE, 0d, Double.MAX_VALUE);
     }
 
-    public static @NonNull EventRatioValidation standard() {
-        return new EventRatioValidation(0.8, 1.0, 0.0, 0.01);
+    public static @NonNull OutputEventRatioValidation standard() {
+        return new OutputEventRatioValidation(0.8, 1.0, 0.0, 0.01);
     }
 
     /**
      * Set the minimum fraction of events (out of 1.0) that are expected to have reached consensus
      * at the end of the sequence. Default 0.8.
      */
-    public @NonNull EventRatioValidation setMinimumConsensusRatio(final double expectedConsensusRatio) {
+    public @NonNull OutputEventRatioValidation setMinimumConsensusRatio(final double expectedConsensusRatio) {
         this.minimumConsensusRatio = expectedConsensusRatio;
         return this;
     }
@@ -59,7 +59,7 @@ public class EventRatioValidation implements ConsensusOutputValidation {
      * Set the maximum fraction of events (out of 1.0) that are expected to have reached consensus
      * at the end of the sequence. Default 1.0.
      */
-    public @NonNull EventRatioValidation setMaximumConsensusRatio(final double maximumConsensusRatio) {
+    public @NonNull OutputEventRatioValidation setMaximumConsensusRatio(final double maximumConsensusRatio) {
         this.maximumConsensusRatio = maximumConsensusRatio;
         return this;
     }
@@ -69,13 +69,13 @@ public class EventRatioValidation implements ConsensusOutputValidation {
      *
      * @return this
      */
-    public @NonNull EventRatioValidation setMinimumStaleRatio(final double minimumStaleRatio) {
+    public @NonNull OutputEventRatioValidation setMinimumStaleRatio(final double minimumStaleRatio) {
         this.minimumStaleRatio = minimumStaleRatio;
         return this;
     }
 
     /** Set the maximum ratio of expected stale events. Default 0.01. */
-    public @NonNull EventRatioValidation setMaximumStaleRatio(final double maximumStaleRatio) {
+    public @NonNull OutputEventRatioValidation setMaximumStaleRatio(final double maximumStaleRatio) {
         this.maximumStaleRatio = maximumStaleRatio;
         return this;
     }

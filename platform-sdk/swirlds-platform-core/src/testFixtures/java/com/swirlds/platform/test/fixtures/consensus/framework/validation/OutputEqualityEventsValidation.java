@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
-import static com.swirlds.platform.test.fixtures.consensus.framework.validation.InputEventsValidation.assertBaseEventLists;
+import static com.swirlds.platform.test.fixtures.consensus.framework.validation.PlatformTestFixtureValidationUtils.assertBaseEventLists;
 
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -9,7 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 /**
  * Validate that the base events contained in ConsensusOutput are the same
  */
-public class InputEventsAreSameValidation implements ConsensusOutputValidation {
+public class OutputEqualityEventsValidation implements ConsensusOutputValidation {
 
     /**
      * Verify that ALL base events fed into consensus are exactly identical this will check only pre-consensus data, for
