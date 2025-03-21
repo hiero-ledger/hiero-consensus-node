@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
@@ -37,7 +36,7 @@ import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.config.StateConfig_;
-import com.swirlds.platform.internal.ConsensusRound;
+import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
@@ -53,7 +52,6 @@ import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.test.fixtures.state.BlockingState;
 import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.wiring.components.StateAndRound;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -63,7 +61,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -315,8 +312,7 @@ class StateFileManagerTests {
                     .build();
             final ReservedSignedState reservedSignedState = signedState.reserve("initialTestReservation");
 
-            controller.markSavedState(new StateAndRound(
-                    reservedSignedState, mock(ConsensusRound.class), mock(ConcurrentLinkedQueue.class)));
+            controller.markSavedState(new StateWithHashComplexity(reservedSignedState, 1));
             makeImmutable(reservedSignedState.get());
 
             if (signedState.isStateToSave()) {

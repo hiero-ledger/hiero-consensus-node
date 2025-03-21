@@ -30,7 +30,6 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType;
@@ -46,9 +45,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 
-@OrderedInIsolation
 public class GetScheduledInfoTest {
 
     private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
@@ -71,7 +68,6 @@ public class GetScheduledInfoTest {
     static SpecContract contract;
 
     @HapiTest
-    @Order(1)
     @DisplayName("Cannot get scheduled info for non-existent fungible create schedule")
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentFungibleCreateSchedule() {
         return hapiTest(
@@ -80,7 +76,6 @@ public class GetScheduledInfoTest {
     }
 
     @HapiTest
-    @Order(2)
     @DisplayName("Cannot get scheduled info for non-existent NFT create schedule")
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentNonFungibleCreateSchedule() {
         return hapiTest(contract.call(
@@ -89,7 +84,6 @@ public class GetScheduledInfoTest {
     }
 
     @HapiTest
-    @Order(3)
     @DisplayName("Can get scheduled info for fungible create schedule")
     public Stream<DynamicTest> canGetScheduleInfoForFungibleCreateSchedule() {
         final var scheduleId = new AtomicReference<ScheduleID>();
@@ -166,7 +160,6 @@ public class GetScheduledInfoTest {
     }
 
     @HapiTest
-    @Order(4)
     @DisplayName("Can get scheduled info for nft create schedule")
     public Stream<DynamicTest> canGetScheduleInfoForNonFungibleCreateSchedule() {
         final var scheduleId = new AtomicReference<ScheduleID>();

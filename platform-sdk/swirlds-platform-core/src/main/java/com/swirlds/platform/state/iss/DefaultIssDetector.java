@@ -2,6 +2,7 @@
 package com.swirlds.platform.state.iss;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.SIGNED_STATE;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 
@@ -19,24 +20,26 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.metrics.IssMetrics;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.sequence.map.ConcurrentSequenceMap;
 import com.swirlds.platform.sequence.map.SequenceMap;
+import com.swirlds.platform.sequence.map.StandardSequenceMap;
+import com.swirlds.platform.sequence.set.SequenceSet;
+import com.swirlds.platform.sequence.set.StandardSequenceSet;
 import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.state.notifications.IssNotification;
 import com.swirlds.platform.system.state.notifications.IssNotification.IssType;
 import com.swirlds.platform.util.MarkerFileWriter;
-import com.swirlds.platform.wiring.components.StateAndRound;
 import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -48,6 +51,8 @@ public class DefaultIssDetector implements IssDetector {
     private static final Logger logger = LogManager.getLogger(DefaultIssDetector.class);
 
     private final SequenceMap<Long /* round */, RoundHashValidator> roundData;
+    /** Signatures for rounds in the future */
+    private final SequenceSet<ScopedSystemTransaction<StateSignatureTransaction>> savedSignatures;
 
     private long previousRound = -1;
 
@@ -133,8 +138,10 @@ public class DefaultIssDetector implements IssDetector {
         this.roster = Objects.requireNonNull(roster);
         this.currentSoftwareVersion = Objects.requireNonNull(currentSoftwareVersion);
 
-        this.roundData = new ConcurrentSequenceMap<>(
+        this.roundData = new StandardSequenceMap<>(
                 -consensusConfig.roundsNonAncient(), consensusConfig.roundsNonAncient(), x -> x);
+        this.savedSignatures = new StandardSequenceSet<>(
+                0, consensusConfig.roundsNonAncient(), s -> s.transaction().round());
 
         this.ignorePreconsensusSignatures = ignorePreconsensusSignatures;
         if (ignorePreconsensusSignatures) {
@@ -173,7 +180,7 @@ public class DefaultIssDetector implements IssDetector {
     }
 
     /**
-     * Shift the round data window when a new round is completed.
+     * Shift the round data window when a new round's state is hashed, and add the new round's data.
      * <p>
      * If any round that is removed by shifting the window hasn't already had its hash decided, then this method will
      * force a decision on the hash, and handle any ISS events that result.
@@ -212,32 +219,78 @@ public class DefaultIssDetector implements IssDetector {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public List<IssNotification> handleStateSignatureTransactions(
+            @NonNull final Collection<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {
+        final List<IssNotification> issNotifications = new ArrayList<>();
+        // The state signatures in the queue may be for state hashes of different rounds.
+        // Iterate through them and handle each individually.
+        for (final ScopedSystemTransaction<StateSignatureTransaction> transaction : systemTransactions) {
+            final StateSignatureTransaction signaturePayload = transaction.transaction();
+            final long round = signaturePayload.round();
+
+            // If the signature is for a state hash that this component is already tracking, apply it now.
+            // Otherwise, save it for later.
+            if (round < savedSignatures.getFirstSequenceNumberInWindow()) {
+                final IssNotification issNotification = handlePostconsensusSignature(transaction);
+                if (issNotification != null) {
+                    issNotifications.add(issNotification);
+                }
+            } else {
+                savedSignatures.add(transaction);
+            }
+        }
+        return issNotifications;
+    }
+
+    /**
      * Called when a round has been completed.
      * <p>
-     * Expects the contained state to have been reserved by the caller for this method. This method will release the
-     * state reservation when it is done with it.
+     * Expects the state to have been reserved by the caller for this method. This method will release the state
+     * reservation when it is done with it.
      *
-     * @param stateAndRound the round and state to be handled
+     * @param reservedSignedState the reserved state to be handled
      * @return a list of ISS notifications, or null if no ISS occurred
      */
     @Override
     @Nullable
-    public List<IssNotification> handleStateAndRound(@NonNull final StateAndRound stateAndRound) {
-        try (final ReservedSignedState state = stateAndRound.reservedSignedState()) {
-            final long roundNumber = stateAndRound.round().getRoundNum();
+    public List<IssNotification> handleState(@NonNull final ReservedSignedState reservedSignedState) {
+        try (reservedSignedState) {
+            final SignedState state = reservedSignedState.get();
+            final long roundNumber = state.getRound();
 
             final List<IssNotification> issNotifications = new ArrayList<>(shiftRoundDataWindow(roundNumber));
 
+            // Apply any signatures we collected previously that are for this round
+            issNotifications.addAll(applySignaturesAndShiftWindow(roundNumber));
+
             final IssNotification selfHashCheckResult =
-                    checkSelfStateHash(roundNumber, state.get().getState().getHash());
+                    checkSelfStateHash(roundNumber, state.getState().getHash());
             if (selfHashCheckResult != null) {
                 issNotifications.add(selfHashCheckResult);
             }
 
-            issNotifications.addAll(handlePostconsensusSignatures(stateAndRound.systemTransactions()));
-
             return issNotifications.isEmpty() ? null : issNotifications;
         }
+    }
+
+    /**
+     * Applies any saved signatures for the given round and shifts the saved signature window.
+     *
+     * @param roundNumber the round to apply saved signatures to
+     * @return a list of ISS notifications, or an empty list if no ISS occurred
+     */
+    @NonNull
+    private List<IssNotification> applySignaturesAndShiftWindow(final long roundNumber) {
+        // Apply any signatures we collected previously that are for the current round
+        final List<IssNotification> issNotifications = new ArrayList<>(
+                handlePostconsensusSignatures(savedSignatures.getEntriesWithSequenceNumber(roundNumber)));
+        savedSignatures.shiftWindow(roundNumber + 1);
+
+        return issNotifications;
     }
 
     /**
@@ -284,7 +337,7 @@ public class DefaultIssDetector implements IssDetector {
      */
     @NonNull
     private List<IssNotification> handlePostconsensusSignatures(
-            final Queue<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactions) {
+            final List<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactions) {
         if (stateSignatureTransactions == null) {
             return List.of();
         }
@@ -393,15 +446,31 @@ public class DefaultIssDetector implements IssDetector {
     public List<IssNotification> overridingState(@NonNull final ReservedSignedState state) {
         try (state) {
             final long roundNumber = state.get().getRound();
-            // this is not practically possible for this to happen. Even if it were to happen, on a reconnect,
-            // we are receiving a new state that is fully signed, so any ISSs in the past should be ignored.
-            // so we will ignore any ISSs from removed rounds
+            // this is not practically possible for an ISS to occur for hashes before the state provided
+            // in this method. Even if it were to happen, on a reconnect, we are receiving a new state that is fully
+            // signed, so any ISSs in the past should be ignored. so we will ignore any ISSs from removed rounds
             shiftRoundDataWindow(roundNumber);
+
+            // Apply any signatures we collected previously that are for this round. It is not practically
+            // possible for there to be any signatures stored up for this state, but there is no harm in
+            // applying any that exist since we are now tracking this state.
+            final List<IssNotification> issNotifications = applySignaturesAndShiftWindow(roundNumber);
 
             final Hash stateHash = state.get().getState().getHash();
             final IssNotification issNotification = checkSelfStateHash(roundNumber, stateHash);
+            if (issNotification != null) {
+                issNotifications.add(issNotification);
+            }
 
-            return issNotification == null ? null : List.of(issNotification);
+            if (issNotifications.isEmpty()) {
+                return null;
+            } else {
+                logger.warn(
+                        SIGNED_STATE.getMarker(),
+                        "An ISS was detected for an overriding state for round {}. This should not be possible.",
+                        roundNumber);
+                return issNotifications;
+            }
         }
     }
 

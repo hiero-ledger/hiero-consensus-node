@@ -26,7 +26,6 @@ import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusAction;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
-import com.swirlds.platform.wiring.components.StateAndRound;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -55,6 +54,7 @@ class DefaultTransactionHandlerTests {
 
     /**
      * Constructs a new consensus round with a few events for testing.
+     *
      * @param pcesRound whether the round is a PCES round
      * @return the new round
      */
@@ -97,11 +97,16 @@ class DefaultTransactionHandlerTests {
         final TransactionHandlerTester tester = new TransactionHandlerTester(addressBook);
         final ConsensusRound consensusRound = newConsensusRound(pcesRound);
 
-        final StateAndRound handlerOutput = tester.getTransactionHandler().handleConsensusRound(consensusRound);
+        final TransactionHandlerResult handlerOutput =
+                tester.getTransactionHandler().handleConsensusRound(consensusRound);
         assertNotEquals(null, handlerOutput, "new state should have been created");
         assertEquals(
                 1,
-                handlerOutput.reservedSignedState().get().getReservationCount(),
+                handlerOutput
+                        .stateWithHashComplexity()
+                        .reservedSignedState()
+                        .get()
+                        .getReservationCount(),
                 "state should be returned with a reservation");
 
         // only the self event reaching consensus should be reported, no freeze action.
@@ -142,7 +147,11 @@ class DefaultTransactionHandlerTests {
                 "the running hash should be updated");
         assertEquals(
                 pcesRound,
-                handlerOutput.reservedSignedState().get().isPcesRound(),
+                handlerOutput
+                        .stateWithHashComplexity()
+                        .reservedSignedState()
+                        .get()
+                        .isPcesRound(),
                 "the state should match the PCES boolean");
         verify(tester.getStateEventHandler())
                 .onSealConsensusRound(
@@ -157,11 +166,16 @@ class DefaultTransactionHandlerTests {
         when(tester.getPlatformStateFacade().freezeTimeOf(tester.getConsensusState()))
                 .thenReturn(consensusRound.getConsensusTimestamp());
 
-        final StateAndRound handlerOutput = tester.getTransactionHandler().handleConsensusRound(consensusRound);
+        final TransactionHandlerResult handlerOutput =
+                tester.getTransactionHandler().handleConsensusRound(consensusRound);
         assertNotNull(handlerOutput, "new state should have been created");
         assertEquals(
                 1,
-                handlerOutput.reservedSignedState().get().getReservationCount(),
+                handlerOutput
+                        .stateWithHashComplexity()
+                        .reservedSignedState()
+                        .get()
+                        .getReservationCount(),
                 "state should be returned with a reservation");
         // In addition to the freeze action, the uptime tracker reports a self event coming to consensus in the round.
         assertEquals(2, tester.getSubmittedActions().size(), "the freeze status should have been submitted");
@@ -174,7 +188,7 @@ class DefaultTransactionHandlerTests {
         verify(tester.getPlatformStateFacade()).updateLastFrozenTime(tester.getConsensusState());
 
         final ConsensusRound postFreezeConsensusRound = newConsensusRound(false);
-        final StateAndRound postFreezeOutput =
+        final TransactionHandlerResult postFreezeOutput =
                 tester.getTransactionHandler().handleConsensusRound(postFreezeConsensusRound);
         assertNull(postFreezeOutput, "no state should be created after freeze period");
 

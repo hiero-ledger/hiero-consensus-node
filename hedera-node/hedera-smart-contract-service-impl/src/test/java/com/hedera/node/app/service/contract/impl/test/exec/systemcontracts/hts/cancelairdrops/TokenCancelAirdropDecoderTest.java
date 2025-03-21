@@ -25,11 +25,9 @@ import static org.mockito.Mockito.lenient;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.PendingAirdropId;
-import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.cancelairdrops.TokenCancelAirdropDecoder;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
+import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
@@ -37,24 +35,12 @@ import java.util.ArrayList;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-class TokenCancelAirdropDecoderTest {
+class TokenCancelAirdropDecoderTest extends CallAttemptTestBase {
 
     @Mock
     private HtsCallAttempt attempt;
-
-    @Mock
-    private AddressIdConverter addressIdConverter;
-
-    @Mock
-    private Enhancement enhancement;
-
-    @Mock
-    private HederaNativeOperations nativeOperations;
 
     @Mock
     private Configuration configuration;
@@ -70,8 +56,7 @@ class TokenCancelAirdropDecoderTest {
 
         lenient().when(attempt.addressIdConverter()).thenReturn(addressIdConverter);
         lenient().when(attempt.configuration()).thenReturn(configuration);
-        lenient().when(attempt.enhancement()).thenReturn(enhancement);
-        lenient().when(enhancement.nativeOperations()).thenReturn(nativeOperations);
+        lenient().when(attempt.enhancement()).thenReturn(mockEnhancement());
         lenient().when(configuration.getConfigData(TokensConfig.class)).thenReturn(tokensConfig);
     }
 

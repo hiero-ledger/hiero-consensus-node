@@ -24,7 +24,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -46,14 +45,11 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @DisplayName("Gas Integrity Tests for Token Contracts")
 @HapiTestLifecycle
-@OrderedInIsolation
-@SuppressWarnings("java:S1192")
 public class GasCalculationIntegrityTest {
 
     @Contract(contract = "NumericContract", creationGas = 1_000_000L)
@@ -129,7 +125,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(1)
     @DisplayName("when using nft via redirect proxy contract")
     public Stream<DynamicTest> approveViaProxyNft() {
         final AtomicLong gasUsed = new AtomicLong();
@@ -145,7 +140,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(2)
     @DisplayName("when using fungible token hts system contract")
     public Stream<DynamicTest> approveFungibleToken() {
         final AtomicLong gasUsed = new AtomicLong();
@@ -161,7 +155,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(3)
     @DisplayName("when using createFungibleTokenWithCustomFeesV3 with fractionalFee")
     public Stream<DynamicTest> createFungibleTokenWithCustomFeesV3FractionalFee() {
         final long nominator = 1;
@@ -187,7 +180,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(4)
     @DisplayName("when using createNonFungibleTokenWithCustomFeesV3 with fractionalFee")
     public Stream<DynamicTest> createNonFungibleTokenWithCustomRoyaltyFeesV3() {
         final AtomicLong gasUsed = new AtomicLong();
@@ -221,7 +213,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(5)
     @DisplayName("when using createNonFungibleTokenV3")
     public Stream<DynamicTest> createNonFungibleTokenV3() {
         final AtomicLong gasUsed = new AtomicLong();
@@ -239,7 +230,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(6)
     @DisplayName("when using cryptoTransferV2 for hBar transfer")
     public Stream<DynamicTest> useCryptoTransferV2() {
         final AtomicLong gasUsed = new AtomicLong();
@@ -255,7 +245,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(7)
     @DisplayName("when using cryptoTransferFungibleV1 with internal auto associate")
     public Stream<DynamicTest> useCryptoTransferFungibleV1() {
         final AtomicLong autoAssociateGasUsed = new AtomicLong();
@@ -278,7 +267,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(8)
     @DisplayName("when using cryptoTransferNonFungible with internal auto associate")
     public Stream<DynamicTest> useCryptoTransferNonFungible() {
         final AtomicLong autoAssociateGasUsed = new AtomicLong();
@@ -297,7 +285,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(9)
     @DisplayName("when using transferNFTs with internal auto associate")
     public Stream<DynamicTest> useTransferNFTs() {
         final AtomicLong autoAssociateGasUsed = new AtomicLong();
@@ -316,7 +303,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(10)
     @DisplayName("when using transferToken with internal auto associate")
     public Stream<DynamicTest> useTransferToken() {
         final AtomicLong autoAssociateGasUsed = new AtomicLong();
@@ -334,7 +320,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(11)
     @DisplayName("when using transferNFT")
     public Stream<DynamicTest> useTransferNFT() {
         final AtomicLong gasUsed = new AtomicLong();
@@ -352,7 +337,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(12)
     @DisplayName("when using transferFrom")
     public Stream<DynamicTest> useTransferFrom() {
         final AtomicLong gasUsed = new AtomicLong();
@@ -369,7 +353,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(13)
     @DisplayName("when using transferFromERC")
     public Stream<DynamicTest> useTransferFromERC() {
         final AtomicLong gasUsed = new AtomicLong();
@@ -386,7 +369,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(14)
     @DisplayName("when using transferFromNFT")
     public Stream<DynamicTest> useTransferNFTFrom() {
         final AtomicLong gasUsed = new AtomicLong();
@@ -404,7 +386,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(15)
     @DisplayName("for token info call")
     public Stream<DynamicTest> checkTokenGetInfoGas() {
         final AtomicLong gasUsed = new AtomicLong();
@@ -420,7 +401,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(16)
     @DisplayName("for token custom fees call")
     public Stream<DynamicTest> checkTokenGetCustomFeesGas() {
         final AtomicLong gasUsed = new AtomicLong();
@@ -436,7 +416,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(17)
     @DisplayName("for token name call")
     public Stream<DynamicTest> checkErc20Name() {
         final AtomicLong gasUsed = new AtomicLong();
@@ -452,7 +431,6 @@ public class GasCalculationIntegrityTest {
     }
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
-    @Order(18)
     @DisplayName("for token balance of call")
     public Stream<DynamicTest> checkErc20BalanceOf() {
         final AtomicLong gasUsed = new AtomicLong();
