@@ -54,6 +54,7 @@ public class DiskStartupNetworks implements StartupNetworks {
     public static final String GENESIS_NETWORK_JSON = "genesis-network.json";
     public static final String OVERRIDE_NETWORK_JSON = "override-network.json";
     public static final Pattern ROUND_DIR_PATTERN = Pattern.compile("\\d+");
+    private static final String CONFIG_TXT = "config.txt";
 
     private final ConfigProvider configProvider;
 
@@ -102,9 +103,18 @@ public class DiskStartupNetworks implements StartupNetworks {
         if (scopedNetwork.isPresent()) {
             return scopedNetwork;
         }
-        return platformConfig.getConfigData(AddressBookConfig.class).forceUseOfConfigAddressBook()
-                ? networkFromConfigTxt(platformConfig)
-                : Optional.empty();
+
+        if (platformConfig.getConfigData(AddressBookConfig.class).forceUseOfConfigAddressBook()) {
+            try {
+                return networkFromConfigTxt(platformConfig);
+            } catch (Exception e) {
+                // Since we're attempting to load an override network (instead of genesis), it's not a fatal error if we
+                // can't find config.txt
+                log.warn("Failed to load network from config.txt", e);
+            }
+        }
+
+        return Optional.empty();
     }
 
     @Override
@@ -140,6 +150,7 @@ public class DiskStartupNetworks implements StartupNetworks {
         }
         archiveIfPresent(config, GENESIS_NETWORK_JSON);
         archiveIfPresent(config, OVERRIDE_NETWORK_JSON);
+        archiveIfPresent(Path.of(config.getConfigData(NetworkAdminConfig.class).configTxtPath()), CONFIG_TXT);
         try (final var dirStream = Files.list(networksPath(config))) {
             dirStream
                     .filter(Files::isDirectory)
@@ -320,19 +331,23 @@ public class DiskStartupNetworks implements StartupNetworks {
      *
      * @param segments the segments to archive
      */
-    private static void archiveIfPresent(@NonNull final Configuration config, @NonNull final String... segments) {
+    private static void archiveIfPresent(Path basePath, @NonNull final String... segments) {
         try {
-            final var path = networksPath(config, segments);
+            final var path = Paths.get(basePath.toAbsolutePath().toString(), segments);
             if (Files.exists(path)) {
                 final var archiveSegments =
                         Stream.concat(Stream.of(ARCHIVE), Stream.of(segments)).toArray(String[]::new);
-                final var dest = networksPath(config, archiveSegments);
+                final var dest = Paths.get(basePath.toAbsolutePath().toString(), archiveSegments);
                 createIfAbsent(dest.getParent());
                 Files.move(path, dest);
             }
         } catch (IOException e) {
             log.warn("Failed to archive {}", segments, e);
         }
+    }
+
+    private static void archiveIfPresent(@NonNull final Configuration config, @NonNull final String... segments) {
+        archiveIfPresent(networksPath(config), segments);
     }
 
     /**

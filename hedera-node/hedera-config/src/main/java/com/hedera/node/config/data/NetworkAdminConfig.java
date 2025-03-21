@@ -43,4 +43,6 @@ public record NetworkAdminConfig(
         @ConfigProperty(defaultValue = "50") @NetworkProperty int timesToTrySubmission,
         @ConfigProperty(defaultValue = "5s") @NetworkProperty Duration retryDelay,
         @ConfigProperty(defaultValue = "10") @NetworkProperty int distinctTxnIdsToTry,
-        @ConfigProperty(defaultValue = "true") @NodeProperty boolean preserveStateWeightsDuringOverride) {}
+        @ConfigProperty(defaultValue = "true") @NodeProperty boolean preserveStateWeightsDuringOverride,
+        // Default value is the working directory
+        @ConfigProperty(defaultValue = "") @NodeProperty String configTxtPath) {}
