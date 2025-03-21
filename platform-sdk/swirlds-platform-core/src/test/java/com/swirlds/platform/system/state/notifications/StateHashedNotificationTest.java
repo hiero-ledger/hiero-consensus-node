@@ -11,7 +11,6 @@ import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.wiring.components.StateAndRound;
 import java.util.Queue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,13 +39,12 @@ class StateHashedNotificationTest {
 
     @Test
     void factoryWorksAsExpected() {
-        given(round.getRoundNum()).willReturn(ROUND);
         given(reservedSignedState.get()).willReturn(signedState);
         given(signedState.getState()).willReturn(merkleRoot);
+        given(signedState.getRound()).willReturn(ROUND);
         given(merkleRoot.getHash()).willReturn(HASH);
 
-        final var notification =
-                StateHashedNotification.from(new StateAndRound(reservedSignedState, round, systemTransactions));
+        final var notification = StateHashedNotification.from(reservedSignedState);
 
         assertEquals(ROUND, notification.round());
         assertEquals(HASH, notification.hash());

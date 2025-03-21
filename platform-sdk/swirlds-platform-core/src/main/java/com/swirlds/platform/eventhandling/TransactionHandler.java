@@ -4,7 +4,6 @@ package com.swirlds.platform.eventhandling;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.wiring.components.StateAndRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -30,5 +29,5 @@ public interface TransactionHandler {
      * created
      */
     @Nullable
-    StateAndRound handleConsensusRound(@NonNull ConsensusRound consensusRound);
+    TransactionHandlerResult handleConsensusRound(@NonNull ConsensusRound consensusRound);
 }

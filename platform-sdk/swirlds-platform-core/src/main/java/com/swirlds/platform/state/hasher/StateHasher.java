@@ -2,7 +2,8 @@
 package com.swirlds.platform.state.hasher;
 
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.wiring.components.StateAndRound;
+import com.swirlds.platform.eventhandling.StateWithHashComplexity;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -14,10 +15,10 @@ public interface StateHasher {
     /**
      * Hashes a SignedState.
      *
-     * @param stateAndRound the state and round, which contains the state to hash
+     * @param unhashedState the state to hash
      * @return the same state and round, with the state hashed
      */
-    @InputWireLabel("unhashed state and round")
+    @InputWireLabel("unhashed state with hash complexity")
     @Nullable
-    StateAndRound hashState(@NonNull StateAndRound stateAndRound);
+    ReservedSignedState hashState(@NonNull StateWithHashComplexity unhashedState);
 }
