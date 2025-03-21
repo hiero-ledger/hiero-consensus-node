@@ -5,7 +5,6 @@ import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createForcedOtherParentMatrix;
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import java.util.List;
 import java.util.Random;

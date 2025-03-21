@@ -8,8 +8,6 @@ import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.NoOpConsensusMetrics;
-import com.swirlds.platform.roster.RosterRetriever;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import java.util.List;
@@ -57,7 +55,9 @@ public class ConsensusBenchmark {
         events = emitter.emitEvents(numEvents);
 
         consensus = new ConsensusImpl(
-                platformContext, new NoOpConsensusMetrics(), emitter.getGraphGenerator().getRoster());
+                platformContext,
+                new NoOpConsensusMetrics(),
+                emitter.getGraphGenerator().getRoster());
     }
 
     @Benchmark

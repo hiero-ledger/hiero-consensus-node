@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -33,8 +33,6 @@ import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.roster.RosterRetriever;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -86,8 +84,7 @@ public class TestIntake {
         orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, directScheduler("orphanBuffer"));
         orphanBufferWiring.bind(orphanBuffer);
 
-        final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(platformContext, roster, selfId);
+        final ConsensusEngine consensusEngine = new DefaultConsensusEngine(platformContext, roster, selfId);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, directScheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);

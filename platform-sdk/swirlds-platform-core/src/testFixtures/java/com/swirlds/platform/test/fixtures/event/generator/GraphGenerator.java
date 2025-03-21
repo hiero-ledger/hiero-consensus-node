@@ -97,7 +97,6 @@ public interface GraphGenerator {
     @NonNull
     AddressBook getAddressBook();
 
-
     @NonNull
     Roster getRoster();
 

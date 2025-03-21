@@ -38,7 +38,8 @@ public class CoinRoundTest extends PlatformTest {
 
         final LegacyConfigProperties legacyConfigProperties =
                 LegacyConfigPropertiesLoader.loadConfigFile(ResourceLoader.getFile(resources + "config.txt"));
-        final TestIntake intake = new TestIntake(context, RosterRetriever.buildRoster(legacyConfigProperties.getAddressBook()));
+        final TestIntake intake =
+                new TestIntake(context, RosterRetriever.buildRoster(legacyConfigProperties.getAddressBook()));
 
         long maxGen = 0;
         final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(0, 0);

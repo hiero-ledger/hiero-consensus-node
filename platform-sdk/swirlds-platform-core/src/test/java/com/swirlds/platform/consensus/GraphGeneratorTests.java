@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import static com.swirlds.platform.consensus.ConsensusTestArgs.BIRTH_ROUND_PLATFORM_CONTEXT;
 import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
-import com.swirlds.platform.roster.RosterUtils;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.areGenerationNumbersValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.gatherOtherParentAges;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
@@ -18,11 +16,12 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;

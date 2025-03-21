@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import com.swirlds.platform.roster.RosterUtils;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createBalancedOtherParentMatrix;
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createCliqueOtherParentMatrix;
@@ -14,6 +13,7 @@ import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestNode;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestOrchestrator;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestUtils;
@@ -320,7 +320,8 @@ public final class ConsensusTestDefinitions {
                 OrchestratorBuilder.builder().setTestInput(input).build();
         orchestrator.configGenerators(g -> {
             // Setup: pick one node to use stale other-parents
-            final NodeId staleNodeProvider = NodeId.of(g.getRoster().rosterEntries().get(0).nodeId());
+            final NodeId staleNodeProvider =
+                    NodeId.of(g.getRoster().rosterEntries().get(0).nodeId());
             g.getSource(staleNodeProvider)
                     .setRecentEventRetentionSize(5000)
                     .setRequestedOtherParentAgeDistribution(integerPowerDistribution(0.002, 300));
@@ -343,9 +344,8 @@ public final class ConsensusTestDefinitions {
                         Spliterators.spliteratorUnknownSize(
                                 orchestrator.getRoster().rosterEntries().iterator(), 0),
                         false)
-                .filter(a -> !Threshold.STRONG_MINORITY.isSatisfiedBy(
-                        a.weight(), totalWeight))
-                .map(re-> NodeId.of(re.nodeId()))
+                .filter(a -> !Threshold.STRONG_MINORITY.isSatisfiedBy(a.weight(), totalWeight))
+                .map(re -> NodeId.of(re.nodeId()))
                 .findFirst()
                 .orElseThrow();
         Objects.requireNonNull(staleParentProvider, "Could not find a node with less than a strong minority of weight");

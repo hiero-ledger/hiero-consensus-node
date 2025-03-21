@@ -2,7 +2,6 @@
 package com.swirlds.platform.sync;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import com.swirlds.platform.roster.RosterUtils;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,6 +15,7 @@ import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.gossip.shadowgraph.SyncUtils;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
@@ -113,7 +113,8 @@ class SyncFilteringTest {
                 .setNumNodes(32)
                 .buildStandardEventEmitter();
 
-        final NodeId selfId = RosterUtils.getNodeId(eventEmitter.getGraphGenerator().getRoster(), 0);
+        final NodeId selfId =
+                RosterUtils.getNodeId(eventEmitter.getGraphGenerator().getRoster(), 0);
 
         final Instant startingTime = Instant.ofEpochMilli(random.nextInt());
         final Duration timeStep = Duration.ofMillis(10);
