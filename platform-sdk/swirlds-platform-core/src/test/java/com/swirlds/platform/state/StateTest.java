@@ -16,7 +16,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import java.util.Random;
 import org.junit.jupiter.api.DisplayName;
@@ -81,7 +80,7 @@ class StateTest {
                 shouldSaveToDisk,
                 false,
                 false,
-                new PlatformStateFacade(version -> new BasicSoftwareVersion(version.major())));
+                new PlatformStateFacade());
         signedState.getState().setHash(RandomUtils.randomHash(random));
         return signedState;
     }

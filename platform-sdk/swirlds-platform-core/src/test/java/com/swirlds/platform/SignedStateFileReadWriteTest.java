@@ -39,7 +39,6 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.State;
@@ -71,7 +70,7 @@ class SignedStateFileReadWriteTest {
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.merkledb");
         FakeConsensusStateEventHandler.registerMerkleStateRootClassIds();
-        stateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(platformVersion.major()));
+        stateFacade = new PlatformStateFacade();
     }
 
     @BeforeEach
@@ -94,7 +93,7 @@ class SignedStateFileReadWriteTest {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final SignedState signedState = new RandomSignedStateGenerator()
-                .setSoftwareVersion(new BasicSoftwareVersion(platformVersion.minor()))
+                .setSoftwareVersion(platformVersion)
                 .build();
         final MerkleNodeState state = signedState.getState();
         writeHashInfoFile(platformContext, testDirectory, state, stateFacade);
@@ -160,7 +159,7 @@ class SignedStateFileReadWriteTest {
     @DisplayName("writeSavedStateToDisk() Test")
     void writeSavedStateToDiskTest() throws IOException {
         final SignedState signedState = new RandomSignedStateGenerator()
-                .setSoftwareVersion(new BasicSoftwareVersion(platformVersion.minor()))
+                .setSoftwareVersion(platformVersion)
                 .build();
         final Path directory = testDirectory.resolve("state");
 

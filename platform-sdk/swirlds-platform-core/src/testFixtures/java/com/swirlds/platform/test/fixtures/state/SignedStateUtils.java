@@ -9,7 +9,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import java.util.Random;
 
 public class SignedStateUtils {
@@ -19,8 +18,7 @@ public class SignedStateUtils {
     }
 
     public static SignedState randomSignedState(Random random) {
-        TestPlatformStateFacade platformStateFacade =
-                new TestPlatformStateFacade(version -> new BasicSoftwareVersion(version.major()));
+        TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
         MerkleNodeState root = new TestMerkleStateRoot();
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(root);
         randomPlatformState(random, root, platformStateFacade);

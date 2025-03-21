@@ -120,8 +120,7 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
     @Override
     @NonNull
     public ConsensusStateEventHandler<AddressBookTestingToolState> newConsensusStateEvenHandler() {
-        return new AddressBookTestingToolConsensusStateEventHandler(
-                new PlatformStateFacade((v) -> new BasicSoftwareVersion(v.major())));
+        return new AddressBookTestingToolConsensusStateEventHandler(new PlatformStateFacade());
     }
 
     /**

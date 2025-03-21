@@ -165,7 +165,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 (hints, history, configProvider) ->
                         this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
                 metrics,
-                new PlatformStateFacade(ServicesSoftwareVersion::new));
+                new PlatformStateFacade());
         version = (ServicesSoftwareVersion) hedera.getSoftwareVersion();
         blockStreamEnabled = hedera.isBlockStreamEnabled();
         Runtime.getRuntime().addShutdownHook(new Thread(executorService::shutdownNow));
