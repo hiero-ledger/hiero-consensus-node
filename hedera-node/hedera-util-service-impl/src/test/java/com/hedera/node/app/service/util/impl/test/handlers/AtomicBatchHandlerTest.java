@@ -30,6 +30,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
 import com.hedera.hapi.node.freeze.FreezeTransactionBody;
+import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.service.util.impl.cache.TransactionParser;
@@ -127,6 +128,33 @@ class AtomicBatchHandlerTest {
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(BATCH_LIST_EMPTY, msg.responseCode());
+    }
+
+    @Test
+    void testInnerTxnCache() throws PreCheckException {
+        final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .cryptoCreateAccount(CryptoCreateTransactionBody.DEFAULT)
+                .batchKey(SIMPLE_KEY_A)
+                .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
+                .build();
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(pureChecksContext.body()).willReturn(txnBody);
+        given(preHandleContext.body()).willReturn(txnBody);
+        given(handleContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
+        given(handleContext.dispatch(argThat(options -> options.payerId().equals(payerId2)
+                        && options.body().equals(innerTxnBody)
+                        && options.streamBuilderType().equals(ReplayableFeeStreamBuilder.class))))
+                .willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(SUCCESS);
+
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+        assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+
+        verify(transactionParser, times(1)).parse(eq(bytes.getFirst()), any());
     }
 
     @Test
