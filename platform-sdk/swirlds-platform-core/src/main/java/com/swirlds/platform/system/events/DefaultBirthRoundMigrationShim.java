@@ -51,18 +51,6 @@ public class DefaultBirthRoundMigrationShim implements BirthRoundMigrationShim {
      */
     private final long lowestJudgeGenerationBeforeBirthRoundMode;
 
-    public DefaultBirthRoundMigrationShim(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final SoftwareVersion firstVersionInBirthRoundMode,
-            final long lastRoundBeforeBirthRoundMode,
-            final long lowestJudgeGenerationBeforeBirthRoundMode) {
-        this(
-                platformContext,
-                firstVersionInBirthRoundMode.getPbjSemanticVersion(),
-                lastRoundBeforeBirthRoundMode,
-                lowestJudgeGenerationBeforeBirthRoundMode);
-    }
-
     /**
      * Constructs a new BirthRoundMigrationShim.
      *
