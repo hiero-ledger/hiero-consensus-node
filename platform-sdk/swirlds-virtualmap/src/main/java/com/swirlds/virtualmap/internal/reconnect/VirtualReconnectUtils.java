@@ -48,7 +48,7 @@ public class VirtualReconnectUtils {
             in.readFully(leafValueBytes, 0, leafValueLen);
             leafValue = Bytes.wrap(leafValueBytes);
         } else {
-            leafValue = null;
+            leafValue = Bytes.EMPTY;
         }
         return new VirtualLeafBytes(leafPath, leafKey, leafValue);
     }

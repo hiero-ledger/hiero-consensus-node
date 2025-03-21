@@ -24,12 +24,14 @@ import java.util.function.LongSupplier;
  * detail, and are happy with just the API provided by this interface.
  */
 public interface State extends FastCopyable, Hashable {
+
     /**
      * Initializes the state with the given parameters.
-     * @param time The time provider.
-     * @param metrics The metrics provider.
+     *
+     * @param time               The time provider.
+     * @param metrics            The metrics provider.
      * @param merkleCryptography The merkle cryptography provider.
-     * @param roundSupplier The round supplier.
+     * @param roundSupplier      The round supplier.
      */
     void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier);
 

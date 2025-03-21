@@ -8,8 +8,10 @@ import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * To implement a swirld, create a class that implements SwirldMain. Its constructor should have no parameters, and its
@@ -58,6 +60,9 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
      */
     @NonNull
     T newStateRoot();
+
+    // TODO: implement this in demo and testing apps (GH issue TBD)
+    Function<VirtualMap, T> stateRootFromVirtualMap();
 
     /**
      * Instantiate and return a new instance of the consensus state event handler for this SwirldMain object.

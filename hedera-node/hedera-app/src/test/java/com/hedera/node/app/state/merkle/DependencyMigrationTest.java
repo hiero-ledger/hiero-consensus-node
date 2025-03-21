@@ -24,7 +24,6 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -93,7 +92,6 @@ class DependencyMigrationTest extends MerkleTestBase {
                             VERSIONED_CONFIG,
                             VERSIONED_CONFIG,
                             networkInfo,
-                            mock(Metrics.class),
                             startupNetworks,
                             storeMetricsService,
                             configProvider,
@@ -112,7 +110,6 @@ class DependencyMigrationTest extends MerkleTestBase {
                             VERSIONED_CONFIG,
                             VERSIONED_CONFIG,
                             networkInfo,
-                            mock(Metrics.class),
                             startupNetworks,
                             storeMetricsService,
                             configProvider,
@@ -131,26 +128,6 @@ class DependencyMigrationTest extends MerkleTestBase {
                             null,
                             null,
                             networkInfo,
-                            mock(Metrics.class),
-                            startupNetworks,
-                            storeMetricsService,
-                            configProvider,
-                            TEST_PLATFORM_STATE_FACADE))
-                    .isInstanceOf(NullPointerException.class);
-        }
-
-        @Test
-        void metricsRequired() {
-            final var subject = new OrderedServiceMigrator();
-            Assertions.assertThatThrownBy(() -> subject.doMigrations(
-                            merkleTree,
-                            servicesRegistry,
-                            null,
-                            new ServicesSoftwareVersion(CURRENT_VERSION),
-                            VERSIONED_CONFIG,
-                            VERSIONED_CONFIG,
-                            networkInfo,
-                            null,
                             startupNetworks,
                             storeMetricsService,
                             configProvider,
@@ -199,7 +176,6 @@ class DependencyMigrationTest extends MerkleTestBase {
                 VERSIONED_CONFIG,
                 VERSIONED_CONFIG,
                 networkInfo,
-                mock(Metrics.class),
                 startupNetworks,
                 storeMetricsService,
                 configProvider,
@@ -312,7 +288,6 @@ class DependencyMigrationTest extends MerkleTestBase {
                 VERSIONED_CONFIG,
                 VERSIONED_CONFIG,
                 networkInfo,
-                mock(Metrics.class),
                 startupNetworks,
                 storeMetricsService,
                 configProvider,

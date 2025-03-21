@@ -21,6 +21,7 @@ import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.schedule.ScheduleList;
 import com.hedera.hapi.node.state.schedule.ScheduledCounts;
 import com.hedera.hapi.node.state.schedule.ScheduledOrder;
+import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.ScheduleStoreUtility;
 import com.hedera.node.app.service.schedule.impl.ScheduleTestBase;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
@@ -118,9 +119,10 @@ class V0570ScheduleSchemaTest extends ScheduleTestBase {
                 ScheduleList.newBuilder()
                         .schedules(List.of(scheduler1, otherScheduleInState))
                         .build());
-        readableSchedulesByExpirySec = new MapReadableKVState<>(SCHEDULES_BY_EXPIRY_SEC_KEY, schedulesByExpirySec);
-        writableScheduleCounts = new MapWritableKVState<>(SCHEDULED_COUNTS_KEY, new HashMap<>());
-        writableScheduleOrders = new MapWritableKVState<>(SCHEDULED_ORDERS_KEY, new HashMap<>());
+        readableSchedulesByExpirySec =
+                new MapReadableKVState<>(ScheduleService.NAME, SCHEDULES_BY_EXPIRY_SEC_KEY, schedulesByExpirySec);
+        writableScheduleCounts = new MapWritableKVState<>(ScheduleService.NAME, SCHEDULED_COUNTS_KEY);
+        writableScheduleOrders = new MapWritableKVState<>(ScheduleService.NAME, SCHEDULED_ORDERS_KEY);
 
         final ProtoBytes protoHash1 = new ProtoBytes(ScheduleStoreUtility.calculateBytesHash(scheduler1));
         final ProtoBytes protoHash2 = new ProtoBytes(ScheduleStoreUtility.calculateBytesHash(otherScheduleInState));
@@ -132,8 +134,10 @@ class V0570ScheduleSchemaTest extends ScheduleTestBase {
                 ScheduleList.newBuilder()
                         .schedules(List.of(otherScheduleInState))
                         .build());
-        readableSchedulesByEquality = new MapReadableKVState<>(SCHEDULES_BY_EQUALITY_KEY, schedulesByEquality);
-        writableScheduleIdByEquality = new MapWritableKVState<>(SCHEDULE_ID_BY_EQUALITY_KEY, scheduleByEquality);
+        readableSchedulesByEquality =
+                new MapReadableKVState<>(ScheduleService.NAME, SCHEDULES_BY_EQUALITY_KEY, schedulesByEquality);
+        writableScheduleIdByEquality =
+                new MapWritableKVState<>(ScheduleService.NAME, SCHEDULE_ID_BY_EQUALITY_KEY, scheduleByEquality);
 
         writableStates = MapWritableStates.builder()
                 .state(writableScheduleIdByEquality)

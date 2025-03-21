@@ -3,12 +3,14 @@ package com.swirlds.virtualmap;
 
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
 import static com.swirlds.common.utility.CommonUtils.getNormalisedStringBytes;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.virtualmap.VirtualMap.CLASS_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.constructable.ConstructableClass;
+import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataInputStream;
@@ -20,6 +22,7 @@ import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
+import com.swirlds.common.utility.StackTrace;
 import com.swirlds.common.utility.ValueReference;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -39,6 +42,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A {@link MerkleInternal} node that virtualizes all of its children, such that the child nodes
@@ -106,6 +111,21 @@ import java.util.List;
 @ConstructableClass(value = CLASS_ID, constructorType = VirtualMapConstructor.class)
 public final class VirtualMap extends PartialBinaryMerkleInternal
         implements ExternalSelfSerializable, Labeled, MerkleInternal {
+
+    private static final Logger logger = LogManager.getLogger(VirtualRootNode.class);
+
+    @Override
+    public void setHash(Hash hash) {
+//        if (hash != null) {
+//            logger.error(
+//                    EXCEPTION.getMarker(),
+//                    "fc version: {} | hash: {} | stacktrace: {} ",
+//                    getRoot().getFastCopyVersion(),
+//                    hash,
+//                    StackTrace.getStackTrace());
+//        }
+        super.setHash(hash);
+    }
 
     /**
      * Used for serialization.
@@ -224,7 +244,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      *
      * @return The current root node
      */
-    VirtualRootNode getRoot() {
+    public VirtualRootNode getRoot() {
         return root;
     }
 

@@ -13,6 +13,7 @@ import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.util.TokenRelListCalculator;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
@@ -290,7 +291,7 @@ class TokenRelListCalculatorTest {
                         .build(),
                 LOCAL_TOKEN_REL_5);
 
-        final var wrappedState = new MapReadableKVState<>(TOKEN_RELS_KEY, tokenRels);
+        final var wrappedState = new MapReadableKVState<>(TokenService.NAME, TOKEN_RELS_KEY, tokenRels);
         return new ReadableTokenRelationStoreImpl(
                 mockStates(Map.of(TOKEN_RELS_KEY, wrappedState)), mock(ReadableEntityCounters.class));
     }

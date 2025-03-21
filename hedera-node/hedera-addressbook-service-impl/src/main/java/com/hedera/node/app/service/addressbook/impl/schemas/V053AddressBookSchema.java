@@ -116,6 +116,7 @@ public class V053AddressBookSchema extends Schema {
             }
             writableNodes.put(
                     EntityNumber.newBuilder().number(nodeInfo.nodeId()).build(), nodeBuilder.build());
+            ctx.adjustCountsForNode(1);
         }
 
         log.info("Migrated {} nodes from address book", addressBook.size());

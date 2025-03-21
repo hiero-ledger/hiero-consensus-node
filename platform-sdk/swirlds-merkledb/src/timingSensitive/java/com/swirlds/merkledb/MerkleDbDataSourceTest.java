@@ -204,8 +204,7 @@ class MerkleDbDataSourceTest {
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
             // check all the leaf data
-            IntStream.range(count - 1, count * 2 - 1)
-                    .forEach(i -> assertLeaf(testType, dataSource, i, i));
+            IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
 
             // invalid path should throw an exception
             assertThrows(

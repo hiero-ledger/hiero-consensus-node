@@ -31,6 +31,7 @@ import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.handshake.VersionCompareHandshake;
 import com.swirlds.platform.network.protocol.*;
 import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -40,6 +41,7 @@ import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -48,6 +50,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -69,18 +72,18 @@ public class SyncGossipModular implements Gossip {
     /**
      * Builds the gossip engine, depending on which flavor is requested in the configuration.
      *
-     * @param platformContext               the platform context
-     * @param threadManager                 the thread manager
-     * @param keysAndCerts                  private keys and public certificates
-     * @param roster                        the current roster
-     * @param selfId                        this node's ID
-     * @param appVersion                    the version of the app
-     * @param swirldStateManager            manages the mutable state
-     * @param latestCompleteState           holds the latest signed state that has enough signatures to be verifiable
-     * @param statusActionSubmitter         for submitting updates to the platform status manager
-     * @param loadReconnectState            a method that should be called when a state from reconnect is obtained
-     * @param clearAllPipelinesForReconnect this method should be called to clear all pipelines prior to a reconnect
-     * @param intakeEventCounter            keeps track of the number of events in the intake pipeline from each peer
+     * @param platformContext                   the platform context
+     * @param threadManager                     the thread manager
+     * @param keysAndCerts                      private keys and public certificates
+     * @param roster                            the current roster
+     * @param selfId                            this node's ID
+     * @param appVersion                        the version of the app
+     * @param swirldStateManager                manages the mutable state
+     * @param latestCompleteState               holds the latest signed state that has enough signatures to be verifiable
+     * @param statusActionSubmitter             for submitting updates to the platform status manager
+     * @param loadReconnectState                a method that should be called when a state from reconnect is obtained
+     * @param clearAllPipelinesForReconnect     this method should be called to clear all pipelines prior to a reconnect
+     * @param intakeEventCounter                keeps track of the number of events in the intake pipeline from each peer
      */
     public SyncGossipModular(
             @NonNull final PlatformContext platformContext,
@@ -95,7 +98,9 @@ public class SyncGossipModular implements Gossip {
             @NonNull final Consumer<SignedState> loadReconnectState,
             @NonNull final Runnable clearAllPipelinesForReconnect,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            // TODO: add javadoc
+            @NonNull Function<VirtualMap, MerkleNodeState> stateRootFunction) {
 
         final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
@@ -164,7 +169,8 @@ public class SyncGossipModular implements Gossip {
                         swirldStateManager,
                         selfId,
                         controller,
-                        platformStateFacade),
+                        platformStateFacade,
+                        stateRootFunction),
                 SyncProtocol.create(platformContext, sharedState, intakeEventCounter, peers.size() + 1));
 
         final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);

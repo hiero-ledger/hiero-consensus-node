@@ -25,7 +25,7 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
-import com.swirlds.state.State;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
@@ -60,7 +60,7 @@ class SavepointStackImplTest extends StateTestBase {
             G_KEY, GRAPE);
 
     @Mock(strictness = LENIENT)
-    private State baseState;
+    private MerkleNodeState baseState;
 
     @Mock
     private SavepointStackImpl parent;
@@ -78,7 +78,7 @@ class SavepointStackImplTest extends StateTestBase {
 
     @BeforeEach
     void setup() {
-        final var baseKVState = new MapWritableKVState<>(FRUIT_STATE_KEY, new HashMap<>(BASE_DATA));
+        final var baseKVState = new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, new HashMap<>(BASE_DATA));
         final var writableStates =
                 MapWritableStates.builder().state(baseKVState).build();
         when(baseState.getReadableStates(FOOD_SERVICE)).thenReturn(writableStates);

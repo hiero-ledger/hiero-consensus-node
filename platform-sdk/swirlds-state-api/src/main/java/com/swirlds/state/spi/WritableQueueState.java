@@ -11,6 +11,7 @@ import java.util.function.Predicate;
  * @param <E> The type of element held in the queue.
  */
 public interface WritableQueueState<E> extends ReadableQueueState<E> {
+
     /**
      * Adds the given element to the end of the queue.
      *

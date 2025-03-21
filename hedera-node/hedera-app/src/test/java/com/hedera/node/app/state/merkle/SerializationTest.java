@@ -24,7 +24,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -296,13 +295,12 @@ class SerializationTest extends MerkleTestBase {
                 config,
                 config,
                 networkInfo,
-                mock(Metrics.class),
                 mock(WritableEntityIdStore.class),
                 new HashMap<>(),
                 migrationStateChanges,
                 startupNetworks,
                 TEST_PLATFORM_STATE_FACADE);
-        loadedTree.getRoot().migrate(CURRENT_VERSION);
+        loadedTree.getRoot().migrate(CONFIGURATION, CURRENT_VERSION);
     }
 
     private MerkleNodeState createMerkleHederaState(Schema schemaV1) {
@@ -320,7 +318,6 @@ class SerializationTest extends MerkleTestBase {
                 config,
                 config,
                 networkInfo,
-                mock(Metrics.class),
                 mock(WritableEntityIdStore.class),
                 new HashMap<>(),
                 migrationStateChanges,

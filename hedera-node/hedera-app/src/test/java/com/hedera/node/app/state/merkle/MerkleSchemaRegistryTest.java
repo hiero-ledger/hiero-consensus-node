@@ -19,7 +19,6 @@ import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
@@ -187,7 +186,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     config,
                     networkInfo,
-                    mock(Metrics.class),
                     mock(WritableEntityIdStore.class),
                     new HashMap<>(),
                     migrationStateChanges,
@@ -224,7 +222,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             config,
                             config,
                             networkInfo,
-                            mock(Metrics.class),
                             mock(WritableEntityIdStore.class),
                             new HashMap<>(),
                             migrationStateChanges,
@@ -244,7 +241,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             config,
                             config,
                             networkInfo,
-                            mock(Metrics.class),
                             mock(WritableEntityIdStore.class),
                             new HashMap<>(),
                             migrationStateChanges,
@@ -264,7 +260,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             null,
                             null,
                             networkInfo,
-                            mock(Metrics.class),
                             mock(WritableEntityIdStore.class),
                             new HashMap<>(),
                             migrationStateChanges,
@@ -284,27 +279,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             null,
                             config,
                             networkInfo,
-                            mock(Metrics.class),
-                            mock(WritableEntityIdStore.class),
-                            new HashMap<>(),
-                            migrationStateChanges,
-                            startupNetworks,
-                            TEST_PLATFORM_STATE_FACADE))
-                    .isInstanceOf(NullPointerException.class);
-        }
-
-        @Test
-        @DisplayName("Calling migrate with a null metrics throws NPE")
-        void nullMetricsThrows() {
-            //noinspection ConstantConditions
-            assertThatThrownBy(() -> schemaRegistry.migrate(
-                            merkleTree,
-                            versions[0],
-                            versions[1],
-                            config,
-                            config,
-                            networkInfo,
-                            null,
                             mock(WritableEntityIdStore.class),
                             new HashMap<>(),
                             migrationStateChanges,
@@ -324,7 +298,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             config,
                             config,
                             networkInfo,
-                            mock(Metrics.class),
                             mock(WritableEntityIdStore.class),
                             new HashMap<>(),
                             migrationStateChanges,
@@ -348,7 +321,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     config,
                     networkInfo,
-                    mock(Metrics.class),
                     mock(WritableEntityIdStore.class),
                     new HashMap<>(),
                     migrationStateChanges,
@@ -374,7 +346,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     config,
                     networkInfo,
-                    mock(Metrics.class),
                     mock(WritableEntityIdStore.class),
                     new HashMap<>(),
                     migrationStateChanges,
@@ -401,7 +372,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     config,
                     networkInfo,
-                    mock(Metrics.class),
                     mock(WritableEntityIdStore.class),
                     new HashMap<>(),
                     migrationStateChanges,
@@ -436,7 +406,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     config,
                     networkInfo,
-                    mock(Metrics.class),
                     mock(WritableEntityIdStore.class),
                     new HashMap<>(),
                     migrationStateChanges,
@@ -609,7 +578,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         config,
                         config,
                         networkInfo,
-                        mock(Metrics.class),
                         mock(WritableEntityIdStore.class),
                         new HashMap<>(),
                         migrationStateChanges,
@@ -640,7 +608,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         config,
                         config,
                         networkInfo,
-                        mock(Metrics.class),
                         mock(WritableEntityIdStore.class),
                         new HashMap<>(),
                         migrationStateChanges,
@@ -682,7 +649,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         config,
                         config,
                         networkInfo,
-                        mock(Metrics.class),
                         mock(WritableEntityIdStore.class),
                         new HashMap<>(),
                         migrationStateChanges,
@@ -729,7 +695,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                                 config,
                                 config,
                                 networkInfo,
-                                mock(Metrics.class),
                                 mock(WritableEntityIdStore.class),
                                 new HashMap<>(),
                                 migrationStateChanges,

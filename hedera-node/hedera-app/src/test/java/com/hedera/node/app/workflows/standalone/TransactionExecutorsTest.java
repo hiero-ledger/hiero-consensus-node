@@ -410,7 +410,6 @@ public class TransactionExecutorsTest {
                 new ConfigProviderImpl().getConfiguration(),
                 config,
                 networkInfo,
-                NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,
                 configProvider,
