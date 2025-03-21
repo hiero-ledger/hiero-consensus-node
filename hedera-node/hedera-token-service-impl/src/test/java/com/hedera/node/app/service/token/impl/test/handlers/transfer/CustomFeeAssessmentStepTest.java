@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.test.handlers.transfer;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.aaWith;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.TRANSACTION_FIXED_FEE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -11,13 +12,10 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.AccountAmount;
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.TokenID;
-import com.hedera.hapi.node.base.TokenTransferList;
+import com.hedera.hapi.node.base.*;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -99,6 +97,29 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         assertThatTransfersContains(level1Op.transfers().accountAmounts(), expectedLevel1Trasfers);
         assertThatTransferListContains(givenOp.tokenTransfers(), expectedGivenOpTokenTransfers);
         assertThatTransfersContains(givenOp.transfers().accountAmounts(), expectedGivenOpHbarTransfers);
+    }
+
+    @Test
+    @DisplayName("Transfer which adds a custom fee to the metadata")
+    void hbarFixedCustomFee() {
+        final var amount = 1000;
+        // tests the CustomFeeAssessor.setTransactionFeesAsAssessed() method
+        body = CryptoTransferTransactionBody.newBuilder()
+                .transfers(TransferList.newBuilder().accountAmounts(List.of(
+                        AccountAmount.newBuilder().accountID(ownerId).amount(-amount).build(),
+                        AccountAmount.newBuilder().accountID(payerId).amount(amount).build())).build())
+                .build();
+        givenDifferentTxn(body, payerId);
+        given(handleContext.dispatchMetadata()).willReturn(new DispatchMetadata(TRANSACTION_FIXED_FEE,
+                FixedCustomFee.newBuilder()
+                        .fixedFee(FixedFee.newBuilder().amount(amount).build())
+                        .feeCollectorAccountId(ownerId).build()));
+
+        final var listOfOps = subject.assessCustomFees(transferContext);
+        assertThat(listOfOps).hasSize(1);
+        assertThat(listOfOps.get(0)).isEqualTo(body);
+        assertThat(transferContext.getAssessedCustomFees().size()).isEqualTo(1);
+        assertThat(transferContext.getAssessedCustomFees().getFirst().amount()).isEqualTo(amount);
     }
 
     @Test
