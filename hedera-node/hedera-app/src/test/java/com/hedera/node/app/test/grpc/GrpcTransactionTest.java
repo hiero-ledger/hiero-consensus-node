@@ -38,7 +38,7 @@ class GrpcTransactionTest extends GrpcTestBase {
 
     private void setUp(@NonNull final IngestWorkflow ingest) {
         registerIngest(METHOD, ingest, UNIMPLEMENTED_QUERY, UNIMPLEMENTED_QUERY);
-        startServer(false);
+        startServer(false, "hiero-sdk-java/1.2.3");
     }
 
     @Test

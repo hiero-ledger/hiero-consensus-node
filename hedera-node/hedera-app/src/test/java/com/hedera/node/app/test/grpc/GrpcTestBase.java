@@ -32,11 +32,16 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
+import io.grpc.ClientInterceptor;
+import io.grpc.ClientInterceptors;
+import io.grpc.Metadata;
+import io.grpc.Metadata.Key;
 import io.grpc.MethodDescriptor;
 import io.grpc.MethodDescriptor.Marshaller;
 import io.grpc.MethodDescriptor.MethodType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.ClientCalls;
+import io.grpc.stub.MetadataUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -62,6 +67,9 @@ import org.junit.jupiter.api.AfterEach;
  * rather than protobuf objects.
  */
 abstract class GrpcTestBase extends TestBase {
+
+    private static final Key<String> USER_AGENT_KEY = Key.of("X-User-Agent", Metadata.ASCII_STRING_MARSHALLER);
+
     /** Used as a dependency to the {@link Metrics} system. */
     private static final ScheduledExecutorService METRIC_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
 
@@ -134,7 +142,11 @@ abstract class GrpcTestBase extends TestBase {
     }
 
     /** Starts the grpcServer and sets up the clients. */
-    protected void startServer(boolean withNodeOperatorPort) {
+    protected void startServer(final boolean withNodeOperatorPort) {
+        startServer(withNodeOperatorPort, null);
+    }
+
+    protected void startServer(final boolean withNodeOperatorPort, final String userAgent) {
         final var testService = new RpcService() {
             @NonNull
             @Override
@@ -160,8 +172,7 @@ abstract class GrpcTestBase extends TestBase {
                             set.add(new RpcMethodDefinition<>(queryMethodName, Query.class, Response.class));
                         }
                         if (ingestMethodName != null) {
-                            set.add(new RpcMethodDefinition<>(
-                                    ingestMethodName, Transaction.class, TransactionResponse.class));
+                            set.add(new RpcMethodDefinition<>(ingestMethodName, Transaction.class, TransactionResponse.class));
                         }
                         return set;
                     }
@@ -190,6 +201,14 @@ abstract class GrpcTestBase extends TestBase {
         this.channel = NettyChannelBuilder.forAddress("localhost", grpcServer.port())
                 .usePlaintext()
                 .build();
+
+        final Metadata metadata = new Metadata();
+        if (userAgent != null) {
+            metadata.put(USER_AGENT_KEY, userAgent);
+        }
+
+        final ClientInterceptor clientInterceptor = MetadataUtils.newAttachHeadersInterceptor(metadata);
+        this.channel = ClientInterceptors.intercept(this.channel, clientInterceptor);
 
         this.nodeOperatorChannel = NettyChannelBuilder.forAddress("localhost", grpcServer.nodeOperatorPort())
                 .usePlaintext()

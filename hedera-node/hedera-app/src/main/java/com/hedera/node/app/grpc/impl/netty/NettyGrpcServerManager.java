@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.grpc.GrpcServerManager;
+import com.hedera.node.app.grpc.impl.obs.ObservabilityInterceptor;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
@@ -101,6 +102,8 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
      */
     private Server nodeOperatorServer;
 
+    private final ObservabilityInterceptor obsInterceptor;
+
     /**
      * Create a new instance.
      *
@@ -124,6 +127,8 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         requireNonNull(userQueryWorkflow);
         requireNonNull(operatorQueryWorkflow);
         requireNonNull(metrics);
+
+        this.obsInterceptor = new ObservabilityInterceptor(metrics);
 
         final Supplier<Stream<RpcServiceDefinition>> rpcServiceDefinitions =
                 () -> servicesRegistry.registrations().stream()
@@ -347,6 +352,12 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         } catch (final Exception unexpected) {
             logger.info("Unexpected exception initializing Netty", unexpected);
         }
+
+        if (builder != null) {
+            // Attach observability interceptor
+            builder.intercept(obsInterceptor);
+        }
+
         return builder;
     }
 
