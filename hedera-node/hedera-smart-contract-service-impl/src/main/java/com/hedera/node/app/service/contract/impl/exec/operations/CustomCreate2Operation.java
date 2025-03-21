@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.operations.CustomizedOpcodes.CREATE2;
+import static org.hyperledger.besu.evm.internal.Words.clampedAdd;
+import static org.hyperledger.besu.evm.internal.Words.clampedToInt;
 import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
 
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
@@ -13,6 +15,7 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
@@ -29,8 +32,10 @@ public class CustomCreate2Operation extends AbstractCustomCreateOperation {
      * @param featureFlags current evm module feature flags
      */
     public CustomCreate2Operation(
-            @NonNull final GasCalculator gasCalculator, @NonNull final FeatureFlags featureFlags) {
-        super(CREATE2.opcode(), "ħCREATE2", 4, 1, gasCalculator);
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final FeatureFlags featureFlags,
+            @NonNull final CodeFactory codeFactory) {
+        super(CREATE2.opcode(), "ħCREATE2", 4, 1, gasCalculator, codeFactory);
         this.featureFlags = featureFlags;
     }
 
@@ -41,7 +46,15 @@ public class CustomCreate2Operation extends AbstractCustomCreateOperation {
 
     @Override
     protected long cost(@NonNull final MessageFrame frame) {
-        return gasCalculator().create2OperationGasCost(frame);
+        final int inputOffset = clampedToInt(frame.getStackItem(1));
+        final int inputSize = clampedToInt(frame.getStackItem(2));
+        return clampedAdd(
+                clampedAdd(
+                        gasCalculator().txCreateCost(),
+                        gasCalculator().memoryExpansionGasCost(frame, inputOffset, inputSize)),
+                clampedAdd(
+                        gasCalculator().createKeccakCost(inputSize),
+                        gasCalculator().initcodeCost(inputSize)));
     }
 
     @Override

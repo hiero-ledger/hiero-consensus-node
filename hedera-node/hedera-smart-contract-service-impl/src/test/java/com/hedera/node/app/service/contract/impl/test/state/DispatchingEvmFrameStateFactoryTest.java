@@ -9,6 +9,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.ScopedEvmFrameStateFactory;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,7 +31,7 @@ class DispatchingEvmFrameStateFactoryTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ScopedEvmFrameStateFactory(scope, extFrameScope);
+        subject = new ScopedEvmFrameStateFactory(scope, extFrameScope, new CodeFactory(0, 0));
     }
 
     @Test

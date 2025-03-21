@@ -33,6 +33,7 @@ import dagger.Provides;
 import dagger.multibindings.IntoMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Singleton;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract;
@@ -133,4 +134,10 @@ public interface ContractServiceModule {
     @Singleton
     @ServicesVersionKey(VERSION_051)
     TransactionProcessor bindV051Processor(@ServicesV051 @NonNull final TransactionProcessor processor);
+
+    @Provides
+    @Singleton
+    static CodeFactory provideCodeFactory() {
+        return new CodeFactory(0, 0);
+    }
 }
