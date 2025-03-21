@@ -327,18 +327,17 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
         if (advertiseCreation) {
             String banner = "\n\n"
                     + bannerWith(String.format(
-                            "Created schedule '%s' with id '%s'.",
-                            scheduleEntity, asScheduleString(scheduleId)));
+                            "Created schedule '%s' with id '%s'.", scheduleEntity, asScheduleString(scheduleId)));
             log.info(banner);
         }
         if (asCallableSchedule) {
             registry.saveContractId(
                     scheduleEntity,
-                            ContractID.newBuilder()
-                                    .setShardNum(scheduleId.getShardNum())
-                                    .setRealmNum(scheduleId.getRealmNum())
-                                    .setContractNum(scheduleId.getScheduleNum())
-                                    .build());
+                    ContractID.newBuilder()
+                            .setShardNum(scheduleId.getShardNum())
+                            .setRealmNum(scheduleId.getRealmNum())
+                            .setContractNum(scheduleId.getScheduleNum())
+                            .build());
         }
     }
 
