@@ -172,7 +172,7 @@ public class UserTxnFactory {
         requireNonNull(type);
         final var config = configProvider.getConfiguration();
         final var stack = createRootSavepointStack(state, type);
-        final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
+        final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
                 creatorInfo, platformTxn, readableStoreFactory, stateSignatureTxnCallback);
         final var txnInfo = requireNonNull(preHandleResult.txInfo());
@@ -180,11 +180,7 @@ public class UserTxnFactory {
             return null;
         }
         final var tokenContext = new TokenContextImpl(
-                config,
-                stack,
-                consensusNow,
-                new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME)),
-                softwareVersionFactory);
+                config, stack, consensusNow, new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME)));
         return new UserTxn(
                 type,
                 txnInfo.functionality(),
@@ -224,12 +220,11 @@ public class UserTxnFactory {
         requireNonNull(body);
         final var config = configProvider.getConfiguration();
         final var stack = createRootSavepointStack(state, type);
-        final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
+        final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var functionality = functionOfTxn(body);
         final var preHandleResult = preHandleSyntheticTransaction(body, payerId, config, readableStoreFactory);
         final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
-        final var tokenContext =
-                new TokenContextImpl(config, stack, consensusNow, entityIdStore, softwareVersionFactory);
+        final var tokenContext = new TokenContextImpl(config, stack, consensusNow, entityIdStore);
         return new UserTxn(
                 type,
                 functionality,
@@ -297,7 +292,7 @@ public class UserTxnFactory {
         final var tokenContextImpl = userTxn.tokenContextImpl();
         final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
 
-        final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
+        final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var entityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);
         final var writableStoreFactory =
                 new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);

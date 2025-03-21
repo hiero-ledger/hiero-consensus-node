@@ -62,7 +62,7 @@ public class ReconnectListener implements ReconnectCompleteListener {
                 notification.getRoundNumber(),
                 notification.getSequence());
         final State state = notification.getState();
-        final var readableStoreFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        final var readableStoreFactory = new ReadableStoreFactory(state);
         final var freezeStore = readableStoreFactory.getStore(ReadableFreezeStore.class);
         final var upgradeFileStore = readableStoreFactory.getStore(ReadableUpgradeFileStore.class);
         final var upgradeNodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
