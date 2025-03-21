@@ -33,14 +33,13 @@ public class BlockNodeConfigExtractor {
 
             // Convert proto config to internal config objects
             this.allNodes = protoConfig.nodes().stream()
-                    .map(node -> new BlockNodeConfig(node.address(), node.port()))
+                    .map(node -> new BlockNodeConfig(node.address(), node.port(), node.priority()))
                     .collect(Collectors.toList());
-
-            logger.info("Loaded block node configuration from {}", configPath);
-            logger.info("Block node configuration: {}", allNodes);
 
             this.blockItemBatchSize = protoConfig.blockItemBatchSize();
 
+            logger.info("Loaded block node configuration from {}", configPath);
+            logger.info("Block node configuration: {}", allNodes);
         } catch (IOException | ParseException e) {
             logger.error("Failed to read block node configuration from {}", configPath, e);
             throw new RuntimeException("Failed to read block node configuration from " + configPath, e);
