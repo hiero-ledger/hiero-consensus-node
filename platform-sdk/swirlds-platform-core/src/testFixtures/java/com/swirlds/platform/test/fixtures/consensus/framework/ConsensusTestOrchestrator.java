@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.gui.ListEventProvider;
 import com.swirlds.platform.test.fixtures.gui.TestGuiSource;
@@ -15,6 +18,7 @@ import java.util.function.Consumer;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
 public class ConsensusTestOrchestrator {
+    private static final ConsensusRoundValidator defaultConsensusRoundValidator = new ConsensusRoundValidator();
     private final PlatformContext platformContext;
     private final List<ConsensusTestNode> nodes;
     private long currentSequence = 0;
@@ -109,8 +113,16 @@ public class ConsensusTestOrchestrator {
         for (int i = 1; i < nodes.size(); i++) {
             final ConsensusTestNode otherNode = nodes.get(i);
 
-            consensusOutputValidator.validateOutputs(node1.getOutput(), otherNode.getOutput());
-            consensusOutputValidator.validateRounds(
+            consensusOutputValidator.validate(node1.getOutput(), otherNode.getOutput());
+            assertEquals(
+                    node1.getOutput().getConsensusRounds().size(),
+                    otherNode.getOutput().getConsensusRounds().size(),
+                    String.format(
+                            "The number of consensus rounds is not the same."
+                                    + "output1 has %d rounds, output2 has %d rounds",
+                            node1.getOutput().getConsensusRounds().size(),
+                            otherNode.getOutput().getConsensusRounds().size()));
+            defaultConsensusRoundValidator.validate(
                     node1.getOutput().getConsensusRounds(),
                     otherNode.getOutput().getConsensusRounds());
         }

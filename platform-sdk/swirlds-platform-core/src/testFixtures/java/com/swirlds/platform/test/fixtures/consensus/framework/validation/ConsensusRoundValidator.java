@@ -1,19 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
-import static com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator.ConsensusValidationType.CONSENSUS_EVENTS;
-import static com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator.ConsensusValidationType.CONSENSUS_TIMESTAMPS;
-import static com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator.ConsensusValidationType.DIFFERENT_ORDER;
-import static com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator.ConsensusValidationType.INPUTS_ARE_SAME;
-import static com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator.ConsensusValidationType.RATIOS;
-
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * This is a specific validator for consensus related tests. It allows defining custom validations related to
@@ -30,11 +22,8 @@ public class ConsensusRoundValidator {
     public ConsensusRoundValidator() {
         this.consensusRoundValidations = new ArrayList<>();
         consensusRoundValidations.add(new RoundTimestampCheckerValidation());
-        consensusRoundValidations.add(new RoundEqualityValidation());
-    }
-
-    public ConsensusRoundValidator(final List<ConsensusRoundValidation> consensusRoundValidations) {
-        this.consensusRoundValidations = consensusRoundValidations;
+        consensusRoundValidations.add(new RoundInternalEqualityValidation());
+        consensusRoundValidations.add(new RoundAncientThresholdIncreasesValidation());
     }
 
     public void validate(
@@ -42,83 +31,5 @@ public class ConsensusRoundValidator {
         for (final ConsensusRoundValidation validation : consensusRoundValidations) {
             validation.validate(firstRoundsList, secondRoundsList);
         }
-    }
-
-    /**
-     * Enum defining different validation checks for consensus related data - output, rounds, events.
-     * The validation can be configured to use specific types of validations.
-     */
-    public enum ConsensusValidationType {
-        INPUTS_ARE_SAME,
-        DIFFERENT_ORDER,
-        CONSENSUS_EVENTS,
-        CONSENSUS_TIMESTAMPS,
-        RATIOS,
-        NO_EVENTS_LOST
-    }
-
-    private final Map<ConsensusValidationType, ConsensusOutputValidation> consensusOutputValidationsMap =
-            new EnumMap<>(ConsensusValidationType.class);
-
-    private final Map<ConsensusValidationType, ConsensusRoundValidation> consensusRoundValidationsMap =
-            new EnumMap<>(ConsensusValidationType.class);
-
-    public static @NonNull ConsensusRoundValidator newInstance() {
-        return new ConsensusRoundValidator();
-    }
-
-    /**
-     * Removes a specific validation type noted by its {@link ConsensusValidationType}
-     */
-    public @NonNull ConsensusRoundValidator remove(final ConsensusValidationType type) {
-        consensusOutputValidationsMap.remove(type);
-        return this;
-    }
-
-    /**
-     * Initializes a standard {@link ConsensusRoundValidator} instance with default consensus output and
-     * consensus round validations.
-     */
-    public @NonNull ConsensusRoundValidator standard() {
-        consensusOutputValidationsMap.putAll(Map.of(
-                INPUTS_ARE_SAME, new OutputEqualityEventsValidation(),
-                DIFFERENT_ORDER, new OutputEventsAddedInDifferentOrderValidation()));
-
-        consensusRoundValidationsMap.putAll(Map.of(
-                CONSENSUS_EVENTS, new RoundEqualityValidation(),
-                CONSENSUS_TIMESTAMPS, new RoundTimestampCheckerValidation()));
-        return this;
-    }
-
-    /**
-     * Adds a ratio related validation for consensus output.
-     */
-    public @NonNull ConsensusRoundValidator ratios(@NonNull final OutputEventRatioValidation ratioValidation) {
-        consensusOutputValidationsMap.put(RATIOS, ratioValidation);
-        return this;
-    }
-
-    /**
-     * Initializes {@link ConsensusRoundValidator} with only consensus round validations.
-     */
-    public @NonNull ConsensusRoundValidator rounds() {
-        consensusRoundValidationsMap.putAll(Map.of(
-                CONSENSUS_EVENTS, new RoundEqualityValidation(),
-                CONSENSUS_TIMESTAMPS, new RoundTimestampCheckerValidation()));
-        return this;
-    }
-
-    /**
-     * Initializes {@link ConsensusRoundValidator} with only consensus output validations.
-     */
-    public @NonNull List<ConsensusOutputValidation> getOutputValidations() {
-        return consensusOutputValidationsMap.values().stream().toList();
-    }
-
-    /**
-     * Returns validations related to consensus round.
-     */
-    public @NonNull List<ConsensusRoundValidation> getRoundValidations() {
-        return consensusRoundValidationsMap.values().stream().toList();
     }
 }
