@@ -79,6 +79,12 @@ public class GasCalculationIntegrityTest {
             keys = {SUPPLY_KEY, PAUSE_KEY, ADMIN_KEY, WIPE_KEY})
     static SpecFungibleToken fungibleToken;
 
+    @FungibleToken(
+            initialSupply = 1_000L,
+            maxSupply = 1_200L,
+            keys = {SUPPLY_KEY, PAUSE_KEY, ADMIN_KEY, WIPE_KEY})
+    static SpecFungibleToken anotherFungibleToken;
+
     @NonFungibleToken(
             numPreMints = 7,
             keys = {SUPPLY_KEY, PAUSE_KEY, ADMIN_KEY, WIPE_KEY})
@@ -111,15 +117,20 @@ public class GasCalculationIntegrityTest {
 
                 // Authorizations
                 fungibleToken.authorizeContracts(numericContractComplex),
+                anotherFungibleToken.authorizeContracts(numericContractComplex),
                 nft.authorizeContracts(numericContractComplex),
-                numericContract.associateTokens(fungibleToken, nft),
+                numericContract.associateTokens(fungibleToken, anotherFungibleToken, nft),
 
                 // Approvals
                 fungibleToken.treasury().approveTokenAllowance(fungibleToken, numericContractComplex, 1000L),
+                anotherFungibleToken
+                        .treasury()
+                        .approveTokenAllowance(anotherFungibleToken, numericContractComplex, 1000L),
                 nft.treasury().approveNFTAllowance(nft, numericContractComplex, true, List.of(1L, 2L, 3L, 4L, 5L)),
                 alice.approveCryptoAllowance(numericContractComplex, ONE_HBAR),
                 // Transfers
                 fungibleToken.treasury().transferUnitsTo(numericContract, 100L, fungibleToken),
+                anotherFungibleToken.treasury().transferUnitsTo(numericContract, 100L, anotherFungibleToken),
                 nft.treasury().transferNFTsTo(numericContract, nft, 7L),
                 alice.transferHBarsTo(numericContractComplex, ONE_HUNDRED_HBARS));
     }
@@ -310,7 +321,7 @@ public class GasCalculationIntegrityTest {
         return testCases.flatMap(rates -> hapiTest(
                 updateRates(rates.hBarEquiv, rates.centEquiv),
                 numericContractComplex
-                        .call("transferTokenTest", fungibleToken, fungibleToken.treasury(), alice, 1L)
+                        .call("transferTokenTest", anotherFungibleToken, anotherFungibleToken.treasury(), alice, 1L)
                         .via("transferTokenTest")
                         .gas(758_668L)
                         .andAssert(
