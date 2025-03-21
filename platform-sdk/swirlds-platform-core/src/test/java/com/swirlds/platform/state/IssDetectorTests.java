@@ -155,7 +155,7 @@ class IssDetectorTests extends PlatformTest {
         final Randotron random = Randotron.create();
 
         final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(Math.max(10, random.nextInt(1000))) // TODO Kelly why??
+                .withSize(Math.max(10, random.nextInt(1000)))
                 .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
