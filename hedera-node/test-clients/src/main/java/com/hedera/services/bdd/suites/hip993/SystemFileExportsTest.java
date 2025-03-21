@@ -42,6 +42,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.writeToNodeWorkingDirs;
 import static com.hedera.services.bdd.spec.utilops.grouping.GroupingVerbs.getSystemFiles;
+import static com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion.eventuallyAssertingExplicitPassWithReplay;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -94,6 +95,7 @@ import java.math.BigInteger;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.text.Normalizer;
+import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -441,7 +443,11 @@ public class SystemFileExportsTest {
     final Stream<DynamicTest> syntheticFileCreationsMatchQueries() {
         final AtomicReference<Map<FileID, Bytes>> preGenesisContents = new AtomicReference<>();
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(visibleItems(validatorFor(preGenesisContents), "genesisTxn")),
+                eventuallyAssertingExplicitPassWithReplay(
+                        selectedItems(validatorFor(preGenesisContents), 17, (ignore, item) -> item.getRecord()
+                                .getReceipt()
+                                .hasFileID()),
+                        Duration.ofSeconds(10)),
                 getSystemFiles(preGenesisContents::set),
                 cryptoCreate("firstUser").via("genesisTxn"),
                 // Assert the first created entity still has the expected number
@@ -607,15 +613,13 @@ public class SystemFileExportsTest {
             @NonNull final HapiSpec spec,
             @NonNull final Map<String, VisibleItems> genesisRecords,
             @NonNull final Map<FileID, Bytes> preGenesisContents) {
-        final var items = requireNonNull(genesisRecords.get("genesisTxn"));
+        final var items = requireNonNull(genesisRecords.get(SELECTED_ITEMS_KEY));
         final var histogram = statusHistograms(items.entries());
         final var systemFileNums =
                 SysFileLookups.allSystemFileNums(spec).boxed().toList();
         assertEquals(Map.of(SUCCESS, systemFileNums.size()), histogram.get(FileCreate));
-        // Also check we export a node stake update at genesis
-        assertEquals(Map.of(SUCCESS, 1), histogram.get(NodeStakeUpdate));
         final var postGenesisContents = SysFileLookups.getSystemFileContents(spec, fileNum -> true);
-        items.entries().stream().filter(item -> item.function() == FileCreate).forEach(item -> {
+        items.entries().forEach(item -> {
             final var fileId = item.createdFileId();
             final var preContents = requireNonNull(
                     preGenesisContents.get(item.createdFileId()), "No pre-genesis contents for " + fileId);

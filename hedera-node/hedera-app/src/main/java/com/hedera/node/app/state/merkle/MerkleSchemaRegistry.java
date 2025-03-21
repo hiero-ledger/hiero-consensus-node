@@ -12,8 +12,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
-import com.hedera.node.app.ids.AppEntityIdFactory;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.services.MigrationStateChanges;
 import com.swirlds.common.constructable.ConstructableRegistry;
@@ -33,7 +31,6 @@ import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.merkle.MerkleStateRoot.MerkleWritableStates;
 import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
 import com.swirlds.state.merkle.disk.OnDiskValueSerializer;
@@ -161,7 +158,6 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
      * previousVersion}.
      * @param appConfig The system configuration to use at the time of migration
      * @param platformConfig The platform configuration to use for subsequent object initializations
-     * @param genesisNetworkInfo The network information to use at the time of migration
      * @param sharedValues A map of shared values for cross-service migration patterns
      * @param migrationStateChanges Tracker for state changes during migration
      * @param startupNetworks The startup networks to use for the migrations
@@ -177,9 +173,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final SemanticVersion currentVersion,
             @NonNull final Configuration appConfig,
             @NonNull final Configuration platformConfig,
-            @Nullable final NetworkInfo genesisNetworkInfo,
             @NonNull final Metrics metrics,
-            @Nullable final WritableEntityIdStore entityIdStore,
             @NonNull final Map<String, Object> sharedValues,
             @NonNull final MigrationStateChanges migrationStateChanges,
             @NonNull final StartupNetworks startupNetworks,
@@ -247,13 +241,10 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                     newStates,
                     appConfig,
                     platformConfig,
-                    genesisNetworkInfo,
-                    entityIdStore,
                     previousVersion,
                     roundNumber,
                     sharedValues,
-                    startupNetworks,
-                    new AppEntityIdFactory(appConfig));
+                    startupNetworks);
             if (applications.contains(MIGRATION)) {
                 schema.migrate(migrationContext);
             }

@@ -146,7 +146,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         lenient().when(handleContext.entityNumGenerator()).thenReturn(entityNumGenerator);
 
         given(handleContext.networkInfo()).willReturn(networkInfo);
-        subject = new CryptoCreateHandler(new CryptoCreateValidator());
+        subject = new CryptoCreateHandler(new CryptoCreateValidator(), null);
     }
 
     @Test

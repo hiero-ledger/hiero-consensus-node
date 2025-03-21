@@ -19,7 +19,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.function.Consumer;
 
-public record UserTxn(
+public record ParentTxn(
         @NonNull TransactionType type,
         @NonNull HederaFunctionality functionality,
         @NonNull Instant consensusNow,

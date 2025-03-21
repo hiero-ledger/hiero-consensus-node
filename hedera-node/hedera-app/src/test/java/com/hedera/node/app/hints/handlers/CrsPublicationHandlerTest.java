@@ -2,8 +2,15 @@
 package com.hedera.node.app.hints.handlers;
 
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.hints.CRSStage;
@@ -77,7 +84,7 @@ public class CrsPublicationHandlerTest {
                         .build());
         lenient()
                 .when(handleContext.creatorInfo())
-                .thenReturn(new NodeInfoImpl(0L, asAccount(0L, 0L, 3L), 10L, List.of(), Bytes.wrap("test")));
+                .thenReturn(new NodeInfoImpl(0L, asAccount(0L, 0L, 3L), 10L, List.of(), Bytes.wrap("test"), List.of()));
         lenient().when(rosterStore.getActiveRoster()).thenReturn(createRoster());
         subject = new CrsPublicationHandler(controllers);
     }
