@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_HINTS_CONSTRUCTION;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_PROOF_CONSTRUCTION;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
@@ -39,6 +40,7 @@ import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -49,6 +51,8 @@ import com.hedera.node.app.blocks.impl.NaiveStreamingTreeHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
+import com.hedera.node.app.history.HistoryLibrary;
+import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
@@ -122,8 +126,22 @@ public class StateChangesValidator implements BlockStreamValidator {
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
     private MerkleNodeState state;
-    private final boolean isHintsEnabled;
-    private final HintsLibrary hintsLibrary = new HintsLibraryImpl();
+
+    @Nullable
+    private final HintsLibrary hintsLibrary;
+
+    @Nullable
+    private final HistoryLibrary historyLibrary;
+
+    public enum HintsEnabled {
+        YES,
+        NO
+    }
+
+    public enum HistoryEnabled {
+        YES,
+        NO
+    }
 
     public static void main(String[] args) {
         final var node0Dir = Paths.get("hedera-node/test-clients")
@@ -132,11 +150,12 @@ public class StateChangesValidator implements BlockStreamValidator {
                 .normalize();
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
-                        "55f25cf2d3a2648f71f829fe1e16af00cb5da9598d4c787327a347291a9e32fa874e9f20e090b45d8a670c0b211b1e8c"),
+                        "00e8337bc1e1c5730c1a7f2dde8c53ed22f8664cd18069b71be52161a34071d6913d619f8867520e611dca03a2f71d15"),
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
-                true);
+                HintsEnabled.YES,
+                HistoryEnabled.YES);
         final var blocks =
                 BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-0.0.3"));
         validator.validateBlocks(blocks);
@@ -181,12 +200,14 @@ public class StateChangesValidator implements BlockStreamValidator {
             final var genesisConfigTxt = node0.metadata().workingDirOrThrow().resolve("genesis-config.txt");
             Files.writeString(genesisConfigTxt, subProcessNetwork.genesisConfigTxt());
             final var isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
+            final var isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
             return new StateChangesValidator(
                     rootHash,
                     node0.getExternalPath(SWIRLDS_LOG),
                     node0.getExternalPath(APPLICATION_PROPERTIES),
                     node0.getExternalPath(DATA_CONFIG_DIR),
-                    isHintsEnabled);
+                    isHintsEnabled ? HintsEnabled.YES : HintsEnabled.NO,
+                    isHistoryEnabled ? HistoryEnabled.YES : HistoryEnabled.NO);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -197,7 +218,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             @NonNull final Path pathToNode0SwirldsLog,
             @NonNull final Path pathToOverrideProperties,
             @NonNull final Path pathToUpgradeSysFilesLoc,
-            final boolean isHintsEnabled) {
+            @NonNull final HintsEnabled hintsEnabled,
+            @NonNull final HistoryEnabled historyEnabled) {
         this.expectedRootHash = requireNonNull(expectedRootHash);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
 
@@ -207,7 +229,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         System.setProperty(
                 "networkAdmin.upgradeSysFilesLoc",
                 pathToUpgradeSysFilesLoc.toAbsolutePath().toString());
-        System.setProperty("tss.hintsEnabled", "" + isHintsEnabled);
+        System.setProperty("tss.hintsEnabled", "" + (hintsEnabled == HintsEnabled.YES));
+        System.setProperty("tss.historyEnabled", "" + (historyEnabled == HistoryEnabled.YES));
         unarchiveGenesisNetworkJson(pathToUpgradeSysFilesLoc);
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
@@ -219,7 +242,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
         final var stateToBeCopied = state;
         state = state.copy();
-        this.isHintsEnabled = isHintsEnabled;
+        this.hintsLibrary = (hintsEnabled == HintsEnabled.YES) ? new HintsLibraryImpl() : null;
+        this.historyLibrary = (historyEnabled == HistoryEnabled.YES) ? new HistoryLibraryImpl() : null;
         // get the state hash before applying the state changes from current block
         this.genesisStateHash = CRYPTO.digestTreeSync(stateToBeCopied.getRoot());
 
@@ -233,7 +257,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         var startOfStateHash = requireNonNull(genesisStateHash).getBytes();
 
         final int n = blocks.size();
-        final var verificationKey = isHintsEnabled
+        final var verificationKey = (hintsLibrary != null)
                 ? blocks.stream()
                         .flatMap(b -> b.items().stream())
                         .filter(BlockItem::hasStateChanges)
@@ -475,8 +499,20 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
                 case SINGLETON_UPDATE -> {
                     final var singletonState = writableStates.getSingleton(stateKey);
-                    singletonState.put(singletonPutFor(stateChange.singletonUpdateOrThrow()));
+                    final var singleton = singletonPutFor(stateChange.singletonUpdateOrThrow());
+                    singletonState.put(singleton);
                     stateChangesSummary.countSingletonPut(serviceName, stateKey);
+                    if (historyLibrary != null
+                            && stateChange.stateId() == STATE_ID_ACTIVE_PROOF_CONSTRUCTION.protoOrdinal()) {
+                        final var construction = (HistoryProofConstruction) singleton;
+                        if (construction.hasTargetProof()) {
+                            logger.info("Verifying chain of trust for #{}", construction.constructionId());
+                            assertTrue(
+                                    historyLibrary.verifyChainOfTrust(
+                                            construction.targetProofOrThrow().proof()),
+                                    "Chain of trust verification failed for " + construction);
+                        }
+                    }
                 }
                 case MAP_UPDATE -> {
                     final var mapState = writableStates.get(stateKey);

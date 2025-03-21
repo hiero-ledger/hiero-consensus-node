@@ -912,9 +912,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         final var readableStoreFactory = new ReadableStoreFactory(state, ignore -> getSoftwareVersion());
-        final var creator =
+        final var creatorInfo =
                 daggerApp.networkInfo().nodeInfo(event.getCreatorId().id());
-        if (creator == null) {
+        if (creatorInfo == null) {
             // It's normal immediately post-upgrade to still see events from a node removed from the address book
             if (!isSoOrdered(event.getSoftwareVersion(), version.getPbjSemanticVersion())) {
                 logger.warn(
@@ -936,10 +936,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         daggerApp
                 .preHandleWorkflow()
                 .preHandle(
-                        readableStoreFactory,
-                        creator.accountId(),
-                        transactions.stream(),
-                        simplifiedStateSignatureTxnCallback);
+                        readableStoreFactory, creatorInfo, transactions.stream(), simplifiedStateSignatureTxnCallback);
     }
 
     public void onNewRecoveredState() {

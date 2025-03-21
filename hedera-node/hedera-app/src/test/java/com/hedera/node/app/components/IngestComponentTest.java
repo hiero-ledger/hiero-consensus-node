@@ -39,6 +39,7 @@ import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -118,8 +119,12 @@ class IngestComponentTest {
                 throttleFactory,
                 () -> NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(configuration));
-        final var hintsService =
-                new HintsServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl());
+        final var hintsService = new HintsServiceImpl(
+                NO_OP_METRICS,
+                ForkJoinPool.commonPool(),
+                appContext,
+                new HintsLibraryImpl(),
+                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod());
         final var historyService = new HistoryServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), DEFAULT_CONFIG);
         app = DaggerHederaInjectionComponent.builder()

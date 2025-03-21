@@ -231,7 +231,7 @@ import org.junit.jupiter.api.Assertions;
 
 public class UtilVerbs {
     public static final int DEFAULT_COLLISION_AVOIDANCE_FACTOR = 2;
-    private static final Duration MAX_WAIT_PER_HISTORY_PROOF = Duration.ofMinutes(25);
+    private static final Duration HISTORY_PROOF_WAIT_TIMEOUT = Duration.ofMinutes(50);
 
     /**
      * Private constructor to prevent instantiation.
@@ -368,8 +368,7 @@ public class UtilVerbs {
         final int proofsToWaitFor = Optional.ofNullable(System.getProperty("hapi.spec.numHistoryProofsToObserve"))
                 .map(Integer::parseInt)
                 .orElse(0);
-        return new StreamValidationOp(
-                proofsToWaitFor, Duration.ofSeconds(MAX_WAIT_PER_HISTORY_PROOF.toSeconds() * proofsToWaitFor));
+        return new StreamValidationOp(proofsToWaitFor, HISTORY_PROOF_WAIT_TIMEOUT);
     }
 
     /**
