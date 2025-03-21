@@ -67,7 +67,7 @@ dependencies.constraints {
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
     api("com.hedera.pbj:pbj-runtime:$pbj") { because("com.hedera.pbj.runtime") }
     api("com.squareup:javapoet:1.13.0") { because("com.squareup.javapoet") }
-    api("net.java.dev.jna:jna:5.16.0") { because("com.sun.jna") }
+    api("net.java.dev.jna:jna:5.17.0") { because("com.sun.jna") }
     api("com.google.dagger:dagger:$dagger") { because("dagger") }
     api("com.google.dagger:dagger-compiler:$dagger") { because("dagger.compiler") }
     api("io.grpc:grpc-netty:$grpc") { because("io.grpc.netty") }
