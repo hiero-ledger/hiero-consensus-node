@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
@@ -96,25 +96,27 @@ public class OutputEventRatioValidation implements ConsensusOutputValidation {
         // Validate consensus ratio
         final double consensusRatio = ((double) numConsensus) / allEvents1.size();
 
-        assertTrue(
-                consensusRatio >= minimumConsensusRatio,
-                String.format(
+        assertThat(consensusRatio)
+                .isGreaterThanOrEqualTo(minimumConsensusRatio)
+                .withFailMessage(String.format(
                         "Consensus ratio %s is less than the expected minimum %s",
                         consensusRatio, minimumConsensusRatio));
-        assertTrue(
-                consensusRatio <= maximumConsensusRatio,
-                String.format(
+        assertThat(consensusRatio)
+                .isLessThan(maximumConsensusRatio)
+                .withFailMessage(String.format(
                         "Consensus ratio %s is more than the expected maximum %s",
                         consensusRatio, maximumConsensusRatio));
 
         // Validate stale ratio
         final double staleRatio = ((double) output1.getStaleEvents().size()) / allEvents1.size();
 
-        assertTrue(
-                staleRatio >= minimumStaleRatio,
-                String.format("Stale ratio %s is less than the expected minimum %s", staleRatio, minimumStaleRatio));
-        assertTrue(
-                staleRatio <= maximumStaleRatio,
-                String.format("Stale ratio %s is more than the expected maximum %s", staleRatio, maximumStaleRatio));
+        assertThat(staleRatio)
+                .isGreaterThanOrEqualTo(minimumStaleRatio)
+                .withFailMessage(String.format(
+                        "Stale ratio %s is less than the expected minimum %s", staleRatio, minimumStaleRatio));
+        assertThat(staleRatio)
+                .isLessThanOrEqualTo(maximumStaleRatio)
+                .withFailMessage(String.format(
+                        "Stale ratio %s is more than the expected maximum %s", staleRatio, maximumStaleRatio));
     }
 }

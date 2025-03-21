@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
@@ -132,7 +134,19 @@ class IntakeAndConsensusTests {
 
     private static void assertConsensusEvents(final TestIntake node1, final TestIntake node2) {
         final RoundInternalEqualityValidation roundInternalEqualityValidation = new RoundInternalEqualityValidation();
-        roundInternalEqualityValidation.validate(node1.getConsensusRounds(), node2.getConsensusRounds());
+        assertEquals(
+                node1.getConsensusRounds().size(),
+                node2.getConsensusRounds().size(),
+                String.format(
+                        "The number of consensus rounds is not the same."
+                                + "output1 has %d rounds, output2 has %d rounds",
+                        node1.getConsensusRounds().size(),
+                        node2.getConsensusRounds().size()));
+        for (int i = 0; i < node1.getConsensusRounds().size(); i++) {
+            roundInternalEqualityValidation.validate(
+                    node1.getConsensusRounds().get(i),
+                    node2.getConsensusRounds().get(i));
+        }
         node1.getConsensusRounds().clear();
         node2.getConsensusRounds().clear();
     }

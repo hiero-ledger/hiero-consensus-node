@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.platform.NodeId;
@@ -114,10 +114,9 @@ public class ConsensusTestOrchestrator {
             final ConsensusTestNode otherNode = nodes.get(i);
 
             consensusOutputValidator.validate(node1.getOutput(), otherNode.getOutput());
-            assertEquals(
-                    node1.getOutput().getConsensusRounds().size(),
-                    otherNode.getOutput().getConsensusRounds().size(),
-                    String.format(
+            assertThat(node1.getOutput().getConsensusRounds().size())
+                    .isEqualTo(otherNode.getOutput().getConsensusRounds().size())
+                    .withFailMessage(String.format(
                             "The number of consensus rounds is not the same."
                                     + "output1 has %d rounds, output2 has %d rounds",
                             node1.getOutput().getConsensusRounds().size(),

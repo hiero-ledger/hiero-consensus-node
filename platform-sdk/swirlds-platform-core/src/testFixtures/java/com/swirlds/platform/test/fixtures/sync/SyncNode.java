@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.sync;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.common.context.PlatformContext;
@@ -39,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import org.assertj.core.api.Assertions;
 
 /**
  * Represents a node in a sync for tests. This node can be the caller or the listener.
@@ -197,7 +197,7 @@ public class SyncNode {
         try {
             shadowGraph.addEvent(newEvent);
         } catch (ShadowgraphInsertionException e) {
-            fail("Something went wrong adding initial events to the shadow graph.", e);
+            Assertions.fail("Something went wrong adding initial events to the shadow graph.", e);
         }
     }
 

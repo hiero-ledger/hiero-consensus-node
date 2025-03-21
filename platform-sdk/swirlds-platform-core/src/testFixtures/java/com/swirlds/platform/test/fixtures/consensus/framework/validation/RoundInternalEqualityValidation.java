@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
@@ -16,33 +15,32 @@ public class RoundInternalEqualityValidation implements ConsensusRoundValidation
     public void validate(@NonNull final ConsensusRound firstRound, @NonNull final ConsensusRound secondRound) {
         final long firstRoundNumber = firstRound.getRoundNum();
         final long secondRoundNumber = secondRound.getRoundNum();
-        assertEquals(
-                firstRound.getRoundNum(),
-                secondRound.getRoundNum(),
-                String.format("round diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
-        assertEquals(
-                firstRound.getEventCount(),
-                secondRound.getEventCount(),
-                String.format(
+        assertThat(firstRound.getRoundNum())
+                .isEqualTo(secondRound.getRoundNum())
+                .withFailMessage(() -> String.format(
+                        "round diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
+        assertThat(firstRound.getEventCount())
+                .isEqualTo(secondRound.getEventCount())
+                .withFailMessage(() -> String.format(
                         "event number diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
-        assertEquals(
-                firstRound.getSnapshot(),
-                secondRound.getSnapshot(),
-                String.format("snapshot diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
+        assertThat(firstRound.getSnapshot())
+                .isEqualTo(secondRound.getSnapshot())
+                .withFailMessage(() -> String.format(
+                        "snapshot diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
         final Iterator<PlatformEvent> evIt1 = firstRound.getConsensusEvents().iterator();
         final Iterator<PlatformEvent> evIt2 = secondRound.getConsensusEvents().iterator();
         int eventIndex = 0;
         while (evIt1.hasNext() && evIt2.hasNext()) {
             final PlatformEvent e1 = evIt1.next();
             final PlatformEvent e2 = evIt2.next();
-            assertNotNull(
-                    e1.getConsensusData(),
-                    String.format(
+            assertThat(e1.getConsensusData())
+                    .isNotNull()
+                    .withFailMessage(String.format(
                             "output:1, roundNumberFromFirstNode:%d, roundNumberFromSecondRound:%d, eventIndex%d is not consensus",
                             firstRoundNumber, secondRoundNumber, eventIndex));
-            assertNotNull(
-                    e2.getConsensusData(),
-                    String.format(
+            assertThat(e2.getConsensusData())
+                    .isNotNull()
+                    .withFailMessage(String.format(
                             "output:1, roundNumberFromFirstNode:%d, roundNumberFromSecondRound:%d, eventIndex%d is not consensus",
                             firstRoundNumber, secondRoundNumber, eventIndex));
             assertConsensusEvents(

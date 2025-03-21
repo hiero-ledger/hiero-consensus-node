@@ -11,7 +11,7 @@ import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.junit.jupiter.api.Assertions;
+import org.assertj.core.api.Assertions;
 
 @SuppressWarnings("unused") // issue tracked #6998
 public final class OutputLackOfLostEventsValidation {
