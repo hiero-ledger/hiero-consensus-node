@@ -3,15 +3,15 @@ package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
-import static com.hedera.node.app.workflows.handle.TransactionType.GENESIS_TRANSACTION;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.functionOfTxn;
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.getKeyVerifier;
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.getTxnInfoFrom;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.PRE_HANDLE_FAILURE;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
-import static com.hedera.node.app.workflows.standalone.impl.StandaloneDispatchFactory.getTxnCategory;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
@@ -77,14 +77,20 @@ import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Singleton
-public class UserTxnFactory {
+public class ParentTxnFactory {
+    private static final Logger log = LogManager.getLogger(ParentTxnFactory.class);
 
     private final ConfigProvider configProvider;
     private final KVStateChangeListener kvStateChangeListener;
@@ -105,8 +111,11 @@ public class UserTxnFactory {
     private final ChildDispatchFactory childDispatchFactory;
     private final TransactionChecker transactionChecker;
 
+    @Nullable
+    private final AtomicBoolean systemEntitiesCreatedFlag;
+
     @Inject
-    public UserTxnFactory(
+    public ParentTxnFactory(
             @NonNull final ConfigProvider configProvider,
             @NonNull final KVStateChangeListener kvStateChangeListener,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
@@ -123,7 +132,8 @@ public class UserTxnFactory {
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ChildDispatchFactory childDispatchFactory,
             @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
-            @NonNull final TransactionChecker transactionChecker) {
+            @NonNull final TransactionChecker transactionChecker,
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.configProvider = requireNonNull(configProvider);
         this.kvStateChangeListener = requireNonNull(kvStateChangeListener);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
@@ -145,10 +155,21 @@ public class UserTxnFactory {
                 .streamMode();
         this.softwareVersionFactory = softwareVersionFactory;
         this.transactionChecker = requireNonNull(transactionChecker);
+        this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
     }
 
     /**
-     * Creates a new {@link UserTxn} instance from the given parameters.
+     * Returns whether a {@link PreHandleResult} should be categorized as a node or user transaction.
+     * @param preHandleResult the pre-handle result
+     * @return the transaction category
+     */
+    public static HandleContext.TransactionCategory getTxnCategory(@NonNull final PreHandleResult preHandleResult) {
+        requireNonNull(preHandleResult);
+        return preHandleResult.txnInfoOrThrow().signatureMap().sigPair().isEmpty() ? NODE : USER;
+    }
+
+    /**
+     * Creates a new {@link ParentTxn} instance from the given parameters.
      *
      * @param state the state the transaction will be applied to
      * @param creatorInfo the node information of the creator
@@ -158,7 +179,7 @@ public class UserTxnFactory {
      * @param stateSignatureTxnCallback a callback to be called when encountering a {@link StateSignatureTransaction}
      * @return the new user transaction, or {@code null} if the transaction is not a user transaction
      */
-    public @Nullable UserTxn createUserTxn(
+    public @Nullable ParentTxn createUserTxn(
             @NonNull final State state,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final ConsensusTransaction platformTxn,
@@ -175,7 +196,11 @@ public class UserTxnFactory {
         final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
                 creatorInfo, platformTxn, readableStoreFactory, stateSignatureTxnCallback);
-        final var txnInfo = requireNonNull(preHandleResult.txInfo());
+        final var txnInfo = preHandleResult.txInfo();
+        if (txnInfo == null) {
+            log.error("Node {} submitted an unparseable transaction {}", creatorInfo.nodeId(), platformTxn);
+            return null;
+        }
         if (txnInfo.functionality() == STATE_SIGNATURE_TRANSACTION) {
             return null;
         }
@@ -185,7 +210,7 @@ public class UserTxnFactory {
                 consensusNow,
                 new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME)),
                 softwareVersionFactory);
-        return new UserTxn(
+        return new ParentTxn(
                 type,
                 txnInfo.functionality(),
                 consensusNow,
@@ -200,16 +225,17 @@ public class UserTxnFactory {
     }
 
     /**
-     * Creates a new {@link UserTxn} for synthetic transaction body.
+     * Creates a new {@link ParentTxn} for a transaction triggered by a system state transition
+     * like the passage of consensus time or a software upgrade.
      *
      * @param state the state the transaction will be applied to
      * @param creatorInfo the node information of the creator
      * @param consensusNow the current consensus time
      * @param type the type of the transaction
-     * @param body synthetic transaction body
+     * @param body system transaction body
      * @return the new user transaction
      */
-    public UserTxn createUserTxn(
+    public ParentTxn createSystemTxn(
             @NonNull final State state,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final Instant consensusNow,
@@ -226,16 +252,16 @@ public class UserTxnFactory {
         final var stack = createRootSavepointStack(state, type);
         final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
         final var functionality = functionOfTxn(body);
-        final var preHandleResult = preHandleSyntheticTransaction(body, payerId, config, readableStoreFactory);
+        final var preHandleResult = preHandleSystemTransaction(body, payerId, config, readableStoreFactory);
         final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
         final var tokenContext =
                 new TokenContextImpl(config, stack, consensusNow, entityIdStore, softwareVersionFactory);
-        return new UserTxn(
+        return new ParentTxn(
                 type,
                 functionality,
                 consensusNow,
                 state,
-                preHandleResult.txInfo(),
+                preHandleResult.txnInfoOrThrow(),
                 tokenContext,
                 stack,
                 preHandleResult,
@@ -247,54 +273,62 @@ public class UserTxnFactory {
     /**
      * Creates a new {@link Dispatch} instance for this user transaction in the given context.
      *
-     * @param userTxn user transaction
+     * @param parentTxn user transaction
      * @param exchangeRates the exchange rates to use
      * @return the new dispatch instance
      */
-    public Dispatch createDispatch(@NonNull final UserTxn userTxn, @NonNull final ExchangeRateSet exchangeRates) {
-        requireNonNull(userTxn);
+    public Dispatch createDispatch(@NonNull final ParentTxn parentTxn, @NonNull final ExchangeRateSet exchangeRates) {
+        requireNonNull(parentTxn);
         requireNonNull(exchangeRates);
-        final var preHandleResult = userTxn.preHandleResult();
+        final var preHandleResult = parentTxn.preHandleResult();
         final var keyVerifier = new DefaultKeyVerifier(
-                userTxn.txnInfo().signatureMap().sigPair().size(),
-                userTxn.config().getConfigData(HederaConfig.class),
+                parentTxn.txnInfo().signatureMap().sigPair().size(),
+                parentTxn.config().getConfigData(HederaConfig.class),
                 preHandleResult.getVerificationResults());
         final var category = getTxnCategory(preHandleResult);
-        final var baseBuilder = userTxn.initBaseBuilder(exchangeRates);
-        return createDispatch(userTxn, baseBuilder, keyVerifier, category);
+        final var baseBuilder = parentTxn.initBaseBuilder(exchangeRates);
+        return createDispatch(parentTxn, baseBuilder, keyVerifier, category);
     }
 
     /**
      * Creates a new {@link Dispatch} instance for this user transaction in the given context.
      *
-     * @param userTxn user transaction
+     * @param parentTxn user transaction
      * @param baseBuilder the base record builder
      * @param keyVerifierCallback key verifier callback
      * @param category transaction category
      * @return the new dispatch instance
      */
     public Dispatch createDispatch(
-            @NonNull final UserTxn userTxn,
+            @NonNull final ParentTxn parentTxn,
             @NonNull final StreamBuilder baseBuilder,
             @NonNull final Predicate<Key> keyVerifierCallback,
             @NonNull final HandleContext.TransactionCategory category) {
-        final var config = userTxn.config();
+        final var config = parentTxn.config();
         final var keyVerifier = getKeyVerifier(keyVerifierCallback, config, emptySet());
-        return createDispatch(userTxn, baseBuilder, keyVerifier, category);
+        return createDispatch(parentTxn, baseBuilder, keyVerifier, category);
     }
 
+    /**
+     * Creates the root dispatch for the given parent transaction.
+     * @param parentTxn the parent transaction
+     * @param baseBuilder the base stream builder
+     * @param keyVerifier the key verifier to use for the dispatch
+     * @param transactionCategory the transaction category
+     * @return the new dispatch
+     */
     private Dispatch createDispatch(
-            @NonNull final UserTxn userTxn,
+            @NonNull final ParentTxn parentTxn,
             @NonNull final StreamBuilder baseBuilder,
             @NonNull final AppKeyVerifier keyVerifier,
             @NonNull final HandleContext.TransactionCategory transactionCategory) {
-        final var config = userTxn.config();
-        final var txnInfo = userTxn.txnInfo();
-        final var preHandleResult = userTxn.preHandleResult();
-        final var stack = userTxn.stack();
-        final var consensusNow = userTxn.consensusNow();
-        final var creatorInfo = userTxn.creatorInfo();
-        final var tokenContextImpl = userTxn.tokenContextImpl();
+        final var config = parentTxn.config();
+        final var txnInfo = parentTxn.txnInfo();
+        final var preHandleResult = parentTxn.preHandleResult();
+        final var stack = parentTxn.stack();
+        final var consensusNow = parentTxn.consensusNow();
+        final var creatorInfo = parentTxn.creatorInfo();
+        final var tokenContextImpl = parentTxn.tokenContextImpl();
         final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
 
         final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
@@ -374,14 +408,13 @@ public class UserTxnFactory {
      * @param type the type of the transaction
      * @return the new root savepoint stack
      */
-    public SavepointStackImpl createRootSavepointStack(
+    private SavepointStackImpl createRootSavepointStack(
             @NonNull final State state, @NonNull final TransactionType type) {
         final var config = configProvider.getConfiguration();
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
-        final var maxPrecedingRecords = (type == GENESIS_TRANSACTION || type == POST_UPGRADE_TRANSACTION)
-                ? Integer.MAX_VALUE
-                : consensusConfig.handleMaxPrecedingRecords();
+        final var maxPrecedingRecords =
+                type == POST_UPGRADE_TRANSACTION ? Integer.MAX_VALUE : consensusConfig.handleMaxPrecedingRecords();
         return SavepointStackImpl.newRootStack(
                 state,
                 maxPrecedingRecords,
@@ -391,18 +424,42 @@ public class UserTxnFactory {
                 blockStreamConfig.streamMode());
     }
 
-    private PreHandleResult preHandleSyntheticTransaction(
+    /**
+     * Creates the {@link PreHandleResult} for a system transaction, which never has additional cryptographic
+     * signatures that need to be verified; hence the pre-handle process is much simpler.
+     * @param body the system transaction body
+     * @param payerId the payer of the transaction
+     * @param config the current configuration
+     * @param readableStoreFactory the readable store factory
+     * @return the pre-handle result
+     */
+    private PreHandleResult preHandleSystemTransaction(
             @NonNull final TransactionBody body,
-            @NonNull final AccountID syntheticPayerId,
+            @NonNull final AccountID payerId,
             @NonNull final Configuration config,
             @NonNull final ReadableStoreFactory readableStoreFactory) {
+        // Until system entities exist, we can skip everything here
+        if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
+            return new PreHandleResult(
+                    payerId,
+                    null,
+                    SO_FAR_SO_GOOD,
+                    OK,
+                    getTxnInfoFrom(payerId, body),
+                    Set.of(),
+                    Set.of(),
+                    Set.of(),
+                    Map.of(),
+                    null,
+                    0);
+        }
         try {
             final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             final var preHandleContext = new PreHandleContextImpl(
-                    readableStoreFactory, body, syntheticPayerId, config, dispatcher, transactionChecker);
+                    readableStoreFactory, body, payerId, config, dispatcher, transactionChecker);
             dispatcher.dispatchPreHandle(preHandleContext);
-            final var txInfo = getTxnInfoFrom(syntheticPayerId, body);
+            final var txInfo = getTxnInfoFrom(payerId, body);
             return new PreHandleResult(
                     null,
                     null,

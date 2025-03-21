@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class CallTestBase {
+
     @Mock
     protected HederaOperations operations;
 

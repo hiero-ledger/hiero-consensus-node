@@ -20,6 +20,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -32,11 +33,13 @@ import java.util.stream.Stream;
  * transactional unit with parent/child relationships.
  * @param transactionParts the parts of the transaction
  * @param transactionResult the result of processing the transaction
+ * @param role the role of the transaction in the group
  * @param transactionOutputs the output of processing the transaction
  */
 public record BlockTransactionParts(
         @NonNull TransactionParts transactionParts,
         @NonNull TransactionResult transactionResult,
+        @NonNull TransactionGroupRole role,
         @Nullable TransactionOutput... transactionOutputs) {
 
     /**
@@ -152,32 +155,40 @@ public record BlockTransactionParts(
 
     /**
      * Constructs a new {@link BlockTransactionParts} that includes an output.
+     *
      * @param transactionParts the parts of the transaction
      * @param transactionResult the result of processing the transaction
+     * @param role the role of the transaction in the group
      * @param transactionOutputs the outputs of processing the transaction
      * @return the constructed object
      */
     public static BlockTransactionParts withOutputs(
             @NonNull final TransactionParts transactionParts,
             @NonNull final TransactionResult transactionResult,
+            @NonNull final TransactionGroupRole role,
             @NonNull final TransactionOutput... transactionOutputs) {
         requireNonNull(transactionParts);
         requireNonNull(transactionResult);
         requireNonNull(transactionOutputs);
-        return new BlockTransactionParts(transactionParts, transactionResult, transactionOutputs);
+        return new BlockTransactionParts(transactionParts, transactionResult, role, transactionOutputs);
     }
 
     /**
      * Constructs a new {@link BlockTransactionParts} that does not include an output.
+     *
      * @param transactionParts the parts of the transaction
      * @param transactionResult the result of processing the transaction
+     * @param role the role of the transaction in the group
      * @return the constructed object
      */
     public static BlockTransactionParts sansOutput(
-            @NonNull final TransactionParts transactionParts, @NonNull final TransactionResult transactionResult) {
+            @NonNull final TransactionParts transactionParts,
+            @NonNull final TransactionResult transactionResult,
+            @NonNull final TransactionGroupRole role) {
         requireNonNull(transactionParts);
         requireNonNull(transactionResult);
-        return new BlockTransactionParts(transactionParts, transactionResult);
+        requireNonNull(role);
+        return new BlockTransactionParts(transactionParts, transactionResult, role);
     }
 
     /**
@@ -191,7 +202,9 @@ public record BlockTransactionParts(
      * Returns whether the transaction has an output.
      */
     public boolean hasContractOutput() {
-        return transactionOutputs != null && Stream.of(transactionOutputs).anyMatch(TransactionOutput::hasContractCall);
+        return transactionOutputs != null
+                && Stream.of(transactionOutputs)
+                        .anyMatch(com.hedera.hapi.block.stream.output.TransactionOutput::hasContractCall);
     }
 
     /**

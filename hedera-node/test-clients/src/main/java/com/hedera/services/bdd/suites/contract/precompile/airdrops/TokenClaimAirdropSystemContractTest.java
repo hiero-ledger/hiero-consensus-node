@@ -26,7 +26,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PENDING_AIRDRO
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -43,12 +42,10 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
-@OrderedInIsolation
 class TokenClaimAirdropSystemContractTest {
 
     @Contract(contract = "ClaimAirdrop", creationGas = 1_000_000L)
@@ -72,7 +69,6 @@ class TokenClaimAirdropSystemContractTest {
                 token.treasury().transferUnitsTo(sender, 1000, token));
     }
 
-    @Order(0)
     @HapiTest
     @DisplayName("Can claim  1 fungible airdrop")
     public Stream<DynamicTest> claimAirdrop() {
@@ -93,7 +89,6 @@ class TokenClaimAirdropSystemContractTest {
                 receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10)));
     }
 
-    @Order(1)
     @HapiTest
     @DisplayName("Can claim 1 nft airdrop")
     public Stream<DynamicTest> claimNftAirdrop(@NonFungibleToken(numPreMints = 1) final SpecNonFungibleToken nft) {
@@ -116,7 +111,6 @@ class TokenClaimAirdropSystemContractTest {
                 receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 1)));
     }
 
-    @Order(2)
     @HapiTest
     @DisplayName("Can claim 10 fungible airdrops")
     public Stream<DynamicTest> claim10Airdrops(
@@ -155,7 +149,6 @@ class TokenClaimAirdropSystemContractTest {
         }));
     }
 
-    @Order(3)
     @HapiTest
     @DisplayName("Can claim 3 fungible airdrops")
     public Stream<DynamicTest> claim3Airdrops(
@@ -180,7 +173,6 @@ class TokenClaimAirdropSystemContractTest {
         }));
     }
 
-    @Order(4)
     @HapiTest
     @DisplayName("Fails to claim 11 pending airdrops")
     public Stream<DynamicTest> failToClaim11Airdrops(
@@ -222,7 +214,6 @@ class TokenClaimAirdropSystemContractTest {
         }));
     }
 
-    @Order(5)
     @HapiTest
     @DisplayName("Fails to claim pending airdrop with invalid token")
     public Stream<DynamicTest> failToClaim1AirdropWithInvalidToken() {
@@ -233,7 +224,6 @@ class TokenClaimAirdropSystemContractTest {
                 .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_TOKEN_ID)));
     }
 
-    @Order(6)
     @HapiTest
     @DisplayName("Fails to claim pending airdrop with invalid sender")
     public Stream<DynamicTest> failToClaim1AirdropWithInvalidSender() {
@@ -244,18 +234,16 @@ class TokenClaimAirdropSystemContractTest {
                 .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_PENDING_AIRDROP_ID)));
     }
 
-    @Order(7)
     @HapiTest
     @DisplayName("Fails to claim airdrop having no pending airdrops")
-    public Stream<DynamicTest> failToClaimAirdropWhenThereAreNoPending() {
+    public Stream<DynamicTest> failToClaimAirdropWhenThereAreNoPending(@FungibleToken SpecFungibleToken fungibleToken) {
         return hapiTest(claimAirdrop
-                .call("claim", sender, receiver, token)
+                .call("claim", sender, receiver, fungibleToken)
                 .payingWith(sender)
                 .via("claimAirdrop")
                 .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_PENDING_AIRDROP_ID)));
     }
 
-    @Order(8)
     @HapiTest
     @DisplayName("Fails to claim pending airdrop with invalid receiver")
     public Stream<DynamicTest> failToClaim1AirdropWithInvalidReceiver() {
@@ -266,7 +254,6 @@ class TokenClaimAirdropSystemContractTest {
                 .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_ACCOUNT_ID)));
     }
 
-    @Order(9)
     @HapiTest
     @DisplayName("Fails to claim nft airdrop with invalid nft")
     public Stream<DynamicTest> failToClaim1AirdropWithInvalidNft() {
@@ -277,7 +264,6 @@ class TokenClaimAirdropSystemContractTest {
                 .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_TOKEN_ID)));
     }
 
-    @Order(10)
     @HapiTest
     @DisplayName("Fails to claim nft airdrop with invalid nft serial")
     public Stream<DynamicTest> failToClaim1AirdropWithInvalidSerial(@NonFungibleToken final SpecNonFungibleToken nft) {

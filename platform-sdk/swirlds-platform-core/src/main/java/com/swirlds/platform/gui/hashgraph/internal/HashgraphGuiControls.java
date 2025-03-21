@@ -35,6 +35,10 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
 
     /** the round number for the event */
     private final Checkbox labelRoundCheckbox;
+    /** votes for the witnesses */
+    private final Checkbox labelVoteCheckbox;
+    /** the hash for the event */
+    private final Checkbox labelEventHashCheckbox;
     /** the consensus round received for the event */
     private final Checkbox labelRoundRecCheckbox;
     /** the consensus order number for the event */
@@ -60,6 +64,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         simpleColorsCheckbox = new Checkbox("Colors: blue=consensus, green=not");
         expandCheckbox = new Checkbox("Expand: wider so lines don't cross");
         labelRoundCheckbox = new Checkbox("Labels: Round created");
+        labelVoteCheckbox = new Checkbox("Labels: Vote");
+        labelEventHashCheckbox = new Checkbox("Labels: Event Hash (h)");
         labelRoundRecCheckbox = new Checkbox("Labels: Round received (consensus)");
         labelConsOrderCheckbox = new Checkbox("Labels: Order (consensus)");
         labelConsTimestampCheckbox = new Checkbox("Labels: Timestamp (consensus)");
@@ -96,6 +102,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
             simpleColorsCheckbox,
             expandCheckbox,
             labelRoundCheckbox,
+            labelVoteCheckbox,
+            labelEventHashCheckbox,
             labelRoundRecCheckbox,
             labelConsOrderCheckbox,
             labelConsTimestampCheckbox,
@@ -211,6 +219,16 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     @Override
     public boolean writeRoundCreated() {
         return labelRoundCheckbox.getState();
+    }
+
+    @Override
+    public boolean writeVote() {
+        return labelVoteCheckbox.getState();
+    }
+
+    @Override
+    public boolean writeEventHash() {
+        return labelEventHashCheckbox.getState();
     }
 
     @Override

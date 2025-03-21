@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.FILE_UPDATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.FIRST_CHILD;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.STANDALONE;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.STARTING_PARENT;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
@@ -29,6 +26,9 @@ import java.util.Set;
  * Splits a block into units for translation.
  */
 public class BlockUnitSplit {
+    private static final Set<TransactionGroupRole> NEW_UNIT_ROLES =
+            EnumSet.of(STANDALONE, FIRST_CHILD, STARTING_PARENT);
+
     /**
      * Holds the parts of a transaction that are pending processing.
      */
@@ -42,6 +42,9 @@ public class BlockUnitSplit {
         @Nullable
         private List<TransactionOutput> outputs;
 
+        @Nullable
+        private TransactionGroupRole role;
+
         /**
          * Clears the pending parts.
          */
@@ -49,6 +52,7 @@ public class BlockUnitSplit {
             parts = null;
             result = null;
             outputs = null;
+            role = null;
         }
 
         /**
@@ -68,11 +72,12 @@ public class BlockUnitSplit {
         }
 
         BlockTransactionParts toBlockTransactionParts() {
+            requireNonNull(role);
             requireNonNull(parts);
             requireNonNull(result);
             return outputs == null
-                    ? BlockTransactionParts.sansOutput(parts, result)
-                    : BlockTransactionParts.withOutputs(parts, result, outputs.toArray(TransactionOutput[]::new));
+                    ? BlockTransactionParts.sansOutput(parts, result, role)
+                    : BlockTransactionParts.withOutputs(parts, result, role, outputs.toArray(TransactionOutput[]::new));
         }
     }
 
@@ -87,12 +92,10 @@ public class BlockUnitSplit {
     public List<BlockTransactionalUnit> split(@NonNull final Block block) {
         final List<BlockTransactionalUnit> units = new ArrayList<>();
 
-        TxnIdType lastTxnIdType = null;
-        TransactionID unitTxnId = null;
         PendingBlockTransactionParts pendingParts = new PendingBlockTransactionParts();
         final List<BlockTransactionParts> unitParts = new ArrayList<>();
         final List<StateChange> unitStateChanges = new ArrayList<>();
-        for (int i = 0; i < block.items().size(); i++) {
+        for (int i = 0, n = block.items().size(); i < n; i++) {
             final var item = block.items().get(i);
             switch (item.item().kind()) {
                 case UNSET, RECORD_FILE -> throw new IllegalStateException(
@@ -103,30 +106,20 @@ public class BlockUnitSplit {
                 case EVENT_TRANSACTION -> {
                     final var eventTransaction = item.eventTransactionOrThrow();
                     if (eventTransaction.hasApplicationTransaction()) {
-                        final var nextParts = TransactionParts.from(eventTransaction.applicationTransactionOrThrow());
-                        final var txnId = nextParts.transactionIdOrThrow();
                         if (pendingParts.areComplete()) {
                             unitParts.add(pendingParts.toBlockTransactionParts());
                         }
-                        final boolean hasParentConsensusTimestamp = block.items()
-                                .get(i + 1)
-                                .transactionResultOrThrow()
-                                .hasParentConsensusTimestamp();
-                        final var txnIdType =
-                                classifyTxnId(txnId, unitTxnId, nextParts, lastTxnIdType, hasParentConsensusTimestamp);
-                        if (txnIdType == TxnIdType.NEW_UNIT_BY_ID && !unitParts.isEmpty()) {
+                        final var nextParts = TransactionParts.from(eventTransaction.applicationTransactionOrThrow());
+                        if (!unitParts.isEmpty() && NEW_UNIT_ROLES.contains(eventTransaction.transactionGroupRole())) {
                             completeAndAdd(units, unitParts, unitStateChanges);
                         }
                         pendingParts.clear();
+                        pendingParts.role = eventTransaction.transactionGroupRole();
                         if (genesisStateChanges != null) {
                             unitStateChanges.addAll(genesisStateChanges);
                             genesisStateChanges = null;
                         }
-                        if (txnIdType != TxnIdType.AUTO_SYSFILE_MGMT_ID) {
-                            unitTxnId = txnId;
-                        }
                         pendingParts.parts = nextParts;
-                        lastTxnIdType = txnIdType;
                     }
                 }
                 case TRANSACTION_RESULT -> pendingParts.result = item.transactionResultOrThrow();
@@ -145,46 +138,6 @@ public class BlockUnitSplit {
             completeAndAdd(units, unitParts, unitStateChanges);
         }
         return units;
-    }
-
-    private TxnIdType classifyTxnId(
-            @NonNull final TransactionID nextId,
-            @Nullable final TransactionID unitTxnId,
-            @NonNull final TransactionParts parts,
-            @Nullable final TxnIdType lastTxnIdType,
-            final boolean hasParentConsensusTimestamp) {
-        if (isAutoEntityMgmtTxn(parts)) {
-            return TxnIdType.AUTO_SYSFILE_MGMT_ID;
-        }
-        if (lastTxnIdType == TxnIdType.AUTO_SYSFILE_MGMT_ID) {
-            // Automatic system file management transactions never end a transactional unit
-            return TxnIdType.SAME_UNIT_BY_ID;
-        }
-        if (unitTxnId == null) {
-            return TxnIdType.NEW_UNIT_BY_ID;
-        }
-        // Scheduled or batch inner transactions never begin a new transactional unit
-        final var radicallyDifferent = !hasParentConsensusTimestamp
-                && !nextId.scheduled()
-                && (!nextId.accountIDOrElse(AccountID.DEFAULT).equals(unitTxnId.accountIDOrElse(AccountID.DEFAULT))
-                        || !nextId.transactionValidStartOrElse(Timestamp.DEFAULT)
-                                .equals(unitTxnId.transactionValidStartOrElse(Timestamp.DEFAULT))
-                        || unitTxnId.equals(nextId));
-        return radicallyDifferent ? TxnIdType.NEW_UNIT_BY_ID : TxnIdType.SAME_UNIT_BY_ID;
-    }
-
-    private static final Set<HederaFunctionality> AUTO_MGMT_FUNCTIONS =
-            EnumSet.of(FILE_CREATE, FILE_UPDATE, NODE_UPDATE);
-
-    private boolean isAutoEntityMgmtTxn(@NonNull final TransactionParts parts) {
-        return AUTO_MGMT_FUNCTIONS.contains(parts.function())
-                && parts.transactionIdOrThrow().nonce() > 0;
-    }
-
-    private enum TxnIdType {
-        AUTO_SYSFILE_MGMT_ID,
-        SAME_UNIT_BY_ID,
-        NEW_UNIT_BY_ID,
     }
 
     private void completeAndAdd(

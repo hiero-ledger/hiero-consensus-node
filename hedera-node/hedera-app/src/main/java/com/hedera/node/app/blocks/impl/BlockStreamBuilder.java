@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -49,6 +47,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.platform.event.EventTransaction;
+import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
@@ -257,10 +256,6 @@ public class BlockStreamBuilder
      */
     private List<TokenTransferList> tokenTransferLists = new LinkedList<>();
     /**
-     * Whether the transaction assessed custom fees.
-     */
-    private boolean hasAssessedCustomFees = false;
-    /**
      * The assessed custom fees resulting from the transaction.
      */
     private List<AssessedCustomFee> assessedCustomFees = new LinkedList<>();
@@ -378,6 +373,11 @@ public class BlockStreamBuilder
      * How the transaction should be customized before externalization to the stream.
      */
     private final TransactionCustomizer customizer;
+
+    /**
+     * The builder {@link EventTransaction}'s role in a state changes "group".
+     */
+    private TransactionGroupRole role = TransactionGroupRole.STANDALONE;
 
     /**
      * Constructs a builder for a user transaction with the given characteristics.
@@ -503,6 +503,7 @@ public class BlockStreamBuilder
         blockItems.add(BlockItem.newBuilder()
                 .eventTransaction(EventTransaction.newBuilder()
                         .applicationTransaction(getSerializedTransaction())
+                        .transactionGroupRole(role)
                         .build())
                 .build());
         blockItems.add(transactionResultBlockItem());
@@ -516,6 +517,11 @@ public class BlockStreamBuilder
                     .build());
         }
         return new Output(blockItems, translationContext());
+    }
+
+    @Override
+    public void setTransactionGroupRole(@NonNull final TransactionGroupRole role) {
+        this.role = requireNonNull(role);
     }
 
     @Override
@@ -743,7 +749,6 @@ public class BlockStreamBuilder
     @NonNull
     public BlockStreamBuilder assessedCustomFees(@NonNull final List<AssessedCustomFee> assessedCustomFees) {
         this.assessedCustomFees = requireNonNull(assessedCustomFees);
-        hasAssessedCustomFees = true;
         return this;
     }
 
