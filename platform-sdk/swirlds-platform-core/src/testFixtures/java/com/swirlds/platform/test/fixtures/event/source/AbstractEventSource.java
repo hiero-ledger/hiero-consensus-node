@@ -33,9 +33,6 @@ public abstract class AbstractEventSource implements EventSource {
      */
     private DynamicValueGenerator<Double> newEventWeight;
 
-    /** The amount of weight this node has. */
-    private final long weight;
-
     /**
      * The average size of a transaction, in bytes.
      */
@@ -55,9 +52,6 @@ public abstract class AbstractEventSource implements EventSource {
      * The standard deviation of the number of transactions.
      */
     private static final double DEFAULT_TX_COUNT_STD_DEV = 3;
-
-    /** The default amount of weight to allocate this node is no value is provided. */
-    protected static final long DEFAULT_WEIGHT = 1;
 
     /** The default transaction generator used to create transaction for generated events. */
     protected static final TransactionGenerator DEFAULT_TRANSACTION_GENERATOR =
@@ -96,13 +90,10 @@ public abstract class AbstractEventSource implements EventSource {
      *
      * @param useFakeHashes        indicates if fake hashes should be used instead of real ones
      * @param transactionGenerator a transaction generator to use when creating events
-     * @param weight               the weight allocated to this event source
      */
-    protected AbstractEventSource(
-            final boolean useFakeHashes, final TransactionGenerator transactionGenerator, final long weight) {
+    protected AbstractEventSource(final boolean useFakeHashes, final TransactionGenerator transactionGenerator) {
         this.useFakeHashes = useFakeHashes;
         this.transactionGenerator = transactionGenerator;
-        this.weight = weight;
         nodeId = NodeId.UNDEFINED_NODE_ID;
         setNewEventWeight(1.0);
 
@@ -120,7 +111,6 @@ public abstract class AbstractEventSource implements EventSource {
     protected AbstractEventSource(final AbstractEventSource that) {
         this.useFakeHashes = that.useFakeHashes;
         this.transactionGenerator = that.transactionGenerator;
-        this.weight = that.weight;
         this.nodeId = that.nodeId;
         this.newEventWeight = that.newEventWeight.cleanCopy();
 
@@ -166,11 +156,6 @@ public abstract class AbstractEventSource implements EventSource {
         Objects.requireNonNull(nodeId, "nodeId must not be null");
         this.nodeId = nodeId;
         return this;
-    }
-
-    @Override
-    public long getWeight() {
-        return weight;
     }
 
     /**

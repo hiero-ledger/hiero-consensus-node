@@ -212,6 +212,20 @@ public final class RosterUtils {
     }
 
     /**
+     * Returns a NodeId with a given index
+     *
+     * @param roster a roster
+     * @param nodeIndex an index of the node
+     * @return a NodeId
+     * @throws IndexOutOfBoundsException if the index does not exist in the roster
+     */
+    @NonNull
+    public static NodeId getNodeId(@NonNull final Roster roster, final int nodeIndex) {
+        return NodeId.of(
+                Objects.requireNonNull(roster).rosterEntries().get(nodeIndex).nodeId());
+    }
+
+    /**
      * Retrieves the roster entry that matches the specified node ID, returning null if one does not exist.
      * <p>
      * Useful for one-off look-ups. If code needs to look up multiple entries by NodeId, then the code should use the
