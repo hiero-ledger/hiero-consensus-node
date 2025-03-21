@@ -8,50 +8,50 @@ import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 
 public class RoundInternalEqualityValidation implements ConsensusRoundValidation {
 
     @Override
-    public void validate(@NonNull List<ConsensusRound> output1, @NonNull List<ConsensusRound> output2) {
-        int roundIndex = 0;
-
-        final Iterator<ConsensusRound> rndIt1 = output1.iterator();
-        final Iterator<ConsensusRound> rndIt2 = output1.iterator();
-        while (rndIt1.hasNext() && rndIt2.hasNext()) {
-            final ConsensusRound round1 = rndIt1.next();
-            final ConsensusRound round2 = rndIt2.next();
-            assertEquals(
-                    round1.getRoundNum(),
-                    round2.getRoundNum(),
-                    String.format("round diff at round index %d", roundIndex));
-            assertEquals(
-                    round1.getEventCount(),
-                    round2.getEventCount(),
-                    String.format("event number diff at round index %d", roundIndex));
-            assertEquals(
-                    round1.getSnapshot(),
-                    round2.getSnapshot(),
-                    String.format("snapshot diff at round index %d", roundIndex));
-            final Iterator<PlatformEvent> evIt1 = round1.getConsensusEvents().iterator();
-            final Iterator<PlatformEvent> evIt2 = round2.getConsensusEvents().iterator();
-            int eventIndex = 0;
-            while (evIt1.hasNext() && evIt2.hasNext()) {
-                final PlatformEvent e1 = evIt1.next();
-                final PlatformEvent e2 = evIt2.next();
-                assertNotNull(
-                        e1.getConsensusData(),
-                        String.format(
-                                "output:1, roundIndex:%d, eventIndex%d is not consensus", roundIndex, eventIndex));
-                assertNotNull(
-                        e2.getConsensusData(),
-                        String.format(
-                                "output:1, roundIndex:%d, eventIndex%d is not consensus", roundIndex, eventIndex));
-                assertConsensusEvents(String.format("Round index:%d, event index %d", roundIndex, eventIndex), e1, e2);
-                eventIndex++;
-            }
-            roundIndex++;
+    public void validate(@NonNull final ConsensusRound firstRound, @NonNull final ConsensusRound secondRound) {
+        final long firstRoundNumber = firstRound.getRoundNum();
+        final long secondRoundNumber = secondRound.getRoundNum();
+        assertEquals(
+                firstRound.getRoundNum(),
+                secondRound.getRoundNum(),
+                String.format("round diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
+        assertEquals(
+                firstRound.getEventCount(),
+                secondRound.getEventCount(),
+                String.format(
+                        "event number diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
+        assertEquals(
+                firstRound.getSnapshot(),
+                secondRound.getSnapshot(),
+                String.format("snapshot diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
+        final Iterator<PlatformEvent> evIt1 = firstRound.getConsensusEvents().iterator();
+        final Iterator<PlatformEvent> evIt2 = secondRound.getConsensusEvents().iterator();
+        int eventIndex = 0;
+        while (evIt1.hasNext() && evIt2.hasNext()) {
+            final PlatformEvent e1 = evIt1.next();
+            final PlatformEvent e2 = evIt2.next();
+            assertNotNull(
+                    e1.getConsensusData(),
+                    String.format(
+                            "output:1, roundNumberFromFirstNode:%d, roundNumberFromSecondRound:%d, eventIndex%d is not consensus",
+                            firstRoundNumber, secondRoundNumber, eventIndex));
+            assertNotNull(
+                    e2.getConsensusData(),
+                    String.format(
+                            "output:1, roundNumberFromFirstNode:%d, roundNumberFromSecondRound:%d, eventIndex%d is not consensus",
+                            firstRoundNumber, secondRoundNumber, eventIndex));
+            assertConsensusEvents(
+                    String.format(
+                            "roundNumberFromFirstNode:%d, roundNumberFromSecondRound:%d, event index %d",
+                            firstRoundNumber, secondRoundNumber, eventIndex),
+                    e1,
+                    e2);
+            eventIndex++;
         }
     }
 

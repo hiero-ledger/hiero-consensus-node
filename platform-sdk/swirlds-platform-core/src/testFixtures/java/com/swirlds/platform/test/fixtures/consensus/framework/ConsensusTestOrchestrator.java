@@ -122,9 +122,11 @@ public class ConsensusTestOrchestrator {
                                     + "output1 has %d rounds, output2 has %d rounds",
                             node1.getOutput().getConsensusRounds().size(),
                             otherNode.getOutput().getConsensusRounds().size()));
-            defaultConsensusRoundValidator.validate(
-                    node1.getOutput().getConsensusRounds(),
-                    otherNode.getOutput().getConsensusRounds());
+            for (int j = 0; j < node1.getOutput().getConsensusRounds().size(); j++) {
+                defaultConsensusRoundValidator.validate(
+                        node1.getOutput().getConsensusRounds().get(j),
+                        otherNode.getOutput().getConsensusRounds().get(j));
+            }
         }
     }
 

@@ -178,7 +178,9 @@ public class Turtle {
                             "The number of consensus rounds is not the same."
                                     + "output1 has %d rounds, output2 has %d rounds",
                             consensusRoundsForNode1.size(), consensusRoundsForOtherNode.size()));
-            consensusRoundValidator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
+            for (int j = 0; i < consensusRoundsForNode1.size(); j++) {
+                consensusRoundValidator.validate(consensusRoundsForNode1.get(j), consensusRoundsForOtherNode.get(j));
+            }
 
             otherNode.getConsensusRoundsHolder().clear();
         }

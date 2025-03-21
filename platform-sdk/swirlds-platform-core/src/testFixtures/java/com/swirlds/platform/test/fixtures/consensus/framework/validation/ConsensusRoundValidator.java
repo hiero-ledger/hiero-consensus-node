@@ -26,10 +26,9 @@ public class ConsensusRoundValidator {
         consensusRoundValidations.add(new RoundAncientThresholdIncreasesValidation());
     }
 
-    public void validate(
-            @NonNull final List<ConsensusRound> firstRoundsList, @NonNull final List<ConsensusRound> secondRoundsList) {
+    public void validate(@NonNull final ConsensusRound firstRound, @NonNull final ConsensusRound secondRound) {
         for (final ConsensusRoundValidation validation : consensusRoundValidations) {
-            validation.validate(firstRoundsList, secondRoundsList);
+            validation.validate(firstRound, secondRound);
         }
     }
 }
