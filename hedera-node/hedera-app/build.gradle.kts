@@ -17,7 +17,6 @@ mainModuleInfo {
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
-    runtimeOnly("com.hedera.cryptography.altbn128")
 }
 
 testModuleInfo {
@@ -43,7 +42,6 @@ testModuleInfo {
     requires("tuweni.bytes")
     requires("uk.org.webcompere.systemstubs.core")
     requires("uk.org.webcompere.systemstubs.jupiter")
-    requiresStatic("com.github.spotbugs.annotations")
 }
 
 jmhModuleInfo {

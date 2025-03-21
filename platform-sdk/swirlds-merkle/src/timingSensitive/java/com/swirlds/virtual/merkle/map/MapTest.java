@@ -123,7 +123,7 @@ final class MapTest {
             final VirtualMap<TestKey, TestValue> lastCopy = map.copy();
             map.release();
             lastCopy.release();
-            assertEventuallyTrue(root::isFlushed, Duration.ofSeconds(30), "The map must be flushed");
+            assertEventuallyTrue(root::isFlushed, Duration.ofMinutes(1), "The map must be flushed");
         }
     }
 

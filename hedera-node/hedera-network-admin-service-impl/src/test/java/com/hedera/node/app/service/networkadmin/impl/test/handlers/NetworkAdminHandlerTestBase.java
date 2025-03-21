@@ -215,7 +215,7 @@ public class NetworkAdminHandlerTestBase {
         final var registry = new FakeSchemaRegistry();
         final var svc = new RecordCacheService();
         svc.registerSchemas(registry);
-        registry.migrate(svc.getServiceName(), state, networkInfo, startupNetworks);
+        registry.migrate(svc.getServiceName(), state, startupNetworks);
         lenient().when(wsa.getState()).thenReturn(state);
         lenient().when(stack.getWritableStates(NAME)).thenReturn(state.getWritableStates(NAME));
         lenient().when(props.getConfiguration()).thenReturn(versionedConfig);

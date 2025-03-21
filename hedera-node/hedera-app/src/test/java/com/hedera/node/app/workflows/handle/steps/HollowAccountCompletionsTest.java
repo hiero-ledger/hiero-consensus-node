@@ -78,7 +78,7 @@ public class HollowAccountCompletionsTest {
     private EthereumTransactionHandler ethereumTransactionHandler;
 
     @Mock
-    private UserTxn userTxn;
+    private ParentTxn parentTxn;
 
     @Mock
     private SavepointStackImpl stack;
@@ -110,18 +110,18 @@ public class HollowAccountCompletionsTest {
         when(dispatch.handleContext()).thenReturn(handleContext);
         when(dispatch.keyVerifier()).thenReturn(keyVerifier);
         when(handleContext.payer()).thenReturn(payerId);
-        when(userTxn.readableStoreFactory()).thenReturn(readableStoreFactory);
-        when(userTxn.readableStoreFactory().getStore(ReadableAccountStore.class))
+        when(parentTxn.readableStoreFactory()).thenReturn(readableStoreFactory);
+        when(parentTxn.readableStoreFactory().getStore(ReadableAccountStore.class))
                 .thenReturn(accountStore);
-        when(userTxn.preHandleResult()).thenReturn(preHandleResult);
+        when(parentTxn.preHandleResult()).thenReturn(preHandleResult);
         when(handleContext.dispatch(any())).thenReturn(recordBuilder);
     }
 
     @Test
     void completeHollowAccountsNoHollowAccounts() {
-        when(userTxn.preHandleResult().getHollowAccounts()).thenReturn(Collections.emptySet());
+        when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Collections.emptySet());
 
-        hollowAccountCompletions.completeHollowAccounts(userTxn, dispatch);
+        hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 
         verifyNoInteractions(keyVerifier);
         verifyNoInteractions(handleContext);
@@ -138,11 +138,11 @@ public class HollowAccountCompletionsTest {
         SignatureVerification verification =
                 new SignatureVerificationImpl(Key.DEFAULT, Bytes.wrap(new byte[] {1, 2, 3}), true);
         when(keyVerifier.verificationFor(Bytes.wrap(new byte[] {1, 2, 3}))).thenReturn(verification);
-        when(userTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
-        when(userTxn.stack()).thenReturn(stack);
+        when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
+        when(parentTxn.stack()).thenReturn(stack);
         when(stack.hasMoreSystemRecords()).thenReturn(true);
 
-        hollowAccountCompletions.completeHollowAccounts(userTxn, dispatch);
+        hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 
         verify(keyVerifier).verificationFor(Bytes.wrap(new byte[] {1, 2, 3}));
         verify(handleContext, never()).dispatch(any());
@@ -155,15 +155,15 @@ public class HollowAccountCompletionsTest {
                 .key(IMMUTABILITY_SENTINEL_KEY)
                 .alias(Bytes.wrap(new byte[] {1, 2, 3}))
                 .build();
-        when(userTxn.preHandleResult().getHollowAccounts()).thenReturn(Collections.singleton(hollowAccount));
+        when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Collections.singleton(hollowAccount));
         SignatureVerification verification =
                 new SignatureVerificationImpl(Key.DEFAULT, Bytes.wrap(new byte[] {1, 2, 3}), true);
         when(keyVerifier.verificationFor(Bytes.wrap(new byte[] {1, 2, 3}))).thenReturn(verification);
-        when(userTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
-        when(userTxn.stack()).thenReturn(stack);
+        when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
+        when(parentTxn.stack()).thenReturn(stack);
         when(stack.hasMoreSystemRecords()).thenReturn(true);
 
-        hollowAccountCompletions.completeHollowAccounts(userTxn, dispatch);
+        hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 
         verify(keyVerifier).verificationFor(Bytes.wrap(new byte[] {1, 2, 3}));
         verify(handleContext).dispatch(any());
@@ -177,19 +177,19 @@ public class HollowAccountCompletionsTest {
                 .key(IMMUTABILITY_SENTINEL_KEY)
                 .alias(Bytes.wrap(new byte[] {1, 2, 3}))
                 .build();
-        when(userTxn.preHandleResult().getHollowAccounts()).thenReturn(Collections.singleton(hollowAccount));
-        when(userTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
-        when(userTxn.stack()).thenReturn(stack);
+        when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Collections.singleton(hollowAccount));
+        when(parentTxn.preHandleResult().getHollowAccounts()).thenReturn(Set.of(hollowAccount));
+        when(parentTxn.stack()).thenReturn(stack);
         when(stack.hasMoreSystemRecords()).thenReturn(true);
 
-        hollowAccountCompletions.completeHollowAccounts(userTxn, dispatch);
+        hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 
         verify(handleContext, never()).dispatch(any());
     }
 
     @Test
     void completeHollowAccountsWithEthereumTransaction() {
-        when(userTxn.functionality()).thenReturn(ETHEREUM_TRANSACTION);
+        when(parentTxn.functionality()).thenReturn(ETHEREUM_TRANSACTION);
         final var alias = Bytes.fromHex("89abcdef89abcdef89abcdef89abcdef89abcdef");
         final var hederaConfig = DEFAULT_CONFIG.getConfigData(HederaConfig.class);
         final var idFactory = new FakeEntityIdFactoryImpl(hederaConfig.shard(), hederaConfig.realm());
@@ -218,14 +218,14 @@ public class HollowAccountCompletionsTest {
                 ETHEREUM_TRANSACTION,
                 null);
 
-        when(userTxn.readableStoreFactory().getStore(ReadableAccountStore.class))
+        when(parentTxn.readableStoreFactory().getStore(ReadableAccountStore.class))
                 .thenReturn(accountStore);
-        when(userTxn.config()).thenReturn(DEFAULT_CONFIG);
-        when(userTxn.txnInfo()).thenReturn(txnInfo);
-        when(userTxn.stack()).thenReturn(stack);
+        when(parentTxn.config()).thenReturn(DEFAULT_CONFIG);
+        when(parentTxn.txnInfo()).thenReturn(txnInfo);
+        when(parentTxn.stack()).thenReturn(stack);
         when(stack.hasMoreSystemRecords()).thenReturn(true);
 
-        hollowAccountCompletions.completeHollowAccounts(userTxn, dispatch);
+        hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 
         verify(handleContext).dispatch(any());
         verify(recordBuilder).accountID(hollowId);
@@ -233,8 +233,8 @@ public class HollowAccountCompletionsTest {
 
     @Test
     void ignoreEthereumTransactionIfNoCorrespondingSigs() {
-        when(userTxn.config()).thenReturn(DEFAULT_CONFIG);
-        when(userTxn.functionality()).thenReturn(ETHEREUM_TRANSACTION);
+        when(parentTxn.config()).thenReturn(DEFAULT_CONFIG);
+        when(parentTxn.functionality()).thenReturn(ETHEREUM_TRANSACTION);
         when(ethereumTransactionHandler.maybeEthTxSigsFor(any(), any(), any())).thenReturn(null);
         final var txnBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder()
@@ -249,9 +249,9 @@ public class HollowAccountCompletionsTest {
                 transactionBytes,
                 ETHEREUM_TRANSACTION,
                 null);
-        when(userTxn.txnInfo()).thenReturn(txnInfo);
+        when(parentTxn.txnInfo()).thenReturn(txnInfo);
 
-        hollowAccountCompletions.completeHollowAccounts(userTxn, dispatch);
+        hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
 
         verify(handleContext, never()).dispatch(any());
     }
