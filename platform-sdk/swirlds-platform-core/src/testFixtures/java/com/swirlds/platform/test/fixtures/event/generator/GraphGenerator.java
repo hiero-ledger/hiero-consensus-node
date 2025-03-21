@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.generator;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.system.address.AddressBook;
@@ -31,6 +32,8 @@ public interface GraphGenerator {
      * Get the event source for a particular node ID.
      */
     EventSource getSource(@NonNull final NodeId nodeID);
+
+    EventSource getSourceByIndex(final int nodeIndex);
 
     /**
      * Get an exact copy of this event generator in its current state. The events returned by this
@@ -93,6 +96,10 @@ public interface GraphGenerator {
      */
     @NonNull
     AddressBook getAddressBook();
+
+
+    @NonNull
+    Roster getRoster();
 
     /**
      * Returns the maximum generation of this event generator.

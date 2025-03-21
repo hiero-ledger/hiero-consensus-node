@@ -57,8 +57,8 @@ class IntakeAndConsensusTests {
                 .limit(numNodes)
                 .toList();
         final StandardGraphGenerator generator = new StandardGraphGenerator(platformContext, seed, eventSources);
-        final TestIntake node1 = new TestIntake(platformContext, generator.getAddressBook());
-        final TestIntake node2 = new TestIntake(platformContext, generator.getAddressBook());
+        final TestIntake node1 = new TestIntake(platformContext, generator.getRoster());
+        final TestIntake node2 = new TestIntake(platformContext, generator.getRoster());
 
         // first we generate events regularly, until we have some ancient rounds
         final int firstBatchSize = 5000;

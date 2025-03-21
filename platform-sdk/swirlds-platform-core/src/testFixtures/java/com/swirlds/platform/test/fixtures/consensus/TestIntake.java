@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -56,9 +57,9 @@ public class TestIntake {
 
     /**
      * @param platformContext the platform context used to configure this intake.
-     * @param addressBook     the address book used by this intake
+     * @param roster     the roster used by this intake
      */
-    public TestIntake(@NonNull final PlatformContext platformContext, @NonNull final AddressBook addressBook) {
+    public TestIntake(@NonNull final PlatformContext platformContext, @NonNull final Roster roster) {
         final NodeId selfId = NodeId.of(0);
         roundsNonAncient = platformContext
                 .getConfiguration()
@@ -86,7 +87,7 @@ public class TestIntake {
         orphanBufferWiring.bind(orphanBuffer);
 
         final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(platformContext, RosterRetriever.buildRoster(addressBook), selfId);
+                new DefaultConsensusEngine(platformContext, roster, selfId);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, directScheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);

@@ -34,11 +34,10 @@ public class SplitForkGraphCreator {
 
     private static void forceNextCreator(
             final StandardEventEmitter emitter, final int creatorToFork, final int numCommonEvents) {
-        final AddressBook addressBook = emitter.getGraphGenerator().getAddressBook();
-        final int numberOfSources = addressBook.getSize();
+        final int numberOfSources = emitter.getGraphGenerator().getNumberOfSources();
         for (int i = 0; i < numberOfSources; i++) {
             final boolean sourceIsCreatorToFork = i == creatorToFork;
-            emitter.getGraphGenerator().getSource(addressBook.getNodeId(i)).setNewEventWeight((r, index, prev) -> {
+            emitter.getGraphGenerator().getSourceByIndex(i).setNewEventWeight((r, index, prev) -> {
                 if (index < numCommonEvents) {
                     return 1.0;
                 } else if (index == numCommonEvents && sourceIsCreatorToFork) {

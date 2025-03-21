@@ -2,6 +2,7 @@
 package com.swirlds.platform.sync;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
+import com.swirlds.platform.roster.RosterUtils;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -112,7 +113,7 @@ class SyncFilteringTest {
                 .setNumNodes(32)
                 .buildStandardEventEmitter();
 
-        final NodeId selfId = eventEmitter.getGraphGenerator().getAddressBook().getNodeId(0);
+        final NodeId selfId = RosterUtils.getNodeId(eventEmitter.getGraphGenerator().getRoster(), 0);
 
         final Instant startingTime = Instant.ofEpochMilli(random.nextInt());
         final Duration timeStep = Duration.ofMillis(10);

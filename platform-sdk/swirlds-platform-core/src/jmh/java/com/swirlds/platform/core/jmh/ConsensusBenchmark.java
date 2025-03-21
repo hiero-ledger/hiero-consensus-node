@@ -55,10 +55,9 @@ public class ConsensusBenchmark {
                 .setWeightGenerator(WeightGenerators.BALANCED)
                 .buildStandardEventEmitter();
         events = emitter.emitEvents(numEvents);
-        final AddressBook addressBook = emitter.getGraphGenerator().getAddressBook();
 
         consensus = new ConsensusImpl(
-                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
+                platformContext, new NoOpConsensusMetrics(), emitter.getGraphGenerator().getRoster());
     }
 
     @Benchmark

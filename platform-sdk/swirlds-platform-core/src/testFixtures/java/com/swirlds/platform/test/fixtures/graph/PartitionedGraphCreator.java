@@ -29,7 +29,6 @@ public class PartitionedGraphCreator {
             final int numNetworkNodes) {
         final EventEmitter emitter = node.getEmitter();
         final GraphGenerator graphGenerator = emitter.getGraphGenerator();
-        final AddressBook addressBook = graphGenerator.getAddressBook();
 
         final List<List<Double>> fullyConnectedMatrix = createBalancedOtherParentMatrix(numNetworkNodes);
 
@@ -42,7 +41,7 @@ public class PartitionedGraphCreator {
         for (int i = 0; i < graphGenerator.getNumberOfSources(); i++) {
             final boolean isSourceInPartition = nodesInPartition.contains(i);
 
-            graphGenerator.getSource(addressBook.getNodeId(i)).setNewEventWeight((r, index, prev) -> {
+            graphGenerator.getSourceByIndex(i).setNewEventWeight((r, index, prev) -> {
                 if (index < numCommonEvents || isSourceInPartition) {
                     return 1.0;
                 } else {

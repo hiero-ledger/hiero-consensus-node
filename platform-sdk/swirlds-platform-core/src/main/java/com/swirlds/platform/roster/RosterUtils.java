@@ -211,6 +211,10 @@ public final class RosterUtils {
         throw new RosterEntryNotFoundException("No RosterEntry with nodeId: " + nodeId + " in Roster: " + roster);
     }
 
+    public static NodeId getNodeId(@NonNull final Roster roster, final int nodeIndex) {
+        return NodeId.of(roster.rosterEntries().get(nodeIndex).nodeId());
+    }
+
     /**
      * Retrieves the roster entry that matches the specified node ID, returning null if one does not exist.
      * <p>
