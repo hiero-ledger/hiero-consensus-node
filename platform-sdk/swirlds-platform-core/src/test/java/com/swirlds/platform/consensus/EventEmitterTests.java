@@ -225,7 +225,7 @@ public class EventEmitterTests {
         final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
                 .setRandomSeed(0)
                 .setPlatformContext(platformContext)
-                .buildStandardEventEmitter();
+                .build();
         emitterSanityChecks(emitter);
     }
 
@@ -240,7 +240,7 @@ public class EventEmitterTests {
         final StandardEventEmitter standardEmitter = EventEmitterBuilder.newBuilder()
                 .setRandomSeed(0)
                 .setPlatformContext(platformContext)
-                .buildStandardEventEmitter();
+                .build();
 
         final int numberOfEvents = 1000;
 
@@ -266,7 +266,7 @@ public class EventEmitterTests {
         final StandardEventEmitter standardEmitter = EventEmitterBuilder.newBuilder()
                 .setRandomSeed(0)
                 .setPlatformContext(platformContext)
-                .buildStandardEventEmitter();
+                .build();
 
         final int numberOfEvents = 1000;
 
@@ -298,7 +298,7 @@ public class EventEmitterTests {
         final StandardEventEmitter standardEmitter = EventEmitterBuilder.newBuilder()
                 .setRandomSeed(0)
                 .setPlatformContext(platformContext)
-                .buildStandardEventEmitter();
+                .build();
 
         final ShuffledEventEmitter shuffledEmitter = new ShuffledEventEmitter(standardEmitter.getGraphGenerator(), 0L);
         shuffledEmitter.setCheckpoint(numberOfEvents);
@@ -336,7 +336,7 @@ public class EventEmitterTests {
         final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
                 .setRandomSeed(0)
                 .setPlatformContext(platformContext)
-                .buildStandardEventEmitter();
+                .build();
 
         CollectingEventEmitter collectingEmitter = new CollectingEventEmitter(emitter);
 

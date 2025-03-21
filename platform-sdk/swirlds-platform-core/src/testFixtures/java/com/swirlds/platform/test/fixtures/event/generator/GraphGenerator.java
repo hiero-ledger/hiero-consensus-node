@@ -33,6 +33,10 @@ public interface GraphGenerator {
      */
     EventSource getSource(@NonNull final NodeId nodeID);
 
+    /**
+     * Get the event source for a particular node index.
+     */
+    @NonNull
     EventSource getSourceByIndex(final int nodeIndex);
 
     /**
@@ -95,8 +99,12 @@ public interface GraphGenerator {
      * Get an address book that represents the collection of nodes that are generating the events.
      */
     @NonNull
+    @Deprecated(forRemoval = true)
     AddressBook getAddressBook();
 
+    /**
+     * Get the roster that represents the collection of nodes that are generating the events.
+     */
     @NonNull
     Roster getRoster();
 

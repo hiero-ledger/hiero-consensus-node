@@ -8,6 +8,7 @@ import static com.swirlds.platform.test.fixtures.event.EventUtils.gatherOtherPar
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.isEventOrderValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
+import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import static java.util.Arrays.asList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -249,7 +250,7 @@ public class GraphGeneratorTests {
         verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 0), 0.5 / 4.5, 0.05);
         verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 1), 1.0 / 4.5, 0.05);
         verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 2), 1.0 / 4.5, 0.05);
-        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 0), 2.0 / 4.5, 0.05);
+        verifyExpectedParentRatio(events, RosterUtils.getNodeId(roster, 3), 2.0 / 4.5, 0.05);
 
         // Test dynamic weights
         generator.reset();
@@ -477,13 +478,13 @@ public class GraphGeneratorTests {
     public void testStandardGenerator(final boolean birthRoundAsAncientThreshold) {
         final PlatformContext platformContext =
                 birthRoundAsAncientThreshold ? BIRTH_ROUND_PLATFORM_CONTEXT : DEFAULT_PLATFORM_CONTEXT;
-        final StandardGraphGenerator generator = EventEmitterBuilder.newBuilder()
+        final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
                 .setRandomSeed(0)
                 .setNumNodes(4)
                 .setPlatformContext(platformContext)
-                .buildStandardGraphGenerator();
+                .build();
 
-        generatorSanityChecks(generator);
+        generatorSanityChecks(emitter.getGraphGenerator());
     }
 
     @ParameterizedTest

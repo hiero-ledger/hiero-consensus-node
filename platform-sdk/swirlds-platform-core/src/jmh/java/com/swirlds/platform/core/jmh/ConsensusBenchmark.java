@@ -51,7 +51,7 @@ public class ConsensusBenchmark {
                 .setRandomSeed(seed)
                 .setNumNodes(numNodes)
                 .setWeightGenerator(WeightGenerators.BALANCED)
-                .buildStandardEventEmitter();
+                .build();
         events = emitter.emitEvents(numEvents);
 
         consensus = new ConsensusImpl(

@@ -89,7 +89,7 @@ class ShadowgraphByBirthRoundTests {
         emitter = EventEmitterBuilder.newBuilder()
                 .setRandomSeed(random.nextLong())
                 .setNumNodes(numNodes)
-                .buildStandardEventEmitter();
+                .build();
 
         shadowGraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
         shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(BIRTH_ROUND_THRESHOLD));

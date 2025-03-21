@@ -84,7 +84,7 @@ class ShadowgraphTest {
         emitter = EventEmitterBuilder.newBuilder()
                 .setRandomSeed(random.nextLong())
                 .setNumNodes(numNodes)
-                .buildStandardEventEmitter();
+                .build();
         shadowgraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
         shadowgraph.updateEventWindow(EventWindow.getGenesisEventWindow(GENERATION_THRESHOLD));
 
@@ -703,7 +703,7 @@ class ShadowgraphTest {
         emitter = EventEmitterBuilder.newBuilder()
                 .setRandomSeed(random.nextLong())
                 .setNumNodes(numNodes)
-                .buildStandardEventEmitter();
+                .build();
         shadowgraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
         for (int i = 0; i < numEvents; i++) {
             shadowgraph.addEvent(emitter.emitEvent().getBaseEvent());

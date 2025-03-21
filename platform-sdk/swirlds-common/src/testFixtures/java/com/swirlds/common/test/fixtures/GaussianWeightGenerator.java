@@ -5,10 +5,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.random.RandomGenerator;
 
+/**
+ * Generates weights for nodes using a Gaussian distribution.
+ */
 public class GaussianWeightGenerator implements WeightGenerator {
     private final long averageWeight;
     private final long weightStandardDeviation;
 
+    /**
+     * Creates a new Gaussian weight generator.
+     *
+     * @param averageWeight          the average weight
+     * @param weightStandardDeviation the standard deviation of the weight
+     */
     public GaussianWeightGenerator(final long averageWeight, final long weightStandardDeviation) {
         this.averageWeight = averageWeight;
         this.weightStandardDeviation = weightStandardDeviation;

@@ -8,12 +8,11 @@ import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
 
 /**
- * Builder class for creating instances of {@link GraphGenerator} and {@link EventEmitter}.
+ * Builder class for creating instances of {@link EventEmitter}.
  */
 public class EventEmitterBuilder {
     private long randomSeed = 0;
@@ -76,7 +75,7 @@ public class EventEmitterBuilder {
      *
      * @return the event emitter instance
      */
-    public StandardGraphGenerator buildStandardGraphGenerator() {
+    public StandardEventEmitter build() {
         final Randotron random = Randotron.create(randomSeed);
         if (platformContext == null) {
             platformContext = TestPlatformContextBuilder.create().build();
@@ -89,15 +88,8 @@ public class EventEmitterBuilder {
 
         final EventSourceFactory eventSourceFactory = new EventSourceFactory(numNodes);
 
-        return new StandardGraphGenerator(platformContext, randomSeed, eventSourceFactory.generateSources(), roster);
-    }
-
-    /**
-     * Builds and returns an instance of {@link EventEmitter}.
-     *
-     * @return the event emitter instance
-     */
-    public StandardEventEmitter buildStandardEventEmitter() {
-        return new StandardEventEmitter(buildStandardGraphGenerator());
+        final StandardGraphGenerator generator = new StandardGraphGenerator(platformContext, randomSeed,
+                eventSourceFactory.generateSources(), roster);
+        return new StandardEventEmitter(generator);
     }
 }

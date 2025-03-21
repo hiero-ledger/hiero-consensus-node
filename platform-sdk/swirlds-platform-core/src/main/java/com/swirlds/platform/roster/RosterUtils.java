@@ -211,8 +211,17 @@ public final class RosterUtils {
         throw new RosterEntryNotFoundException("No RosterEntry with nodeId: " + nodeId + " in Roster: " + roster);
     }
 
+    /**
+     * Returns a NodeId with a given index
+     *
+     * @param roster a roster
+     * @param nodeIndex an index of the node
+     * @return a NodeId
+     * @throws IndexOutOfBoundsException if the index does not exist in the roster
+     */
+    @NonNull
     public static NodeId getNodeId(@NonNull final Roster roster, final int nodeIndex) {
-        return NodeId.of(roster.rosterEntries().get(nodeIndex).nodeId());
+        return NodeId.of(Objects.requireNonNull(roster).rosterEntries().get(nodeIndex).nodeId());
     }
 
     /**

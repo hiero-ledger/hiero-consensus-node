@@ -3,6 +3,7 @@ package com.swirlds.platform.state;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
+import com.swirlds.common.test.fixtures.WeightGenerator;
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,6 +36,7 @@ import org.mockito.Mockito;
 
 @DisplayName("RoundHashValidator Tests")
 class RoundHashValidatorTests {
+    private static final WeightGenerator WEIGHT_GENERATOR = new GaussianWeightGenerator(100, 50);
 
     static Stream<Arguments> args() {
         return Stream.of(
@@ -252,7 +254,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, expectedStatus, 0);
@@ -298,7 +300,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, expectedStatus, 0);
@@ -342,7 +344,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, expectedStatus, 0);
@@ -392,7 +394,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, HashValidityStatus.VALID, 0);
@@ -424,7 +426,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
         final long totalWeight = RosterUtils.computeTotalWeight(roster);
 
@@ -463,7 +465,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
         final long totalWeight = RosterUtils.computeTotalWeight(roster);
 
@@ -506,7 +508,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
         final long totalWeight = RosterUtils.computeTotalWeight(roster);
 

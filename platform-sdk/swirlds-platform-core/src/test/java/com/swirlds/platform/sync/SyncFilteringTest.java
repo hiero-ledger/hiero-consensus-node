@@ -111,7 +111,7 @@ class SyncFilteringTest {
                 .setPlatformContext(platformContext)
                 .setRandomSeed(random.nextLong())
                 .setNumNodes(32)
-                .buildStandardEventEmitter();
+                .build();
 
         final NodeId selfId =
                 RosterUtils.getNodeId(eventEmitter.getGraphGenerator().getRoster(), 0);

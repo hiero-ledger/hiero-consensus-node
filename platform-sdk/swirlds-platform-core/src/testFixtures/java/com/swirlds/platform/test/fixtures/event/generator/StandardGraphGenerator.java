@@ -308,6 +308,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     }
 
     @Override
+    @NonNull
     public EventSource getSourceByIndex(final int nodeIndex) {
         return sources.get(nodeIndex);
     }
@@ -316,7 +317,6 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * {@inheritDoc}
      */
     @Override
-    @Deprecated
     public @NonNull AddressBook getAddressBook() {
         return RosterUtils.buildAddressBook(roster);
     }

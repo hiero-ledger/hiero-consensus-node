@@ -2,6 +2,7 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
+import com.swirlds.common.test.fixtures.WeightGenerator;
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.platform.state.RoundHashValidatorTests.generateCatastrophicNodeHashes;
@@ -56,6 +57,7 @@ import org.junit.jupiter.api.Test;
 
 @DisplayName("IssDetector Tests")
 class IssDetectorTests extends PlatformTest {
+    private static final WeightGenerator WEIGHT_GENERATOR = new GaussianWeightGenerator(100, 50);
 
     /**
      * Generates a list of events, with each event containing a signature transaction from a node for the given round.
@@ -169,7 +171,7 @@ class IssDetectorTests extends PlatformTest {
         final Randotron random = Randotron.create();
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(100)
-                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
         final PlatformContext platformContext = createDefaultPlatformContext();
@@ -253,7 +255,7 @@ class IssDetectorTests extends PlatformTest {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
         final PlatformContext platformContext = createDefaultPlatformContext();
@@ -447,7 +449,7 @@ class IssDetectorTests extends PlatformTest {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(100)
-                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
@@ -582,7 +584,7 @@ class IssDetectorTests extends PlatformTest {
                 .roundsNonAncient();
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(100)
-                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
@@ -680,7 +682,7 @@ class IssDetectorTests extends PlatformTest {
                 .roundsNonAncient();
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(100)
-                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
@@ -765,7 +767,7 @@ class IssDetectorTests extends PlatformTest {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(100)
-                .withWeightGenerator(new GaussianWeightGenerator(100, 50))
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
         final PlatformContext platformContext = createDefaultPlatformContext();
