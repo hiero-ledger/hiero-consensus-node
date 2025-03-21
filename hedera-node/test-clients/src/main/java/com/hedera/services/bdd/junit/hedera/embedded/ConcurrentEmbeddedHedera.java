@@ -19,6 +19,7 @@ import com.hederahashgraph.api.proto.java.TransactionResponse;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.events.ConsensusEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -48,6 +49,15 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
     public ConcurrentEmbeddedHedera(@NonNull final EmbeddedNode node) {
         super(node);
         platform = new ConcurrentFakePlatform(executorService, metrics);
+    }
+
+    @Override
+    protected void handleRoundWith(@NonNull final byte[] serializedTxn) {
+        final var round = platform.roundWith(serializedTxn);
+        hedera.onPreHandle(round.iterator().next(), state, NOOP_STATE_SIG_CALLBACK);
+        hedera.handleWorkflow().handleRound(state, round, NOOP_STATE_SIG_CALLBACK);
+        hedera.onSealConsensusRound(round, state);
+        notifyStateHashed(round.getRoundNum());
     }
 
     @Override
@@ -174,6 +184,25 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
             } catch (Throwable t) {
                 log.error("Error handling transactions", t);
             }
+        }
+
+        /**
+         * Creates a fake consensus round with just the given transaction.
+         */
+        private Round roundWith(@NonNull final byte[] serializedTxn) {
+            final var firstRoundTime = now();
+            return new FakeRound(
+                    roundNo.getAndIncrement(),
+                    requireNonNull(roster),
+                    List.of(new FakeConsensusEvent(
+                            new FakeEvent(
+                                    defaultNodeId,
+                                    firstRoundTime,
+                                    version.getPbjSemanticVersion(),
+                                    createAppPayloadWrapper(serializedTxn)),
+                            consensusOrder.getAndIncrement(),
+                            firstRoundTime,
+                            version.getPbjSemanticVersion())));
         }
     }
 }

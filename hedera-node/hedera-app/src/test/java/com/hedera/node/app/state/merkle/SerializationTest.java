@@ -7,7 +7,6 @@ import static com.swirlds.state.merkle.MerkleStateRoot.CURRENT_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.services.MigrationStateChanges;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.base.test.fixtures.time.FakeTime;
@@ -36,7 +35,6 @@ import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
 import com.swirlds.state.spi.ReadableKVState;
@@ -70,7 +68,6 @@ class SerializationTest extends MerkleTestBase {
 
     private Path dir;
     private Configuration config;
-    private NetworkInfo networkInfo;
 
     @Mock
     private MigrationStateChanges migrationStateChanges;
@@ -91,7 +88,6 @@ class SerializationTest extends MerkleTestBase {
                 .withConfigDataType(CryptoConfig.class)
                 .getOrCreateConfig();
         this.dir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(config);
-        this.networkInfo = mock(NetworkInfo.class);
     }
 
     Schema createV1Schema() {
@@ -295,9 +291,7 @@ class SerializationTest extends MerkleTestBase {
                 schemaV1.getVersion(),
                 config,
                 config,
-                networkInfo,
                 mock(Metrics.class),
-                mock(WritableEntityIdStore.class),
                 new HashMap<>(),
                 migrationStateChanges,
                 startupNetworks,
@@ -319,9 +313,7 @@ class SerializationTest extends MerkleTestBase {
                 v1,
                 config,
                 config,
-                networkInfo,
                 mock(Metrics.class),
-                mock(WritableEntityIdStore.class),
                 new HashMap<>(),
                 migrationStateChanges,
                 startupNetworks,

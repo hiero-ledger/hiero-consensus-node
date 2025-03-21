@@ -90,13 +90,13 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
 
     @Override
     public CompletableFuture<Void> statusFuture(
-            @NonNull final PlatformStatus status, @Nullable final Consumer<NodeStatus> nodeStatusObserver) {
+            @Nullable final Consumer<NodeStatus> nodeStatusObserver, @NonNull final PlatformStatus... statuses) {
         throw new UnsupportedOperationException("Prefer awaiting status of the embedded network");
     }
 
     @Override
     public CompletableFuture<Void> minLogsFuture(@NonNull final String pattern, final int n) {
-        throw new UnsupportedOperationException("TSS logs should not be expected in an embedded network");
+        throw new UnsupportedOperationException("Logs not reliably written in an embedded network");
     }
 
     @Override

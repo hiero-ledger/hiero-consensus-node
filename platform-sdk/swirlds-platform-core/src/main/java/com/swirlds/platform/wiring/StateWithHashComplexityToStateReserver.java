@@ -2,13 +2,13 @@
 package com.swirlds.platform.wiring;
 
 import com.swirlds.component.framework.transformers.AdvancedTransformation;
+import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.wiring.components.StateAndRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * Manages reservations of a signed state contained in a {@link StateAndRound} object, when the StateAndRound needs to
- * be reduced to just the state.
+ * Manages reservations of a signed state contained in a {@link StateWithHashComplexity} object, when the StateAndRound
+ * needs to be reduced to just the state.
  * <p>
  * The contract for managing reservations across vertexes in the wiring is as follows:
  * <ul>
@@ -18,30 +18,30 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * The reserver enforces this contract by reserving the state for each input wire, and then releasing the reservation
  * made for the reserver.
  * <p>
- * For each input wire, {@link #transform(StateAndRound)} will be called once, reserving the state for that input
- * wire. After a reservation is made for each input wire, {@link #inputCleanup(StateAndRound)} will be called once to
+ * For each input wire, {@link #transform(StateWithHashComplexity)} will be called once, reserving the state for that input
+ * wire. After a reservation is made for each input wire, {@link #inputCleanup(StateWithHashComplexity)} will be called once to
  * release the original reservation.
  *
  * @param name the name of the reserver
  */
-public record StateAndRoundToStateReserver(@NonNull String name)
-        implements AdvancedTransformation<StateAndRound, ReservedSignedState> {
+public record StateWithHashComplexityToStateReserver(@NonNull String name)
+        implements AdvancedTransformation<StateWithHashComplexity, ReservedSignedState> {
 
     /**
      * {@inheritDoc}
      */
     @NonNull
     @Override
-    public ReservedSignedState transform(@NonNull final StateAndRound stateAndRound) {
-        return stateAndRound.makeAdditionalReservation(name).reservedSignedState();
+    public ReservedSignedState transform(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
+        return stateWithHashComplexity.reservedSignedState().getAndReserve(name);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void inputCleanup(@NonNull final StateAndRound stateAndRound) {
-        stateAndRound.reservedSignedState().close();
+    public void inputCleanup(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
+        stateWithHashComplexity.reservedSignedState().close();
     }
 
     /**
@@ -61,9 +61,12 @@ public record StateAndRoundToStateReserver(@NonNull String name)
         return name;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public String getTransformerInputName() {
-        return "round and state to reserve";
+        return "state with hash complexity to reserve";
     }
 }

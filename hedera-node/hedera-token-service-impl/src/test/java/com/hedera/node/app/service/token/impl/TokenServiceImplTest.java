@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -11,25 +12,33 @@ import com.hedera.node.app.service.token.TokenServiceDefinition;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0500TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
+import com.hedera.node.app.spi.AppContext;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 class TokenServiceImplTest {
+
+    @Mock
+    private AppContext appContext;
+
+    @Mock
+    private EntityIdFactory idFactory;
 
     private TokenServiceImpl subject;
 
     @BeforeEach
     void setUp() {
-        subject = new TokenServiceImpl();
-    }
-
-    @Test
-    void defaultConstructor() {
-        assertThat(new TokenServiceImpl()).isNotNull();
+        given(appContext.idFactory()).willReturn(idFactory);
+        subject = new TokenServiceImpl(appContext);
     }
 
     @SuppressWarnings("DataFlowIssue")

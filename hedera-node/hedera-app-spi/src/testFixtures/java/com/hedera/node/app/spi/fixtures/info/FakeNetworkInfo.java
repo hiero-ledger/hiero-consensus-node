@@ -20,25 +20,28 @@ import java.util.List;
 public class FakeNetworkInfo implements NetworkInfo {
     private static final Bytes DEV_LEDGER_ID = Bytes.wrap(new byte[] {0x03});
     private static final List<NodeId> FAKE_NODE_INFO_IDS = List.of(NodeId.of(2), NodeId.of(4), NodeId.of(8));
-    private static final List<NodeInfo> FAKE_NODE_INFOS = List.of(
+    public static final List<NodeInfo> FAKE_NODE_INFOS = List.of(
             fakeInfoWith(
                     2L,
                     AccountID.newBuilder().accountNum(3).build(),
                     30,
                     List.of(endpointFor("333.333.333.333", 50233), endpointFor("127.0.0.1", 20)),
-                    Bytes.wrap("cert1")),
+                    Bytes.wrap("cert1"),
+                    List.of(endpointFor("333.333.333.333", 50233))),
             fakeInfoWith(
                     4L,
                     AccountID.newBuilder().accountNum(4).build(),
                     40,
                     List.of(endpointFor("444.444.444.444", 50244), endpointFor("127.0.0.2", 21)),
-                    Bytes.wrap("cert2")),
+                    Bytes.wrap("cert2"),
+                    List.of(endpointFor("444.444.444.444", 50211))),
             fakeInfoWith(
                     8L,
                     AccountID.newBuilder().accountNum(5).build(),
                     50,
                     List.of(endpointFor("555.555.555.555", 50255), endpointFor("127.0.0.3", 22)),
-                    Bytes.wrap("cert3")));
+                    Bytes.wrap("cert3"),
+                    List.of(endpointFor("555.555.555.555", 50211))));
 
     @NonNull
     @Override
@@ -79,7 +82,8 @@ public class FakeNetworkInfo implements NetworkInfo {
             @NonNull final AccountID nodeAccountId,
             long weight,
             List<ServiceEndpoint> gossipEndpoints,
-            @Nullable Bytes sigCertBytes) {
+            @Nullable Bytes sigCertBytes,
+            List<ServiceEndpoint> hapiEndpoints) {
         return new NodeInfo() {
             @Override
             public long nodeId() {
@@ -104,6 +108,11 @@ public class FakeNetworkInfo implements NetworkInfo {
             @Override
             public List<ServiceEndpoint> gossipEndpoints() {
                 return gossipEndpoints;
+            }
+
+            @Override
+            public @NonNull List<ServiceEndpoint> hapiEndpoints() {
+                return hapiEndpoints;
             }
         };
     }

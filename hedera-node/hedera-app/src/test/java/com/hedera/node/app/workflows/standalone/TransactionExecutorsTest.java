@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.standalone;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
@@ -13,14 +14,13 @@ import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.T
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.RealmID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -30,8 +30,11 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
+import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
@@ -58,7 +61,9 @@ import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
+import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
@@ -69,12 +74,14 @@ import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
+import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.internal.CryptoUtils;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -151,7 +158,7 @@ public class TransactionExecutorsTest {
     private static final String EXPECTED_TRACE_START =
             "{\"pc\":0,\"op\":96,\"gas\":\"0x13458\",\"gasCost\":\"0x3\",\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
     private static final NodeInfo DEFAULT_NODE_INFO =
-            new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY);
+            new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of());
 
     public static final Metrics NO_OP_METRICS = new NoOpMetrics();
     public static final NetworkInfo FAKE_NETWORK_INFO = fakeNetworkInfo();
@@ -400,7 +407,6 @@ public class TransactionExecutorsTest {
         registerServices(appContext, servicesRegistry);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
-        given(startupNetworks.genesisNetworkOrThrow(any())).willReturn(Network.DEFAULT);
         migrator.doMigrations(
                 state,
                 servicesRegistry,
@@ -409,12 +415,20 @@ public class TransactionExecutorsTest {
                         bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion()),
                 new ConfigProviderImpl().getConfiguration(),
                 config,
-                networkInfo,
                 NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,
                 configProvider,
                 TEST_PLATFORM_STATE_FACADE);
+        // Create a node
+        final var nodeWritableStates = state.getWritableStates(AddressBookService.NAME);
+        final var nodes = nodeWritableStates.<EntityNumber, Node>get(NODES_KEY);
+        nodes.put(
+                new EntityNumber(0),
+                Node.newBuilder()
+                        .accountId(appContext.idFactory().newAccountId(3L))
+                        .build());
+        ((CommittableWritableStates) nodeWritableStates).commit();
         final var writableStates = state.getWritableStates(FileService.NAME);
         final var readableStates = state.getReadableStates(AddressBookService.NAME);
         final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
@@ -430,6 +444,26 @@ public class TransactionExecutorsTest {
                             .contents(provider.apply(config))
                             .build());
         });
+        final var ledgerConfig = config.getConfigData(LedgerConfig.class);
+        final var accountsConfig = config.getConfigData(AccountsConfig.class);
+        final var systemKey = Key.newBuilder()
+                .ed25519(config.getConfigData(BootstrapConfig.class).genesisPublicKey())
+                .build();
+        final var accounts =
+                state.getWritableStates(TokenService.NAME).<AccountID, Account>get(V0490TokenSchema.ACCOUNTS_KEY);
+        // Create the system accounts
+        for (int i = 1, n = ledgerConfig.numSystemAccounts(); i <= n; i++) {
+            final var accountId = AccountID.newBuilder().accountNum(i).build();
+            accounts.put(
+                    accountId,
+                    Account.newBuilder()
+                            .accountId(accountId)
+                            .key(systemKey)
+                            .expirationSecond(Long.MAX_VALUE)
+                            .tinybarBalance(
+                                    (long) i == accountsConfig.treasury() ? ledgerConfig.totalTinyBarFloat() : 0L)
+                            .build());
+        }
         ((CommittableWritableStates) writableStates).commit();
         return state;
     }
@@ -458,7 +492,7 @@ public class TransactionExecutorsTest {
                         new FileServiceImpl(),
                         new FreezeServiceImpl(),
                         new ScheduleServiceImpl(appContext),
-                        new TokenServiceImpl(),
+                        new TokenServiceImpl(appContext),
                         new UtilServiceImpl(),
                         new RecordCacheService(),
                         new BlockRecordService(),
@@ -498,7 +532,8 @@ public class TransactionExecutorsTest {
                         someAccount,
                         0,
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        getCertBytes(randomX509Certificate()));
+                        getCertBytes(randomX509Certificate()),
+                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT));
             }
 
             @NonNull
@@ -509,13 +544,19 @@ public class TransactionExecutorsTest {
                         someAccount,
                         0,
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        getCertBytes(randomX509Certificate())));
+                        getCertBytes(randomX509Certificate()),
+                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT)));
             }
 
             @Override
             public NodeInfo nodeInfo(final long nodeId) {
                 return new NodeInfoImpl(
-                        0, someAccount, 0, List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT), Bytes.EMPTY);
+                        0,
+                        someAccount,
+                        0,
+                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
+                        Bytes.EMPTY,
+                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT));
             }
 
             @Override

@@ -38,6 +38,7 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.security.InvalidKeyException;
 import java.time.Instant;
 import java.util.Set;
@@ -60,6 +61,9 @@ class ScheduleHandlerTestBase extends ScheduleTestBase {
 
     @Mock
     protected TransactionChecker mockTransactionChecker;
+
+    @Mock
+    protected NodeInfo creatorInfo;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     protected HandleContext mockContext;

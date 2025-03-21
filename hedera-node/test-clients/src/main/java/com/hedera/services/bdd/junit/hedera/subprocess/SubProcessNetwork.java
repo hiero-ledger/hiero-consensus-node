@@ -21,6 +21,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.node.internal.network.Network;
@@ -430,9 +431,11 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             final var deferredRun = new DeferredRun(() -> {
                 final var deadline = Instant.now().plus(timeout);
                 // Block until all nodes are ACTIVE
-                nodes.forEach(node -> awaitStatus(node, ACTIVE, Duration.between(Instant.now(), deadline)));
-                //                 This should be uncommented when TSS is enabled
-                nodes.forEach(node -> node.logFuture("TSS protocol ready") // "Set LedgerID to")
+                nodes.forEach(node -> awaitStatus(node, Duration.between(Instant.now(), deadline), ACTIVE));
+                nodes.forEach(node -> node.logFuture(HandleWorkflow.SYSTEM_ENTITIES_CREATED_MSG)
+                        .orTimeout(10, TimeUnit.SECONDS)
+                        .join());
+                nodes.forEach(node -> node.logFuture("TSS protocol ready")
                         .orTimeout(30, TimeUnit.MINUTES)
                         .join());
                 this.clients = HapiClients.clientsFor(this);
