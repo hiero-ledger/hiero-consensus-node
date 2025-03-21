@@ -21,15 +21,16 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
      * @param configProvider configuration provider
      * @param nodeInfo information about the current node
      * @param fileSystem the file system to use for writing block files
-     * @param connectionManager the connection manager for the gRPC block stream service
+     * @param blockNodeConnectionManager the block node connection manager
      */
     public FileAndGrpcBlockItemWriter(
             @NonNull final ConfigProvider configProvider,
             @NonNull final NodeInfo nodeInfo,
             @NonNull final FileSystem fileSystem,
-            @NonNull final BlockNodeConnectionManager connectionManager) {
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
+            @NonNull final BlockStreamStateManager blockStreamStateManager) {
         this.fileBlockItemWriter = new FileBlockItemWriter(configProvider, nodeInfo, fileSystem);
-        this.grpcBlockItemWriter = new GrpcBlockItemWriter(connectionManager);
+        this.grpcBlockItemWriter = new GrpcBlockItemWriter(blockNodeConnectionManager, blockStreamStateManager);
     }
 
     @Override
@@ -46,12 +47,19 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
 
     @Override
     public void writeItem(@NonNull byte[] bytes) {
-        throw new UnsupportedOperationException("writeItem is not supported in this implementation");
+        this.fileBlockItemWriter.writeItem(bytes);
+        // The GrpcBlockItemWriter doesn't support writeItem, so we don't call it here
     }
 
     @Override
     public void closeBlock() {
         this.fileBlockItemWriter.closeBlock();
         this.grpcBlockItemWriter.closeBlock();
+    }
+
+    @Override
+    public void performPreBlockProofActions() {
+        // The FileBlockItemWriter doesn't support performPreBlockProofActions, so we don't call it here
+        this.grpcBlockItemWriter.performPreBlockProofActions();
     }
 }
