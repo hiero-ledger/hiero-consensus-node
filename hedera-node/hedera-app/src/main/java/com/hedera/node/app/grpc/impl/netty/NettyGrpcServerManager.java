@@ -417,10 +417,12 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                 .getConfiguration()
                 .getConfigData(JumboTransactionsConfig.class)
                 .isEnabled();
-        final var jumboMaxTxnSize = configProvider
-                .getConfiguration()
-                .getConfigData(JumboTransactionsConfig.class)
-                .maxTxnSize();
+        final var jumboMaxTxnSize = isJumboEnabled
+                ? configProvider
+                        .getConfiguration()
+                        .getConfigData(JumboTransactionsConfig.class)
+                        .maxTxnSize()
+                : maxTxnSize;
 
         // set buffer capacity to be big enough to hold the largest transaction
         final var bufferCapacity = isJumboEnabled ? jumboMaxTxnSize + 1 : maxTxnSize + 1;
