@@ -600,7 +600,5 @@ public final class ConsensusTestDefinitions {
             @NonNull final PlatformContext preMigrationContext,
             @NonNull final PlatformContext postMigrationContext,
             @NonNull final WeightGenerator weightGenerator,
-            final long seed) {
-
-    }
+            final long seed) {}
 }

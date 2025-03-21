@@ -224,8 +224,7 @@ public abstract class AbstractEventSource implements EventSource {
                 birthRound,
                 transactionGenerator.generate(random),
                 latestSelfEvent,
-                otherParentEvent
-        );
+                otherParentEvent);
 
         eventCount++;
 
@@ -349,5 +348,4 @@ public abstract class AbstractEventSource implements EventSource {
 
         return new EventImpl(new PlatformEvent(unsignedEvent, sig), selfParent, otherParent);
     }
-
 }

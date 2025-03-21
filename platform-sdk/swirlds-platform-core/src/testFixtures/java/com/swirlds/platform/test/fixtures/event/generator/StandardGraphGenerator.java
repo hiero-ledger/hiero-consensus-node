@@ -27,7 +27,6 @@ import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.BirthRoundMigrationShim;
 import com.swirlds.platform.system.events.DefaultBirthRoundMigrationShim;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
@@ -495,7 +494,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
         }
     }
 
-    public void birthRoundMigration(){
+    public void birthRoundMigration() {
         // save all non-ancient events
         final List<EventImpl> nonAncientEvents = linker.getSortedNonAncientEvents();
         // reinitialize the internal consensus with the last snapshot
@@ -509,14 +508,11 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
                 consensusSnapshot);
         linker.setNonAncientThreshold(ancientThreshold);
         final BirthRoundMigrationShim birthRoundMigrationShim = new DefaultBirthRoundMigrationShim(
-                platformContext,
-                VERSION_2,
-                consensus.getLastRoundDecided(),
-                ancientThreshold
-        );
+                platformContext, VERSION_2, consensus.getLastRoundDecided(), ancientThreshold);
         // re-add all non-ancient events
         for (final EventImpl event : nonAncientEvents) {
-            updateConsensus(birthRoundMigrationShim.migrateEvent(event.getBaseEvent().copyGossipedData()));
+            updateConsensus(
+                    birthRoundMigrationShim.migrateEvent(event.getBaseEvent().copyGossipedData()));
         }
     }
 

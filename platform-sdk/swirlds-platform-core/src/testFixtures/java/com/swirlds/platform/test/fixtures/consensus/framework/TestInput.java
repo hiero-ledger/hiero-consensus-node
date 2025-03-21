@@ -18,5 +18,4 @@ public record TestInput(
         int numberOfNodes,
         @NonNull WeightGenerator weightGenerator,
         long seed,
-        int eventsToGenerate) {
-}
+        int eventsToGenerate) {}
