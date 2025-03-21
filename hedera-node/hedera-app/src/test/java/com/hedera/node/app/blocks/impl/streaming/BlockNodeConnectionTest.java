@@ -626,20 +626,19 @@ class BlockNodeConnectionTest {
      * Tests that the connection properly ends the stream and restarts at a specific block.
      */
     @Test
-    void testEndStreamAndRestartAtBlock() {
+    void testRestartStreamAtBlock() {
         // Arrange
         final long blockNumber = 100L;
 
         // Act
-        connection.endStreamAndRestartAtBlock(blockNumber);
+        connection.restartStreamAtBlock(blockNumber);
 
         // Assert
-        verify(requestObserver).onCompleted();
         assertEquals(blockNumber, connection.getCurrentBlockNumber());
         assertEquals(0, connection.getCurrentRequestIndex());
 
         // Verify log messages for ending stream and restarting
-        final String expectedLog = "Ending stream and restarting at block " + blockNumber;
+        final String expectedLog = "Restarting stream at block " + blockNumber;
         assertTrue(
                 logCaptor.infoLogs().stream().anyMatch(log -> log.contains(expectedLog))
                         || logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedLog)),
@@ -692,8 +691,9 @@ class BlockNodeConnectionTest {
         // Act
         connectionSpy.onNext(response);
 
-        // Assert connection restarts after the last verified block number
-        verify(connectionSpy).endStreamAndRestartAtBlock(endOfStream.getBlockNumber() + 1L);
+        // Assert connection ends and restarts after the last verified block number
+        verify(requestObserver).onCompleted();
+        verify(connectionSpy).restartStreamAtBlock(endOfStream.getBlockNumber() + 1L);
 
         // Verify log messages for end of stream
         final String expectedLog = "Received EndOfStream from block node";

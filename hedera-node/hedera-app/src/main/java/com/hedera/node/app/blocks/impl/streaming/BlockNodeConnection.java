@@ -306,16 +306,28 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 blockNumber,
                 responseCode);
 
-        // For all error codes, restart after the last verified block + 1
-        long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
-        logger.debug(
-                "[{}] Restarting stream at block {} due to {} for node {}:{}",
-                Thread.currentThread().getName(),
-                restartBlockNumber,
-                responseCode,
-                node.address(),
-                node.port());
-        endStreamAndRestartAtBlock(restartBlockNumber);
+        // Always end the stream when we receive an end of stream message
+        logger.debug("Ending stream for node {}:{}", node.address(), node.port());
+        synchronized (isActiveLock) {
+            synchronized (channelLock) {
+                close();
+            }
+        }
+
+        switch (responseCode) {
+            default -> {
+                // By default, restart after the last verified block + 1
+                long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
+                logger.debug(
+                        "[{}] Restarting stream at block {} due to {} for node {}:{}",
+                        Thread.currentThread().getName(),
+                        restartBlockNumber,
+                        responseCode,
+                        node.address(),
+                        node.port());
+                restartStreamAtBlock(restartBlockNumber);
+            }
+        }
     }
 
     private void removeFromActiveConnections(BlockNodeConfig node) {
@@ -489,19 +501,17 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      *
      * @param blockNumber the block number to restart at
      */
-    public void endStreamAndRestartAtBlock(long blockNumber) {
-        logger.debug(
-                "Ending stream and restarting at block {} for node {}:{}", blockNumber, node.address(), node.port());
+    public void restartStreamAtBlock(long blockNumber) {
+        logger.debug("Restarting stream at block {} for node {}:{}", blockNumber, node.address(), node.port());
 
         synchronized (isActiveLock) {
             synchronized (channelLock) {
-                close();
                 setCurrentBlockNumber(blockNumber);
                 establishStream();
             }
         }
 
-        logger.debug("Stream ended and restarted at block {} for node {}:{}", blockNumber, node.address(), node.port());
+        logger.debug("Stream restarted at block {} for node {}:{}", blockNumber, node.address(), node.port());
     }
 
     /**
