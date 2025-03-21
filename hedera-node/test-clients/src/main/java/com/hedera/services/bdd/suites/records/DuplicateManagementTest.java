@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VER
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion.PAST;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.reducedFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -37,6 +38,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -55,7 +57,7 @@ import org.junit.jupiter.api.DynamicTest;
 public class DuplicateManagementTest {
     private static final String REPEATED = "repeated";
     public static final String TXN_ID = "txnId";
-    private static final String TO = "0.0.3";
+    private static final String TO = asEntityString(3);
     private static final String CIVILIAN = "civilian";
     private static final long MS_TO_WAIT_FOR_CONSENSUS = 6_000L;
 
@@ -117,13 +119,13 @@ public class DuplicateManagementTest {
     final Stream<DynamicTest> onlyWarnsOfMissingCreatorIfCurrentVersion() {
         return hapiTest(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode("0.0.666")
+                        .setNode(asEntityString(666))
                         .withSubmissionStrategy(usingVersion(PAST))
                         .hasAnyStatusAtAll(),
                 assertHgcaaLogDoesNotContain(
                         byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode("0.0.666")
+                        .setNode(asEntityString(666))
                         .withSubmissionStrategy(usingVersion(SyntheticVersion.PRESENT))
                         .hasAnyStatusAtAll(),
                 assertHgcaaLogContains(
@@ -133,7 +135,7 @@ public class DuplicateManagementTest {
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     @DisplayName("if a node submits an authorized transaction without payer signature, it is charged the network fee")
     final Stream<DynamicTest> chargesNetworkFeeToNodeThatSubmitsAuthorizedTransactionWithoutPayerSignature() {
-        final var submittingNodeAccountId = "0.0.4";
+        final var submittingNodeAccountId = asEntityString(4);
         return hapiTest(
                 newKeyNamed("notTreasuryKey"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, submittingNodeAccountId, ONE_HBAR)),
@@ -152,7 +154,7 @@ public class DuplicateManagementTest {
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     @DisplayName("if a node submits an authorized transaction without payer signature, it is charged the network fee")
     final Stream<DynamicTest> payerSolvencyStillCheckedEvenForDuplicateTransaction() {
-        final var submittingNodeAccountId = "0.0.4";
+        final var submittingNodeAccountId = asEntityString(4);
         final AtomicLong preDuplicateBalance = new AtomicLong();
         return hapiTest(
                 cryptoCreate(CIVILIAN),
@@ -202,5 +204,31 @@ public class DuplicateManagementTest {
                         .hasPriority(recordWith()
                                 .status(INVALID_PAYER_SIGNATURE)
                                 .transfers(includingDeduction("node payment", TO))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> classifiableTakesPriorityOverUnclassifiable() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN).balance(100 * 100_000_000L),
+                usableTxnIdNamed(TXN_ID).payerId(CIVILIAN),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, TO, 100_000_000L)),
+                uncheckedSubmit(cryptoCreate("nope")
+                                .txnId(TXN_ID)
+                                .payingWith(CIVILIAN)
+                                .setNode(asEntityString(4)))
+                        .logged(),
+                uncheckedSubmit(
+                        cryptoCreate("sure").txnId(TXN_ID).payingWith(CIVILIAN).setNode(TO)),
+                sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
+                getReceipt(TXN_ID)
+                        .andAnyDuplicates()
+                        .logged()
+                        .hasPriorityStatus(SUCCESS)
+                        .hasDuplicateStatuses(INVALID_NODE_ACCOUNT),
+                getTxnRecord(TXN_ID)
+                        .assertingNothingAboutHashes()
+                        .andAnyDuplicates()
+                        .hasPriority(recordWith().status(SUCCESS))
+                        .hasDuplicates(inOrder(recordWith().status(INVALID_NODE_ACCOUNT))));
     }
 }

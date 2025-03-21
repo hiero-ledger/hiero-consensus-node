@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -39,12 +40,12 @@ public class RecordCreationSuite {
     private static final String FUNDING_BEFORE = "fundingBefore";
     private static final String STAKING_REWARD1 = "stakingReward";
     private static final String NODE_REWARD1 = "nodeReward";
-    private static final String FOR_ACCOUNT_FUNDING = "0.0.98";
-    private static final String FOR_ACCOUNT_STAKING_REWARDS = "0.0.800";
-    private static final String FOR_ACCOUNT_NODE_REWARD = "0.0.801";
+    private static final String FOR_ACCOUNT_FUNDING = asEntityString(98);
+    private static final String FOR_ACCOUNT_STAKING_REWARDS = asEntityString(800);
+    private static final String FOR_ACCOUNT_NODE_REWARD = asEntityString(801);
     private static final String PAYER = "payer";
     private static final String THIS_IS_OK_IT_S_FINE_IT_S_WHATEVER = "This is ok, it's fine, it's whatever.";
-    private static final String TO_ACCOUNT = "0.0.3";
+    private static final String TO_ACCOUNT = asEntityString(3);
     private static final String TXN_ID = "txnId";
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)

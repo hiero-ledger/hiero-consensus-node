@@ -44,7 +44,9 @@ public class HederaAccountNumAliasCall extends AbstractCall {
             // Invalid: not an alias for any account
             return gasOnly(fullResultsFor(INVALID_SOLIDITY_ADDRESS, ZERO_ADDRESS), INVALID_SOLIDITY_ADDRESS, true);
         }
-        final var account = enhancement.nativeOperations().getAccount(accountNum);
+        final var account = enhancement
+                .nativeOperations()
+                .getAccount(nativeOperations().entityIdFactory().newAccountId(accountNum));
         if (account == null) {
             return gasOnly(fullResultsFor(INVALID_SOLIDITY_ADDRESS, ZERO_ADDRESS), INVALID_SOLIDITY_ADDRESS, true);
         }

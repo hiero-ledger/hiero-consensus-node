@@ -24,6 +24,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawCall;
@@ -85,7 +86,7 @@ class IsAuthorizedRawCallTest extends CallTestBase {
 
     @Test
     void revertsWhenEcdsaIsNotEvmAddress() {
-        given(nativeOperations.getAccount(OWNER_ACCOUNT_NUM)).willReturn(OWNER_ACCOUNT);
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(OWNER_ACCOUNT);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject = getSubject(asHeadlongAddress(OWNER_ACCOUNT_NUM));

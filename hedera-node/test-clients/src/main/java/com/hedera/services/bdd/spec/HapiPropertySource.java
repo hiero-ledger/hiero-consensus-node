@@ -521,4 +521,55 @@ public interface HapiPropertySource {
     static String asEntityString(final long num) {
         return String.format(ENTITY_STRING, shard, realm, num);
     }
+
+    static long numberOfLongZero(@NonNull final byte[] explicit) {
+        return longFrom(
+                explicit[12],
+                explicit[13],
+                explicit[14],
+                explicit[15],
+                explicit[16],
+                explicit[17],
+                explicit[18],
+                explicit[19]);
+    }
+
+    public static long realmOfLongZero(@NonNull final byte[] explicit) {
+        return longFrom(
+                explicit[4],
+                explicit[5],
+                explicit[6],
+                explicit[7],
+                explicit[8],
+                explicit[9],
+                explicit[10],
+                explicit[11]);
+    }
+
+    public static long shardOfLongZero(@NonNull final byte[] explicit) {
+        return longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
+    }
+
+    private static long longFrom(
+            final byte b1,
+            final byte b2,
+            final byte b3,
+            final byte b4,
+            final byte b5,
+            final byte b6,
+            final byte b7,
+            final byte b8) {
+        return (b1 & 0xFFL) << 56
+                | (b2 & 0xFFL) << 48
+                | (b3 & 0xFFL) << 40
+                | (b4 & 0xFFL) << 32
+                | (b5 & 0xFFL) << 24
+                | (b6 & 0xFFL) << 16
+                | (b7 & 0xFFL) << 8
+                | (b8 & 0xFFL);
+    }
+
+    private static long longFrom(final byte b1, final byte b2, final byte b3, final byte b4) {
+        return (b1 & 0xFFL) << 24 | (b2 & 0xFFL) << 16 | (b3 & 0xFFL) << 8 | (b4 & 0xFFL);
+    }
 }

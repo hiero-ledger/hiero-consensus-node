@@ -292,12 +292,12 @@ public class HapiUtils {
      * @return The corresponding {@link AccountID}
      * @throws IllegalArgumentException if the string is not a dot-separated triplet of numbers
      */
-    public static AccountID parseAccount(@NonNull final String string) {
+    public static AccountID parseAccountFromLegacy(@NonNull final String string, final long shard, final long realm) {
         try {
             final var parts = string.split("\\.");
             return AccountID.newBuilder()
-                    .shardNum(Long.parseLong(parts[0]))
-                    .realmNum(Long.parseLong(parts[1]))
+                    .shardNum(shard)
+                    .realmNum(realm)
                     .accountNum(Long.parseLong(parts[2]))
                     .build();
         } catch (final NumberFormatException | ArrayIndexOutOfBoundsException e) {

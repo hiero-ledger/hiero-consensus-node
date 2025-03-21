@@ -452,33 +452,38 @@ public class EthereumSuite {
                         .entityMemo(MEMO)
                         .payingWith(GENESIS)
                         .signedBy(SECP_256K1_SOURCE_KEY, GENESIS),
-                ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .payingWith(RELAYER)
-                        .nonce(0)
-                        .balance(INITIAL_BALANCE)
-                        .gasPrice(10L)
-                        .maxGasAllowance(ONE_HUNDRED_HBARS)
-                        .exposingNumTo(num -> contractID.set(asHexedSolidityAddress(0, 0, num)))
-                        .gasLimit(1_000_000L)
-                        .hasKnownStatus(SUCCESS),
-                getContractInfo(PAY_RECEIVABLE_CONTRACT).has(contractWith().defaultAdminKey()),
-                ethereumCall(PAY_RECEIVABLE_CONTRACT, "getBalance")
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .payingWith(RELAYER)
-                        .nonce(1L)
-                        .gasPrice(10L)
-                        .gasLimit(1_000_000L)
-                        .hasKnownStatus(SUCCESS),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).logged(),
-                sourcing(() -> getContractInfo(contractID.get())
-                        .has(contractWith()
-                                .defaultAdminKey()
-                                .autoRenew(AUTO_RENEW_PERIOD)
-                                .balance(INITIAL_BALANCE)
-                                .memo(MEMO))));
+                withOpContext((spec, opLog) -> {
+                    ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .signingWith(SECP_256K1_SOURCE_KEY)
+                            .payingWith(RELAYER)
+                            .nonce(0)
+                            .balance(INITIAL_BALANCE)
+                            .gasPrice(10L)
+                            .maxGasAllowance(ONE_HUNDRED_HBARS)
+                            .exposingNumTo(num -> contractID.set(asHexedSolidityAddress(
+                                    (int) spec.setup().defaultShard().getShardNum(),
+                                    spec.setup().defaultRealm().getRealmNum(),
+                                    num)))
+                            .gasLimit(1_000_000L)
+                            .hasKnownStatus(SUCCESS);
+                    getContractInfo(PAY_RECEIVABLE_CONTRACT).has(contractWith().defaultAdminKey());
+                    ethereumCall(PAY_RECEIVABLE_CONTRACT, "getBalance")
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .signingWith(SECP_256K1_SOURCE_KEY)
+                            .payingWith(RELAYER)
+                            .nonce(1L)
+                            .gasPrice(10L)
+                            .gasLimit(1_000_000L)
+                            .hasKnownStatus(SUCCESS);
+                    getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).logged();
+                    sourcing(() -> getContractInfo(contractID.get())
+                            .has(contractWith()
+                                    .defaultAdminKey()
+                                    .autoRenew(AUTO_RENEW_PERIOD)
+                                    .balance(INITIAL_BALANCE)
+                                    .memo(MEMO)));
+                }));
     }
 
     @HapiTest
@@ -1120,8 +1125,6 @@ public class EthereumSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .exposingResultTo(result -> {
                                     opLog.info("Explicit create result" + " is {}", result[0]);
-                                    final var res = (Address) result[0];
-                                    createdTokenNum.set(res.value().longValueExact());
                                 }))),
                 getTxnRecord(firstTxn).andAllChildRecords().logged(),
                 childRecordsCheck(
@@ -1188,8 +1191,6 @@ public class EthereumSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .exposingResultTo(result -> {
                                     opLog.info("Explicit create result is {}", result[0]);
-                                    final var res = (Address) result[0];
-                                    createdTokenNum.set(res.value().longValueExact());
                                 }))),
                 getTxnRecord(firstTxn).andAllChildRecords().logged(),
                 childRecordsCheck(

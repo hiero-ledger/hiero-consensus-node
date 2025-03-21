@@ -131,14 +131,14 @@ public abstract class AbstractGrantApprovalCall extends AbstractCall {
     }
 
     protected @Nullable AccountID getMaybeOwnerId() {
-        final var nft = enhancement.nativeOperations().getNft(tokenId.tokenNum(), amount);
+        final var nft = enhancement.nativeOperations().getNft(tokenId, amount);
         if (nft == null) {
             return null;
         }
         if (nft.hasOwnerId()) {
             return nft.ownerId();
         } else {
-            final var token = nativeOperations().getToken(tokenId.tokenNum());
+            final var token = nativeOperations().getToken(tokenId);
             return token == null ? null : token.treasuryAccountIdOrThrow();
         }
     }

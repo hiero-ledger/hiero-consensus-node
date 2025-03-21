@@ -16,5 +16,5 @@ testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
-    requires("com.swirlds.config.extensions.test.fixtures")
+    runtimeOnly("com.swirlds.config.extensions.test.fixtures")
 }

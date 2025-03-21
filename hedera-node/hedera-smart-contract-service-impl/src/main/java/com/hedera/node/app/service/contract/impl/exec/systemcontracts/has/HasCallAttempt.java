@@ -95,7 +95,11 @@ public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
     public @Nullable Account linkedAccount(@NonNull final Address accountAddress) {
         requireNonNull(accountAddress);
         if (isLongZero(enhancement().nativeOperations().entityIdFactory(), accountAddress)) {
-            return enhancement().nativeOperations().getAccount(numberOfLongZero(accountAddress.toArray()));
+            return enhancement()
+                    .nativeOperations()
+                    .getAccount(nativeOperations()
+                            .entityIdFactory()
+                            .newAccountId(numberOfLongZero(accountAddress.toArray())));
         } else {
             final var config = configuration().getConfigData(HederaConfig.class);
             final var addressNum = enhancement()
@@ -104,7 +108,9 @@ public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
                             config.shard(),
                             config.realm(),
                             com.hedera.pbj.runtime.io.buffer.Bytes.wrap(accountAddress.toArray()));
-            return enhancement().nativeOperations().getAccount(addressNum);
+            return enhancement()
+                    .nativeOperations()
+                    .getAccount(nativeOperations().entityIdFactory().newAccountId(addressNum));
         }
     }
 

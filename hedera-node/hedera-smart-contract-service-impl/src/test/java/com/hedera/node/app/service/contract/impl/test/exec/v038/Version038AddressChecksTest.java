@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.v038;
 
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -11,7 +12,7 @@ import org.hyperledger.besu.datatypes.Address;
 import org.junit.jupiter.api.Test;
 
 class Version038AddressChecksTest {
-    private Version038AddressChecks subject = new Version038AddressChecks(Map.of());
+    private Version038AddressChecks subject = new Version038AddressChecks(Map.of(), entityIdFactory);
 
     @Test
     void onlyBelow750IsSystem() {

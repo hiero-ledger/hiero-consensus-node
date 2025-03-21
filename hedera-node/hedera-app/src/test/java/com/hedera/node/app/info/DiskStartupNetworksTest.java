@@ -151,7 +151,8 @@ class DiskStartupNetworksTest {
                         null,
                         "0.0." + (i + 3)))
                 .toList());
-        final var network = fromLegacyAddressBook(legacyBook);
+        final var network = fromLegacyAddressBook(
+                legacyBook, HederaTestConfigBuilder.createConfigProvider().getConfiguration());
         for (int i = 0; i < n; i++) {
             final var rosterEntry = network.nodeMetadata().get(i).rosterEntryOrThrow();
             assertThat(rosterEntry.nodeId()).isEqualTo(i);

@@ -3,6 +3,8 @@ package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.*;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungiblePendingAirdrop;
@@ -396,7 +398,8 @@ public class AirdropToContractSystemContractTest {
                         contractCreate(receiverContract)
                                 .bytecode("AssociateContract")
                                 .gas(5_000_000L)
-                                .exposingNumTo(num -> receiverContractAddress.set(asHexedSolidityAddress(0, 0, num))),
+                                .exposingNumTo(
+                                        num -> receiverContractAddress.set(asHexedSolidityAddress(shard, realm, num))),
                         newKeyNamed("adminKey"),
                         newKeyNamed("feeScheduleKey"),
                         tokenCreate(token)

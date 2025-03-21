@@ -6,8 +6,7 @@ contract Multipurpose {
 
     event Boast(string saying);
 
-    receive() external payable {}
-    fallback() external payable {}
+    function deposit() external payable {}
     constructor() public payable {}
 
     function believeIn(uint32 no) public {

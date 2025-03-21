@@ -9,8 +9,8 @@ contract SendInternalAndDelegate {
     receive() external payable {}
 
     function sendRepeatedlyTo(
-        uint64 just_send_num,
-        uint64 account_num,
+        uint160 just_send_num,
+        uint160 account_num,
         uint64 value
     ) public payable {
         /* First send "normally" */
@@ -20,7 +20,7 @@ contract SendInternalAndDelegate {
         /* Now send via the delegate */
         address just_send = address(uint160(just_send_num));
         (bool success, bytes memory data) = just_send.delegatecall(
-            abi.encodeWithSignature("sendTo(uint64,uint64)", account_num, value)
+            abi.encodeWithSignature("sendTo(uint160,uint64)", account_num, value)
         );
     }
 }

@@ -1036,6 +1036,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         return configProvider;
     }
 
+    public BootstrapConfigProviderImpl bootstrapConfigProvider() {
+        return bootstrapConfigProvider;
+    }
+
     public BlockStreamManager blockStreamManager() {
         return daggerApp.blockStreamManager();
     }

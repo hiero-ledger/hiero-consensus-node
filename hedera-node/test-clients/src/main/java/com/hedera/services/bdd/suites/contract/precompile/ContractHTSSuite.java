@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressStringWithShardAndRealm;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -780,7 +781,7 @@ public class ContractHTSSuite {
                                             HapiParserUtil.asHeadlongAddress(
                                                     asAddress(spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))),
                                             sender,
-                                            asHeadlongAddress(new byte[20]),
+                                            asHeadlongAddress(toAddressStringWithShardAndRealm("0")),
                                             1L)
                                     .payingWith(GENESIS)
                                     .gas(GAS_TO_OFFER)
