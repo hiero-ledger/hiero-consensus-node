@@ -17,6 +17,7 @@ import com.hedera.node.app.service.file.impl.handlers.FileHandlers;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkAdminHandlers;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleHandlers;
 import com.hedera.node.app.service.token.impl.handlers.TokenHandlers;
+import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.service.util.impl.handlers.UtilHandlers;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.state.WorkingStateAccessor;
@@ -51,6 +52,12 @@ public interface HandleWorkflowModule {
     @Singleton
     static Supplier<ContractHandlers> provideContractHandlers(@NonNull final ContractServiceImpl contractService) {
         return contractService::handlers;
+    }
+
+    @Provides
+    @Singleton
+    static UtilHandlers provideUtilHandlers(@NonNull final UtilServiceImpl utilService) {
+        return utilService.handlers();
     }
 
     @Provides
