@@ -32,6 +32,10 @@ final class DataBufferMarshaller implements MethodDescriptor.Marshaller<Buffered
 
     /** Constructs a new {@link DataBufferMarshaller}. Only called by {@link GrpcServiceBuilder}. */
     DataBufferMarshaller(final int bufferCapacity, final int maxMessageSize) {
+        if (bufferCapacity < maxMessageSize) {
+            throw new IllegalArgumentException(
+                    "Buffer capacity must be greater than or equal to the maximum message size.");
+        }
         this.bufferCapacity = bufferCapacity + 1;
         this.tooBigMessageSize = maxMessageSize + 1;
     }
