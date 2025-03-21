@@ -72,8 +72,8 @@ class BlockNodeConnectionTest {
     @BeforeEach
     public void setUp() throws InterruptedException {
         // Basic setup that's needed for all tests
-        when(nodeConfig.address()).thenReturn("localhost");
-        when(nodeConfig.port()).thenReturn(12345);
+        lenient().when(nodeConfig.address()).thenReturn("localhost");
+        lenient().when(nodeConfig.port()).thenReturn(12345);
 
         channel = mock(ManagedChannel.class);
 
@@ -85,8 +85,8 @@ class BlockNodeConnectionTest {
         mockedChannel
                 .when(() -> ManagedChannelBuilder.forAddress("localhost", 12345))
                 .thenReturn(nettyChannelBuilder);
-        when(nettyChannelBuilder.usePlaintext()).thenReturn(nettyChannelBuilder);
-        when(nettyChannelBuilder.build()).thenReturn(channel);
+        lenient().when(nettyChannelBuilder.usePlaintext()).thenReturn(nettyChannelBuilder);
+        lenient().when(nettyChannelBuilder.build()).thenReturn(channel);
 
         // Setup channel shutdown chain
         lenient().when(channel.shutdown()).thenReturn(channel);
