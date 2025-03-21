@@ -7,8 +7,11 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidation;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -20,6 +23,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Runs a TURTLE network. All nodes run in this JVM, and if configured properly the execution is expected to be
@@ -59,6 +64,7 @@ import java.util.concurrent.Future;
  */
 public class Turtle {
 
+    private static final Logger log = LogManager.getLogger(Turtle.class);
     private final FakeTime time;
     private final Duration simulationGranularity;
 
@@ -123,21 +129,56 @@ public class Turtle {
     }
 
     /**
-     * Simulate the network for a period of time.
+     * Simulate the network for a period of time. Validate the correctness of collected items at a regular interval.
      *
      * @param duration the duration to simulate
      */
-    public void simulateTime(@NonNull final Duration duration) {
+    public void simulateTimeAndValidate(@NonNull final Duration duration, @NonNull final Duration validationInterval) {
         final Instant simulatedStart = time.now();
         final Instant simulatedEnd = simulatedStart.plus(duration);
 
+        Instant nextValidationTime = simulatedStart.plus(validationInterval);
         while (time.now().isBefore(simulatedEnd)) {
             reportThePassageOfTime();
 
             time.tick(simulationGranularity);
             network.tick(time.now());
             tickAllNodes();
+
+            if (time.now().isAfter(nextValidationTime)) {
+                validate();
+                nextValidationTime = time.now().plus(validationInterval);
+            }
         }
+    }
+
+    /**
+     * Validate all collected items during Turtle execution using the suitable validator types.
+     * Each different type of collected item has its own container and set of validation rules.
+     *
+     * At the end of the validation, all collected items are cleared to keep memory usage low.
+     */
+    public void validate() {
+        final Validations validations = Validations.newInstance().consensusRoundValidations();
+
+        final TurtleNode node1 = nodes.getFirst();
+        final List<ConsensusRound> consensusRoundsForNode1 =
+                node1.getConsensusRoundsHolder().getCollectedRounds();
+
+        for (int i = 1; i < nodes.size(); i++) {
+            final TurtleNode otherNode = nodes.get(i);
+            final List<ConsensusRound> consensusRoundsForOtherNode =
+                    otherNode.getConsensusRoundsHolder().getCollectedRounds();
+
+            for (final ConsensusRoundValidation validator :
+                    validations.getConsensusValidator().getRoundValidations()) {
+                validator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
+            }
+
+            otherNode.getConsensusRoundsHolder().clear();
+        }
+
+        node1.getConsensusRoundsHolder().clear();
     }
 
     /**

@@ -7,6 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 /**
  * Validates output of a consensus test. The type of validation that is done depends on the implementation.
  */
+@FunctionalInterface
 public interface ConsensusOutputValidation {
     /**
      * Perform validation on all consensus output.

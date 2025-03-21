@@ -2,33 +2,11 @@
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
 import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.junit.jupiter.api.Assertions;
 
 public class InputEventsValidation {
-    /**
-     * Validate that the events are added in a different order
-     */
-    public static void validateEventsAreInDifferentOrder(
-            @NonNull final ConsensusOutput output1, @NonNull final ConsensusOutput output2) {
-        assertBaseEventLists(
-                "Verifying input events are not equal", output1.getAddedEvents(), output2.getAddedEvents(), false);
-    }
-
-    /**
-     * Verify that ALL base events fed into consensus are exactly identical this will check only pre-consensus data, for
-     * non-consensus events, the consensus data does not have to match
-     */
-    public static void validateInputsAreTheSame(
-            @NonNull final ConsensusOutput output1, @NonNull final ConsensusOutput output2) {
-        assertBaseEventLists(
-                "Verifying sorted input events are equal",
-                output1.sortedAddedEvents(),
-                output2.sortedAddedEvents(),
-                true);
-    }
 
     /**
      * Assert that base events for equality. This does not check any consensus data, only pre-consensus. If the equality
@@ -39,7 +17,7 @@ public class InputEventsValidation {
      * @param l2 the second list of events
      * @param shouldBeEqual true if we expect lists have equal events, false if we expect unequal
      */
-    private static void assertBaseEventLists(
+    public static void assertBaseEventLists(
             @NonNull final String description,
             @NonNull final List<PlatformEvent> l1,
             @NonNull final List<PlatformEvent> l2,

@@ -109,7 +109,8 @@ public class ConsensusTestOrchestrator {
         final ConsensusTestNode node1 = nodes.get(0);
         for (int i = 1; i < nodes.size(); i++) {
             final ConsensusTestNode node2 = nodes.get(i);
-            for (final ConsensusOutputValidation validator : validations.getList()) {
+            for (final ConsensusOutputValidation validator :
+                    validations.getConsensusValidator().getOutputValidations()) {
                 validator.validate(node1.getOutput(), node2.getOutput());
             }
         }
