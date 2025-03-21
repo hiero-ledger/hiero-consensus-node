@@ -88,8 +88,8 @@ public class EventEmitterBuilder {
 
         final EventSourceFactory eventSourceFactory = new EventSourceFactory(numNodes);
 
-        final StandardGraphGenerator generator = new StandardGraphGenerator(platformContext, randomSeed,
-                eventSourceFactory.generateSources(), roster);
+        final StandardGraphGenerator generator =
+                new StandardGraphGenerator(platformContext, randomSeed, eventSourceFactory.generateSources(), roster);
         return new StandardEventEmitter(generator);
     }
 }

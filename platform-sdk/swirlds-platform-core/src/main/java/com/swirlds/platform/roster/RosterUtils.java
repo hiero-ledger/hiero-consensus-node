@@ -221,7 +221,8 @@ public final class RosterUtils {
      */
     @NonNull
     public static NodeId getNodeId(@NonNull final Roster roster, final int nodeIndex) {
-        return NodeId.of(Objects.requireNonNull(roster).rosterEntries().get(nodeIndex).nodeId());
+        return NodeId.of(
+                Objects.requireNonNull(roster).rosterEntries().get(nodeIndex).nodeId());
     }
 
     /**
