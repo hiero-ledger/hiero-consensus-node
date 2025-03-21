@@ -7,27 +7,19 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.nu
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.state.schedule.Schedule;
-import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAttemptOptions;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.SystemContract;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
@@ -47,37 +39,11 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
     @NonNull
     private final SignatureVerifier signatureVerifier;
 
-    // too many parameters
-    @SuppressWarnings("java:S107")
     public HssCallAttempt(
-            @NonNull final ContractID contractID,
             @NonNull final Bytes input,
-            @NonNull final Address senderAddress,
-            final boolean onlyDelegatableContractKeysActive,
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final Configuration configuration,
-            @NonNull final AddressIdConverter addressIdConverter,
-            @NonNull final VerificationStrategies verificationStrategies,
-            @NonNull final SignatureVerifier signatureVerifier,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final List<CallTranslator<HssCallAttempt>> callTranslators,
-            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
-            final boolean isStaticCall) {
-        super(
-                contractID,
-                input,
-                senderAddress,
-                senderAddress,
-                onlyDelegatableContractKeysActive,
-                enhancement,
-                configuration,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                callTranslators,
-                isStaticCall,
-                systemContractMethodRegistry,
-                REDIRECT_FOR_SCHEDULE_TXN);
+            @NonNull final CallAttemptOptions<HssCallAttempt> options,
+            @NonNull final SignatureVerifier signatureVerifier) {
+        super(input, options, REDIRECT_FOR_SCHEDULE_TXN);
         if (isRedirect()) {
             this.redirectScheduleTxn = linkedSchedule(requireNonNull(redirectAddress));
         } else {
@@ -94,16 +60,6 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
     @Override
     protected HssCallAttempt self() {
         return this;
-    }
-
-    /**
-     * Returns whether this is a schedule transaction redirect.
-     *
-     * @return whether this is a schedule transaction redirect
-     * @throws IllegalStateException if this is not a valid call
-     */
-    public boolean isScheduleRedirect() {
-        return isRedirect();
     }
 
     /**
@@ -140,8 +96,8 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
      */
     public @Nullable Schedule linkedSchedule(@NonNull final Address scheduleAddress) {
         requireNonNull(scheduleAddress);
-        if (isLongZero(enhancement.nativeOperations().entityIdFactory(), scheduleAddress)) {
-            return enhancement.nativeOperations().getSchedule(numberOfLongZero(scheduleAddress.toArray()));
+        if (isLongZero(enhancement().nativeOperations().entityIdFactory(), scheduleAddress)) {
+            return enhancement().nativeOperations().getSchedule(numberOfLongZero(scheduleAddress.toArray()));
         }
         return null;
     }
@@ -166,7 +122,7 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
         // For a top-level EthereumTransaction, use the Ethereum sender key; otherwise,
         // use the full set of simple keys authorizing the ContractCall dispatching this
         // HSS call attempt
-        Key key = enhancement.systemOperations().maybeEthSenderKey();
+        Key key = enhancement().systemOperations().maybeEthSenderKey();
         if (key != null) {
             return Set.of(key);
         }
@@ -179,11 +135,12 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
         if (isOnlyDelegatableContractKeysActive()) {
             return Set.of(Key.newBuilder()
                     .delegatableContractId(
-                            enhancement.nativeOperations().entityIdFactory().newContractId(contractNum))
+                            enhancement().nativeOperations().entityIdFactory().newContractId(contractNum))
                     .build());
         } else {
             return Set.of(Key.newBuilder()
-                    .contractID(enhancement.nativeOperations().entityIdFactory().newContractId(contractNum))
+                    .contractID(
+                            enhancement().nativeOperations().entityIdFactory().newContractId(contractNum))
                     .build());
         }
     }

@@ -15,6 +15,16 @@ import java.util.function.Consumer;
  */
 public interface SystemContext {
     /**
+     * Dispatches a transaction body customized by the given specification to the appropriate service using
+     * the requested next entity number, which must be less than the first user entity number.
+     * @param spec the transaction body
+     * @param entityNum the entity number
+     */
+    default void dispatchCreation(@NonNull Consumer<TransactionBody.Builder> spec, long entityNum) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Dispatches a transaction to the appropriate service using the requested next entity number, which
      * must be less than the first user entity number.
      *
@@ -49,9 +59,7 @@ public interface SystemContext {
     NetworkInfo networkInfo();
 
     /**
-     * The consensus {@link Instant} of the genesis transaction.
-     *
-     * @return The genesis instant.
+     * The consensus time now.
      */
     @NonNull
     Instant now();

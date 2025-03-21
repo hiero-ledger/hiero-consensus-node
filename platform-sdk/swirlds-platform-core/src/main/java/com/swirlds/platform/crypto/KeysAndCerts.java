@@ -41,12 +41,7 @@ import java.security.cert.X509Certificate;
  * depend on a number of factors. The plan is to continue to follow the national standard (currently CNSA Suit),
  * changing the algorithms as the standard changes.
  */
-public record KeysAndCerts(
-        KeyPair sigKeyPair,
-        KeyPair agrKeyPair,
-        X509Certificate sigCert,
-        X509Certificate agrCert,
-        PublicStores publicStores) {
+public record KeysAndCerts(KeyPair sigKeyPair, KeyPair agrKeyPair, X509Certificate sigCert, X509Certificate agrCert) {
     private static final int SIG_SEED = 2;
     private static final int AGR_SEED = 0;
 
@@ -96,7 +91,7 @@ public record KeysAndCerts(
             publicStores.setCertificate(KeyCertPurpose.AGREEMENT, agreementCert, nodeId);
         }
 
-        return new KeysAndCerts(signingKeyPair, agreementKeyPair, signingCert, agreementCert, publicStores);
+        return new KeysAndCerts(signingKeyPair, agreementKeyPair, signingCert, agreementCert);
     }
 
     private static KeyPair getKeyPair(final KeyStore privateKeyStore, final char[] password, final String storeName)
@@ -173,7 +168,7 @@ public record KeysAndCerts(
         publicStores.setCertificate(KeyCertPurpose.SIGNING, sigCert, nodeId);
         publicStores.setCertificate(KeyCertPurpose.AGREEMENT, agrCert, nodeId);
 
-        return new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, agrCert, publicStores);
+        return new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, agrCert);
     }
 
     /**

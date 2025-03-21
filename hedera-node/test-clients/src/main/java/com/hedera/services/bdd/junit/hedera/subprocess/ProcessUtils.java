@@ -61,24 +61,27 @@ public class ProcessUtils {
      * Throws an assertion error if the status is not reached within the timeout.
      *
      * @param node the node to wait for
-     * @param status the status to wait for
      * @param timeout the timeout duration
+     * @param statuses the status to wait for
      */
     public static void awaitStatus(
-            @NonNull final HederaNode node, @NonNull final PlatformStatus status, @NonNull final Duration timeout) {
+            @NonNull final HederaNode node,
+            @NonNull final Duration timeout,
+            @NonNull final PlatformStatus... statuses) {
         final AtomicReference<NodeStatus> lastStatus = new AtomicReference<>();
-        log.info("Waiting for node '{}' to be {} within {}", node.getName(), status, timeout);
+        log.info("Waiting for node '{}' to be {} within {}", node.getName(), Arrays.toString(statuses), timeout);
         try {
-            node.statusFuture(status, lastStatus::set).get(timeout.toMillis(), MILLISECONDS);
+            node.statusFuture(lastStatus::set, statuses).get(timeout.toMillis(), MILLISECONDS);
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            Assertions.fail("Node '" + node.getName() + "' did not reach status " + status + " within " + timeout
+            Assertions.fail("Node '" + node.getName() + "' did not reach status any of " + Arrays.toString(statuses)
+                    + " within " + timeout
                     + "\n  Final status: " + lastStatus.get()
                     + "\n  Cause       : " + e);
         }
-        log.info("Node '{}' is {}", node.getName(), status);
+        log.info("Node '{}' is {}", node.getName(), lastStatus.get());
     }
 
     /**

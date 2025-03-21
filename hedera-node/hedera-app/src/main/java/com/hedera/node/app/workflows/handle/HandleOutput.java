@@ -1,13 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.spi.records.RecordSource;
+import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.BlockRecordSource;
+import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
+import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
+import com.hedera.node.app.workflows.handle.steps.ParentTxn;
+import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * A temporary wrapper class as we transition from the V6 record stream to the block stream;
@@ -26,6 +42,65 @@ public record HandleOutput(
             requireNonNull(recordSource);
         }
         requireNonNull(firstAssignedConsensusTime);
+    }
+
+    /**
+     * Returns a stream of a single {@link ResponseCodeEnum#FAIL_INVALID} record
+     * for the given user transaction.
+     *
+     * @param parentTxn the user transaction to fail
+     * @param exchangeRates the active exchange rate set
+     * @param streamMode the stream mode
+     * @param recordCache the cache to track the generated records in
+     * @return the failure record
+     */
+    public static HandleOutput failInvalidStreamItems(
+            @NonNull final ParentTxn parentTxn,
+            @NonNull final ExchangeRateSet exchangeRates,
+            @NonNull final StreamMode streamMode,
+            @NonNull final HederaRecordCache recordCache) {
+        requireNonNull(parentTxn);
+        requireNonNull(exchangeRates);
+        requireNonNull(streamMode);
+
+        // The stack for the user txn should never be committed
+        parentTxn.stack().rollbackFullStack();
+
+        RecordSource cacheableRecordSource = null;
+        final RecordSource recordSource;
+        if (streamMode != BLOCKS) {
+            final var failInvalidBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+            HandleWorkflow.initializeBuilderInfo(failInvalidBuilder, parentTxn.txnInfo(), exchangeRates)
+                    .status(FAIL_INVALID)
+                    .consensusTimestamp(parentTxn.consensusNow());
+            final var failInvalidRecord = failInvalidBuilder.build();
+            cacheableRecordSource = recordSource = new LegacyListRecordSource(
+                    List.of(failInvalidRecord),
+                    List.of(new RecordSource.IdentifiedReceipt(
+                            failInvalidRecord.transactionRecord().transactionIDOrThrow(),
+                            failInvalidRecord.transactionRecord().receiptOrThrow())));
+        } else {
+            recordSource = null;
+        }
+        final BlockRecordSource blockRecordSource;
+        if (streamMode != RECORDS) {
+            final List<BlockStreamBuilder.Output> outputs = new LinkedList<>();
+            final var failInvalidBuilder = new BlockStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+            HandleWorkflow.initializeBuilderInfo(failInvalidBuilder, parentTxn.txnInfo(), exchangeRates)
+                    .status(FAIL_INVALID)
+                    .consensusTimestamp(parentTxn.consensusNow());
+            outputs.add(failInvalidBuilder.build());
+            cacheableRecordSource = blockRecordSource = new BlockRecordSource(outputs);
+        } else {
+            blockRecordSource = null;
+        }
+
+        recordCache.addRecordSource(
+                parentTxn.creatorInfo().nodeId(),
+                requireNonNull(parentTxn.txnInfo().transactionID()),
+                HederaRecordCache.DueDiligenceFailure.NO,
+                requireNonNull(cacheableRecordSource));
+        return new HandleOutput(blockRecordSource, recordSource, parentTxn.consensusNow());
     }
 
     public @NonNull RecordSource recordSourceOrThrow() {

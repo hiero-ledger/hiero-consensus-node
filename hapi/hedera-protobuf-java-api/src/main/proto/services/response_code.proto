@@ -1738,4 +1738,9 @@ enum ResponseCodeEnum {
      * The provided schedule expiry time is not configurable.
      */
     SCHEDULE_EXPIRY_NOT_CONFIGURABLE = 395;
+
+    /**
+     * The network just started at genesis and is creating system entities.
+     */
+    CREATING_SYSTEM_ENTITIES = 396;
 }

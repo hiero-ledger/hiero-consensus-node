@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.notification.AbstractNotification;
 import com.swirlds.common.notification.Notification;
-import com.swirlds.platform.wiring.components.StateAndRound;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -18,13 +18,13 @@ public class StateHashedNotification extends AbstractNotification {
 
     /**
      * Create a notification for a newly hashed state.
-     * @param stateAndRound the state and round that is now hashed
+     * @param state the state that is now hashed
      * @return a new notification
      */
-    public static StateHashedNotification from(@NonNull final StateAndRound stateAndRound) {
-        try (final var state = stateAndRound.reservedSignedState()) {
+    public static StateHashedNotification from(@NonNull final ReservedSignedState state) {
+        try (state) {
             return new StateHashedNotification(
-                    stateAndRound.round().getRoundNum(),
+                    state.get().getRound(),
                     requireNonNull(state.get().getState().getHash()));
         }
     }

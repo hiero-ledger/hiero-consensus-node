@@ -58,6 +58,14 @@ public final class EmbeddedVerbs {
     }
 
     /**
+     * Returns an operation that allows the test author to handle the next round in a repeatable embedded network,
+     * typically useful to handle the query payment from a just-submitted transaction.
+     */
+    public static SpecOperation handleAnyRepeatableQueryPayment() {
+        return doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleNextRoundIfPresent());
+    }
+
+    /**
      * Returns an operation that allows the test author to directly mutate an account.
      *
      * @param name the name of the account to mutate
