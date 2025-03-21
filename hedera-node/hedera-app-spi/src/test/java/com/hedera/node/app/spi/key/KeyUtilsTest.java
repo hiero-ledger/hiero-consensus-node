@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.key;
 
-import static com.hedera.node.app.spi.key.KeyUtils.ECDSA_SECP256K1_COMPRESSED_KEY_LENGTH;
+import static com.hedera.node.app.hapi.utils.keys.Secp256k1Utils.ECDSA_SECP256K1_COMPRESSED_KEY_LENGTH;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -9,6 +9,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.UUID;
 import org.apache.commons.lang3.ArrayUtils;

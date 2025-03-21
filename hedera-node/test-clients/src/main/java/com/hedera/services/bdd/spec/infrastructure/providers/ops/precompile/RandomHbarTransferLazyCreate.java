@@ -6,7 +6,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.transferList;
 import static com.hedera.services.bdd.suites.regression.factories.IdFuzzingProviderFactory.*;
-import static com.hedera.services.bdd.suites.utils.ECDSAKeysUtils.getEvmAddressFromString;
+import static com.hedera.services.bdd.suites.utils.EvmAddressUtils.getEvmAddressFromString;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
