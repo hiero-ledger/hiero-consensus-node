@@ -10,7 +10,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLE_GROUP_LCM_OVERFLOW;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
@@ -150,8 +149,6 @@ public class DispatchProcessor {
             if (functionality == ETHEREUM_TRANSACTION) {
                 ethereumTransactionHandler.handleThrottled(dispatch.handleContext());
             }
-        } catch (final IllegalArgumentException e) {
-            rollbackAndRechargeFee(dispatch, validation, THROTTLE_GROUP_LCM_OVERFLOW);
         } catch (final Exception e) {
             logger.error("{} - exception thrown while handling dispatch", ALERT_MESSAGE, e);
             rollbackAndRechargeFee(dispatch, validation, FAIL_INVALID);

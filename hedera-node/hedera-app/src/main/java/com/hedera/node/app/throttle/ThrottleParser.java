@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OPERATION_REPEATED_IN_B
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLE_GROUP_HAS_ZERO_OPS_PER_SEC;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLE_GROUP_LCM_OVERFLOW;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNPARSEABLE_THROTTLE_DEFINITIONS;
 import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 import static com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.HapiThrottleUtils.lcm;
@@ -137,7 +138,7 @@ public class ThrottleParser {
             var lcm = leastCommonMultiple(bucket.throttleGroups());
             final var unscaledCapacity = lcm * NTPS_PER_MTPS * CAPACITY_UNITS_PER_NANO_TXN / 1_000;
             if (productWouldOverflow(unscaledCapacity, bucket.burstPeriodMs())) {
-                throw new IllegalArgumentException("Scaled bucket capacity calculation outside numeric range");
+                throw new HandleException(THROTTLE_GROUP_LCM_OVERFLOW);
             }
         }
     }
