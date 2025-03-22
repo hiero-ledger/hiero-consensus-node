@@ -6,7 +6,6 @@ import static com.swirlds.platform.system.status.PlatformStatus.REPLAYING_EVENTS
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
@@ -26,6 +25,7 @@ import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * The default implementation of the {@link ConsensusEngine} interface

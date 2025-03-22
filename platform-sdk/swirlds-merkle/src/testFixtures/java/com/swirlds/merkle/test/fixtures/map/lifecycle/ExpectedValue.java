@@ -4,10 +4,10 @@ package com.swirlds.merkle.test.fixtures.map.lifecycle;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.merkle.test.fixtures.map.pta.MapValue;
 import java.io.Serializable;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Value stored in the ExpectedMap with corresponding MapKey

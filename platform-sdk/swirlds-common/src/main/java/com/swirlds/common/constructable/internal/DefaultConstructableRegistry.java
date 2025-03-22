@@ -6,12 +6,12 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.constructable.ConstructorRegistry;
 import com.swirlds.common.constructable.NoArgsConstructor;
-import com.swirlds.common.constructable.RuntimeConstructable;
 import com.swirlds.common.constructable.URLClassLoaderWithLookup;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 
 public class DefaultConstructableRegistry implements ConstructableRegistry {
     private final Map<Class<?>, GenericConstructorRegistry<?>> allRegistries = new ConcurrentHashMap<>();

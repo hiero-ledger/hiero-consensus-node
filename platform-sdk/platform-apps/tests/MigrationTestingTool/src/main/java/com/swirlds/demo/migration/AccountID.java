@@ -2,12 +2,12 @@
 package com.swirlds.demo.migration;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 public final class AccountID implements SelfSerializable, FastCopyable {
 

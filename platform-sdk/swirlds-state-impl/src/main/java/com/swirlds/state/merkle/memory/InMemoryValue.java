@@ -5,9 +5,6 @@ import static com.swirlds.state.merkle.StateUtils.readFromStream;
 import static com.swirlds.state.merkle.StateUtils.writeToStream;
 
 import com.hedera.pbj.runtime.Codec;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
@@ -17,6 +14,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.util.Objects;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /** The value stored in a {@link MerkleMap} for in memory states */
 public final class InMemoryValue<K, V> extends PartialMerkleLeaf

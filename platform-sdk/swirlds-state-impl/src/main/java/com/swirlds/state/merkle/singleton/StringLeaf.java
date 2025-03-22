@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.singleton;
 
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.common.utility.Labeled;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /** A leaf in the merkle tree that stores a string as its value. */
 public class StringLeaf extends PartialMerkleLeaf implements Labeled, MerkleLeaf {

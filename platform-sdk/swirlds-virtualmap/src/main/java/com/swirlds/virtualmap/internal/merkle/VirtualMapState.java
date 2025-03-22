@@ -2,14 +2,14 @@
 package com.swirlds.virtualmap.internal.merkle;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.Path;
 import java.io.IOException;
 import java.util.Objects;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * Contains state for a {@link VirtualMap}. This state is stored in memory in the merkle tree as

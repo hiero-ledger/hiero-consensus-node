@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.crypto;
 
+import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.consensus.model.crypto.RunningHash;
+
 /**
  * Each RunningHashable instance contains a RunningHash instance, which encapsulates a Hash object
  * which denotes a running Hash calculated from all RunningHashable in history up to this RunningHashable instance

@@ -8,8 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -34,6 +32,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockMakers;

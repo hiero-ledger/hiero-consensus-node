@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.utilities;
 
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import java.nio.ByteBuffer;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Some helpers for dealing with hashes.

@@ -2,6 +2,7 @@
 package com.swirlds.common.constructable;
 
 import java.util.function.Supplier;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 
 /**
  * @deprecated see {@link ConstructableRegistry#registerConstructable(ClassConstructorPair)}

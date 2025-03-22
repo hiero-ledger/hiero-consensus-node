@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.components.common.output;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * A node's signature for a round's state hash.

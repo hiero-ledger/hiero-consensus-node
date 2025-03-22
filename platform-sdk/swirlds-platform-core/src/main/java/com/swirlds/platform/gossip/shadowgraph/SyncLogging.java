@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
-import com.swirlds.common.crypto.Hash;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Utility routines to generate formatted log string for sync-related variables.

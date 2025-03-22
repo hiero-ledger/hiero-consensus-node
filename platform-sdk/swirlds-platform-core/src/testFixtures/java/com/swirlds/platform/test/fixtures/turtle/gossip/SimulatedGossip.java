@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.turtle.gossip;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
@@ -14,6 +13,7 @@ import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetwork}.

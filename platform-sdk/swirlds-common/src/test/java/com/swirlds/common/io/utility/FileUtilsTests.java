@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -149,7 +150,8 @@ class FileUtilsTests {
             throws IOException {
 
         final Path file = parent.resolve(fileName);
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(new FileOutputStream(file.toFile()));
+        final SerializableDataOutputStream out =
+                new SerializableDataOutputStreamImpl(new FileOutputStream(file.toFile()));
         out.writeNormalisedString(fileContents);
         out.close();
 
@@ -295,17 +297,17 @@ class FileUtilsTests {
         // Since the data is hard linked, appending to files should update both trees
 
         final SerializableDataOutputStream fooOut =
-                new SerializableDataOutputStream(new FileOutputStream(fooData.toFile(), true));
+                new SerializableDataOutputStreamImpl(new FileOutputStream(fooData.toFile(), true));
         fooOut.writeNormalisedString("FOO");
         fooOut.close();
 
         final SerializableDataOutputStream barOut =
-                new SerializableDataOutputStream(new FileOutputStream(barData.toFile(), true));
+                new SerializableDataOutputStreamImpl(new FileOutputStream(barData.toFile(), true));
         barOut.writeNormalisedString("BAR");
         barOut.close();
 
         final SerializableDataOutputStream bazOut =
-                new SerializableDataOutputStream(new FileOutputStream(bazData.toFile(), true));
+                new SerializableDataOutputStreamImpl(new FileOutputStream(bazData.toFile(), true));
         bazOut.writeNormalisedString("BAZ");
         bazOut.close();
 

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof.tree;
 
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.platform.proof.algorithms.StateProofConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.List;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A leaf in a state proof tree. Contains data that modifies the hash. Data is opaque, meaning that it is not intended

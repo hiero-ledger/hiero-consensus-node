@@ -6,11 +6,11 @@ import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import java.io.IOException;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 public class ExampleLongLongKeyVariableSize implements VirtualKey {
 

@@ -2,14 +2,14 @@
 package com.swirlds.demo.platform.nft;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.common.merkle.utility.Keyed;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import java.io.IOException;
 import java.util.Objects;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * This simulates an NFT token that Hedera uses for its token services.

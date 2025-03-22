@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test.map.pta;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.merkle.test.fixtures.map.pta.MapValue;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

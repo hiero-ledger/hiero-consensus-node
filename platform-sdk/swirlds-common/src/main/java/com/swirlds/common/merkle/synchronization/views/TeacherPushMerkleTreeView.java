@@ -3,10 +3,8 @@ package com.swirlds.common.merkle.synchronization.views;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
@@ -31,6 +29,8 @@ import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A teaching tree view for a standard in memory merkle tree.

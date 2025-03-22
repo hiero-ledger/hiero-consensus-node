@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidation;
@@ -13,6 +12,7 @@ import com.swirlds.platform.test.fixtures.gui.TestGuiSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.platform.NodeId;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
 public class ConsensusTestOrchestrator {

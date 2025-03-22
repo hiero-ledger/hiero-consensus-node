@@ -10,7 +10,6 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.transformers.RoutableData;
@@ -27,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.platform.NodeId;
 import org.junit.jupiter.api.Test;
 
 class StaleEventDetectorTests {

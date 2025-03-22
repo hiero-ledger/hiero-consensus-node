@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.migration;
 
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.security.SignatureException;
 import java.util.Random;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * Generates and executes transactions for the migration testing tool.
@@ -42,7 +43,7 @@ public class TransactionGenerator {
                 new MigrationTestingToolTransaction(type, random.nextLong());
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
         try {
             // Adding additional byte to differentiate application transactions from system ones
             out.write(1);

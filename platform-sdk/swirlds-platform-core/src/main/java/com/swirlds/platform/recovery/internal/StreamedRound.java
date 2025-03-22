@@ -5,13 +5,13 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.events.CesEvent;
-import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.util.iterator.TypedIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.system.events.ConsensusEvent;
 
 /**
  * An implementation of a {@link Round} used by streaming classes.

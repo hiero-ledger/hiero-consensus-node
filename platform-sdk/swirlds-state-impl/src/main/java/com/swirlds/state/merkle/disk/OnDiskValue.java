@@ -6,12 +6,12 @@ import static com.swirlds.state.merkle.StateUtils.writeToStream;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.virtualmap.VirtualValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A {@link VirtualValue} used for storing the actual value. In our system, a state might have

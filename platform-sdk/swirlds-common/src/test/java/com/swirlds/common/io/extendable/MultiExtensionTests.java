@@ -4,7 +4,6 @@ package com.swirlds.common.io.extendable;
 import static com.swirlds.common.io.extendable.ExtendableInputStream.extendInputStream;
 import static com.swirlds.common.io.extendable.ExtendableOutputStream.extendOutputStream;
 
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
 import com.swirlds.common.io.extendable.extensions.ExpiringStreamExtension;
 import com.swirlds.common.io.extendable.extensions.HashingStreamExtension;
@@ -14,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Duration;
+import org.hiero.consensus.model.crypto.DigestType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

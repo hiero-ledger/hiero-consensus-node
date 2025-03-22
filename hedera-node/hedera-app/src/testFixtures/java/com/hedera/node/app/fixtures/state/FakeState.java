@@ -8,7 +8,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.metrics.api.Metrics;
@@ -43,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * A useful test double for {@link State}. Works together with {@link MapReadableStates} and other fixtures.

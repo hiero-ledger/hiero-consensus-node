@@ -9,7 +9,6 @@ import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseD
 import com.swirlds.base.time.Time;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.eventhandling.EventConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,6 +20,7 @@ import java.time.Instant;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * <p>

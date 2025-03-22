@@ -2,8 +2,8 @@
 package com.swirlds.platform.system;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.common.io.SelfSerializable;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 /**
  * <p>

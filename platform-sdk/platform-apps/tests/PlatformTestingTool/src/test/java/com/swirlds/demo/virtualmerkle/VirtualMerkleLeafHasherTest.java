@@ -5,8 +5,6 @@ import static com.swirlds.demo.virtualmerkle.VirtualMerkleLeafHasher.hashOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -25,6 +23,8 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 

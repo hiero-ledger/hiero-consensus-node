@@ -2,8 +2,8 @@
 package com.swirlds.fcqueue;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.fcqueue.internal.FCQueueNode;
+import org.hiero.consensus.model.crypto.SerializableHashable;
 
 final class AccessibleFCQueue<E extends FastCopyable & SerializableHashable> extends SlowMockFCQueue<E> {
 

@@ -2,12 +2,12 @@
 package com.swirlds.common.stream;
 
 import com.swirlds.common.crypto.RunningHashable;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
 import com.swirlds.common.threading.framework.config.QueueThreadConfiguration;
 import com.swirlds.common.threading.manager.ThreadManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * Configures and builds {@link QueueThreadObjectStream} instances.

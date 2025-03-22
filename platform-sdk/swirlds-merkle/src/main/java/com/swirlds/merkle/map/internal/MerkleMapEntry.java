@@ -2,13 +2,13 @@
 package com.swirlds.merkle.map.internal;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
 import com.swirlds.common.merkle.utility.Keyed;
 import com.swirlds.merkle.map.MerkleMap;
 import java.util.Objects;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 /**
  * A wrapper class designed to be used as a value in a {@link MerkleMap MerkleMap}. Useful when it is inconvenient to

@@ -6,13 +6,13 @@ import static com.swirlds.state.merkle.StateUtils.writeToStream;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A Merkle leaf that stores an arbitrary value with delegated serialization based on the {@link

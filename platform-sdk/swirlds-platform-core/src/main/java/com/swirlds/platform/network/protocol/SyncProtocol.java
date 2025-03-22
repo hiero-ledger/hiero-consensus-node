@@ -2,7 +2,6 @@
 package com.swirlds.platform.network.protocol;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.modular.SyncGossipSharedProtocolState;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
@@ -16,6 +15,7 @@ import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import org.hiero.consensus.gossip.FallenBehindManager;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * Implementation of a factory for sync protocol

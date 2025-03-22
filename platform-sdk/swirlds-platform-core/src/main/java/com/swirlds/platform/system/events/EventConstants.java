@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.events;
 
-import com.swirlds.common.platform.NodeId;
+import org.hiero.consensus.model.platform.NodeId;
 
 public final class EventConstants {
     /**

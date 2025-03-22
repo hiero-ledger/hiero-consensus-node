@@ -7,7 +7,6 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Upd
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.merkle.test.fixtures.map.lifecycle.EntityType;
 import com.swirlds.merkle.test.fixtures.map.lifecycle.ExpectedValue;
 import com.swirlds.merkle.test.fixtures.map.lifecycle.LifecycleStatus;
@@ -21,6 +20,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

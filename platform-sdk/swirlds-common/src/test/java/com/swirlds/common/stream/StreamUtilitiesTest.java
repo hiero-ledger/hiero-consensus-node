@@ -41,10 +41,8 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.RunningHashable;
 import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.stream.internal.InvalidStreamFileException;
 import com.swirlds.common.stream.internal.LinkedObjectStreamValidateUtils;
 import com.swirlds.common.stream.internal.SingleStreamIterator;
@@ -65,6 +63,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.SelfSerializable;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -99,6 +99,7 @@ class StreamUtilitiesTest {
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common");
+        ConstructableRegistry.getInstance().registerConstructables("org.hiero.consensus.model.crypto");
     }
 
     private static File getResourceFile(final String path) {

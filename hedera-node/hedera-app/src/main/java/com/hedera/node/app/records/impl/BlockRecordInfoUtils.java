@@ -4,10 +4,10 @@ package com.hedera.node.app.records.impl;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.DigestType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import org.hiero.consensus.model.crypto.DigestType;
 
 /**
  * A utility class that provides methods for getting information from the {@link BlockInfo} object in order to

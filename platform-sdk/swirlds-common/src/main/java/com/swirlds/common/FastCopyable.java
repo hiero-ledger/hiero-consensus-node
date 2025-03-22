@@ -2,6 +2,7 @@
 package com.swirlds.common;
 
 import com.swirlds.base.state.Mutable;
+import org.hiero.consensus.model.crypto.Hashable;
 
 /**
  * An interface for classes that can be copied and serialized in a way specific to the Swirlds platform. If a class
@@ -30,7 +31,7 @@ public interface FastCopyable extends Copyable, Mutable, Releasable {
      * Either behavior is fine, but each implementation should document which behavior it has chosen.
      * By the default, the first implementation is assumed.
      *
-     * If a FastCopyable object extends {@link com.swirlds.common.crypto.Hashable} then under no circumstances should
+     * If a FastCopyable object extends {@link Hashable} then under no circumstances should
      * the hash be copied by this method.
      *
      * It is strongly suggested that each implementing class override the return type of this method to its self

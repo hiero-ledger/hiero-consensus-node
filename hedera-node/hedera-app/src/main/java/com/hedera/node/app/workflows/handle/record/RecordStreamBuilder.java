@@ -71,7 +71,6 @@ import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.app.state.SingleTransactionRecord.TransactionOutputs;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.DigestType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.MessageDigest;
@@ -86,6 +85,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.hiero.consensus.model.crypto.DigestType;
 
 /**
  * A custom builder for create a {@link SingleTransactionRecord}.

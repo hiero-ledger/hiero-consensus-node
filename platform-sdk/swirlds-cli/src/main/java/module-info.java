@@ -15,6 +15,7 @@ module com.swirlds.cli {
             info.picocli;
 
     requires transitive com.swirlds.common;
+    requires transitive org.hiero.consensus.model;
     requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.logging;

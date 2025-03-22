@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.event.PlatformEvent;
@@ -33,6 +32,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform

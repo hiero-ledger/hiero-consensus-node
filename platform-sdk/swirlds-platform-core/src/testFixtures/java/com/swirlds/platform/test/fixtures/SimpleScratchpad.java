@@ -4,7 +4,6 @@ package com.swirlds.platform.test.fixtures;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.common.formatting.TextTable;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.scratchpad.ScratchpadType;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,6 +14,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 /**
  * A pared down version of the StandardScratchpad class that does not actually write to disk. Useful for testing

@@ -4,7 +4,7 @@ package com.swirlds.common.constructable.constructables;
 import static com.swirlds.common.constructable.constructables.NoArgsConstructableWithAnnotation.CLASS_ID;
 
 import com.swirlds.common.constructable.ConstructableClass;
-import com.swirlds.common.constructable.RuntimeConstructable;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 
 @ConstructableClass(value = CLASS_ID)
 public class NoArgsConstructableWithAnnotation implements RuntimeConstructable {

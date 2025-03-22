@@ -15,7 +15,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.threading.ReplaceSyncPhaseParallelExecutor;
 import com.swirlds.common.test.fixtures.threading.SyncPhaseParallelExecutor;
 import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
@@ -48,6 +47,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.platform.NodeId;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;

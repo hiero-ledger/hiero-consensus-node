@@ -5,6 +5,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.concurrent.Future;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Encapsulates an array of bytes to be hashed using a cryptographic message digest. Overloaded constructors are provided

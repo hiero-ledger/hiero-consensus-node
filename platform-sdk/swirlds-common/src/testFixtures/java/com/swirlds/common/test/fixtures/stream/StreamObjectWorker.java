@@ -4,9 +4,6 @@ package com.swirlds.common.test.fixtures.stream;
 import static com.swirlds.common.test.fixtures.stream.TestStreamType.TEST_STREAM;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.stream.HashCalculatorForStream;
 import com.swirlds.common.stream.QueueThreadObjectStream;
 import com.swirlds.common.stream.QueueThreadObjectStreamConfiguration;
@@ -19,6 +16,9 @@ import java.time.Instant;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedList;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * For testing object stream;

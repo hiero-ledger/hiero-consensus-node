@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.constructable;
 
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
+
 /**
  * A registry that holds constructors of {@link RuntimeConstructable} classes. All constructors in this registry will
  * have a signature of the generic type used by an instance of this class.

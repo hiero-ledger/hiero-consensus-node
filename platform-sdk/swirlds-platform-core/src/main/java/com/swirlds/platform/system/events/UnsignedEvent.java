@@ -6,15 +6,15 @@ import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Hashable;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.system.transaction.TransactionWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 
 /**
  * An event that has not yet been signed

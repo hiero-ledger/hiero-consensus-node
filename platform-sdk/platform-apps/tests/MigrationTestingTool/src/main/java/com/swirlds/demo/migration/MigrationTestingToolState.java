@@ -4,7 +4,6 @@ package com.swirlds.demo.migration;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 
 import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -26,6 +25,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.DigestType;
 
 @ConstructableIgnored
 public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingToolState> implements MerkleNodeState {

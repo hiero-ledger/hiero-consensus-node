@@ -3,8 +3,6 @@ package com.hedera.node.app.platform.event;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -12,6 +10,8 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.regex.Pattern;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 public class SerializableSemVers implements SoftwareVersion {
     private static final String IS_INCOMPARABLE_MSG = " cannot be compared to ";

@@ -12,15 +12,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.exceptions.ReferenceCountException;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.utility.MerkleLong;
 import com.swirlds.common.test.fixtures.dummy.Key;
 import com.swirlds.common.test.fixtures.dummy.Value;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.merkle.map.internal.MerkleMapEntry;
 import java.io.IOException;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

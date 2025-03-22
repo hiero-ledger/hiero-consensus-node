@@ -4,10 +4,10 @@ package com.swirlds.platform.recovery.emergencyfile;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.jackson.HashDeserializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.net.URL;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * A location where a recovery package can be downloaded from

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.turtle.gossip;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Random;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * Connects {@link SimulatedGossip} peers in a simulated network.

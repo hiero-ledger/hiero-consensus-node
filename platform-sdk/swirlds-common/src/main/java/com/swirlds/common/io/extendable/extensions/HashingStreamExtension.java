@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.extendable.extensions;
 
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * An stream extension that can hash bytes that pass through it. It will not automatically hash all the bytes

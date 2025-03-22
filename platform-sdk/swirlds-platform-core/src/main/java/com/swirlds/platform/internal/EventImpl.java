@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.internal;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.Clearable;
 import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.consensus.ConsensusConstants;
@@ -16,6 +14,8 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * An internal platform event.

@@ -2,8 +2,8 @@
 package com.swirlds.virtualmap;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.io.SelfSerializable;
 import java.nio.ByteBuffer;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 /**
  * A {@link VirtualValue} is a "virtual" value, and is part of the API for the {@code VirtualMap}.

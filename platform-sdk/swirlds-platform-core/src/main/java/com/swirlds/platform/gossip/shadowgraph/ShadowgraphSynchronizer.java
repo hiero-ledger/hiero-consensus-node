@@ -14,7 +14,6 @@ import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.writeTheirTipsIH
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.common.threading.pool.ParallelExecutor;
 import com.swirlds.platform.consensus.EventWindow;
@@ -44,6 +43,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.gossip.FallenBehindManager;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * The goal of the ShadowgraphSynchronizer is to compare graphs with a remote node, and update them so both sides have

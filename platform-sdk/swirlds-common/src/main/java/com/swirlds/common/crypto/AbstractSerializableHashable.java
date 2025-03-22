@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.crypto;
 
-import com.swirlds.common.AbstractHashable;
+import org.hiero.consensus.model.crypto.AbstractHashable;
+import org.hiero.consensus.model.crypto.SerializableHashable;
 
 /**
  * Boilerplate implementation for the AbstractHashable interface.

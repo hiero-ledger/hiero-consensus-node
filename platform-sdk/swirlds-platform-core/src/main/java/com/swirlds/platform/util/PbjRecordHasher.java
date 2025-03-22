@@ -4,12 +4,12 @@ package com.swirlds.platform.util;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashingOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.security.MessageDigest;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * A hasher for PBJ records.

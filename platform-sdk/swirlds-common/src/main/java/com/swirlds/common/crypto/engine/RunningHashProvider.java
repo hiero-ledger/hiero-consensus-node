@@ -3,13 +3,13 @@ package com.swirlds.common.crypto.engine;
 
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS;
 
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashBuilder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Calculates and updates a running Hash each time a new RunningHashable is added.

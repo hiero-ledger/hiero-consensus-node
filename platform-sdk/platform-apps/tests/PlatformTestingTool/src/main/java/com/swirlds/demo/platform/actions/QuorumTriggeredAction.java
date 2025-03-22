@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform.actions;
 
-import com.swirlds.common.io.SelfSerializable;
 import java.util.Objects;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
@@ -9,6 +8,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 public class QuorumTriggeredAction<S extends SelfSerializable> extends TriggeredAction<Long, S> {
     private static final Logger logger = LogManager.getLogger(QuorumTriggeredAction.class);

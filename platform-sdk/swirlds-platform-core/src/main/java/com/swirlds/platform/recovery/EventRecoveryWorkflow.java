@@ -11,10 +11,8 @@ import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistr
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import com.swirlds.common.utility.CompareTo;
 import com.swirlds.config.api.Configuration;
@@ -48,7 +46,6 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.events.CesEvent;
-import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.state.State;
@@ -63,6 +60,9 @@ import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.events.ConsensusEvent;
 
 /**
  * Handles the event stream recovery workflow.

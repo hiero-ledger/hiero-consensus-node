@@ -3,9 +3,6 @@ package com.swirlds.virtualmap.internal.merkle;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.virtualmap.VirtualKey;
@@ -13,6 +10,9 @@ import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import java.io.IOException;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * Implementation of a VirtualLeaf

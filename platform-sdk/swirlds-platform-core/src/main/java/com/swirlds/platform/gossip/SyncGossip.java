@@ -9,7 +9,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.state.Startable;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.threading.manager.ThreadManager;
@@ -83,6 +82,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * Boilerplate code for gossip.

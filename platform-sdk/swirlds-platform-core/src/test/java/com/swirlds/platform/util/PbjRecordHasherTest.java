@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.crypto.Hash;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.Test;
 
 public class PbjRecordHasherTest {

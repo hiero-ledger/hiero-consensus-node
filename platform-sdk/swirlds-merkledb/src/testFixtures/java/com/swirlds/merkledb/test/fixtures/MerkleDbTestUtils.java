@@ -9,8 +9,6 @@ import static org.mockito.Mockito.mock;
 import com.sun.management.HotSpotDiagnosticMXBean;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashBuilder;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
@@ -50,6 +48,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import javax.management.MBeanServer;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 
 @SuppressWarnings("unused")
 public class MerkleDbTestUtils {

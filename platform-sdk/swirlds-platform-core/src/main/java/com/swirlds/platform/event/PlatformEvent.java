@@ -9,17 +9,10 @@ import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Hashable;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.consensus.ConsensusConstants;
-import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import com.swirlds.platform.system.events.EventMetadata;
 import com.swirlds.platform.system.events.UnsignedEvent;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
-import com.swirlds.platform.system.transaction.Transaction;
-import com.swirlds.platform.system.transaction.TransactionWrapper;
 import com.swirlds.platform.util.iterator.TypedIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -28,6 +21,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.events.ConsensusEvent;
+import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.system.transaction.Transaction;
+import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 
 /**
  * A class used to hold information about an event throughout its lifecycle.

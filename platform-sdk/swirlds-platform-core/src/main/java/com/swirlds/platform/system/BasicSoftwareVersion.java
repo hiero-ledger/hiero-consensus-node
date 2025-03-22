@@ -2,10 +2,10 @@
 package com.swirlds.platform.system;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A basic implementation of {@link SoftwareVersion} that represents a version using a long value.

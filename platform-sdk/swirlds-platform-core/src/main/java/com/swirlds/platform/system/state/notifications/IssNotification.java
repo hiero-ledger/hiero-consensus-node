@@ -2,10 +2,10 @@
 package com.swirlds.platform.system.state.notifications;
 
 import com.swirlds.common.notification.AbstractNotification;
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * This {@link com.swirlds.common.notification.Notification Notification} is triggered when there is an ISS (i.e. an

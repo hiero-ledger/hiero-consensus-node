@@ -2,7 +2,6 @@
 package com.swirlds.demo.virtualmerkle.state;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
@@ -33,6 +32,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import org.hiero.consensus.model.crypto.DigestType;
 
 /**
  * This is a helper class to initialize the part of the state that corresponds to virtual map tests.

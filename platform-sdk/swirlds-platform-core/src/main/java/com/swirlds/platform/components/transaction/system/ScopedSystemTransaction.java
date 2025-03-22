@@ -2,9 +2,9 @@
 package com.swirlds.platform.components.transaction.system;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * A system transaction with a submitter ID and a software version. The submitter ID is not included with the

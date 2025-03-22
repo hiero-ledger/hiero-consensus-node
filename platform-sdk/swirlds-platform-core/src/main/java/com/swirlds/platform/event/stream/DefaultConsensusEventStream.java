@@ -9,10 +9,7 @@ import static com.swirlds.metrics.api.Metrics.INFO_CATEGORY;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.stream.EventStreamType;
 import com.swirlds.common.stream.HashCalculatorForStream;
 import com.swirlds.common.stream.MultiStream;
@@ -35,6 +32,9 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * This class is used for generating event stream files when enableEventStreaming is true, and for calculating

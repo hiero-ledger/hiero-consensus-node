@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle;
 
-import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.io.ExternalSelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A Merkle Leaf has only data and does not have children.

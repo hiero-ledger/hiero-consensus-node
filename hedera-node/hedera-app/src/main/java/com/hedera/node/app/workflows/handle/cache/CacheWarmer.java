@@ -20,8 +20,6 @@ import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.platform.system.transaction.Transaction;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -30,6 +28,8 @@ import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
+import org.hiero.consensus.model.system.events.ConsensusEvent;
+import org.hiero.consensus.model.system.transaction.Transaction;
 
 /**
  * This class is used to warm up the cache. It is called at the beginning of a round with the current state

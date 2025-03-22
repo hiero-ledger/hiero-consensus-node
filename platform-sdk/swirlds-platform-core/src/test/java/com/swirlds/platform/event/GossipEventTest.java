@@ -5,9 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
@@ -16,13 +15,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.Arrays;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.Test;
 
 public class GossipEventTest {
 
     /**
      * Tests the serialization of a {@link GossipEvent} object alonside legacy
-     * {@link com.swirlds.common.io.SelfSerializable} objects.
+     * {@link org.hiero.consensus.model.io.SelfSerializable} objects.
      */
     @Test
     void pbjSerializationTest() throws IOException {
@@ -79,14 +81,14 @@ public class GossipEventTest {
         final byte[] byteArray;
 
         try (final ByteArrayOutputStream bs = new ByteArrayOutputStream();
-                final SerializableDataOutputStream ss = new SerializableDataOutputStream(bs)) {
+                final SerializableDataOutputStream ss = new SerializableDataOutputStreamImpl(bs)) {
             ss.writePbjRecord(original, GossipEvent.PROTOBUF);
             byteArray = bs.toByteArray();
         }
         for (int i = 0; i < byteArray.length; i++) {
             final byte[] truncated = Arrays.copyOf(byteArray, i);
             try (final ByteArrayInputStream bs = new ByteArrayInputStream(truncated);
-                    final SerializableDataInputStream ss = new SerializableDataInputStream(bs)) {
+                    final SerializableDataInputStream ss = new SerializableDataInputStreamImpl(bs)) {
                 assertThrows(EOFException.class, () -> ss.readPbjRecord(GossipEvent.PROTOBUF));
             }
         }

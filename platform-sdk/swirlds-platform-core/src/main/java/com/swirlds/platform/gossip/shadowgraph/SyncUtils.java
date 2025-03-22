@@ -5,10 +5,6 @@ import static com.swirlds.common.utility.CompareTo.isGreaterThan;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
@@ -40,6 +36,10 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * Various static utility method used in syncing

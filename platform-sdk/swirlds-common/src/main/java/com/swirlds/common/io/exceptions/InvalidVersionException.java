@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.exceptions;
 
-import com.swirlds.common.io.SerializableDet;
 import java.io.IOException;
+import org.hiero.consensus.model.io.SerializableDet;
 
 /**
  * Exception that is caused when illegal version is read from the stream

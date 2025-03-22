@@ -8,7 +8,6 @@ import static com.swirlds.common.merkle.copy.MerklePathReplacement.getParentInPa
 import static com.swirlds.common.merkle.copy.MerklePathReplacement.replacePath;
 import static com.swirlds.common.merkle.utility.MerkleUtils.findChildPositionInParent;
 
-import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.IllegalChildIndexException;
@@ -19,6 +18,7 @@ import com.swirlds.merkle.tree.internal.BitUtil;
 import java.util.Iterator;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import org.hiero.consensus.model.crypto.SerializableHashable;
 
 /**
  * A merkle data structure that implements a balanced binary tree. Utilizes

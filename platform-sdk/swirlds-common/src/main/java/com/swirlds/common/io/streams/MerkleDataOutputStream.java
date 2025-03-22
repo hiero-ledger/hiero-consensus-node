@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * A SerializableDataOutputStream that also handles merkle trees.
  */
-public class MerkleDataOutputStream extends SerializableDataOutputStream {
+public class MerkleDataOutputStream extends SerializableDataOutputStreamImpl {
 
     private static final Logger logger = LogManager.getLogger(MerkleDataOutputStream.class);
 

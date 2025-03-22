@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Used when initializing consensus from a set of judges. Consensus starts without any events and

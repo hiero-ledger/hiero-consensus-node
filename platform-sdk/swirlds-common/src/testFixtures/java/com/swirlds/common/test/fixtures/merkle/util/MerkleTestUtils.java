@@ -11,7 +11,7 @@ import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
@@ -54,6 +54,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * Utility methods for testing merkle trees.
@@ -834,7 +835,7 @@ public final class MerkleTestUtils {
     private static boolean areLeavesEqual(final MerkleLeaf a, final MerkleLeaf b) {
         try {
             final ByteArrayOutputStream bsA = new ByteArrayOutputStream();
-            final SerializableDataOutputStream sA = new SerializableDataOutputStream(bsA);
+            final SerializableDataOutputStream sA = new SerializableDataOutputStreamImpl(bsA);
             try {
                 sA.writeSerializable(a, true);
             } catch (IOException e) {
@@ -842,7 +843,7 @@ public final class MerkleTestUtils {
             }
 
             final ByteArrayOutputStream bsB = new ByteArrayOutputStream();
-            final SerializableDataOutputStream sB = new SerializableDataOutputStream(bsB);
+            final SerializableDataOutputStream sB = new SerializableDataOutputStreamImpl(bsB);
             try {
                 sB.writeSerializable(b, true);
             } catch (IOException e) {

@@ -7,13 +7,13 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.function.Function;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Provides access to a snapshot of the platform state.

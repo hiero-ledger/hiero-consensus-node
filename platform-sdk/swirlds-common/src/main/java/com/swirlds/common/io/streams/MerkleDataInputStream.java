@@ -30,7 +30,7 @@ import java.util.Queue;
 /**
  * A SerializableDataInputStream that can also handle merkle tree.
  */
-public class MerkleDataInputStream extends SerializableDataInputStream {
+public class MerkleDataInputStream extends SerializableDataInputStreamImpl {
 
     private final Queue<PartiallyConstructedMerkleInternal> internalNodes;
     private MerkleNode root;

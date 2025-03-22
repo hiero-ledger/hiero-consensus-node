@@ -2,8 +2,8 @@
 package com.swirlds.platform.state.notifications;
 
 import com.swirlds.common.notification.AbstractNotification;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.state.signed.SignedState;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * A {@link com.swirlds.common.notification.Notification Notification} that a signed state fails to collect sufficient

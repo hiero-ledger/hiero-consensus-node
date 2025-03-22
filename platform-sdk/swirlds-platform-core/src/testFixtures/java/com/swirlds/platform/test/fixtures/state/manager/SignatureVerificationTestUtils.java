@@ -2,11 +2,11 @@
 package com.swirlds.platform.test.fixtures.state.manager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.crypto.SignatureType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Utility methods for testing signature verification.

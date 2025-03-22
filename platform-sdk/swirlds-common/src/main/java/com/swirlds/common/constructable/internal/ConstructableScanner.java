@@ -4,7 +4,6 @@ package com.swirlds.common.constructable.internal;
 import com.swirlds.common.constructable.ConstructableClass;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.constructable.NoArgsConstructor;
-import com.swirlds.common.constructable.RuntimeConstructable;
 import com.swirlds.common.constructable.URLClassLoaderWithLookup;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
@@ -13,6 +12,7 @@ import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 
 /**
  * Scans the classpath for {@link RuntimeConstructable} classes

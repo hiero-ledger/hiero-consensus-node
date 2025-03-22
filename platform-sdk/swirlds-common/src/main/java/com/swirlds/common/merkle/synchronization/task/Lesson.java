@@ -7,13 +7,13 @@ import static com.swirlds.common.merkle.synchronization.task.LessonType.LEAF_NOD
 import static com.swirlds.common.merkle.synchronization.task.LessonType.NODE_IS_UP_TO_DATE;
 
 import com.swirlds.common.Releasable;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import java.io.IOException;
 import java.util.List;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * Used during the synchronization protocol to send data needed to reconstruct a single node.

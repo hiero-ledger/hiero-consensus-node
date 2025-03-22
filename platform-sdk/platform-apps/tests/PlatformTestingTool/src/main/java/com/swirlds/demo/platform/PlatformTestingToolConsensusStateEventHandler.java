@@ -26,7 +26,6 @@ import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.crypto.VerificationStatus;
 import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.ThresholdLimitingHandler;
 import com.swirlds.demo.merkle.map.FCMTransactionHandler;
 import com.swirlds.demo.merkle.map.FCMTransactionUtils;
@@ -64,10 +63,6 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.platform.system.events.Event;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
-import com.swirlds.platform.system.transaction.Transaction;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -88,6 +83,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.events.ConsensusEvent;
+import org.hiero.consensus.model.system.events.Event;
+import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.system.transaction.Transaction;
 
 public class PlatformTestingToolConsensusStateEventHandler
         implements ConsensusStateEventHandler<PlatformTestingToolState> {

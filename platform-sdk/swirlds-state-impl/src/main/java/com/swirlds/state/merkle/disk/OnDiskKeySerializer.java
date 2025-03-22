@@ -6,13 +6,13 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.util.Objects;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 /**
  * An implementation of {@link KeySerializer}, responsible for converting an {@link OnDiskKey} into

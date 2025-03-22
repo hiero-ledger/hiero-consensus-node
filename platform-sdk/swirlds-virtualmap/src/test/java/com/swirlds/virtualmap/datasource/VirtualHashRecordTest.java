@@ -7,9 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import java.nio.charset.StandardCharsets;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

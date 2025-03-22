@@ -9,7 +9,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -22,6 +21,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Extends the read-only platform state store to provide write access to the platform state.

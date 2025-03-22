@@ -3,8 +3,6 @@ package com.swirlds.state;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Hashable;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -17,6 +15,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.LongSupplier;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.Hashable;
 
 /**
  * The full state used of the app. The primary implementation is based on a merkle tree, and the data

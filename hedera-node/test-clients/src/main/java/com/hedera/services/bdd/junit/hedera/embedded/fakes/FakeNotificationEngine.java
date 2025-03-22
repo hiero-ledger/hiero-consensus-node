@@ -7,12 +7,12 @@ import com.swirlds.common.notification.Listener;
 import com.swirlds.common.notification.Notification;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.notification.NotificationResult;
-import com.swirlds.common.threading.futures.StandardFuture;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
+import org.hiero.consensus.model.threading.futures.StandardFuture;
 
 public class FakeNotificationEngine implements NotificationEngine {
     public final List<PlatformStatusChangeListener> statusChangeListeners = new CopyOnWriteArrayList<>();

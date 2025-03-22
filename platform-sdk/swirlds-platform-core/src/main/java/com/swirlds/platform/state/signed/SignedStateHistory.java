@@ -5,7 +5,6 @@ import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAc
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.formatting.TextTable;
-import com.swirlds.common.utility.StackTrace;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -13,6 +12,7 @@ import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import org.hiero.consensus.model.utility.StackTrace;
 
 /**
  * Tracks the usage of a signed state over time, storing stack traces that can be used at a later time for debugging.

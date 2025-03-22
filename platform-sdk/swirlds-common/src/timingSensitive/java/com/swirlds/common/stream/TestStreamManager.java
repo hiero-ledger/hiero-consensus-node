@@ -3,8 +3,6 @@ package com.swirlds.common.stream;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.stream.CountDownLatchStream;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStreamGenerator;
@@ -12,6 +10,8 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * For testing streaming performance;

@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -28,6 +27,7 @@ import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.

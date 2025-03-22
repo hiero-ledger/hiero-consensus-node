@@ -18,7 +18,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashBuilder;
 import com.swirlds.common.exceptions.ReferenceCountException;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
@@ -45,6 +44,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Tags;

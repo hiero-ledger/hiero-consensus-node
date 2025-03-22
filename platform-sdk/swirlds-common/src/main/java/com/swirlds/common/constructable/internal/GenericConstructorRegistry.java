@@ -6,7 +6,6 @@ import com.swirlds.common.constructable.ConstructableClass;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.constructable.ConstructorRegistry;
 import com.swirlds.common.constructable.NoArgsConstructor;
-import com.swirlds.common.constructable.RuntimeConstructable;
 import com.swirlds.common.constructable.URLClassLoaderWithLookup;
 import com.swirlds.common.exceptions.NotImplementedException;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,6 +22,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 
 /**
  * A {@link ConstructorRegistry} which has the constructor type as a generic

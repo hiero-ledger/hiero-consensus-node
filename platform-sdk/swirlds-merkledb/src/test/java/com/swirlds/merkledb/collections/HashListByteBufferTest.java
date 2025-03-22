@@ -13,8 +13,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -26,6 +24,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

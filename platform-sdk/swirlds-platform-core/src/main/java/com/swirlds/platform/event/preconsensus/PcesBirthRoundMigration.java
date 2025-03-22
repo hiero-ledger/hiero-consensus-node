@@ -12,11 +12,10 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.PlatformEvent;
@@ -34,6 +33,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * This class is capable of migrating a PCES in generation mode to a PCES in birth round mode.
@@ -230,7 +231,7 @@ public final class PcesBirthRoundMigration {
         // First, write the data to a temporary file. If we crash, easier to recover if this operation is atomic.
         final Path temporaryFile =
                 LegacyTemporaryFileBuilder.buildTemporaryFile("new-pces-file", platformContext.getConfiguration());
-        final SerializableDataOutputStream outputStream = new SerializableDataOutputStream(
+        final SerializableDataOutputStream outputStream = new SerializableDataOutputStreamImpl(
                 new BufferedOutputStream(new FileOutputStream(temporaryFile.toFile())));
         outputStream.writeInt(PcesFileVersion.currentVersionNumber());
         for (final PlatformEvent event : eventsToMigrate) {

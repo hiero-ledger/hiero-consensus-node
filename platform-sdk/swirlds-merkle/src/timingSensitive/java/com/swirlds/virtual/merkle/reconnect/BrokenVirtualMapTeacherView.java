@@ -4,7 +4,6 @@ package com.swirlds.virtual.merkle.reconnect;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.task.TeacherSubtree;
@@ -12,6 +11,7 @@ import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
 import java.io.IOException;
 import java.util.Queue;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * An intentionally broken teacher tree view. Throws an IO exception after a certain number of nodes have been

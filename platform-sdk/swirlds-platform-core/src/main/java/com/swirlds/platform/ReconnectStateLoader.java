@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.components.AppNotifier;
@@ -31,6 +30,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
 
 // FUTURE WORK: this data should be traveling out over the wiring framework.
 

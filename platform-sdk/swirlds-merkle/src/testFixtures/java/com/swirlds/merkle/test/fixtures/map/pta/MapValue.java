@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test.fixtures.map.pta;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
 import java.io.IOException;
+import org.hiero.consensus.model.crypto.Hash;
 
 public interface MapValue extends MerkleNode {
 

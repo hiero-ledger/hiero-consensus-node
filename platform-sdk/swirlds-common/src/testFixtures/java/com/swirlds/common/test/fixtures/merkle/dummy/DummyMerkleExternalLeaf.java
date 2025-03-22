@@ -3,8 +3,8 @@ package com.swirlds.common.test.fixtures.merkle.dummy;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
@@ -13,6 +13,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * This merkle leaf stores a string randomly generated using seed. When serialized in abbreviated
@@ -72,7 +74,7 @@ public class DummyMerkleExternalLeaf extends PartialMerkleLeaf implements DummyM
         out.writeInt(averageSize);
         out.writeInt(standardDeviation);
 
-        try (final SerializableDataOutputStream fileOut = new SerializableDataOutputStream(
+        try (final SerializableDataOutputStream fileOut = new SerializableDataOutputStreamImpl(
                 new FileOutputStream(getFile(outputDirectory).toFile()))) {
             fileOut.writeNormalisedString(generateValue());
         }
@@ -85,7 +87,7 @@ public class DummyMerkleExternalLeaf extends PartialMerkleLeaf implements DummyM
         averageSize = in.readInt();
         standardDeviation = in.readInt();
 
-        try (final SerializableDataInputStream fileIn = new SerializableDataInputStream(
+        try (final SerializableDataInputStream fileIn = new SerializableDataInputStreamImpl(
                 new FileInputStream(getFile(inputDirectory).toFile()))) {
 
             assertEquals(

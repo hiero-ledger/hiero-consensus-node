@@ -2,6 +2,7 @@
 package com.swirlds.common.constructable;
 
 import java.util.function.Supplier;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 
 /**
  * A no arguments constructor for {@link RuntimeConstructable}, this is a replacement for the previous default

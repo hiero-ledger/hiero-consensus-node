@@ -10,11 +10,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.SelfSerializable;
 import org.junit.jupiter.api.Test;
 
 class HashCalculatorTest {

@@ -9,7 +9,6 @@ import static com.swirlds.platform.state.snapshot.StateToDiskReason.UNKNOWN;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
@@ -29,6 +28,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * This class is responsible for managing the state writing pipeline.
