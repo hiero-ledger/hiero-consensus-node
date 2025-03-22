@@ -59,7 +59,7 @@ public class ReconnectController implements Runnable {
     /**
      * Starts the reconnect controller thread if it's not already running
      */
-    public void start() {
+    private void start() {
         if (!threadRunning.tryAcquire()) {
             logger.error(EXCEPTION.getMarker(), "Attempting to start reconnect controller while its already running");
             return;
@@ -116,7 +116,7 @@ public class ReconnectController implements Runnable {
      * @return true if the permit has been acquired
      */
     public boolean acquireLearnerPermit() {
-        return connectionProvider.acquireProvidePermit();
+        return connectionProvider.tryBlockProvidePermit();
     }
 
     /**
@@ -139,7 +139,7 @@ public class ReconnectController implements Runnable {
     /**
      * Provides a connection over which a reconnect learner has been already negotiated. This method should only be
      * called if {@link #acquireLearnerPermit()} has returned true previously. This method blocks until the reconnect is
-     * done.
+     * done. It also starts reconnect learner handling thread, if it wasn't started already.
      *
      * @param connection
      * 		the connection to use to execute the reconnect learner protocol
@@ -147,6 +147,7 @@ public class ReconnectController implements Runnable {
      * 		if the calling thread is interrupted while the connection is being used
      */
     public void provideLearnerConnection(final Connection connection) throws InterruptedException {
+        start();
         connectionProvider.provide(connection);
     }
 
