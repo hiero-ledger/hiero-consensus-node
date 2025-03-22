@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.tokenkey;
+package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.tokenkey.address_0x167;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator.BURN_TOKEN_V2;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyTranslator.TOKEN_KEY;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.address_0x167.TokenKeyTranslator.TOKEN_KEY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -13,9 +14,10 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyCall;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.TokenKeyCommons;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.address_0x167.TokenKeyTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,13 +41,13 @@ class TokenKeyTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesTokenKeyTranslatorTest() {
-        attempt = createHtsCallAttempt(TOKEN_KEY, subject);
+        attempt = createHtsCallAttempt(HTS_167_CONTRACT_ID, TOKEN_KEY, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsIfIncorrectSelectorTest() {
-        attempt = createHtsCallAttempt(BURN_TOKEN_V2, subject);
+        attempt = createHtsCallAttempt(HTS_167_CONTRACT_ID, BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
@@ -56,14 +58,13 @@ class TokenKeyTranslatorTest extends CallAttemptTestBase {
         given(attempt.input()).willReturn(inputBytes);
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-        given(attempt.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
 
         final var call = subject.callFrom(attempt);
         assertThat(call).isInstanceOf(TokenKeyCall.class);
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {1, 2, 4, 8, 16, 32, 64, 128})
+    @ValueSource(ints = {1, 2, 4, 8, 16, 32, 64})
     void testTokenKey(final int keyType) {
         final Token token = Token.newBuilder()
                 .adminKey(keyBuilder("adminKey"))
@@ -76,13 +77,28 @@ class TokenKeyTranslatorTest extends CallAttemptTestBase {
                 .metadataKey(keyBuilder("metadataKey"))
                 .build();
 
-        final Key result = subject.getTokenKey(token, keyType, true);
+        final Key result = TokenKeyCommons.getTokenKey(token, keyType, HTS_167_CONTRACT_ID);
         assertThat(result).isNotNull();
     }
 
-    private Key keyBuilder(final String keyName) {
-        return Key.newBuilder()
-                .ed25519(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(keyName.getBytes()))
+    @Test
+    void testTokenKeyWithMetaKey() {
+        final Token token = Token.newBuilder()
+                .adminKey(keyBuilder("adminKey"))
+                .kycKey(keyBuilder("kycKey"))
+                .freezeKey(keyBuilder("freezeKey"))
+                .wipeKey(keyBuilder("wipeKey"))
+                .supplyKey(keyBuilder("supplyKey"))
+                .feeScheduleKey(keyBuilder("feeScheduleKey"))
+                .pauseKey(keyBuilder("pauseKey"))
+                .metadataKey(keyBuilder("metadataKey"))
                 .build();
+
+        final Key result = TokenKeyCommons.getTokenKey(token, 128, HTS_167_CONTRACT_ID);
+        assertThat(result).isNull();
+    }
+
+    private Key keyBuilder(final String keyName) {
+        return Key.newBuilder().ed25519(Bytes.wrap(keyName.getBytes())).build();
     }
 }
