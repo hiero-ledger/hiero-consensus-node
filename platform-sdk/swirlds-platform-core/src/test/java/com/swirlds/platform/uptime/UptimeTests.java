@@ -21,7 +21,6 @@ import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.state.service.PbjConverter;
-import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
@@ -35,6 +34,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.events.ConsensusEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

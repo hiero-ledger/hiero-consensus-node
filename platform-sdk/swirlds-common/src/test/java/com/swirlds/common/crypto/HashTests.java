@@ -29,7 +29,7 @@ public class HashTests {
 
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common.crypto");
+        ConstructableRegistry.getInstance().registerConstructables("org.hiero.consensus.model.crypto");
     }
 
     @Test

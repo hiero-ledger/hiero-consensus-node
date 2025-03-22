@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system.events;
+package org.hiero.consensus.model.system.events;
 
-import com.swirlds.platform.system.ReachedConsensus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
+import org.hiero.consensus.model.system.ReachedConsensus;
 import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
 
 /**

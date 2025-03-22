@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.dummy;
 
 import com.swirlds.platform.system.transaction.TransactionWrapperUtils;

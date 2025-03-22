@@ -2,12 +2,12 @@
 package com.swirlds.platform.system;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.system.events.ConsensusEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.system.events.ConsensusEvent;
 import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
 
 /**

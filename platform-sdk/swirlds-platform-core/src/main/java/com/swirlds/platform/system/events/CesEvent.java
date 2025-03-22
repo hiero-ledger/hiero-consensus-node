@@ -22,6 +22,7 @@ import org.hiero.consensus.model.crypto.RunningHash;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.events.ConsensusEvent;
 import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.system.transaction.Transaction;
 

@@ -4,11 +4,11 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.platform.system.events.ConsensusEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
+import org.hiero.consensus.model.system.events.ConsensusEvent;
 import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
 
 public class FakeConsensusEvent extends FakeEvent implements ConsensusEvent {

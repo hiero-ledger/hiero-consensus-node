@@ -99,6 +99,7 @@ class StreamUtilitiesTest {
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common");
+        ConstructableRegistry.getInstance().registerConstructables("org.hiero.consensus.model.crypto");
     }
 
     private static File getResourceFile(final String path) {

@@ -6,10 +6,13 @@ module org.hiero.consensus.model {
     exports org.hiero.consensus.model.io.exceptions;
     exports org.hiero.consensus.model.io.streams;
     exports org.hiero.consensus.model.platform;
+    exports org.hiero.consensus.model.system;
+    exports org.hiero.consensus.model.system.events;
     exports org.hiero.consensus.model.system.transaction;
     exports org.hiero.consensus.model.threading.futures;
     exports org.hiero.consensus.model.utility;
 
+    requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.apache.logging.log4j;

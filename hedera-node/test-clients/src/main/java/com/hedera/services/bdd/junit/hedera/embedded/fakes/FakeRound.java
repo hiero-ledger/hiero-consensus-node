@@ -5,11 +5,11 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.events.ConsensusEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
+import org.hiero.consensus.model.system.events.ConsensusEvent;
 
 public class FakeRound implements Round {
     private final long roundNum;
