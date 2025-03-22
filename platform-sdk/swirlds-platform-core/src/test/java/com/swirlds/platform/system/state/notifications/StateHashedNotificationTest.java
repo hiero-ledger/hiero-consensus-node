@@ -5,13 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import java.util.Queue;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.system.ConsensusRound;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

@@ -11,6 +11,7 @@ import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.constructable.ConstructableClass;
 import com.swirlds.common.exceptions.PlatformException;
+import com.swirlds.common.exceptions.ReferenceCountException;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
@@ -653,7 +654,7 @@ public final class VirtualNodeCache<K extends VirtualKey, V extends VirtualValue
      * 		copy in the chain), or null if there is not one.
      * @throws NullPointerException
      * 		if the key is null
-     * @throws com.swirlds.common.exceptions.ReferenceCountException
+     * @throws ReferenceCountException
      * 		if the cache has already been released
      */
     public VirtualLeafRecord<K, V> lookupLeafByKey(final K key, final boolean forModify) {
@@ -716,7 +717,7 @@ public final class VirtualNodeCache<K extends VirtualKey, V extends VirtualValue
      * 		modify the value, then you do not need to make any additional calls.
      * @return A {@link VirtualLeafRecord} if there is one in the cache (this instance or a previous
      * 		copy in the chain), or null if there is not one.
-     * @throws com.swirlds.common.exceptions.ReferenceCountException
+     * @throws ReferenceCountException
      * 		if the cache has already been released
      */
     public VirtualLeafRecord<K, V> lookupLeafByPath(final long path, final boolean forModify) {
@@ -944,7 +945,7 @@ public final class VirtualNodeCache<K extends VirtualKey, V extends VirtualValue
      * 		returned record, if it exists.
      * @return A {@link Hash} if there is one in the cache (this instance or a previous
      * 		copy in the chain), or null if there is not one.
-     * @throws com.swirlds.common.exceptions.ReferenceCountException
+     * @throws ReferenceCountException
      * 		if the cache has already been released
      */
     public Hash lookupHashByPath(final long path, final boolean forModify) {

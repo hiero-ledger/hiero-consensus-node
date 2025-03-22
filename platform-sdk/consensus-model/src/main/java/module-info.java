@@ -7,7 +7,9 @@ module org.hiero.consensus.model {
     exports org.hiero.consensus.model.io;
     exports org.hiero.consensus.model.io.exceptions;
     exports org.hiero.consensus.model.io.streams;
+    exports org.hiero.consensus.model.notification;
     exports org.hiero.consensus.model.platform;
+    exports org.hiero.consensus.model.state.snapshot;
     exports org.hiero.consensus.model.stream;
     exports org.hiero.consensus.model.system;
     exports org.hiero.consensus.model.system.events;

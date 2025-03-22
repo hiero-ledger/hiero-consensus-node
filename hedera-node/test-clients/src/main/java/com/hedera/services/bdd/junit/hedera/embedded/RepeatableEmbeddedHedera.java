@@ -19,7 +19,6 @@ import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionResponse;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -32,6 +31,7 @@ import java.util.function.Consumer;
 import org.hiero.consensus.model.platform.NodeId;
 import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.ConsensusEvent;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 
 /**
  * An embedded Hedera node that handles transactions synchronously on ingest and thus

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.notification;
+package org.hiero.consensus.model.notification;
 
 /**
  * Abstract base class provided for convenience of implementing {@link Notification} classes. Provides the basic sequence

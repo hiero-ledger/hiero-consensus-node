@@ -14,7 +14,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.payload.IssPayload;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.metrics.IssMetrics;
@@ -28,8 +27,6 @@ import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.state.notifications.IssNotification;
-import com.swirlds.platform.system.state.notifications.IssNotification.IssType;
 import com.swirlds.platform.util.MarkerFileWriter;
 import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -42,7 +39,10 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 
 /**
  * A default implementation of the {@link IssDetector}.

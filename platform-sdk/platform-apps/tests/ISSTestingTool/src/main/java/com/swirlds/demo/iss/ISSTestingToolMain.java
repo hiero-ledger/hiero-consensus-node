@@ -15,13 +15,13 @@ import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.IssListener;
-import com.swirlds.platform.system.state.notifications.IssNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.platform.NodeId;
 
 /**

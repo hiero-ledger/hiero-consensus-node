@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.components.transaction.system;
+package org.hiero.consensus.model.system.transaction;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;

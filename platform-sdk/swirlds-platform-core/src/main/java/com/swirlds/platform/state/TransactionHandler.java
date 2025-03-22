@@ -5,7 +5,6 @@ import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.metrics.StateMetrics;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -15,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.platform.NodeId;
 import org.hiero.consensus.model.system.ConsensusRound;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 
 public class TransactionHandler {
 

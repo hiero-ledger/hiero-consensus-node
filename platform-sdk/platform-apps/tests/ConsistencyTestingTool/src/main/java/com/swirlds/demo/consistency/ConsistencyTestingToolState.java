@@ -9,7 +9,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.utility.NonCryptographicHashing;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
@@ -24,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.Event;
 import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.system.transaction.Transaction;
 
 /**

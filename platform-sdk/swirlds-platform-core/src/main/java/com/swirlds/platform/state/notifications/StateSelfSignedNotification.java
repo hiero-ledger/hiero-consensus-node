@@ -2,12 +2,13 @@
 package com.swirlds.platform.state.notifications;
 
 import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.notification.AbstractNotification;
 import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.notification.AbstractNotification;
+import org.hiero.consensus.model.notification.Notification;
 import org.hiero.consensus.model.platform.NodeId;
 
 /**
- * A {@link com.swirlds.common.notification.Notification Notification} that a signed state been self signed. State is
+ * A {@link Notification Notification} that a signed state been self signed. State is
  * guaranteed to hold a reservation until callback is finished.
  */
 public class StateSelfSignedNotification extends AbstractNotification {

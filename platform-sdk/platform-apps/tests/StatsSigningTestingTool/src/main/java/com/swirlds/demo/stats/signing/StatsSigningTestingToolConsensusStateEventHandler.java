@@ -14,7 +14,6 @@ import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.crypto.VerificationStatus;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -29,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.Event;
 import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.system.transaction.Transaction;
 
 public class StatsSigningTestingToolConsensusStateEventHandler

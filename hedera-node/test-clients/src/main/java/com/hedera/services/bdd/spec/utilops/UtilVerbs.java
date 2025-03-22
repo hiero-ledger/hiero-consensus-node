@@ -181,7 +181,6 @@ import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.swirlds.common.utility.CommonUtils;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
@@ -227,6 +226,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 import org.junit.jupiter.api.Assertions;
 
 public class UtilVerbs {

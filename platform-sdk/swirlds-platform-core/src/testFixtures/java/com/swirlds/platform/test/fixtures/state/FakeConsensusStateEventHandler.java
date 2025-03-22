@@ -21,7 +21,6 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -56,6 +55,7 @@ import java.util.function.Consumer;
 import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.Event;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 
 public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler<MerkleNodeState> {
     FAKE_CONSENSUS_STATE_EVENT_HANDLER;

@@ -17,7 +17,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.ByteUtils;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
@@ -47,6 +46,7 @@ import org.hiero.consensus.model.platform.NodeId;
 import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.Event;
 import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.system.transaction.Transaction;
 import org.hiero.consensus.model.utility.StackTrace;
 

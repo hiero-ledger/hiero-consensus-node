@@ -7,7 +7,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.ByteUtils;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -21,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.Event;
 import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.system.transaction.Transaction;
 
 public class StressTestingToolConsensusStateEventHandler implements ConsensusStateEventHandler<StressTestingToolState> {

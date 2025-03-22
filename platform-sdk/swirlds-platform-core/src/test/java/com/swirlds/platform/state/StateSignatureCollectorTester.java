@@ -5,7 +5,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
@@ -20,6 +19,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 
 /**
  * A StateSignatureCollector that is used for unit testing. In the future, these unit tests should become small

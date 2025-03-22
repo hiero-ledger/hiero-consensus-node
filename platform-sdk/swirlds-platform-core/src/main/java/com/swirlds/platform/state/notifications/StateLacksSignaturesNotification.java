@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.notifications;
 
-import com.swirlds.common.notification.AbstractNotification;
 import com.swirlds.platform.state.signed.SignedState;
+import org.hiero.consensus.model.notification.AbstractNotification;
+import org.hiero.consensus.model.notification.Notification;
 import org.hiero.consensus.model.platform.NodeId;
 
 /**
- * A {@link com.swirlds.common.notification.Notification Notification} that a signed state fails to collect sufficient
+ * A {@link Notification Notification} that a signed state fails to collect sufficient
  * signatures before being ejected from memory. State is guaranteed to hold a reservation until callback is finished.
  */
 public class StateLacksSignaturesNotification extends AbstractNotification {

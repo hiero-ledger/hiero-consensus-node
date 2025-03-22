@@ -5,7 +5,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.transformers.RoutableData;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.creation.EventCreationManager;
@@ -34,6 +33,7 @@ import java.util.Queue;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.system.ConsensusRound;
 import org.hiero.consensus.model.system.events.UnsignedEvent;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 
 /**
  * Responsible for coordinating the clearing of the platform wiring objects.

@@ -7,7 +7,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.Hedera;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.InitTrigger;
@@ -18,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.Event;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 
 /**
  * Implements the major lifecycle events for Hedera Services by delegating to a Hedera instance.

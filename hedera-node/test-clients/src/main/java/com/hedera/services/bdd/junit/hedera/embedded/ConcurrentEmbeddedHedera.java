@@ -17,7 +17,6 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionResponse;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -33,6 +32,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.ConsensusEvent;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 
 /**
  * An embedded Hedera node that can be used in concurrent tests.

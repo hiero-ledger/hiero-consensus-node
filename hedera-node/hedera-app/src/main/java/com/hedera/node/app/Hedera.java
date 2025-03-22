@@ -115,7 +115,6 @@ import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
@@ -161,6 +160,7 @@ import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.platform.NodeId;
 import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.Event;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.system.transaction.Transaction;
 
 /*

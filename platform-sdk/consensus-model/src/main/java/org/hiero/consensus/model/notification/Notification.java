@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.notification;
+package org.hiero.consensus.model.notification;
 
 /**
  * The base interface that must be implemented by all notifications sent to registered listeners.

@@ -4,6 +4,7 @@ package com.swirlds.common.notification;
 import com.swirlds.common.notification.internal.AsyncNotificationEngine;
 import com.swirlds.common.threading.manager.ThreadManager;
 import java.util.concurrent.Future;
+import org.hiero.consensus.model.notification.Notification;
 import org.hiero.consensus.model.threading.futures.StandardFuture;
 
 /**

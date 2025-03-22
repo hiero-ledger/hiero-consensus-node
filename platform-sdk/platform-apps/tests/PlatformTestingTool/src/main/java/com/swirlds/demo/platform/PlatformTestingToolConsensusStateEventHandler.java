@@ -55,7 +55,6 @@ import com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.Utilities;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -87,6 +86,7 @@ import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.ConsensusEvent;
 import org.hiero.consensus.model.system.events.Event;
 import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.system.transaction.Transaction;
 
 public class PlatformTestingToolConsensusStateEventHandler

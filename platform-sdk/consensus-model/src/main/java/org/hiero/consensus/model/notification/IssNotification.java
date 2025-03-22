@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system.state.notifications;
+package org.hiero.consensus.model.notification;
 
-import com.swirlds.common.notification.AbstractNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import org.hiero.consensus.model.platform.NodeId;
 
 /**
- * This {@link com.swirlds.common.notification.Notification Notification} is triggered when there is an ISS (i.e. an
+ * This {@link Notification Notification} is triggered when there is an ISS (i.e. an
  * Invalid State Signature). State is guaranteed to hold a reservation until the callback completes.
  */
 public class IssNotification extends AbstractNotification {
