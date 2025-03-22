@@ -4,11 +4,11 @@ package com.swirlds.platform.components.consensus;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.Consensus;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.system.ConsensusRound;
 import org.hiero.consensus.model.system.events.CesEvent;
 
 /**

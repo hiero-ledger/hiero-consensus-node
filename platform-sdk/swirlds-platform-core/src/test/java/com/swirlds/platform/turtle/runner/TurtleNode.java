@@ -30,7 +30,6 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.BasicConfig_;
 import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -49,6 +48,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.List;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.ConsensusRound;
 
 /**
  * Encapsulates a single node running in a TURTLE network.

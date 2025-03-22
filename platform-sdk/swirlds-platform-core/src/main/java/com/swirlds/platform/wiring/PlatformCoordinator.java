@@ -19,7 +19,6 @@ import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.pool.TransactionPool;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -33,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.system.ConsensusRound;
 import org.hiero.consensus.model.system.events.UnsignedEvent;
 
 /**

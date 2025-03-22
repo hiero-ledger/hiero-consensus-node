@@ -21,7 +21,6 @@ import com.swirlds.platform.Utilities;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.config.ThreadConfig;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
@@ -81,6 +80,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
 

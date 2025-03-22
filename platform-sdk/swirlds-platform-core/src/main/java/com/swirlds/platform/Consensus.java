@@ -3,11 +3,11 @@ package com.swirlds.platform;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.consensus.ConsensusRounds;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.consensus.ConsensusConstants;
+import org.hiero.consensus.model.system.ConsensusRound;
 
 /** An interface for classes that calculate consensus of events */
 public interface Consensus {

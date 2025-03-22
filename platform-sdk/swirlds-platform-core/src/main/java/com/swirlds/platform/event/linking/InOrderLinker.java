@@ -2,11 +2,11 @@
 package com.swirlds.platform.event.linking;
 
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**

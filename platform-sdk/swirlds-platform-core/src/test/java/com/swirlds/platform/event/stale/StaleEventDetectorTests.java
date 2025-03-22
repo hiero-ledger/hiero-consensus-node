@@ -15,9 +15,7 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.transformers.RoutableData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.eventhandling.EventConfig_;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -25,8 +23,10 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.ConsensusRound;
 import org.junit.jupiter.api.Test;
 
 class StaleEventDetectorTests {

@@ -13,11 +13,11 @@ import com.swirlds.platform.components.transaction.system.ScopedSystemTransactio
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import java.util.function.Consumer;
 import org.assertj.core.api.Assertions;
+import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.Event;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

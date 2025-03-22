@@ -82,7 +82,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -101,6 +100,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
 
 /**

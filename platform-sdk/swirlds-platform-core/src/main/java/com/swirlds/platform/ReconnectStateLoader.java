@@ -10,7 +10,6 @@ import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.validation.RosterUpdate;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
@@ -29,6 +28,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
 

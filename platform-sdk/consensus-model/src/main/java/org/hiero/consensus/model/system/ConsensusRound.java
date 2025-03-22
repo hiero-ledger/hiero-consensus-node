@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.internal;
+package org.hiero.consensus.model.system;
 
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.state.service.PbjConverter;
-import com.swirlds.platform.system.Round;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -15,6 +13,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.system.events.CesEvent;
 import org.hiero.consensus.model.system.events.ConsensusEvent;
@@ -192,7 +191,10 @@ public class ConsensusRound implements Round {
      */
     @Override
     public @NonNull Instant getConsensusTimestamp() {
-        return Objects.requireNonNull(PbjConverter.fromPbjTimestamp(snapshot.consensusTimestamp()));
+        final Timestamp timestamp = snapshot.consensusTimestamp();
+        final Instant instant =
+                timestamp == null ? null : Instant.ofEpochSecond(timestamp.seconds(), timestamp.nanos());
+        return Objects.requireNonNull(instant);
     }
 
     /**

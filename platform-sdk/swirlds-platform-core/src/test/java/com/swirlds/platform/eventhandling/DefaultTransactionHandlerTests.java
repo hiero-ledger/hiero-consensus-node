@@ -13,9 +13,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
@@ -23,9 +21,11 @@ import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusActio
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.util.List;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.system.ConsensusRound;
 import org.hiero.consensus.model.system.events.ConsensusEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

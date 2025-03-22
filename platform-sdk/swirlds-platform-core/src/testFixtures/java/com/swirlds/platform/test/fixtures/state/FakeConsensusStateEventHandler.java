@@ -32,7 +32,6 @@ import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -55,6 +54,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.Event;
 
 public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler<MerkleNodeState> {

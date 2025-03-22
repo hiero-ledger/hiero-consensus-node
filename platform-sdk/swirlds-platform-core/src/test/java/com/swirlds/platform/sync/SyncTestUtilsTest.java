@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.gossip.shadowgraph.SyncUtils;
 import com.swirlds.platform.test.fixtures.sync.EventFactory;
@@ -14,6 +13,7 @@ import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Predicate;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.junit.jupiter.api.Test;
 
 class SyncTestUtilsTest {

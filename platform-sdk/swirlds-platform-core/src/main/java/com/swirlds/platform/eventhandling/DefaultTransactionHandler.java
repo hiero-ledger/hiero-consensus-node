@@ -21,7 +21,6 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.metrics.RoundHandlingMetrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
@@ -41,6 +40,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.system.ConsensusRound;
 
 /**
  * A standard implementation of {@link TransactionHandler}.

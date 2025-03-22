@@ -18,7 +18,6 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.event.hashing.DefaultEventHasher;
@@ -28,7 +27,6 @@ import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
@@ -37,9 +35,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.LinkedList;
 import java.util.List;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.ConsensusRound;
 
 /**
  * Event intake with consensus and shadowgraph, used for testing

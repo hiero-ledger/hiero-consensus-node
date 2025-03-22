@@ -9,12 +9,10 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.InOrderLinker;
 import com.swirlds.platform.eventhandling.EventConfig;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.AddedEventMetrics;
 import com.swirlds.platform.metrics.ConsensusMetrics;
@@ -23,9 +21,11 @@ import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.ConsensusRound;
 
 /**
  * The default implementation of the {@link ConsensusEngine} interface

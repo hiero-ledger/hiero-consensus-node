@@ -4,11 +4,11 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.system.Round;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
+import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.ConsensusEvent;
 
 public class FakeRound implements Round {

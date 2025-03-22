@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.creation.tipset;
 
-import com.swirlds.platform.consensus.EventWindow;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -10,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.platform.NodeId;
 import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
 

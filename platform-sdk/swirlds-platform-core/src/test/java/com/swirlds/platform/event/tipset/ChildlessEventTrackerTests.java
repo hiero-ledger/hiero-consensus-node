@@ -6,7 +6,6 @@ import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.platform.event.EventDescriptor;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -16,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.platform.NodeId;

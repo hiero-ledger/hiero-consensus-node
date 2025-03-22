@@ -16,7 +16,6 @@ import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.SimpleLinker;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.NoOpConsensusMetrics;
 import com.swirlds.platform.roster.RosterRetriever;
@@ -33,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.ConsensusRound;
 
 /**
  * A utility class for generating a graph of events.

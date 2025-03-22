@@ -2,8 +2,6 @@
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
 import com.swirlds.common.utility.Clearable;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.sequence.set.SequenceSet;
 import com.swirlds.platform.sequence.set.StandardSequenceSet;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -11,8 +9,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.system.ConsensusRound;
 import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
 
 /**

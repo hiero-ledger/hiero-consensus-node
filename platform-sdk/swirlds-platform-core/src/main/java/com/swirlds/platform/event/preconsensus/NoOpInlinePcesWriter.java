@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import com.swirlds.platform.consensus.EventWindow;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**

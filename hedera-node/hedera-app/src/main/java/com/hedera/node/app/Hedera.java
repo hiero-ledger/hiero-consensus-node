@@ -129,7 +129,6 @@ import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadableRosterStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
@@ -160,6 +159,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.constructable.RuntimeConstructable;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.Event;
 import org.hiero.consensus.model.system.transaction.Transaction;
 

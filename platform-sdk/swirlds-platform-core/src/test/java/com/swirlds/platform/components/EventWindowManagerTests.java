@@ -12,9 +12,9 @@ import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.internal.ConsensusRound;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.model.consensus.EventWindow;
+import org.hiero.consensus.model.system.ConsensusRound;
 import org.junit.jupiter.api.Test;
 
 public class EventWindowManagerTests {

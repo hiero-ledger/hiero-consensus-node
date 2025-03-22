@@ -5,18 +5,18 @@ import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.transformers.RoutableData;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.eventhandling.EventConfig;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.sequence.map.StandardSequenceMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.ToLongFunction;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.ConsensusRound;
 import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
 
 /**

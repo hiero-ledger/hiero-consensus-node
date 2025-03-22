@@ -8,7 +8,6 @@ import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.FlowLayout;
@@ -20,6 +19,7 @@ import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.system.ConsensusRound;
 
 public class TestGuiSource {
     private final GuiEventProvider eventProvider;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.model.consensus;
 
 import static org.hiero.consensus.model.consensus.ConsensusConstants.ROUND_FIRST;
 import static org.hiero.consensus.model.consensus.ConsensusConstants.ROUND_NEGATIVE_INFINITY;

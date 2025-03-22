@@ -5,7 +5,6 @@ import static com.swirlds.common.utility.CompareTo.isGreaterThan;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.metrics.SyncMetrics;
@@ -33,6 +32,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;

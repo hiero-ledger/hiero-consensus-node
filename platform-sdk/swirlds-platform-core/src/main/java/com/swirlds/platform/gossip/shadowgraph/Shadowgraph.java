@@ -7,7 +7,6 @@ import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.Clearable;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,6 +28,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;

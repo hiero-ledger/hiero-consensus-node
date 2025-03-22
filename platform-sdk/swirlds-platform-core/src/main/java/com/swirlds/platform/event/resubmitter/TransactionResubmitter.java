@@ -3,9 +3,9 @@ package com.swirlds.platform.event.resubmitter;
 
 import com.hedera.hapi.platform.event.EventTransaction;
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.consensus.EventWindow;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**

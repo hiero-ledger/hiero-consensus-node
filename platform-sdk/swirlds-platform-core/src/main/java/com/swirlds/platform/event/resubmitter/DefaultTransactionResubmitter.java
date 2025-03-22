@@ -4,11 +4,11 @@ package com.swirlds.platform.event.resubmitter;
 import com.hedera.hapi.platform.event.EventTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.consensus.EventWindow;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**

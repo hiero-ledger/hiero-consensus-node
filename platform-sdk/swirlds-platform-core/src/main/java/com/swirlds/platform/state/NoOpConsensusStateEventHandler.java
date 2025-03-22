@@ -7,11 +7,11 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.Event;
 
 /**

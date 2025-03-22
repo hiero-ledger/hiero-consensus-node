@@ -2,7 +2,6 @@
 package com.swirlds.platform.event.branching;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.consensus.EventWindow;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -10,6 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
 import org.hiero.consensus.model.system.events.EventDescriptorWrapper;

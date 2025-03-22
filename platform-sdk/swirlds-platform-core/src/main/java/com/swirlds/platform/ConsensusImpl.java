@@ -21,12 +21,10 @@ import com.swirlds.platform.consensus.ConsensusRounds;
 import com.swirlds.platform.consensus.ConsensusSorter;
 import com.swirlds.platform.consensus.ConsensusUtils;
 import com.swirlds.platform.consensus.CountingVote;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.consensus.InitJudges;
 import com.swirlds.platform.consensus.RoundElections;
 import com.swirlds.platform.event.EventUtils;
 import com.swirlds.platform.eventhandling.EventConfig;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.roster.RosterUtils;
@@ -46,10 +44,12 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.consensus.ConsensusConstants;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.ConsensusRound;
 import org.hiero.consensus.model.system.events.EventConstants;
 
 /**

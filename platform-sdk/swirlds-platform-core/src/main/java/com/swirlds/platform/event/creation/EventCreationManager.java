@@ -2,11 +2,11 @@
 package com.swirlds.platform.event.creation;
 
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.system.events.UnsignedEvent;
 

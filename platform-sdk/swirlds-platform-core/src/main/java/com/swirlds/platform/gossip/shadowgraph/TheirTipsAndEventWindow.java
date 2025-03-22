@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
-import com.swirlds.platform.consensus.EventWindow;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.crypto.Hash;
 
 /**

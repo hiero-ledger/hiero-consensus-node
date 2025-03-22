@@ -2,13 +2,13 @@
 package com.swirlds.platform.recovery.internal;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.system.Round;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.system.Round;
 import org.hiero.consensus.model.system.events.CesEvent;
 import org.hiero.consensus.model.system.events.ConsensusEvent;
 import org.hiero.consensus.model.utility.TypedIterator;
