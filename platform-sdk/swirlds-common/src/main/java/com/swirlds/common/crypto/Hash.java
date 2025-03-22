@@ -6,12 +6,12 @@ import static com.swirlds.common.utility.Mnemonics.generateMnemonic;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.SerializableWithKnownLength;
 import com.swirlds.common.io.exceptions.BadIOException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Objects;
+import org.hiero.consensus.model.io.SerializableWithKnownLength;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 

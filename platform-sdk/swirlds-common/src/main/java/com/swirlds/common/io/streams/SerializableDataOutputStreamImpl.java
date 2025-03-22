@@ -12,7 +12,6 @@ import static com.swirlds.common.io.streams.SerializableStreamConstants.VERSION_
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.io.SerializableWithKnownLength;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -23,6 +22,7 @@ import java.util.List;
 import org.hiero.consensus.model.io.FunctionalSerialize;
 import org.hiero.consensus.model.io.SelfSerializable;
 import org.hiero.consensus.model.io.SerializableDet;
+import org.hiero.consensus.model.io.SerializableWithKnownLength;
 
 /**
  * A drop-in replacement for {@link DataOutputStream}, which handles SerializableDet classes specially.

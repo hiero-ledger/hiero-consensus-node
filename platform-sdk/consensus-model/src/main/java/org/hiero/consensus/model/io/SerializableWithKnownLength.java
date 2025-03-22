@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io;
-
-import org.hiero.consensus.model.io.SelfSerializable;
+package org.hiero.consensus.model.io;
 
 /**
  * An object implementing this interface can return its length even before serialization.
