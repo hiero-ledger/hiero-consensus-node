@@ -24,6 +24,7 @@ open module com.swirlds.common.test.fixtures {
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.logging;
+    requires com.swirlds.platform.core;
     requires lazysodium.java;
     requires org.apache.logging.log4j.core;
     requires org.apache.logging.log4j;
