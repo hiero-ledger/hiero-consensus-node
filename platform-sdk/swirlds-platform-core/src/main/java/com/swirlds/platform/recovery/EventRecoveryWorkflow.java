@@ -44,7 +44,6 @@ import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SwirldMain;
-import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.state.State;
@@ -62,6 +61,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.events.CesEvent;
 import org.hiero.consensus.model.system.events.ConsensusEvent;
 
 /**

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system.events;
+package org.hiero.consensus.model.system.events;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -22,13 +22,12 @@ import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.platform.NodeId;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;
-import org.hiero.consensus.model.system.events.ConsensusEvent;
 import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.system.transaction.Transaction;
 
 /**
  * A wrapper around a {@link PlatformEvent} that holds additional information required by the
- * {@link com.swirlds.platform.event.stream.ConsensusEventStream}.
+ * {@code com.swirlds.platform.event.stream.ConsensusEventStream}.
  */
 public class CesEvent extends AbstractSerializableHashable
         implements RunningHashable, StreamAligned, Timestamped, ConsensusEvent {

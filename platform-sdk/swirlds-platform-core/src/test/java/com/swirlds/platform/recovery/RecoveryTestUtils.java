@@ -19,7 +19,6 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
 import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.recovery.internal.ObjectStreamIterator;
-import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -41,6 +40,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.io.SelfSerializable;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.events.CesEvent;
 import org.mockito.Mockito;
 
 /**

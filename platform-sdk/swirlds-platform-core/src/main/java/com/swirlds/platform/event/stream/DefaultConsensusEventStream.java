@@ -21,7 +21,6 @@ import com.swirlds.common.stream.Signer;
 import com.swirlds.common.stream.internal.TimestampStreamFileWriter;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.eventhandling.EventConfig;
-import com.swirlds.platform.system.events.CesEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,6 +34,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.events.CesEvent;
 
 /**
  * This class is used for generating event stream files when enableEventStreaming is true, and for calculating

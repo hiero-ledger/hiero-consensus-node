@@ -2,13 +2,13 @@
 package com.swirlds.platform.recovery.internal;
 
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.platform.system.events.CesEvent;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.NoSuchElementException;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.system.events.CesEvent;
 
 /**
  * An iterator that walks over events in a single event stream file.
