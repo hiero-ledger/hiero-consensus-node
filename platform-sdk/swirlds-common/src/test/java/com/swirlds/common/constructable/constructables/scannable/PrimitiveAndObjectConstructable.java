@@ -4,7 +4,7 @@ package com.swirlds.common.constructable.constructables.scannable;
 import static com.swirlds.common.constructable.constructables.scannable.PrimitiveAndObjectConstructable.CLASS_ID;
 
 import com.swirlds.common.constructable.ConstructableClass;
-import com.swirlds.common.constructable.RuntimeConstructable;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 import com.swirlds.common.constructable.constructors.PrimitiveAndObjectConstructor;
 
 @ConstructableClass(value = CLASS_ID, constructorType = PrimitiveAndObjectConstructor.class)

@@ -6,7 +6,7 @@ import com.swirlds.common.constructable.ConstructableClass;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.constructable.ConstructorRegistry;
 import com.swirlds.common.constructable.NoArgsConstructor;
-import com.swirlds.common.constructable.RuntimeConstructable;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 import com.swirlds.common.constructable.URLClassLoaderWithLookup;
 import com.swirlds.common.exceptions.NotImplementedException;
 import edu.umd.cs.findbugs.annotations.NonNull;

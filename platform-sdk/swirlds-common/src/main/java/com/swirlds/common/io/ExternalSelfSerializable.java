@@ -5,6 +5,7 @@ import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.consensus.model.io.SerializableDet;
 
 /**
  * <p>

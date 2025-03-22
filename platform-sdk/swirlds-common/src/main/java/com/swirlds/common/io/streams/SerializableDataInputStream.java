@@ -13,7 +13,7 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.base.function.CheckedFunction;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.SerializableDet;
+import org.hiero.consensus.model.io.SerializableDet;
 import com.swirlds.common.io.exceptions.ClassNotFoundException;
 import com.swirlds.common.io.exceptions.InvalidVersionException;
 import com.swirlds.common.utility.ValueReference;

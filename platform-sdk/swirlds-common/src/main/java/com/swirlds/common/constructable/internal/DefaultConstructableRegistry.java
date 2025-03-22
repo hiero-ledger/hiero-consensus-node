@@ -6,7 +6,7 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.constructable.ConstructorRegistry;
 import com.swirlds.common.constructable.NoArgsConstructor;
-import com.swirlds.common.constructable.RuntimeConstructable;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 import com.swirlds.common.constructable.URLClassLoaderWithLookup;
 import java.util.Collection;
 import java.util.Map;

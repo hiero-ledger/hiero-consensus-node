@@ -5,6 +5,7 @@ import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import org.hiero.consensus.model.io.SerializableDet;
 
 /**
  * A SerializableDet that knows how to serialize and deserialize itself.

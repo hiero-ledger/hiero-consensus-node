@@ -14,7 +14,7 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.io.FunctionalSerialize;
 import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.SerializableDet;
+import org.hiero.consensus.model.io.SerializableDet;
 import com.swirlds.common.io.SerializableWithKnownLength;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataOutputStream;

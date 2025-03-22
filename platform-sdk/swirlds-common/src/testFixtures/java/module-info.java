@@ -20,8 +20,8 @@ open module com.swirlds.common.test.fixtures {
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
-    requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.virtualmap;
+    requires transitive org.hiero.consensus.model;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.logging;
     requires lazysodium.java;

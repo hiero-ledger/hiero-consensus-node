@@ -38,6 +38,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 
 /**
  * A {@link MerkleInternal} node that virtualizes all of its children, such that the child nodes
@@ -162,7 +163,7 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
     private final Configuration configuration;
 
     /**
-     * Required by the {@link com.swirlds.common.constructable.RuntimeConstructable} contract.
+     * Required by the {@link RuntimeConstructable} contract.
      * This can <strong>only</strong> be called as part of serialization and reconnect, not for normal use.
      */
     public VirtualMap(final @NonNull Configuration configuration) {

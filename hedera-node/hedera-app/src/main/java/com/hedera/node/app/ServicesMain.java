@@ -48,7 +48,7 @@ import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.RuntimeConstructable;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.io.filesystem.FileSystemManager;
