@@ -114,7 +114,6 @@ import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
@@ -161,6 +160,7 @@ import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.constructable.RuntimeConstructable;
+import org.hiero.consensus.model.platform.NodeId;
 import org.hiero.consensus.model.system.transaction.Transaction;
 
 /*

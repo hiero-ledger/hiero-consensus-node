@@ -3,7 +3,6 @@ package com.swirlds.platform.state.signed;
 
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -16,6 +15,7 @@ import java.util.Objects;
 import org.hiero.consensus.model.io.SelfSerializable;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * Signatures of the hash of a state.

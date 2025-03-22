@@ -3,7 +3,6 @@ package com.swirlds.platform.gossip.modular;
 
 import com.google.common.collect.ImmutableList;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.TypedStoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.threading.interrupt.InterruptableRunnable;
@@ -36,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * Opening and monitoring of new connections for gossip/chatter neighbours.

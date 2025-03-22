@@ -3,10 +3,10 @@ package com.swirlds.platform.system.events;
 
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.event.AncientMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * A wrapper class for {@link EventDescriptor} that includes the hash of the event descriptor.

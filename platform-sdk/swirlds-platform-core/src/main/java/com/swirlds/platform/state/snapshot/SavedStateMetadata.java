@@ -22,7 +22,6 @@ import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.WALL_C
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.formatting.TextTable;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -47,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * Metadata about a saved state. Fields in this record may be null if they are not present in the metadata file. All

@@ -16,7 +16,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.state.service.ReadableRosterStore;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.system.address.AddressBook;
@@ -24,6 +23,7 @@ import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
+import org.hiero.consensus.model.platform.NodeId;
 import org.junit.jupiter.api.Test;
 
 public class RosterUtilsTest {

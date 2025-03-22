@@ -4,7 +4,6 @@ package com.swirlds.platform.state.iss.internal;
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 
 import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.metrics.IssMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -15,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * Tracks hash partitions for a particular round and determines the consensus hash.

@@ -8,7 +8,6 @@ import com.swirlds.common.io.extendable.extensions.MaxSizeStreamExtension;
 import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleLeaf;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.proof.tree.StateProofInternalNode;
 import com.swirlds.platform.proof.tree.StateProofNode;
 import com.swirlds.platform.proof.tree.StateProofPayload;
@@ -21,6 +20,7 @@ import java.util.Queue;
 import org.hiero.consensus.model.io.SelfSerializable;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * Serialization and deserialization logic for state proofs.

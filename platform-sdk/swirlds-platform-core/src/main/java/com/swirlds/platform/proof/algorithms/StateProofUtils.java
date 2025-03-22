@@ -3,7 +3,6 @@ package com.swirlds.platform.proof.algorithms;
 
 import static com.swirlds.common.crypto.DigestType.SHA_384;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.proof.SignatureVerifier;
 import com.swirlds.platform.proof.tree.StateProofInternalNode;
 import com.swirlds.platform.proof.tree.StateProofNode;
@@ -16,6 +15,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * Utility methods for validating state proofs.

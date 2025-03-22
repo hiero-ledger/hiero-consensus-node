@@ -11,7 +11,6 @@ import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.crypto.AbstractSerializableHashable;
 import com.swirlds.common.crypto.RunningHash;
 import com.swirlds.common.crypto.RunningHashable;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.stream.StreamAligned;
 import com.swirlds.common.stream.Timestamped;
 import com.swirlds.platform.event.PlatformEvent;
@@ -22,6 +21,7 @@ import java.util.Iterator;
 import java.util.Objects;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.platform.NodeId;
 import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.system.transaction.Transaction;
 

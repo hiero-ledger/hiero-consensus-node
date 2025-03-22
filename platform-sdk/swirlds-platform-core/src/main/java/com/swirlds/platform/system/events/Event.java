@@ -4,11 +4,11 @@ package com.swirlds.platform.system.events;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.platform.NodeId;
 import org.hiero.consensus.model.system.transaction.Transaction;
 
 /**

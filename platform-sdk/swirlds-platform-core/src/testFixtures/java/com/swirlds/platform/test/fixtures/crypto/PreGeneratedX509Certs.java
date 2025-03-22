@@ -6,7 +6,6 @@ import static com.swirlds.platform.crypto.CryptoStatic.generateKeysAndCerts;
 
 import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.common.test.fixtures.io.ResourceNotFoundException;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
@@ -43,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.platform.NodeId;
 
 /**
  * A utility class for generating and retrieving pre-generated X.509 certificates for testing purposes.
