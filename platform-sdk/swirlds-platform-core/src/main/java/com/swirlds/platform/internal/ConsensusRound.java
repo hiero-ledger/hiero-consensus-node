@@ -5,11 +5,9 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.events.CesEvent;
-import com.swirlds.platform.util.iterator.TypedIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -18,8 +16,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.system.events.ConsensusEvent;
 import org.hiero.consensus.model.system.transaction.Transaction;
+import org.hiero.consensus.model.utility.TypedIterator;
 
 /** A consensus round with events and all other relevant data. */
 public class ConsensusRound implements Round {

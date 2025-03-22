@@ -5,12 +5,9 @@ import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.hashing.PbjStreamHasher;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
-import com.swirlds.platform.system.events.UnsignedEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -19,7 +16,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
+import org.hiero.consensus.model.system.events.UnsignedEvent;
 import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 
 public class RandomEventUtils {

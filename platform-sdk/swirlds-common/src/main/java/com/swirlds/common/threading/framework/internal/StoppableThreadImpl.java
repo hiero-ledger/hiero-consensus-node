@@ -2,19 +2,18 @@
 package com.swirlds.common.threading.framework.internal;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MILLISECONDS;
-import static com.swirlds.common.threading.interrupt.Uninterruptable.retryIfInterrupted;
 import static com.swirlds.common.utility.CompareTo.isGreaterThan;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.THREADS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.hiero.consensus.model.threading.interrupt.Uninterruptable.retryIfInterrupted;
 import static org.hiero.consensus.model.utility.StackTrace.getStackTrace;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.threading.framework.Stoppable;
 import com.swirlds.common.threading.framework.ThreadSeed;
 import com.swirlds.common.threading.framework.TypedStoppableThread;
-import com.swirlds.common.threading.interrupt.InterruptableRunnable;
 import com.swirlds.common.utility.DurationUtils;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.threading.interrupt.InterruptableRunnable;
 import org.hiero.consensus.model.utility.StackTrace;
 
 /**

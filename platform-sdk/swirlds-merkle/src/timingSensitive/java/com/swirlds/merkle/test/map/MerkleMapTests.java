@@ -83,7 +83,9 @@ class MerkleMapTests {
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         MerkleMapTestUtil.loadLogging();
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds");
+        registry.registerConstructables("org.hiero.consensus");
         cryptography = TestMerkleCryptoFactory.getInstance();
     }
 

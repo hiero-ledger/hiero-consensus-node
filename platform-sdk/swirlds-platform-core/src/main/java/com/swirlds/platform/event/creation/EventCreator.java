@@ -2,10 +2,10 @@
 package com.swirlds.platform.event.creation;
 
 import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.system.events.UnsignedEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.system.events.UnsignedEvent;
 
 /**
  * An object that creates new events.

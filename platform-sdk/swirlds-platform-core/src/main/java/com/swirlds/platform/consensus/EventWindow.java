@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_FIRST;
-import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
-import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
-import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION;
+import static org.hiero.consensus.model.consensus.ConsensusConstants.ROUND_FIRST;
+import static org.hiero.consensus.model.consensus.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
+import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
+import static org.hiero.consensus.model.system.events.EventConstants.FIRST_GENERATION;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
 
 /**
  * Describes the current window of events that the platform is using.

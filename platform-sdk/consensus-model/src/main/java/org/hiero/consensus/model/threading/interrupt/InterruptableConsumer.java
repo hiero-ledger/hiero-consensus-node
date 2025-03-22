@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.interrupt;
+package org.hiero.consensus.model.threading.interrupt;
 
 import java.util.function.Consumer;
 

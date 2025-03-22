@@ -3,9 +3,9 @@ package com.swirlds.platform.event.orphan;
 
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Takes as input an unordered stream of {@link PlatformEvent}s and emits a stream

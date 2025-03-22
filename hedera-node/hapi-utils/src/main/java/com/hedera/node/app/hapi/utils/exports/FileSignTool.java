@@ -232,7 +232,7 @@ public class FileSignTool {
     public static void prepare(final StreamType streamType) throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero.consensus.model");
+        registry.registerConstructables("org.hiero.consensus");
 
         if (streamType.getExtension().equalsIgnoreCase(RECORD_STREAM_EXTENSION)) {
             LOGGER.info(MARKER, "registering Constructables for parsing record stream files");

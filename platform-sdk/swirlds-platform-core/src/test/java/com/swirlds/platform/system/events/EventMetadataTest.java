@@ -12,6 +12,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
+import org.hiero.consensus.model.system.events.EventMetadata;
 import org.junit.jupiter.api.Test;
 
 class EventMetadataTest {

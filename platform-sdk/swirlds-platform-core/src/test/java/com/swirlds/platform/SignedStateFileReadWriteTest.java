@@ -66,6 +66,7 @@ class SignedStateFileReadWriteTest {
         platformVersion =
                 SemanticVersion.newBuilder().major(RandomUtils.nextInt(1, 100)).build();
         registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero.consensus.model");
         registry.registerConstructables("com.swirlds.platform");
         registry.registerConstructables("com.swirlds.state");
         registry.registerConstructables("com.swirlds.virtualmap");

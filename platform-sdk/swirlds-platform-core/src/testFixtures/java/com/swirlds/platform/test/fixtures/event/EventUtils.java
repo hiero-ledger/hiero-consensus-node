@@ -5,7 +5,6 @@ import static java.lang.Integer.max;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
@@ -20,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
 
 public final class EventUtils {

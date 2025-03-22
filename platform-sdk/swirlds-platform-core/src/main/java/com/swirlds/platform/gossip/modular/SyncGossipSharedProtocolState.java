@@ -2,7 +2,6 @@
 package com.swirlds.platform.gossip.modular;
 
 import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.sync.SyncManagerImpl;
@@ -11,6 +10,7 @@ import com.swirlds.platform.system.status.PlatformStatus;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Temporary class made as a side effect of refactoring of SyncGossip

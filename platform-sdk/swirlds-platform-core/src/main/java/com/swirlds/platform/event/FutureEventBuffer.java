@@ -7,6 +7,7 @@ import com.swirlds.platform.wiring.NoInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Buffers events from the future (i.e. events with a birth round that is greater than the round that consensus is

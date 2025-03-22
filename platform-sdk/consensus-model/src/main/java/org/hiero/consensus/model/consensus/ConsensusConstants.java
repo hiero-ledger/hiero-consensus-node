@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.model.consensus;
 
 /** Constants used for consensus */
 public final class ConsensusConstants {

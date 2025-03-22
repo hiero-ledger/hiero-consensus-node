@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.util.iterator;
+package org.hiero.consensus.model.utility;
 
 import java.util.Iterator;
 import java.util.Objects;

@@ -67,8 +67,9 @@ class StreamObjectTest {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException, IOException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common");
-        ConstructableRegistry.getInstance().registerConstructables("org.hiero.consensus.model");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero.consensus");
     }
 
     static void clearDir() throws IOException {

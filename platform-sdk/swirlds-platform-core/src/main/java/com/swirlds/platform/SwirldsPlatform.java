@@ -31,9 +31,7 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.crypto.PlatformSigner;
-import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.EventCounter;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
@@ -79,6 +77,8 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
 
 /**
@@ -336,10 +336,7 @@ public class SwirldsPlatform implements Platform {
             // equal to the ancient threshold when the system first starts. Over time as we get more events,
             // the expired threshold will continue to expand until it reaches its full size.
             platformWiring.updateEventWindow(new EventWindow(
-                    initialState.getRound(),
-                    initialAncientThreshold,
-                    initialAncientThreshold,
-                    AncientMode.getAncientMode(platformContext)));
+                    initialState.getRound(), initialAncientThreshold, initialAncientThreshold, ancientMode));
             platformWiring.overrideIssDetectorState(initialState.reserve("initialize issDetector"));
         }
 

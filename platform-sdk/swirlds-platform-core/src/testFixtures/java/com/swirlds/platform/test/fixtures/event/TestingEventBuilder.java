@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event;
 
-import static com.swirlds.platform.system.events.EventConstants.MINIMUM_ROUND_CREATED;
+import static org.hiero.consensus.model.system.events.EventConstants.MINIMUM_ROUND_CREATED;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -12,11 +12,8 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
-import com.swirlds.platform.system.events.UnsignedEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -26,7 +23,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
+import org.hiero.consensus.model.system.events.UnsignedEvent;
 
 /**
  * A builder for creating event instances for testing purposes.

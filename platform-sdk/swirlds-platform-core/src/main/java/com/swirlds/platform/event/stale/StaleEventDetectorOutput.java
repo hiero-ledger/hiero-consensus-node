@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.stale;
 
-import com.swirlds.platform.event.PlatformEvent;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Describes the different types of output that the stale event detector produces.

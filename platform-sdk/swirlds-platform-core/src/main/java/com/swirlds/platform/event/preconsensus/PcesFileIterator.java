@@ -4,8 +4,6 @@ package com.swirlds.platform.event.preconsensus;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.EOFException;
@@ -13,6 +11,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 
 /**

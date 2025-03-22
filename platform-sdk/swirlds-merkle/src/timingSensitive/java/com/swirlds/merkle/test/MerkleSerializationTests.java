@@ -68,7 +68,9 @@ class MerkleSerializationTests {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero.consensus");
     }
 
     private void resetDirectory() throws IOException {

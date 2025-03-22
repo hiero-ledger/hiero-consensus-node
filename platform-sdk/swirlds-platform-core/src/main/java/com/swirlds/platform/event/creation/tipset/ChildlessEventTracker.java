@@ -2,7 +2,6 @@
 package com.swirlds.platform.event.creation.tipset;
 
 import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
 
 /**
  * Keeps track of events created that have no children. These events are candidates to be used as parents when creating

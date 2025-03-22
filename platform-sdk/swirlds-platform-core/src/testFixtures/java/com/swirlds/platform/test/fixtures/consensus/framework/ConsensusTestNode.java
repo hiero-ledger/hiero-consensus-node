@@ -5,13 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
 
 /** A type which is responsible for managing a node in a consensus test */

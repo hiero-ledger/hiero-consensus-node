@@ -43,7 +43,9 @@ class EventStreamRoundIteratorTest {
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds");
+        registry.registerConstructables("org.hiero.consensus");
     }
 
     public static void assertEventsAreEqual(final CesEvent expected, final CesEvent actual) {

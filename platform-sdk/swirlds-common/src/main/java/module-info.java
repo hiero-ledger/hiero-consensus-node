@@ -50,7 +50,6 @@ module com.swirlds.common {
     exports com.swirlds.common.threading.framework;
     exports com.swirlds.common.threading.framework.config;
     exports com.swirlds.common.threading.futures;
-    exports com.swirlds.common.threading.interrupt;
     exports com.swirlds.common.threading.locks;
     exports com.swirlds.common.threading.locks.locked;
     exports com.swirlds.common.threading.manager;

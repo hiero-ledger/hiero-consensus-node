@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event;
+package org.hiero.consensus.model.event;
 
-import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndLogIfInterrupted;
+import static org.hiero.consensus.model.consensus.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
+import static org.hiero.consensus.model.threading.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -9,11 +10,6 @@ import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.consensus.ConsensusConstants;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
-import com.swirlds.platform.system.events.EventMetadata;
-import com.swirlds.platform.system.events.UnsignedEvent;
-import com.swirlds.platform.util.iterator.TypedIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -21,13 +17,18 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import org.hiero.consensus.model.consensus.ConsensusConstants;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.crypto.Hashable;
 import org.hiero.consensus.model.platform.NodeId;
 import org.hiero.consensus.model.system.events.ConsensusEvent;
+import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
+import org.hiero.consensus.model.system.events.EventMetadata;
+import org.hiero.consensus.model.system.events.UnsignedEvent;
 import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.system.transaction.Transaction;
 import org.hiero.consensus.model.system.transaction.TransactionWrapper;
+import org.hiero.consensus.model.utility.TypedIterator;
 
 /**
  * A class used to hold information about an event throughout its lifecycle.
@@ -259,7 +260,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
 
     /**
      * @return the consensus order for this event, this will be
-     * {@link com.swirlds.platform.consensus.ConsensusConstants#NO_CONSENSUS_ORDER} if the event has not reached
+     * {@link ConsensusConstants#NO_CONSENSUS_ORDER} if the event has not reached
      * consensus
      */
     public long getConsensusOrder() {
@@ -291,12 +292,28 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         }
 
         for (int i = 0; i < metadata.getTransactions().size(); i++) {
-            metadata.getTransactions().get(i).setConsensusTimestamp(EventUtils.getTransactionTime(this, i));
+            metadata.getTransactions().get(i).setConsensusTimestamp(getTransactionTime(i));
         }
     }
 
     public List<TransactionWrapper> getTransactions() {
         return metadata.getTransactions();
+    }
+
+    /**
+     * Returns the timestamp of the transaction with given index in this event
+     *
+     * @param transactionIndex index of the transaction in this event
+     * @return timestamp of the given index transaction
+     */
+    public @NonNull Instant getTransactionTime(final int transactionIndex) {
+        if (consensusTimestamp == null) {
+            throw new IllegalArgumentException("Event is not a consensus event");
+        }
+        if (transactionIndex >= getTransactionCount()) {
+            throw new IllegalArgumentException("Event does not have a transaction with index: " + transactionIndex);
+        }
+        return consensusTimestamp.plusNanos(transactionIndex * MIN_TRANS_TIMESTAMP_INCR_NANOS);
     }
 
     /**

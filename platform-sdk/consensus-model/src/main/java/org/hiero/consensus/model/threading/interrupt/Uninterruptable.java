@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.interrupt;
+package org.hiero.consensus.model.threading.interrupt;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;

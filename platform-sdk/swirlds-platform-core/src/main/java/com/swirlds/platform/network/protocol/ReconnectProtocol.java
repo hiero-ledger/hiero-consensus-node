@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.protocol;
 
-import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_UNDEFINED;
+import static org.hiero.consensus.model.consensus.ConsensusConstants.ROUND_UNDEFINED;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;

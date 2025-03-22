@@ -3,11 +3,11 @@ package com.swirlds.platform.event.preconsensus;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.platform.NodeId;
 
 public class DefaultInlinePcesWriter implements InlinePcesWriter {

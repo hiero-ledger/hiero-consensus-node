@@ -55,7 +55,9 @@ public class MerkleSynchronizationTests {
     @BeforeAll
     public static void startup() throws ConstructableRegistryException, FileNotFoundException {
         loadLog4jContext();
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero.consensus");
     }
 
     /**

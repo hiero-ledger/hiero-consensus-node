@@ -2,9 +2,9 @@
 package com.swirlds.common.notification;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTimeout;
-import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.consensus.model.threading.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

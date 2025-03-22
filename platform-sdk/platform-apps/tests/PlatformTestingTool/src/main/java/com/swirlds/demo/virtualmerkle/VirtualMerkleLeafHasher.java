@@ -140,6 +140,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
             registry.registerConstructables("com.swirlds.merkledb");
             registry.registerConstructables("com.swirlds.demo.virtualmerkle");
             registry.registerConstructables("com.swirlds.common.crypto");
+            registry.registerConstructables("org.hiero.consensus.model.crypto");
         } catch (final ConstructableRegistryException e) {
             e.printStackTrace();
             return;

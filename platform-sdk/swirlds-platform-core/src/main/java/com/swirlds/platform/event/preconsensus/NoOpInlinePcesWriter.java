@@ -2,8 +2,8 @@
 package com.swirlds.platform.event.preconsensus;
 
 import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * A no-op implementation of {@link InlinePcesWriter} that does nothing, just returns the event it receives.

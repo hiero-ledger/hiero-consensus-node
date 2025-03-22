@@ -6,9 +6,9 @@ import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.system.transaction.Transaction;
 
 /**

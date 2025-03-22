@@ -3,10 +3,10 @@ package com.swirlds.platform.event.deduplication;
 
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.wiring.NoInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Deduplicates events.

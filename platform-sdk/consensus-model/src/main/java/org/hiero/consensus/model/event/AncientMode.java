@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event;
+package org.hiero.consensus.model.event;
 
-import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_FIRST;
-import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION;
-
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.eventhandling.EventConfig;
-import edu.umd.cs.findbugs.annotations.NonNull;
+import static org.hiero.consensus.model.consensus.ConsensusConstants.ROUND_FIRST;
+import static org.hiero.consensus.model.system.events.EventConstants.FIRST_GENERATION;
 
 /**
  * The strategy used to determine if an event is ancient. There are currently two types: one bound by generations and
@@ -23,19 +19,6 @@ public enum AncientMode {
      * The ancient threshold is defined by birth rounds.
      */
     BIRTH_ROUND_THRESHOLD;
-
-    /**
-     * Get the currently configured ancient mode
-     *
-     * @param platformContext the platform context
-     * @return the currently configured ancient mode
-     */
-    public static AncientMode getAncientMode(@NonNull final PlatformContext platformContext) {
-        return platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
-    }
 
     /**
      * Depending on the ancient mode, select the appropriate indicator.

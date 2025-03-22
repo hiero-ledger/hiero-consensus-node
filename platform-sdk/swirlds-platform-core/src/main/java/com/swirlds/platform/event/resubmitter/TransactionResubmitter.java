@@ -4,9 +4,9 @@ package com.swirlds.platform.event.resubmitter;
 import com.hedera.hapi.platform.event.EventTransaction;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * A simple utility responsible for resubmitting stale transactions.

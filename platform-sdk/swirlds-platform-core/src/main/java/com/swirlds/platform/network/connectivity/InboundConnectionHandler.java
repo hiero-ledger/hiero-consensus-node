@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.threading.interrupt.InterruptableConsumer;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
@@ -27,6 +26,7 @@ import javax.net.ssl.SSLSocket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.threading.interrupt.InterruptableConsumer;
 
 /**
  * Accept inbound connections and executes the platform handshake. This class is thread-safe

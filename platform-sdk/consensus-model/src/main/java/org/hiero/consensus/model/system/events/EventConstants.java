@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system.events;
+package org.hiero.consensus.model.system.events;
 
 import org.hiero.consensus.model.platform.NodeId;
 
