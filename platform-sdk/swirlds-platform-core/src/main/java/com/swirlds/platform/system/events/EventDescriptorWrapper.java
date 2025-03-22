@@ -2,10 +2,10 @@
 package com.swirlds.platform.system.events;
 
 import com.hedera.hapi.platform.event.EventDescriptor;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.event.AncientMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.platform.NodeId;
 
 /**

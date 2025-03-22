@@ -4,7 +4,6 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.MerkleNode;
@@ -32,6 +31,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 
 /**

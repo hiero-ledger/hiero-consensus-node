@@ -3,8 +3,6 @@ package com.swirlds.common.test.fixtures.stream;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.RunningHash;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
 import com.swirlds.common.stream.internal.SingleStreamIterator;
 import java.io.IOException;
@@ -12,6 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.RunningHash;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**

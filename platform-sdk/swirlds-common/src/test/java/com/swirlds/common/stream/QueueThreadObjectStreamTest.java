@@ -9,8 +9,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
@@ -21,6 +19,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Iterator;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.SelfSerializable;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;

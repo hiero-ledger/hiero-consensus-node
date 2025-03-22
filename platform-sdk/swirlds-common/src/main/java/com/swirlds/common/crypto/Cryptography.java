@@ -3,6 +3,10 @@ package com.swirlds.common.crypto;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.consensus.model.crypto.SerializableHashable;
 import org.hiero.consensus.model.io.SelfSerializable;
 
 public interface Cryptography {

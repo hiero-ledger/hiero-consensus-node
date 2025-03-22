@@ -26,8 +26,6 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.swirlds.common.constructable.ConstructableClass;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
@@ -91,6 +89,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 

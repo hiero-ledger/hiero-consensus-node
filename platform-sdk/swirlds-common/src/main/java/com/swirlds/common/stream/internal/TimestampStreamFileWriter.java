@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream.internal;
 
-import static com.swirlds.common.crypto.DigestType.SHA_384;
 import static com.swirlds.common.crypto.SignatureType.RSA;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.generateSigFilePath;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.generateStreamFileNameFromInstant;
@@ -11,12 +10,10 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.FREEZE;
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM_FILE;
+import static org.hiero.consensus.model.crypto.DigestType.SHA_384;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.crypto.RunningHash;
 import com.swirlds.common.crypto.RunningHashable;
-import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
@@ -35,6 +32,9 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.RunningHash;
+import org.hiero.consensus.model.crypto.SerializableHashable;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**

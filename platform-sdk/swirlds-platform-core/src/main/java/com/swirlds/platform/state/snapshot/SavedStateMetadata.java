@@ -20,8 +20,8 @@ import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.TOTAL_
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.WALL_CLOCK_TIME;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.formatting.TextTable;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.platform.NodeId;
 
 /**
@@ -169,11 +170,11 @@ public record SavedStateMetadata(
         return new SavedStateMetadata(
                 signedState.getRound(),
                 state.getHash(),
-                state.getHash().toMnemonic(),
+                Mnemonics.generateMnemonic(state.getHash()),
                 platformStateFacade.consensusSnapshotOf(state).nextConsensusNumber(),
                 signedState.getConsensusTimestamp(),
                 platformStateFacade.legacyRunningEventHashOf(state),
-                platformStateFacade.legacyRunningEventHashOf(state).toMnemonic(),
+                Mnemonics.generateMnemonic(platformStateFacade.legacyRunningEventHashOf(state)),
                 platformStateFacade.ancientThresholdOf(state),
                 convertToString(platformStateFacade.creationSoftwareVersionOf(state)),
                 now,

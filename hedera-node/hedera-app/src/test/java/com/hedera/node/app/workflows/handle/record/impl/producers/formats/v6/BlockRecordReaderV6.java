@@ -11,8 +11,6 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
@@ -26,6 +24,8 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.zip.GZIPInputStream;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**

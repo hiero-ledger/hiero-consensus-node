@@ -20,7 +20,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.HashingOutputStream;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
@@ -41,6 +40,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.zip.GZIPInputStream;
+import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 @SuppressWarnings({"DataFlowIssue", "removal"})

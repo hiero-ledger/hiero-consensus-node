@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.crypto;
+package org.hiero.consensus.model.crypto;
 
-import static com.swirlds.common.utility.CommonUtils.hex;
-import static com.swirlds.common.utility.Mnemonics.generateMnemonic;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.exceptions.BadIOException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Objects;
+import org.hiero.consensus.model.internal.CommonUtils;
 import org.hiero.consensus.model.io.SerializableWithKnownLength;
+import org.hiero.consensus.model.io.exceptions.BadIOException;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
@@ -250,16 +249,7 @@ public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Seri
      * 		the number of characters to include in the short string
      */
     public @NonNull String toHex(final int length) {
-        return (bytes == null) ? "null" : hex(bytes, length);
-    }
-
-    /**
-     * Get a four word mnemonic for this hash. Helpful in situations where a human needs to read a hash.
-     *
-     * @return a mnemonic for this hash
-     */
-    public @NonNull String toMnemonic() {
-        return generateMnemonic(copyToByteArray(), 4);
+        return (bytes == null) ? "null" : CommonUtils.hex(bytes, length);
     }
 
     /**

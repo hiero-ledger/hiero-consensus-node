@@ -2,13 +2,13 @@
 package com.swirlds.common.crypto.engine;
 
 import com.swirlds.common.crypto.CryptographyException;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.HashingOutputStream;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.logging.legacy.LogMarker;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.io.SelfSerializable;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 

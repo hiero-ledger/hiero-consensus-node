@@ -17,8 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.exceptions.InvalidVersionException;
 import com.swirlds.common.io.streams.DebuggableMerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
@@ -48,6 +46,8 @@ import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

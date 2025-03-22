@@ -3,9 +3,7 @@ package com.swirlds.common.crypto.engine;
 
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyException;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Message;
-import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.crypto.VerificationStatus;
@@ -16,6 +14,8 @@ import java.security.Security;
 import java.util.List;
 import java.util.Objects;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.SerializableHashable;
 import org.hiero.consensus.model.io.SelfSerializable;
 
 public class CryptoEngine implements Cryptography {

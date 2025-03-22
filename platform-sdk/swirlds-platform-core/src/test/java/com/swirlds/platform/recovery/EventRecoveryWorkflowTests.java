@@ -18,8 +18,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.RunningHash;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig;
@@ -38,6 +36,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.RunningHash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

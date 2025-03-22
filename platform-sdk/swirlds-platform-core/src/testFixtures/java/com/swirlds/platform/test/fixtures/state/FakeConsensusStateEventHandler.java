@@ -14,7 +14,6 @@ import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
@@ -56,6 +55,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.crypto.DigestType;
 
 public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler<MerkleNodeState> {
     FAKE_CONSENSUS_STATE_EVENT_HANDLER;

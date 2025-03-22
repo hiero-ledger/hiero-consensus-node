@@ -11,7 +11,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.logging.legacy.LogMarker;
@@ -50,6 +49,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.platform.NodeId;
 
 /**

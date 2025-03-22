@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.iss.internal;
 
-import com.swirlds.common.crypto.Hash;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.platform.NodeId;
 
 /**

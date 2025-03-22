@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -50,6 +49,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.DisplayName;

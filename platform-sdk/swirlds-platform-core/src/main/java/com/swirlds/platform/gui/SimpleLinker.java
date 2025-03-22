@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.event.PlatformEvent;
@@ -17,6 +16,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Similar to the {@link InOrderLinker} but simplified and streamlined. Also does unlinking and supports queries against

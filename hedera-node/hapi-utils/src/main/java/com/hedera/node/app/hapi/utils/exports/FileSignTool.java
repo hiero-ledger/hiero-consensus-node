@@ -17,7 +17,6 @@ import com.hedera.services.stream.proto.SignatureObject;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.HashingOutputStream;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
@@ -55,6 +54,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**

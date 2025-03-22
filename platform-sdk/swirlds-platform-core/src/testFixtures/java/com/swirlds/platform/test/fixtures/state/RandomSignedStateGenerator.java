@@ -17,7 +17,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.RandomUtils;
@@ -47,6 +46,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.platform.NodeId;
 
 /**

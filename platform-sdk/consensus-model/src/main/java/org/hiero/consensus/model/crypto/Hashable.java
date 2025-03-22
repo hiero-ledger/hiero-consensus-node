@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.crypto;
+package org.hiero.consensus.model.crypto;
 
 import edu.umd.cs.findbugs.annotations.Nullable;
 

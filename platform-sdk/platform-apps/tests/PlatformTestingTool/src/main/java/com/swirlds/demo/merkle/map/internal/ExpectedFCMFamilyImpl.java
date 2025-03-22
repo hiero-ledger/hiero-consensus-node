@@ -14,7 +14,6 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Exp
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Rebuild;
 
 import com.google.protobuf.InvalidProtocolBufferException;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.set.RandomAccessHashSet;
 import com.swirlds.demo.merkle.map.FCMConfig;
@@ -51,6 +50,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Implementation of {#link ExpectedFCMFamily} that keeps track of keys available in either of the FCMs from

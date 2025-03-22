@@ -10,10 +10,8 @@ import static java.util.Objects.requireNonNull;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.constructable.ConstructableClass;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.exceptions.PlatformException;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.futures.StandardFuture;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualValue;
@@ -38,9 +36,11 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.SelfSerializable;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.threading.futures.StandardFuture;
 
 /**
  * A cache for virtual merkel trees.

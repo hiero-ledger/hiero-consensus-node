@@ -14,7 +14,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.io.exceptions.BadIOException;
 import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -24,6 +23,7 @@ import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.io.exceptions.BadIOException;
 import org.hiero.consensus.model.platform.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;

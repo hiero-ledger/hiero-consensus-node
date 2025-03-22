@@ -12,7 +12,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
@@ -27,6 +26,7 @@ import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusActio
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.util.List;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

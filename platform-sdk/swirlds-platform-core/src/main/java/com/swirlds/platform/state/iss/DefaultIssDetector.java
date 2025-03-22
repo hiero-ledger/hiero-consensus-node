@@ -11,7 +11,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.payload.IssPayload;
 import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.platform.NodeId;
 
 /**
@@ -537,7 +538,12 @@ public class DefaultIssDetector implements IssDetector {
 
             logger.fatal(
                     EXCEPTION.getMarker(),
-                    new IssPayload(sb.toString(), round, selfHash.toMnemonic(), consensusHash.toMnemonic(), false));
+                    new IssPayload(
+                            sb.toString(),
+                            round,
+                            Mnemonics.generateMnemonic(selfHash),
+                            Mnemonics.generateMnemonic(consensusHash),
+                            false));
         }
     }
 
@@ -563,7 +569,9 @@ public class DefaultIssDetector implements IssDetector {
             hashFinder.writePartitionData(sb);
             writeSkippedLogCount(sb, skipCount);
 
-            logger.fatal(EXCEPTION.getMarker(), new IssPayload(sb.toString(), round, selfHash.toMnemonic(), "", true));
+            logger.fatal(
+                    EXCEPTION.getMarker(),
+                    new IssPayload(sb.toString(), round, Mnemonics.generateMnemonic(selfHash), "", true));
         }
     }
 

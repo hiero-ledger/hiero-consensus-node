@@ -4,7 +4,6 @@ package com.swirlds.platform.network;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
 
-import com.swirlds.common.io.exceptions.BadIOException;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
@@ -15,6 +14,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.io.exceptions.BadIOException;
 import org.hiero.consensus.model.platform.NodeId;
 
 /**

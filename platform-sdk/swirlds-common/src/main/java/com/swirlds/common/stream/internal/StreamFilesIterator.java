@@ -3,7 +3,6 @@ package com.swirlds.common.stream.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.stream.LinkedObjectStreamUtilities;
 import com.swirlds.common.stream.StreamType;
 import com.swirlds.logging.legacy.LogMarker;
@@ -15,6 +14,7 @@ import java.util.Iterator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.SelfSerializable;
 
 /**

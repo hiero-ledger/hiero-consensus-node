@@ -5,8 +5,6 @@ import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashingOutputStream;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.system.events.UnsignedEvent;
@@ -15,6 +13,8 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 
 /**

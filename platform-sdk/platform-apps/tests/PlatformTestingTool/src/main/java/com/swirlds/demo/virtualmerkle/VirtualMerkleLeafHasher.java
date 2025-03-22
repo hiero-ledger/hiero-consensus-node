@@ -11,7 +11,6 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -39,6 +38,7 @@ import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 // Note: This class is intended to be used with a human in the loop who is watching standard in and standard err.

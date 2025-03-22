@@ -4,7 +4,6 @@ package com.swirlds.platform.gossip.sync;
 import static com.swirlds.common.io.extendable.ExtendableOutputStream.extendOutputStream;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.platform.network.SocketConfig;
@@ -17,6 +16,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
+import org.hiero.consensus.model.crypto.Hash;
 
 public class SyncOutputStream extends SerializableDataOutputStreamImpl {
     private final CountingStreamExtension syncByteCounter;

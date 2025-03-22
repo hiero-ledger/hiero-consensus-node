@@ -5,14 +5,14 @@ import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.AbstractHashable;
-import com.swirlds.common.crypto.Hash;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.AbstractHashable;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.platform.NodeId;
 import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 

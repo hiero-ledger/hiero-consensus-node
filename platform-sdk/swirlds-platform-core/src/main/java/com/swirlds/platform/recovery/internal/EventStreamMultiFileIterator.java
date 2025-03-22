@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery.internal;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.platform.system.events.CesEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -12,6 +11,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * <p>

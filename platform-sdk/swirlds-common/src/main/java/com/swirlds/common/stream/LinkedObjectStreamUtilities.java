@@ -6,8 +6,6 @@ import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
 import static com.swirlds.common.stream.internal.TimestampStreamFileWriter.OBJECT_STREAM_VERSION;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashingOutputStream;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
@@ -25,6 +23,8 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Iterator;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.SelfSerializable;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;

@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common;
-
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Hashable;
+package org.hiero.consensus.model.crypto;
 
 /**
  * Boilerplate implementation for the Hashable interface.

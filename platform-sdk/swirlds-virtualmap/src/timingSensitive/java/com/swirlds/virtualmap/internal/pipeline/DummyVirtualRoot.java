@@ -4,7 +4,6 @@ package com.swirlds.virtualmap.internal.pipeline;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.metrics.api.Metrics;
@@ -17,6 +16,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 

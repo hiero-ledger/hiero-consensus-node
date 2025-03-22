@@ -2,7 +2,6 @@
 package com.swirlds.virtual.merkle.reconnect;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
@@ -15,6 +14,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 public final class BreakableDataSource implements VirtualDataSource {

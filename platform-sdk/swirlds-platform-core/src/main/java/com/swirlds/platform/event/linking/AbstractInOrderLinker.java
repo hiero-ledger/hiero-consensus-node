@@ -4,7 +4,6 @@ package com.swirlds.platform.event.linking;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.event.AncientMode;
@@ -25,6 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Links events to their parents. Expects events to be provided in topological order.

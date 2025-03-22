@@ -2,10 +2,10 @@
 package com.swirlds.common.merkle.iterators.internal;
 
 import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import java.io.IOException;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
