@@ -70,7 +70,7 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;

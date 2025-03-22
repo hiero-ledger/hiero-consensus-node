@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system.transaction;
+package org.hiero.consensus.model.system.transaction;
 
 import java.time.Instant;
 

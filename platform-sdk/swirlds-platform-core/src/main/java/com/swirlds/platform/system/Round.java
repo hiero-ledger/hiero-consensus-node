@@ -3,7 +3,7 @@ package com.swirlds.platform.system;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Iterator;

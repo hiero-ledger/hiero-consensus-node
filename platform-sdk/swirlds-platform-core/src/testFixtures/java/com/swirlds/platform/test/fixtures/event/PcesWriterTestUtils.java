@@ -21,7 +21,7 @@ import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
 import com.swirlds.platform.event.preconsensus.PcesUtilities;
-import com.swirlds.platform.system.transaction.TransactionWrapper;
+import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;

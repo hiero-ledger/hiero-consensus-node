@@ -39,7 +39,7 @@ import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.events.Event;
-import com.swirlds.platform.system.transaction.Transaction;
+import org.hiero.consensus.model.system.transaction.Transaction;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;

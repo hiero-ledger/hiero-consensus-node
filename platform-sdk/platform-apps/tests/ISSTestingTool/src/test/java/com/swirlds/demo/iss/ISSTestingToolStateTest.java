@@ -16,9 +16,9 @@ import com.swirlds.platform.components.transaction.system.ScopedSystemTransactio
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
-import com.swirlds.platform.system.transaction.Transaction;
-import com.swirlds.platform.system.transaction.TransactionWrapper;
+import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.system.transaction.Transaction;
+import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import java.time.Instant;
 import java.util.ArrayList;

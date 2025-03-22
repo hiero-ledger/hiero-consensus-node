@@ -8,7 +8,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.AbstractHashable;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.system.transaction.TransactionWrapper;
+import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;

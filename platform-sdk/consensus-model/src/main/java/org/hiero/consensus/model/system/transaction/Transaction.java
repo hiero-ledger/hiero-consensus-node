@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system.transaction;
+package org.hiero.consensus.model.system.transaction;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.TransactionSignature;
 import java.util.concurrent.locks.ReadWriteLock;
 
 /**
- * A hashgraph transaction that consists of an array of bytes and a list of immutable {@link TransactionSignature}
- * objects. The list of signatures features controlled mutability with a thread-safe and atomic implementation. The
- * transaction internally uses a {@link ReadWriteLock} to provide atomic reads and writes to the underlying list of
- * signatures.
+ * A hashgraph transaction that consists of an array of bytes and a list of immutable
+ * {@code com.swirlds.common.crypto.TransactionSignature} objects. The list of signatures features controlled mutability
+ * with a thread-safe and atomic implementation. The transaction internally uses a {@link ReadWriteLock} to provide
+ * atomic reads and writes to the underlying list of signatures.
  */
 public sealed interface Transaction permits ConsensusTransaction {
 

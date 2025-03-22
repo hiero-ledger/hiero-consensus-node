@@ -10,7 +10,7 @@ import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashingOutputStream;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.system.events.UnsignedEvent;
-import com.swirlds.platform.system.transaction.TransactionWrapper;
+import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.security.MessageDigest;

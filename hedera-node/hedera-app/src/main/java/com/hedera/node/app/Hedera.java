@@ -139,7 +139,7 @@ import com.swirlds.platform.system.events.Event;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.platform.system.status.PlatformStatus;
-import com.swirlds.platform.system.transaction.Transaction;
+import org.hiero.consensus.model.system.transaction.Transaction;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StartupNetworks;
