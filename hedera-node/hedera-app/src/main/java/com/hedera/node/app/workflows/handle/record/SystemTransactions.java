@@ -5,30 +5,17 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
-import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
-import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.BYTECODE_KEY;
-import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.STORAGE_KEY;
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
-import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_COUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
 import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.independentDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.workflows.handle.HandleOutput.failInvalidStreamItems;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
-import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
+import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -46,7 +33,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -55,14 +41,10 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.records.BlockRecordManager;
-import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
-import com.hedera.node.app.service.consensus.ConsensusService;
-import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
-import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
@@ -106,6 +88,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -188,7 +171,7 @@ public class SystemTransactions {
     /**
      * Sets up genesis state for the system.
      *
-     * @param now the current time
+     * @param now   the current time
      * @param state the state to set up
      */
     public void doGenesisSetup(@NonNull final Instant now, @NonNull final State state) {
@@ -299,7 +282,7 @@ public class SystemTransactions {
                                 .rewardSumHistory(Arrays.asList(rewardSumHistory))
                                 .weight(DEFAULT_GENESIS_WEIGHT)
                                 .build());
-                stack.commitSystemStateChanges();
+                stack.commitFullStack();
             });
             systemContext.dispatchAdmin(b -> b.nodeCreate(NodeCreateTransactionBody.newBuilder()
                     .adminKey(adminKey)
@@ -374,92 +357,45 @@ public class SystemTransactions {
     }
 
     /**
-     * Initialize the entity counts in entityId service from the post-upgrade and genesis state.
-     * This should only be done as part of 0.59.0 post upgrade step.
-     * This code is deprecated and should be removed
-     * after 0.59.0 release.
+     * Dispatches a synthetic node reward crypto transfer for the given active node accounts.
      *
-     * @param dispatch the transaction dispatch
+     * @param state                          The state.
+     * @param now                            The current time.
+     * @param activeNodeIds                  The list of active node ids.
+     * @param rewardAccountBalance           The reward account balance.
+     * @param perNodeReward                  The per node reward.
+     * @param nodeRewardsAccountId           The node rewards account id.
+     * @param firstEligibleNodeAccountNumber The first eligible node account number.
      */
-    @Deprecated
-    public void initializeEntityCounts(@NonNull final Dispatch dispatch) {
-        final var stack = dispatch.stack();
-        final var entityCountsState =
-                stack.getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_KEY);
-        final var builder = EntityCounts.newBuilder();
-
-        final var tokenService = stack.getReadableStates(TokenService.NAME);
-        final var numAccounts = tokenService.get(ACCOUNTS_KEY).size();
-        final var numAliases = tokenService.get(ALIASES_KEY).size();
-        final var numTokens = tokenService.get(TOKENS_KEY).size();
-        final var numTokenRelations = tokenService.get(TOKEN_RELS_KEY).size();
-        final var numNfts = tokenService.get(NFTS_KEY).size();
-        final var numAirdrops = tokenService.get(AIRDROPS_KEY).size();
-        final var numStakingInfos = tokenService.get(STAKING_INFO_KEY).size();
-
-        final var numTopics =
-                stack.getReadableStates(ConsensusService.NAME).get(TOPICS_KEY).size();
-        final var numFiles =
-                stack.getReadableStates(FileServiceImpl.NAME).get(BLOBS_KEY).size();
-        final var numNodes =
-                stack.getReadableStates(AddressBookService.NAME).get(NODES_KEY).size();
-        final var numSchedules = stack.getReadableStates(ScheduleService.NAME)
-                .get(SCHEDULED_COUNTS_KEY)
-                .size();
-
-        final var contractService = stack.getReadableStates(ContractService.NAME);
-        final var numContractBytecodes = contractService.get(BYTECODE_KEY).size();
-        final var numContractStorageSlots = contractService.get(STORAGE_KEY).size();
-
-        log.info(
-                """
-                         Entity size from state:
-                         Accounts: {},\s
-                         Aliases: {},\s
-                         Tokens: {},\s
-                         TokenRelations: {},\s
-                         NFTs: {},\s
-                         Airdrops: {},\s
-                         StakingInfos: {},\s
-                         Topics: {},\s
-                         Files: {},\s
-                         Nodes: {},\s
-                         Schedules: {},\s
-                         ContractBytecodes: {},\s
-                         ContractStorageSlots: {}
-                        \s""",
-                numAccounts,
-                numAliases,
-                numTokens,
-                numTokenRelations,
-                numNfts,
-                numAirdrops,
-                numStakingInfos,
-                numTopics,
-                numFiles,
-                numNodes,
-                numSchedules,
-                numContractBytecodes,
-                numContractStorageSlots);
-
-        final var entityCountsUpdated = builder.numAccounts(numAccounts)
-                .numAliases(numAliases)
-                .numTokens(numTokens)
-                .numTokenRelations(numTokenRelations)
-                .numNfts(numNfts)
-                .numAirdrops(numAirdrops)
-                .numStakingInfos(numStakingInfos)
-                .numTopics(numTopics)
-                .numFiles(numFiles)
-                .numNodes(numNodes)
-                .numSchedules(numSchedules)
-                .numContractBytecodes(numContractBytecodes)
-                .numContractStorageSlots(numContractStorageSlots)
-                .build();
-
-        entityCountsState.put(entityCountsUpdated);
-        log.info("Initialized entity counts for post-upgrade state to {}", entityCountsUpdated);
-        dispatch.stack().commitFullStack();
+    public void dispatchNodeRewards(
+            @NonNull final State state,
+            @NonNull final Instant now,
+            @NonNull final List<Long> activeNodeIds,
+            final long perNodeReward,
+            @NonNull final AccountID nodeRewardsAccountId,
+            final long firstEligibleNodeAccountNumber,
+            final long rewardAccountBalance) {
+        requireNonNull(state);
+        requireNonNull(now);
+        requireNonNull(activeNodeIds);
+        requireNonNull(nodeRewardsAccountId);
+        final var systemContext = newSystemContext(now, state, dispatch -> {});
+        final var activeNodeAccountIds = activeNodeIds.stream()
+                .map(id -> systemContext.networkInfo().nodeInfo(id))
+                .filter(Objects::nonNull)
+                .map(NodeInfo::accountId)
+                .filter(id -> id.accountNumOrThrow() >= firstEligibleNodeAccountNumber)
+                .toList();
+        if (activeNodeAccountIds.isEmpty()) {
+            return;
+        }
+        log.info("Found active node accounts {}", activeNodeAccountIds);
+        final long totalReward = Math.min(rewardAccountBalance, activeNodeAccountIds.size() * perNodeReward);
+        log.info("Reward account balance {}", rewardAccountBalance);
+        final long rewardPerNode = totalReward / activeNodeAccountIds.size();
+        if (rewardPerNode > 0) {
+            dispatchSynthNodeRewards(systemContext, activeNodeAccountIds, nodeRewardsAccountId, rewardPerNode);
+        }
     }
 
     /**
@@ -518,6 +454,7 @@ public class SystemTransactions {
 
     /**
      * Returns the timestamp to use for startup work state change consensus time in the block stream.
+     *
      * @param roundTime the round timestamp
      */
     public Instant startupWorkConsTimeFor(@NonNull final Instant roundTime) {
@@ -545,7 +482,16 @@ public class SystemTransactions {
         return new SystemContext() {
             @Override
             public void dispatchAdmin(@NonNull final Consumer<TransactionBody.Builder> spec) {
-                dispatchCreation(spec, 0);
+                requireNonNull(spec);
+                final var builder = TransactionBody.newBuilder()
+                        .transactionValidDuration(validDuration)
+                        .transactionID(TransactionID.newBuilder()
+                                .accountID(systemAdminId)
+                                .transactionValidStart(asTimestamp(now()))
+                                .nonce(nextDispatchNonce.getAndIncrement())
+                                .build());
+                spec.accept(builder);
+                dispatch(builder.build(), 0);
             }
 
             @Override
@@ -565,6 +511,10 @@ public class SystemTransactions {
             @Override
             public void dispatchCreation(@NonNull final TransactionBody body, final long entityNum) {
                 requireNonNull(body);
+                dispatch(body, entityNum);
+            }
+
+            private void dispatch(final @NonNull TransactionBody body, final long entityNum) {
                 // System dispatches never have child transactions, so one nano is enough to separate them
                 final var now = nextConsTime.getAndUpdate(then -> then.plusNanos(1));
                 if (streamMode == BOTH) {
@@ -615,13 +565,13 @@ public class SystemTransactions {
      * scheduled transaction with a {@link ResponseCodeEnum#FAIL_INVALID} transaction result, and
      * no other side effects.
      *
-     * @param state the state to execute the transaction against
-     * @param now the time to execute the transaction at
-     * @param creatorInfo the node info of the creator of the transaction
-     * @param payerId the payer of the transaction
-     * @param body the transaction to execute
+     * @param state         the state to execute the transaction against
+     * @param now           the time to execute the transaction at
+     * @param creatorInfo   the node info of the creator of the transaction
+     * @param payerId       the payer of the transaction
+     * @param body          the transaction to execute
      * @param nextEntityNum if not zero, the next entity number to use for the transaction
-     * @param onSuccess the action to take after the transaction is successfully dispatched
+     * @param onSuccess     the action to take after the transaction is successfully dispatched
      * @return the stream output from executing the transaction
      */
     private HandleOutput executeSystem(
@@ -634,7 +584,7 @@ public class SystemTransactions {
             @NonNull final Configuration config,
             @NonNull final Consumer<Dispatch> onSuccess) {
         final var parentTxn =
-                parentTxnFactory.createSystemTxn(state, creatorInfo, now, ORDINARY_TRANSACTION, payerId, body);
+                parentTxnFactory.createSystemTxn(state, creatorInfo, now, INTERNAL_TRANSACTION, payerId, body);
         parentTxn.initBaseBuilder(exchangeRateManager.exchangeRates());
         final var dispatch = parentTxnFactory.createDispatch(parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE);
         blockStreamManager.setLastHandleTime(parentTxn.consensusNow());
@@ -664,7 +614,7 @@ public class SystemTransactions {
             if (controlledNum != null) {
                 controlledNum.put(new EntityNumber(
                         config.getConfigData(HederaConfig.class).firstUserEntity() - 1));
-                dispatch.stack().commitSystemStateChanges();
+                dispatch.stack().commitFullStack();
             }
             final var handleOutput =
                     parentTxn.stack().buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates());
@@ -710,7 +660,7 @@ public class SystemTransactions {
                             recordBuilder.status());
                 }
                 controlledNum.put(new EntityNumber(firstUserNum - 1));
-                dispatch.stack().commitSystemStateChanges();
+                dispatch.stack().commitFullStack();
             }
 
             @Override

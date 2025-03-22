@@ -11,6 +11,7 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_KEY;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.concurrent.CompletableFuture.completedFuture;
@@ -40,6 +41,7 @@ import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
@@ -47,6 +49,7 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -130,9 +133,6 @@ class BlockStreamManagerImplTest {
     @Mock
     private CompletableFuture<Bytes> mockSigningFuture;
 
-    @Mock
-    private ConsensusEvent consensusEvent;
-
     private WritableStates writableStates;
 
     @Mock
@@ -151,6 +151,7 @@ class BlockStreamManagerImplTest {
     private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
     private final AtomicReference<PlatformState> stateRef = new AtomicReference<>();
     private final AtomicReference<BlockStreamInfo> infoRef = new AtomicReference<>();
+    private final AtomicReference<NodeRewards> nodeRewardsRef = new AtomicReference<>();
 
     private WritableSingletonStateBase<BlockStreamInfo> blockStreamInfoState;
 
@@ -817,9 +818,19 @@ class BlockStreamManagerImplTest {
                 TEST_PLATFORM_STATE_FACADE);
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
         given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
+        given(state.getReadableStates(TokenService.NAME)).willReturn(readableStates);
+        lenient().when(state.getWritableStates(TokenService.NAME)).thenReturn(writableStates);
         infoRef.set(blockStreamInfo);
         stateRef.set(platformState);
         blockStreamInfoState = new WritableSingletonStateBase<>(BLOCK_STREAM_INFO_KEY, infoRef::get, infoRef::set);
+        nodeRewardsRef.set(NodeRewards.newBuilder().build());
+        given(readableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY))
+                .willReturn(
+                        new WritableSingletonStateBase<>(NODE_REWARDS_KEY, nodeRewardsRef::get, nodeRewardsRef::set));
+        lenient()
+                .when(writableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY))
+                .thenReturn(
+                        new WritableSingletonStateBase<>(NODE_REWARDS_KEY, nodeRewardsRef::get, nodeRewardsRef::set));
     }
 
     private void givenEndOfRoundSetup() {

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.spy;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.Judge;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
@@ -188,15 +189,19 @@ public class RandomSignedStateGenerator {
         }
 
         final ConsensusSnapshot consensusSnapshotInstance;
+        final List<Judge> judges = Stream.generate(() -> new Judge(0L, randomHashBytes(random)))
+                .limit(10)
+                .toList();
         if (consensusSnapshot == null) {
-            consensusSnapshotInstance = new ConsensusSnapshot(
-                    roundInstance,
-                    Stream.generate(() -> randomHashBytes(random)).limit(10).toList(),
-                    IntStream.range(0, roundsNonAncientInstance)
+            consensusSnapshotInstance = ConsensusSnapshot.newBuilder()
+                    .round(roundInstance)
+                    .judges(judges)
+                    .minimumJudgeInfoList(IntStream.range(0, roundsNonAncientInstance)
                             .mapToObj(i -> new MinimumJudgeInfo(roundInstance - i, 0L))
-                            .toList(),
-                    roundInstance,
-                    PbjConverter.toPbjTimestamp(consensusTimestampInstance));
+                            .toList())
+                    .nextConsensusNumber(roundInstance)
+                    .consensusTimestamp(PbjConverter.toPbjTimestamp(consensusTimestampInstance))
+                    .build();
         } else {
             consensusSnapshotInstance = consensusSnapshot;
         }

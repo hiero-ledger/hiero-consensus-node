@@ -19,6 +19,6 @@ public class FirstRootSavepoint extends AbstractSavepoint {
 
     @Override
     void commitBuilders() {
-        flushInOrder(parentSink);
+        flushInOrder(parent);
     }
 }

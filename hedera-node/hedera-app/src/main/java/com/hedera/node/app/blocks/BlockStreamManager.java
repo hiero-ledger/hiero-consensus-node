@@ -24,7 +24,6 @@ import java.time.Instant;
  */
 public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener {
     Bytes ZERO_BLOCK_HASH = Bytes.wrap(new byte[48]);
-
     /**
      * The types of work that may be identified as pending within a block.
      */
@@ -139,4 +138,9 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param timeout the maximum time to wait for block stream shutdown
      */
     void awaitFatalShutdown(@NonNull Duration timeout);
+
+    /**
+     * Resets state associated to node rewards.
+     */
+    void resetNodeRewards();
 }

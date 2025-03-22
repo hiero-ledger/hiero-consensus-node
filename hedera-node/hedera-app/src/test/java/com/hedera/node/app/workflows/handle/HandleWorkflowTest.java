@@ -234,6 +234,7 @@ class HandleWorkflowTest {
                 congestionMetrics,
                 softwareVersionFactory,
                 () -> PlatformStatus.ACTIVE,
+                null,
                 null);
     }
 }
