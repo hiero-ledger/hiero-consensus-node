@@ -2,9 +2,9 @@
 package com.swirlds.platform.system.events;
 
 import com.swirlds.platform.system.ReachedConsensus;
-import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
+import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
 
 /**
  * An event that has reached consensus.

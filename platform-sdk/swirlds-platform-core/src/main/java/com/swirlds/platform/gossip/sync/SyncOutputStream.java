@@ -6,7 +6,7 @@ import static com.swirlds.common.io.extendable.ExtendableOutputStream.extendOutp
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.platform.network.SocketConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
-public class SyncOutputStream extends SerializableDataOutputStream {
+public class SyncOutputStream extends SerializableDataOutputStreamImpl {
     private final CountingStreamExtension syncByteCounter;
     private final CountingStreamExtension connectionByteCounter;
     private final AtomicReference<Instant> requestSent;

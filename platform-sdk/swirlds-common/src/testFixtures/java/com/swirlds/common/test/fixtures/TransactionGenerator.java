@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures;
 
+import java.util.Random;
 import org.hiero.consensus.model.system.transaction.Transaction;
 import org.hiero.consensus.model.system.transaction.TransactionWrapper;
-import java.util.Random;
 
 /**
  * Generates {@link Transaction}s using the provided randomization source.

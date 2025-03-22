@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.simulated;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.test.fixtures.simulated.config.NetworkConfig;
 import com.swirlds.platform.test.fixtures.simulated.config.NodeConfig;
@@ -19,6 +18,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 /**
  * A simple gossip simulation where events are distributed with a delay

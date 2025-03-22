@@ -141,12 +141,12 @@ module com.swirlds.platform.core {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.consensus.gossip;
+    requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.event.creator;
     requires transitive com.fasterxml.jackson.annotation;
     requires transitive com.fasterxml.jackson.databind;
     requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;
-    requires transitive org.hiero.consensus.model;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkle;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.crypto;
 
-import com.swirlds.common.io.SelfSerializable;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 public interface SerializableHashable extends Hashable, SelfSerializable {
     /**

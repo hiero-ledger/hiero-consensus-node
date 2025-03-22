@@ -7,9 +7,9 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.event.PlatformEvent;
-import org.hiero.consensus.model.system.transaction.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
+import org.hiero.consensus.model.system.transaction.Transaction;
 
 /**
  * Collection of metrics related to stale events and transactions

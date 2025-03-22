@@ -4,7 +4,7 @@ package com.swirlds.platform.test.fixtures.event;
 import static java.lang.Integer.max;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.EventImpl;
@@ -37,7 +37,7 @@ public final class EventUtils {
     public static byte[] serializePlatformEvent(@NonNull final PlatformEvent event) {
         final ByteArrayOutputStream stream = new ByteArrayOutputStream();
         try {
-            new SerializableDataOutputStream(stream).writePbjRecord(event.getGossipEvent(), GossipEvent.PROTOBUF);
+            new SerializableDataOutputStreamImpl(stream).writePbjRecord(event.getGossipEvent(), GossipEvent.PROTOBUF);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }

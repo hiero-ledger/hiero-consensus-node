@@ -8,13 +8,13 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.AbstractHashable;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.platform.NodeId;
-import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 
 /**
  * Metadata for an event that can be derived from the event itself

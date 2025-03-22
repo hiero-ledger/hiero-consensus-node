@@ -6,8 +6,8 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.platform.system.SoftwareVersion;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -106,12 +106,12 @@ class ServicesSoftwareVersionTest {
     @Test
     void serdeWorks() throws IOException {
         final var baos = new ByteArrayOutputStream();
-        final var out = new SerializableDataOutputStream(baos);
+        final var out = new SerializableDataOutputStreamImpl(baos);
         final var subject = new ServicesSoftwareVersion(MISC);
         subject.serialize(out);
         out.flush();
         final var encoded = baos.toByteArray();
-        final var in = new SerializableDataInputStream(new ByteArrayInputStream(encoded));
+        final var in = new SerializableDataInputStreamImpl(new ByteArrayInputStream(encoded));
         final var recovered = new ServicesSoftwareVersion();
         recovered.deserialize(in, 1);
         assertThat(recovered.getPbjSemanticVersion()).isEqualTo(subject.getPbjSemanticVersion());

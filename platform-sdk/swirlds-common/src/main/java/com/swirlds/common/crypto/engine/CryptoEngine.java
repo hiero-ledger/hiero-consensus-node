@@ -9,7 +9,6 @@ import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.common.crypto.VerificationStatus;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.NoSuchAlgorithmException;
@@ -17,6 +16,7 @@ import java.security.Security;
 import java.util.List;
 import java.util.Objects;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 public class CryptoEngine implements Cryptography {
 

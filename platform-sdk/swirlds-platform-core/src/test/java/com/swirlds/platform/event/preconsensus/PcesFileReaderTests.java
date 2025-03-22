@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -141,7 +142,7 @@ class PcesFileReaderTests {
         if (!Files.exists(parentDir)) {
             Files.createDirectories(parentDir);
         }
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(
+        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(
                 new FileOutputStream(descriptor.getPath().toFile()));
         out.writeInt(PcesFileVersion.currentVersionNumber());
         out.writeNormalisedString("foo bar baz");

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io;
+package org.hiero.consensus.model.io;
 
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 @FunctionalInterface
 public interface FunctionalSerialize {

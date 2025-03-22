@@ -18,10 +18,10 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.stats.AverageStat;
-import org.hiero.consensus.model.system.transaction.Transaction;
 import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
 import java.util.Objects;
+import org.hiero.consensus.model.system.transaction.Transaction;
 
 /**
  * Maintains all metrics which need to be updated on a new event

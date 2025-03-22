@@ -10,7 +10,6 @@ import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.system.events.ConsensusEvent;
-import org.hiero.consensus.model.system.transaction.Transaction;
 import com.swirlds.platform.util.iterator.TypedIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -20,6 +19,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.hiero.consensus.model.system.transaction.Transaction;
 
 /** A consensus round with events and all other relevant data. */
 public class ConsensusRound implements Round {

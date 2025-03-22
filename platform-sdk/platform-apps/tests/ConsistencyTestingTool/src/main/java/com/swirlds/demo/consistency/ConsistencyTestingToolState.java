@@ -13,8 +13,6 @@ import com.swirlds.platform.components.transaction.system.ScopedSystemTransactio
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.events.Event;
-import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
-import org.hiero.consensus.model.system.transaction.Transaction;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,6 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.system.transaction.Transaction;
 
 /**
  * State for the Consistency Testing Tool

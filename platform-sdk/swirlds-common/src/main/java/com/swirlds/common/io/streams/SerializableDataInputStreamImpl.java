@@ -12,8 +12,6 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.base.function.CheckedFunction;
 import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.io.SelfSerializable;
-import org.hiero.consensus.model.io.SerializableDet;
 import com.swirlds.common.io.exceptions.ClassNotFoundException;
 import com.swirlds.common.io.exceptions.InvalidVersionException;
 import com.swirlds.common.utility.ValueReference;
@@ -32,12 +30,14 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.SerializableDet;
 
 /**
  * A drop-in replacement for {@link DataInputStream}, which handles SerializableDet classes specially. It is designed
  * for use with the SerializableDet interface, and its use is described there.
  */
-public class SerializableDataInputStream extends AugmentedDataInputStream {
+public class SerializableDataInputStreamImpl extends AugmentedDataInputStream {
 
     private static final Set<Integer> SUPPORTED_PROTOCOL_VERSIONS = Set.of(SERIALIZATION_PROTOCOL_VERSION);
 
@@ -49,13 +49,13 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
      *
      * @param in the specified input stream
      */
-    public SerializableDataInputStream(final InputStream in) {
+    public SerializableDataInputStreamImpl(final InputStream in) {
         super(in);
         readableSequentialData = new ReadableStreamingData(in);
     }
 
     /**
-     * Reads the protocol version written by {@link SerializableDataOutputStream#writeProtocolVersion()}
+     * Reads the protocol version written by {@link SerializableDataOutputStreamImpl#writeProtocolVersion()}
      * From this point on, it will use this version number to deserialize.
      *
      * @throws IOException thrown if any IO problems occur
@@ -68,49 +68,18 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
         return protocolVersion;
     }
 
-    /**
-     * Reads a {@link SerializableDet} from a stream and returns it. The instance will be created using the
-     * {@link ConstructableRegistry}. The instance must have previously been written using
-     * {@link SerializableDataOutputStream#writeSerializable(SelfSerializable, boolean)} (SerializableDet, boolean)}
-     * with {@code writeClassId} set to true, otherwise we cannot know what the class written is.
-     *
-     * @param permissibleClassIds a set of class IDs that are allowed to be read, will throw an IOException if asked to
-     *                            deserialize a class not in this set, all class IDs are permitted if null
-     * @param <T>                 the implementation of {@link SelfSerializable} used
-     * @return An instance of the class previously written
-     * @throws IOException thrown if any IO problems occur
-     */
+    @Override
     public <T extends SelfSerializable> T readSerializable(@Nullable final Set<Long> permissibleClassIds)
             throws IOException {
-        return readSerializable(true, SerializableDataInputStream::registryConstructor, permissibleClassIds);
+        return readSerializable(true, SerializableDataInputStreamImpl::registryConstructor, permissibleClassIds);
     }
 
-    /**
-     * Reads a {@link SerializableDet} from a stream and returns it. The instance will be created using the
-     * {@link ConstructableRegistry}. The instance must have previously been written using
-     * {@link SerializableDataOutputStream#writeSerializable(SelfSerializable, boolean)} (SerializableDet, boolean)}
-     * with {@code writeClassId} set to true, otherwise we cannot know what the class written is.
-     *
-     * @param <T> the implementation of {@link SelfSerializable} used
-     * @return An instance of the class previously written
-     * @throws IOException thrown if any IO problems occur
-     */
+    @Override
     public <T extends SelfSerializable> T readSerializable() throws IOException {
         return readSerializable(null);
     }
 
-    /**
-     * Uses the provided {@code serializable} to read its data from the stream.
-     *
-     * @param serializableConstructor a constructor for the instance written in the stream
-     * @param readClassId             set to true if the class ID was written to the stream
-     * @param permissibleClassIds     a set of class IDs that are allowed to be read, will throw an IOException if asked
-     *                                to deserialize a class not in this set, all class IDs are permitted if null.
-     *                                Ignored if readClassId is false.
-     * @param <T>                     the implementation of {@link SelfSerializable} used
-     * @return the same object that was passed in, returned for convenience
-     * @throws IOException thrown if any IO problems occur
-     */
+    @Override
     public <T extends SelfSerializable> T readSerializable(
             final boolean readClassId,
             @NonNull final Supplier<T> serializableConstructor,
@@ -121,15 +90,7 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
         return readSerializable(readClassId, id -> serializableConstructor.get(), permissibleClassIds);
     }
 
-    /**
-     * Uses the provided {@code serializable} to read its data from the stream.
-     *
-     * @param serializableConstructor a constructor for the instance written in the stream
-     * @param readClassId             set to true if the class ID was written to the stream
-     * @param <T>                     the implementation of {@link SelfSerializable} used
-     * @return the same object that was passed in, returned for convenience
-     * @throws IOException thrown if any IO problems occur
-     */
+    @Override
     public <T extends SelfSerializable> T readSerializable(
             final boolean readClassId, @NonNull final Supplier<T> serializableConstructor) throws IOException {
         return readSerializable(readClassId, serializableConstructor, null);
@@ -200,15 +161,7 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
         return serializable;
     }
 
-    /**
-     * Read a sequence of serializable objects and pass them to a callback method.
-     *
-     * @param maxSize             the maximum allowed size
-     * @param callback            this method is passed each object in the sequence
-     * @param permissibleClassIds a set of class IDs that are allowed to be read, will throw an IOException if asked to
-     *                            deserialize a class not in this set, all class IDs are permitted if null
-     * @param <T>                 the type of the objects in the sequence
-     */
+    @Override
     public <T extends SelfSerializable> void readSerializableIterableWithSize(
             final int maxSize, @NonNull final Consumer<T> callback, @Nullable final Set<Long> permissibleClassIds)
             throws IOException {
@@ -216,34 +169,17 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
         final int size = readInt();
         checkLengthLimit(size, maxSize);
         readSerializableIterableWithSizeInternal(
-                size, true, SerializableDataInputStream::registryConstructor, callback, permissibleClassIds);
+                size, true, SerializableDataInputStreamImpl::registryConstructor, callback, permissibleClassIds);
     }
 
-    /**
-     * Read a sequence of serializable objects and pass them to a callback method.
-     *
-     * @param maxSize  the maximum allowed size
-     * @param callback this method is passed each object in the sequence
-     * @param <T>      the type of the objects in the sequence
-     */
+    @Override
     public <T extends SelfSerializable> void readSerializableIterableWithSize(
             final int maxSize, @NonNull final Consumer<T> callback) throws IOException {
 
         readSerializableIterableWithSize(maxSize, callback, null);
     }
 
-    /**
-     * Read a sequence of serializable objects and pass them to a callback method.
-     *
-     * @param maxSize                 the maximum number of objects to read
-     * @param readClassId             if true then the class ID needs to be read
-     * @param serializableConstructor a method that takes a class ID and provides a constructor
-     * @param callback                the callback method where each object is passed when it is deserialized
-     * @param permissibleClassIds     a set of class IDs that are allowed to be read, will throw an IOException if asked
-     *                                to deserialize a class not in this set, all class IDs are permitted if null.
-     *                                Ignored if readClassId is false.
-     * @param <T>                     the type of the objects being deserialized
-     */
+    @Override
     public <T extends SelfSerializable> void readSerializableIterableWithSize(
             final int maxSize,
             final boolean readClassId,
@@ -257,15 +193,7 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
                 size, readClassId, id -> serializableConstructor.get(), callback, permissibleClassIds);
     }
 
-    /**
-     * Read a sequence of serializable objects and pass them to a callback method.
-     *
-     * @param maxSize                 the maximum number of objects to read
-     * @param readClassId             if true then the class ID needs to be read
-     * @param serializableConstructor a method that takes a class ID and provides a constructor
-     * @param callback                the callback method where each object is passed when it is deserialized
-     * @param <T>                     the type of the objects being deserialized
-     */
+    @Override
     public <T extends SelfSerializable> void readSerializableIterableWithSize(
             final int maxSize,
             final boolean readClassId,
@@ -369,30 +297,14 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
         return serializable;
     }
 
-    /**
-     * Read a list of serializable objects from the stream
-     *
-     * @param maxListSize         maximal number of object to read
-     * @param permissibleClassIds a set of class IDs that are allowed to be read, will throw an IOException if asked to
-     *                            deserialize a class not in this set, all class IDs are permitted if null
-     * @param <T>                 the implementation of {@link SelfSerializable} used
-     * @return A list of the instances of the class previously written
-     * @throws IOException thrown if any IO problems occur
-     */
+    @Override
     public <T extends SelfSerializable> List<T> readSerializableList(
             final int maxListSize, @Nullable final Set<Long> permissibleClassIds) throws IOException {
         return readSerializableList(
-                maxListSize, true, SerializableDataInputStream::registryConstructor, permissibleClassIds);
+                maxListSize, true, SerializableDataInputStreamImpl::registryConstructor, permissibleClassIds);
     }
 
-    /**
-     * Read a list of serializable objects from the stream
-     *
-     * @param maxListSize maximal number of object to read
-     * @param <T>         the implementation of {@link SelfSerializable} used
-     * @return A list of the instances of the class previously written
-     * @throws IOException thrown if any IO problems occur
-     */
+    @Override
     public <T extends SelfSerializable> List<T> readSerializableList(final int maxListSize) throws IOException {
         return readSerializableList(maxListSize, null);
     }
@@ -420,16 +332,7 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
         return readSerializableList(maxListSize, readClassId, id -> serializableConstructor.get(), permissibleClassIds);
     }
 
-    /**
-     * Read a list of serializable objects from the stream
-     *
-     * @param maxListSize             maximal number of object to read
-     * @param readClassId             set to true if the class ID was written to the stream
-     * @param serializableConstructor the constructor to use when instantiating list elements
-     * @param <T>                     the implementation of {@link SelfSerializable} used
-     * @return A list of the instances of the class previously written
-     * @throws IOException thrown if any IO problems occur
-     */
+    @Override
     public <T extends SelfSerializable> List<T> readSerializableList(
             final int maxListSize, final boolean readClassId, @NonNull final Supplier<T> serializableConstructor)
             throws IOException {
@@ -493,7 +396,7 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
             throws IOException {
 
         final List<T> list = readSerializableList(
-                maxListSize, readClassId, SerializableDataInputStream::registryConstructor, permissibleClassIds);
+                maxListSize, readClassId, SerializableDataInputStreamImpl::registryConstructor, permissibleClassIds);
         if (list == null) {
             return null;
         }
@@ -568,14 +471,7 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
         return rc;
     }
 
-    /**
-     * Reads a PBJ record from the stream.
-     *
-     * @param codec the codec to use to parse the record
-     * @param <T>   the type of the record
-     * @return the parsed record
-     * @throws IOException if an IO error occurs
-     */
+    @Override
     public @NonNull <T> T readPbjRecord(@NonNull final Codec<T> codec) throws IOException {
         final int size = readInt();
         readableSequentialData.limit(readableSequentialData.position() + size);

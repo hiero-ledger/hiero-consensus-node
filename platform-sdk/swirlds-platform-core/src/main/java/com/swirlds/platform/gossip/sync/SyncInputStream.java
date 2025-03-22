@@ -6,7 +6,7 @@ import static com.swirlds.common.io.extendable.ExtendableInputStream.extendInput
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import com.swirlds.platform.network.SocketConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
 
-public class SyncInputStream extends SerializableDataInputStream {
+public class SyncInputStream extends SerializableDataInputStreamImpl {
 
     /** The maximum number of tips allowed per node. */
     private static final int MAX_TIPS_PER_NODE = 1000;

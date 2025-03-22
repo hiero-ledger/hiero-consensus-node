@@ -17,9 +17,6 @@ import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import com.swirlds.platform.system.events.EventMetadata;
 import com.swirlds.platform.system.events.UnsignedEvent;
-import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
-import org.hiero.consensus.model.system.transaction.Transaction;
-import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 import com.swirlds.platform.util.iterator.TypedIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -28,6 +25,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.system.transaction.Transaction;
+import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 
 /**
  * A class used to hold information about an event throughout its lifecycle.

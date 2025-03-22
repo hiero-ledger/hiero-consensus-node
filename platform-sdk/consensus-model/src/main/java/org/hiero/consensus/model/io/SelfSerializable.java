@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io;
+package org.hiero.consensus.model.io;
 
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import org.hiero.consensus.model.io.SerializableDet;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 
 /**
  * A SerializableDet that knows how to serialize and deserialize itself.
@@ -13,7 +11,7 @@ import org.hiero.consensus.model.io.SerializableDet;
 public interface SelfSerializable extends SerializableDet, FunctionalSerialize {
 
     /**
-     * Deserializes an instance that has been previously serialized by {@link FunctionalSerialize#serialize(SerializableDataOutputStream)}.
+     * Deserializes an instance that has been previously serialized by {@link FunctionalSerialize#serialize(org.hiero.consensus.model.io.streams.SerializableDataOutputStream)}.
      * This method should support all versions of the serialized data.
      *
      * @param in

@@ -16,9 +16,6 @@ import com.swirlds.platform.components.transaction.system.ScopedSystemTransactio
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.events.ConsensusEvent;
-import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
-import org.hiero.consensus.model.system.transaction.Transaction;
-import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -26,6 +23,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.system.transaction.Transaction;
+import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

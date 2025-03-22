@@ -10,12 +10,12 @@ import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashingOutputStream;
 import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.system.events.UnsignedEvent;
-import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.system.transaction.TransactionWrapper;
 
 /**
  * Hashes the PBJ representation of an event. This hasher double hashes each transaction in order to allow redaction of
