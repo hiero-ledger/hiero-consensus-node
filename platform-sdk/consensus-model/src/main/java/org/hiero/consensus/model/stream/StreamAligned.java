@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.stream;
+package org.hiero.consensus.model.stream;
 
 /**
  * Describes an object that requires specific alignment within a stream.

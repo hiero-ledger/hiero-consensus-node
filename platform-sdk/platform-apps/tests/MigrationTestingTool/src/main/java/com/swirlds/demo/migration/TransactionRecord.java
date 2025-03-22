@@ -3,10 +3,10 @@ package com.swirlds.demo.migration;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.AbstractSerializableHashable;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.model.crypto.AbstractSerializableHashable;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 

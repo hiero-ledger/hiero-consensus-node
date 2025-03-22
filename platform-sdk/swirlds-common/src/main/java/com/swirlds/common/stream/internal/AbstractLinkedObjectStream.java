@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream.internal;
 
-import com.swirlds.common.crypto.RunningHashable;
 import java.util.Objects;
 import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.RunningHashable;
 import org.hiero.consensus.model.crypto.SerializableHashable;
 
 /**

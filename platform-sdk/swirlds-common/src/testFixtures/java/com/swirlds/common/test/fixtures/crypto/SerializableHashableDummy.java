@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.crypto;
 
-import com.swirlds.common.crypto.AbstractSerializableHashable;
 import java.io.IOException;
+import org.hiero.consensus.model.crypto.AbstractSerializableHashable;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 

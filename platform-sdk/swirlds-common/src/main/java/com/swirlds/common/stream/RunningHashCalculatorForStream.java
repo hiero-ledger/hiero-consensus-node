@@ -5,12 +5,12 @@ import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.RunningHashable;
 import com.swirlds.common.stream.internal.AbstractLinkedObjectStream;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.RunningHashable;
 import org.hiero.consensus.model.crypto.SerializableHashable;
 
 /**

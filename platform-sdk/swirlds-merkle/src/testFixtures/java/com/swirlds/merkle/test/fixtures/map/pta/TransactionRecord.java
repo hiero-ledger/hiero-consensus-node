@@ -2,11 +2,11 @@
 package com.swirlds.merkle.test.fixtures.map.pta;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.AbstractSerializableHashable;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.AbstractSerializableHashable;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
