@@ -3,14 +3,14 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.protoc.BlockItemSet;
+import com.hedera.hapi.block.BlockItemSet;
+import com.hedera.hapi.block.PublishStreamRequest;
+import com.hedera.hapi.block.PublishStreamResponse;
 import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
-import com.hedera.hapi.block.protoc.PublishStreamRequest;
-import com.hedera.hapi.block.protoc.PublishStreamResponse;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.grpc.GrpcClient;
@@ -18,7 +18,6 @@ import io.helidon.webclient.grpc.GrpcClientMethodDescriptor;
 import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
 import io.helidon.webclient.grpc.GrpcServiceClient;
 import io.helidon.webclient.grpc.GrpcServiceDescriptor;
-import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -107,6 +106,7 @@ public class BlockNodeConnectionManager {
                                             BlockStreamServiceGrpc.SERVICE_NAME, GRPC_END_POINT)
                                     .requestType(PublishStreamRequest.class)
                                     .responseType(PublishStreamResponse.class)
+                                    .marshallerSupplier(new RequestResponseMarshaller.Supplier())
                                     .build())
                     .build());
 
@@ -131,7 +131,7 @@ public class BlockNodeConnectionManager {
         }
     }
 
-    private void streamBlockToConnections(@NonNull BlockState block) {
+    public void streamBlockToConnections(@NonNull BlockState block) {
         long blockNumber = block.blockNumber();
         // Get currently active connections
         List<BlockNodeConnection> connectionsToStream;
@@ -149,28 +149,8 @@ public class BlockNodeConnectionManager {
         logger.info("Streaming block {} to {} active connections", blockNumber, connectionsToStream.size());
 
         // Create all batches once
-        List<PublishStreamRequest> batchRequests = new ArrayList<>();
-        final int blockItemBatchSize = blockNodeConfigurations.getBlockItemBatchSize();
-        for (int i = 0; i < block.itemBytes().size(); i += blockItemBatchSize) {
-            int end = Math.min(i + blockItemBatchSize, block.itemBytes().size());
-            List<Bytes> batch = block.itemBytes().subList(i, end);
-            List<com.hedera.hapi.block.stream.protoc.BlockItem> protocBlockItems = new ArrayList<>();
-            batch.forEach(batchItem -> {
-                try {
-                    protocBlockItems.add(
-                            com.hedera.hapi.block.stream.protoc.BlockItem.parseFrom(batchItem.toByteArray()));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-
-            // Create BlockItemSet by adding all items at once
-            BlockItemSet itemSet =
-                    BlockItemSet.newBuilder().addAllBlockItems(protocBlockItems).build();
-
-            batchRequests.add(
-                    PublishStreamRequest.newBuilder().setBlockItems(itemSet).build());
-        }
+        List<PublishStreamRequest> batchRequests =
+                createPublishStreamRequests(block, blockNodeConfigurations.getBlockItemBatchSize());
 
         // Stream prepared batches to each connection
         for (BlockNodeConnection connection : connectionsToStream) {
@@ -193,6 +173,24 @@ public class BlockNodeConnectionManager {
                         e);
             }
         }
+    }
+
+    public static @NonNull List<PublishStreamRequest> createPublishStreamRequests(
+            @NonNull final BlockState block, final int blockItemBatchSize) {
+        final int totalItems = block.items().size();
+        // Pre-calculate the expected number of batch requests
+        final int expectedBatchCount = (totalItems + blockItemBatchSize - 1) / blockItemBatchSize;
+        List<PublishStreamRequest> batchRequests = new ArrayList<>(expectedBatchCount);
+        for (int i = 0; i < totalItems; i += blockItemBatchSize) {
+            int end = Math.min(i + blockItemBatchSize, totalItems);
+            List<BlockItem> blockItemsBatch = block.items().subList(i, end);
+
+            // Create BlockItemSet by adding all items at once
+            batchRequests.add(PublishStreamRequest.newBuilder()
+                    .blockItems(new BlockItemSet(blockItemsBatch))
+                    .build());
+        }
+        return batchRequests;
     }
 
     /**
@@ -287,11 +285,12 @@ public class BlockNodeConnectionManager {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
         establishConnections();
 
+        final var deadline = Instant.now().plus(timeout);
         scheduler.scheduleAtFixedRate(
                 () -> {
                     if (!activeConnections.isEmpty()) {
                         future.complete(true);
-                    } else if (Instant.now().isAfter(Instant.now().plus(timeout))) {
+                    } else if (Instant.now().isAfter(deadline)) {
                         future.complete(false);
                     }
                 },

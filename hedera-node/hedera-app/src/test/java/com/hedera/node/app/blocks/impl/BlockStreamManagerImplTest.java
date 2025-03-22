@@ -568,11 +568,11 @@ class BlockStreamManagerImplTest {
                 bWriter);
         givenEndOfRoundSetup();
         doAnswer(invocationOnMock -> {
-                    lastBItem.set(invocationOnMock.getArgument(0));
+                    lastBItem.set(invocationOnMock.getArgument(1));
                     return bWriter;
                 })
                 .when(bWriter)
-                .writePbjItem(any());
+                .writePbjItemAndBytes(any(), any());
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
@@ -834,7 +834,7 @@ class BlockStreamManagerImplTest {
         lenient().when(boundaryStateChangeListener.flushChanges()).thenReturn(FAKE_STATE_CHANGES);
         lenient()
                 .doAnswer(invocationOnMock -> {
-                    lastAItem.set(invocationOnMock.getArgument(0));
+                    lastAItem.set(invocationOnMock.getArgument(1));
                     if (headerRef != null) {
                         final var item = BlockItem.PROTOBUF.parse(lastAItem.get());
                         if (item.hasBlockHeader()) {
@@ -844,7 +844,7 @@ class BlockStreamManagerImplTest {
                     return aWriter;
                 })
                 .when(aWriter)
-                .writePbjItem(any());
+                .writePbjItemAndBytes(any(), any());
         lenient().when(state.getWritableStates(BlockStreamService.NAME)).thenReturn(writableStates);
         lenient().when(state.getReadableStates(BlockStreamService.NAME)).thenReturn(readableStates);
         lenient().when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);

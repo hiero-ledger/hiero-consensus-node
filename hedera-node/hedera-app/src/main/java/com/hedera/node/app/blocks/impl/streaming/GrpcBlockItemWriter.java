@@ -3,8 +3,8 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,16 +40,16 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void writePbjItem(@NonNull Bytes bytes) {
-        if (currentBlock == null) {
-            throw new IllegalStateException("Received block item before opening block");
-        }
-        currentBlock.itemBytes().add(bytes);
+    public void writeItem(@NonNull byte[] bytes) {
+        throw new UnsupportedOperationException("writeItem is not supported in this implementation");
     }
 
     @Override
-    public void writeItem(@NonNull byte[] bytes) {
-        throw new UnsupportedOperationException("writeItem is not supported in this implementation");
+    public void writePbjItem(@NonNull BlockItem item) {
+        if (currentBlock == null) {
+            throw new IllegalStateException("Received block item before opening block");
+        }
+        currentBlock.items().add(item);
     }
 
     @Override
