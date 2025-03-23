@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.threading.interrupt.InterruptableConsumer;
+import org.hiero.consensus.model.utility.interrupt.InterruptableConsumer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;

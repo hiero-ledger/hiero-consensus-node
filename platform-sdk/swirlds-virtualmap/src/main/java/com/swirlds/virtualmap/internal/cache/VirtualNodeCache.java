@@ -41,7 +41,7 @@ import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.SelfSerializable;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.threading.futures.StandardFuture;
+import org.hiero.consensus.model.utility.StandardFuture;
 
 /**
  * A cache for virtual merkel trees.

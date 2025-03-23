@@ -5,7 +5,6 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import org.hiero.consensus.model.status.PlatformStatus;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -14,6 +13,7 @@ import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetwork}.

@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.notification.Notification;
-import org.hiero.consensus.model.threading.futures.StandardFuture;
+import org.hiero.consensus.model.utility.StandardFuture;
 
 public class AsyncNotificationEngine extends AbstractNotificationEngine {
 

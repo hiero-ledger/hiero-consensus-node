@@ -25,7 +25,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
-import org.hiero.consensus.model.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
@@ -34,6 +33,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Implementation of a factory for reconnect protocol

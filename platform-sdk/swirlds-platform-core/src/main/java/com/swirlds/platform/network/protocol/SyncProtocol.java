@@ -8,7 +8,6 @@ import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.sync.protocol.SyncPeerProtocol;
 import com.swirlds.platform.metrics.SyncMetrics;
-import org.hiero.consensus.model.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
@@ -16,6 +15,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Implementation of a factory for sync protocol

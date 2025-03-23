@@ -14,10 +14,10 @@ import com.swirlds.platform.system.state.notifications.IssListener;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
-import org.hiero.consensus.model.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * The default implementation of the AppNotifier interface.

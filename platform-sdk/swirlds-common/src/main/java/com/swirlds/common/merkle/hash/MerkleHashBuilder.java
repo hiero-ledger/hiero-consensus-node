@@ -12,7 +12,7 @@ import java.util.Iterator;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.threading.futures.StandardFuture;
+import org.hiero.consensus.model.utility.StandardFuture;
 
 /**
  * This class is responsible for hashing a merkle tree.

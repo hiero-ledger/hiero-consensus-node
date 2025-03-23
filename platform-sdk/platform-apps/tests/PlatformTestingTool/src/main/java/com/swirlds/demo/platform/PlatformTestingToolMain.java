@@ -23,7 +23,7 @@ import static com.swirlds.metrics.api.FloatFormats.FORMAT_6_2;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_9_6;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static java.lang.System.exit;
-import static org.hiero.consensus.model.threading.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
+import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -82,7 +82,6 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
-import org.hiero.consensus.model.status.PlatformStatus;
 import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -111,6 +110,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * This demo tests platform features and collects statistics on the running of the network and consensus systems. It

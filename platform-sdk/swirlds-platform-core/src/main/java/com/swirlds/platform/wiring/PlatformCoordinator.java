@@ -12,7 +12,6 @@ import com.swirlds.platform.event.deduplication.EventDeduplicator;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.stale.StaleEventDetector;
-import org.hiero.consensus.model.event.StaleEventDetectorOutput;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.TransactionHandler;
@@ -22,7 +21,6 @@ import com.swirlds.platform.pool.TransactionPool;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
-import org.hiero.consensus.model.status.PlatformStatus;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.wiring.components.GossipWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,8 +29,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.event.StaleEventDetectorOutput;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**

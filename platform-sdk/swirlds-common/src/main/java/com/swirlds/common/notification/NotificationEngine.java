@@ -5,7 +5,7 @@ import com.swirlds.common.notification.internal.AsyncNotificationEngine;
 import com.swirlds.common.threading.manager.ThreadManager;
 import java.util.concurrent.Future;
 import org.hiero.consensus.model.notification.Notification;
-import org.hiero.consensus.model.threading.futures.StandardFuture;
+import org.hiero.consensus.model.utility.StandardFuture;
 
 /**
  * Provides a lightweight and extensible (event) notification engine supporting both synchronous and asynchronous event

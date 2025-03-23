@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.threading.futures;
+package org.hiero.consensus.model.utility;
 
 import com.swirlds.logging.legacy.LogMarker;
 import java.util.concurrent.CancellationException;
@@ -10,7 +10,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.utility.StackTrace;
 
 /**
  * A lightweight implementation of a {@link Future}.

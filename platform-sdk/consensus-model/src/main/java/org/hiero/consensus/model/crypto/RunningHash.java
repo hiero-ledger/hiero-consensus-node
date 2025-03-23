@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.crypto;
 
-import org.hiero.consensus.model.threading.futures.StandardFuture;
+import org.hiero.consensus.model.utility.StandardFuture;
 
 /**
  * Represents a single {@link Hash} instance taken of a given moment in time from a running hash chain. A given {@link
