@@ -6,7 +6,7 @@ import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.sync.SyncManagerImpl;
 import com.swirlds.platform.network.NetworkMetrics;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;

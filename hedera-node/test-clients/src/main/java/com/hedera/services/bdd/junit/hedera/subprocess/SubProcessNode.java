@@ -16,7 +16,7 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.start
 import static com.hedera.services.bdd.junit.hedera.subprocess.StatusLookupAttempt.newLogAttempt;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ERROR_REDIRECT_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OUTPUT_DIR;
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -26,7 +26,7 @@ import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.BindExceptionSeen;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;

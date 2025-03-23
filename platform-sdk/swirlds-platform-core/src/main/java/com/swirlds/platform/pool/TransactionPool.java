@@ -3,7 +3,7 @@ package com.swirlds.platform.pool;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 

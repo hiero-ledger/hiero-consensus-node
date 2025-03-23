@@ -4,7 +4,7 @@ package com.swirlds.platform.wiring.components;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import com.swirlds.platform.wiring.NoInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;

@@ -8,7 +8,7 @@ import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.lifecycle.AbstractLifecycleOp;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Arrays;

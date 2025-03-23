@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system.status;
-
-import com.swirlds.common.UniqueId;
+package org.hiero.consensus.model.status;
 
 /**
  * The status of the Platform

@@ -8,7 +8,7 @@ import static com.swirlds.platform.system.status.logic.StatusLogicTestUtils.trig
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.system.status.PlatformStatusConfig_;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;

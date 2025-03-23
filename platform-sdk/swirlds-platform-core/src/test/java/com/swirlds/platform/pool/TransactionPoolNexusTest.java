@@ -14,7 +14,7 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.TransactionConfig;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.event.creator.impl.EventCreationConfig;

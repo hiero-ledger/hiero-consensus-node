@@ -5,8 +5,8 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerC
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.NO_OP_CONFIGURATION;
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static com.swirlds.component.framework.wires.SolderType.OFFER;
-import static com.swirlds.platform.event.stale.StaleEventDetectorOutput.SELF_EVENT;
-import static com.swirlds.platform.event.stale.StaleEventDetectorOutput.STALE_SELF_EVENT;
+import static org.hiero.consensus.model.event.StaleEventDetectorOutput.SELF_EVENT;
+import static org.hiero.consensus.model.event.StaleEventDetectorOutput.STALE_SELF_EVENT;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -41,7 +41,7 @@ import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
 import com.swirlds.platform.event.signing.SelfEventSigner;
 import com.swirlds.platform.event.stale.StaleEventDetector;
-import com.swirlds.platform.event.stale.StaleEventDetectorOutput;
+import org.hiero.consensus.model.event.StaleEventDetectorOutput;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.event.validation.InternalEventValidator;
@@ -69,7 +69,7 @@ import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.events.BirthRoundMigrationShim;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.StatusStateMachine;

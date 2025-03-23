@@ -8,7 +8,7 @@ import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;

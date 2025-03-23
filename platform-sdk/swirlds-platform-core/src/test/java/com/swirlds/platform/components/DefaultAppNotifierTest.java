@@ -26,7 +26,7 @@ import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
 import com.swirlds.platform.system.state.notifications.NewSignedStateNotification;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.consensus.model.crypto.DigestType;

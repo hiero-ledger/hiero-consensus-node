@@ -18,7 +18,7 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static java.util.Objects.requireNonNull;
 

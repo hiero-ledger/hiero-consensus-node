@@ -10,7 +10,7 @@ import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.components.transaction.TransactionSupplier;
 import com.swirlds.platform.config.TransactionConfig;
 import com.swirlds.platform.eventhandling.TransactionPoolMetrics;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;

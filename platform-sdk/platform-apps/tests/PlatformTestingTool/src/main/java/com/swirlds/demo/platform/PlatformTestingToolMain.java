@@ -82,7 +82,7 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;

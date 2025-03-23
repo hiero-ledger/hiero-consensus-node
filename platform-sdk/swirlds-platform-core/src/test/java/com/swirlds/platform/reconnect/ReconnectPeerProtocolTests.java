@@ -3,7 +3,7 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.state.signed.ReservedSignedState.createNullReservation;
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -37,7 +37,7 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;

@@ -2,9 +2,9 @@
 package com.swirlds.platform.event.tipset;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
-import static com.swirlds.platform.system.status.PlatformStatus.CHECKING;
-import static com.swirlds.platform.system.status.PlatformStatus.FREEZING;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -21,7 +21,7 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.event.creation.EventCreator;
 import com.swirlds.platform.event.creation.rules.PlatformStatusRule;
 import com.swirlds.platform.pool.TransactionPoolNexus;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import java.time.Duration;
 import java.util.List;
 import java.util.Random;

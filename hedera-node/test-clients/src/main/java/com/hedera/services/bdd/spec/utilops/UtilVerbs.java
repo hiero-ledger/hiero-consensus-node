@@ -68,8 +68,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECO
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
-import static com.swirlds.platform.system.status.PlatformStatus.FREEZE_COMPLETE;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -180,7 +180,7 @@ import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -584,7 +584,7 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that initiates background traffic running until the target network's
-     * first node has reached {@link com.swirlds.platform.system.status.PlatformStatus#FREEZE_COMPLETE}.
+     * first node has reached {@link PlatformStatus#FREEZE_COMPLETE}.
      * @return the operation
      */
     public static SpecOperation runBackgroundTrafficUntilFreezeComplete() {

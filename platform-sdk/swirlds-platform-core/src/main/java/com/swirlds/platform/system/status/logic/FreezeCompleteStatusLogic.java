@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.status.logic;
 
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
 import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;

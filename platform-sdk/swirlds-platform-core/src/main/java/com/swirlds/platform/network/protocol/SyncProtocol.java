@@ -8,7 +8,7 @@ import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.sync.protocol.SyncPeerProtocol;
 import com.swirlds.platform.metrics.SyncMetrics;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;

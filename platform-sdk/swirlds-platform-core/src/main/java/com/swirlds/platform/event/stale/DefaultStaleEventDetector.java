@@ -15,6 +15,7 @@ import java.util.function.ToLongFunction;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.event.StaleEventDetectorOutput;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;

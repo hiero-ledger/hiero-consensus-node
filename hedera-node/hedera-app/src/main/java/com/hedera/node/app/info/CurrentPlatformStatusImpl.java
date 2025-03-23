@@ -3,7 +3,7 @@ package com.hedera.node.app.info;
 
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Singleton;
 

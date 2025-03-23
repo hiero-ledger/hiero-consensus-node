@@ -10,6 +10,7 @@ module org.hiero.consensus.model {
     exports org.hiero.consensus.model.node;
     exports org.hiero.consensus.model.notification;
     exports org.hiero.consensus.model.state;
+    exports org.hiero.consensus.model.status;
     exports org.hiero.consensus.model.stream;
     exports org.hiero.consensus.model.transaction;
     exports org.hiero.consensus.model.threading.futures;

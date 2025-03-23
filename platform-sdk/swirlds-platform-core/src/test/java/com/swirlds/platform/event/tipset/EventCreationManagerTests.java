@@ -17,7 +17,7 @@ import com.swirlds.platform.event.creation.DefaultEventCreationManager;
 import com.swirlds.platform.event.creation.EventCreationManager;
 import com.swirlds.platform.event.creation.EventCreator;
 import com.swirlds.platform.pool.TransactionPoolNexus;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.model.event.UnsignedEvent;

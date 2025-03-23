@@ -39,7 +39,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.components.consensus;
 
-import static com.swirlds.platform.system.status.PlatformStatus.REPLAYING_EVENTS;
+import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -17,7 +17,7 @@ import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.AddedEventMetrics;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.metrics.ConsensusMetricsImpl;
-import com.swirlds.platform.system.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
