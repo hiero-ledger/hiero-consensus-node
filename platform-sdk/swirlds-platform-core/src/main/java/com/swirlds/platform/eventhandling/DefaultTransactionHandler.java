@@ -39,8 +39,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.system.ConsensusRound;
-import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * A standard implementation of {@link TransactionHandler}.

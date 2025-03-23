@@ -11,7 +11,7 @@ import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkUtils;
 import java.io.InputStream;
 import java.io.OutputStream;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * An implementation of {@link Connection} that is local to a machine and does not use sockets.

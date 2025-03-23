@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.Level;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Generates an HTML log page

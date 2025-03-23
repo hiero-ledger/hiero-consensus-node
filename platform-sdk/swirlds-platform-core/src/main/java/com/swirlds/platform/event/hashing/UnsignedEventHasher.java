@@ -2,7 +2,7 @@
 package com.swirlds.platform.event.hashing;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.system.events.UnsignedEvent;
+import org.hiero.consensus.model.event.UnsignedEvent;
 
 /**
  * Hashes unsigned events.

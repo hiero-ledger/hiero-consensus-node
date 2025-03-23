@@ -16,10 +16,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * A StateSignatureCollector that is used for unit testing. In the future, these unit tests should become small

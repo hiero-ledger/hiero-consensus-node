@@ -16,7 +16,7 @@ import java.time.Instant;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Random;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A source of events.

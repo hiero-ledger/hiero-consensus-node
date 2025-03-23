@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Sends a heartbeat to the other node and measures the time it takes to receive a response.

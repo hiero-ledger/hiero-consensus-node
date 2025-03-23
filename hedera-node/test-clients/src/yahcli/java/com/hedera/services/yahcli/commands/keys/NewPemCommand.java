@@ -11,12 +11,12 @@ import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.yahcli.config.ConfigUtils;
-import com.swirlds.common.utility.CommonUtils;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
+import org.hiero.consensus.model.utility.CommonUtils;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -52,7 +52,7 @@ public class NewPemCommand implements Callable<Integer> {
         final EdDSAPrivateKey privateKey = Ed25519Utils.keyFrom(curvePoint);
         final var pubKey = privateKey.getAbyte();
         COMMON_MESSAGES.info("Generating a new key @ " + loc);
-        final var hexedPubKey = CommonUtils.hex(pubKey);
+        final var hexedPubKey = org.hiero.consensus.model.utility.CommonUtils.hex(pubKey);
         final var pubKeyLoc = loc.replace(".pem", ".pubkey");
         Files.writeString(Paths.get(pubKeyLoc), hexedPubKey + "\n");
         final var privKeyLoc = loc.replace(".pem", ".privkey");

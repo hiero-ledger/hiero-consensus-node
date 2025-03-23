@@ -5,12 +5,12 @@ import static com.swirlds.common.io.streams.SerializableStreamConstants.DEFAULT_
 import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_INSTANT_EPOCH_SECOND;
 import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_LIST_ARRAY_LENGTH;
 
-import com.swirlds.common.utility.CommonUtils;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * This data output stream provides additional functionality for serializing various basic data structures.

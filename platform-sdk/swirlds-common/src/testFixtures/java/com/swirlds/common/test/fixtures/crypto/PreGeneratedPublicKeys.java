@@ -4,11 +4,11 @@ package com.swirlds.common.test.fixtures.crypto;
 import com.swirlds.common.crypto.KeyType;
 import com.swirlds.common.crypto.KeyUtils;
 import com.swirlds.common.crypto.SerializablePublicKey;
-import com.swirlds.common.utility.CommonUtils;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.List;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class PreGeneratedPublicKeys {
     public static List<String> rsaPublicKeys = List.of(
@@ -72,7 +72,8 @@ public class PreGeneratedPublicKeys {
         for (int i = 0; i < number; i++) {
             // KeyPair keyPair = KeyUtils.generateKeyPair(KeyType.RSA, 3072, SecureRandom.getInstanceStrong());
             KeyPair keyPair = KeyUtils.generateKeyPair(KeyType.EC, 384, SecureRandom.getInstanceStrong());
-            String hex = CommonUtils.hex(keyPair.getPublic().getEncoded());
+            String hex = org.hiero.consensus.model.utility.CommonUtils.hex(
+                    keyPair.getPublic().getEncoded());
 
             sb.append('"');
             sb.append(hex);

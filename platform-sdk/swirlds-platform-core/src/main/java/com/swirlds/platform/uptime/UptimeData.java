@@ -13,8 +13,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.events.ConsensusEvent;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Uptime data about nodes in the address book.

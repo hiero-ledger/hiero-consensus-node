@@ -8,8 +8,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
-import org.hiero.consensus.model.system.events.ConsensusEvent;
-import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
 
 public class FakeConsensusEvent extends FakeEvent implements ConsensusEvent {
     private final long consensusOrder;

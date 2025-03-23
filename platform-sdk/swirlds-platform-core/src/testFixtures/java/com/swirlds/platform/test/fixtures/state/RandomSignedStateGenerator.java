@@ -47,7 +47,7 @@ import java.util.Random;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A utility for generating random signed states.

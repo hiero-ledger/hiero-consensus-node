@@ -9,7 +9,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import org.hiero.consensus.gossip.FallenBehindManager;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A thread-safe implementation of {@link FallenBehindManager}

@@ -99,9 +99,9 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.system.Round;
-import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
-import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * The handle workflow that is responsible for handling the next {@link Round} of transactions.

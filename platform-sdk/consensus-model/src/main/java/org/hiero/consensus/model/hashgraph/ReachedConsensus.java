@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.system;
+package org.hiero.consensus.model.hashgraph;
 
 import java.time.Instant;
 

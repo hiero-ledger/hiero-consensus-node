@@ -42,7 +42,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A utility class for generating and retrieving pre-generated X.509 certificates for testing purposes.

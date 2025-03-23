@@ -29,8 +29,8 @@ import java.util.Objects;
 import java.util.Random;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.transaction.TransactionWrapper;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 public class PcesWriterTestUtils {
     private PcesWriterTestUtils() {}

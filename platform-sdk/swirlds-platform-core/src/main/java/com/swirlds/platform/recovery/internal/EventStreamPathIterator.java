@@ -15,7 +15,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.system.events.CesEvent;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * This iterator looks at a directory and iterates over the event stream files within it.

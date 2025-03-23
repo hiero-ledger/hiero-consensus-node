@@ -27,7 +27,7 @@ import java.security.PublicKey;
 import java.util.HashMap;
 import java.util.Map;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

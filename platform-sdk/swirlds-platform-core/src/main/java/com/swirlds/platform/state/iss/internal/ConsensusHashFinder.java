@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Tracks hash partitions for a particular round and determines the consensus hash.

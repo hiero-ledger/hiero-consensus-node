@@ -106,7 +106,6 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -117,6 +116,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -1254,8 +1254,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @DisplayName("EVM address account")
         final Stream<DynamicTest> airdropToNonExistingEvmAddressAccount() {
             // calculate evmAddress;
-            final byte[] publicKey =
-                    CommonUtils.unhex("02641dc27aa851ddc5a238dc569718f82b4e5eb3b61030942432fe7ac9088459c5");
+            final byte[] publicKey = org.hiero.consensus.model.utility.CommonUtils.unhex(
+                    "02641dc27aa851ddc5a238dc569718f82b4e5eb3b61030942432fe7ac9088459c5");
             final ByteString evmAddress = ByteStringUtils.wrapUnsafely(recoverAddressFromPubKey(publicKey));
 
             return hapiTest(
@@ -1298,8 +1298,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @DisplayName("a NFT to an EVM address account")
         final Stream<DynamicTest> airdropNftToNonExistingAccount() {
             // calculate evmAddress;
-            final byte[] publicKey =
-                    CommonUtils.unhex("02641dc27aa851ddc5a238dc569718f82b4e5eb3b61030942432fe7ac9088459c5");
+            final byte[] publicKey = org.hiero.consensus.model.utility.CommonUtils.unhex(
+                    "02641dc27aa851ddc5a238dc569718f82b4e5eb3b61030942432fe7ac9088459c5");
             final ByteString evmAddress = ByteStringUtils.wrapUnsafely(recoverAddressFromPubKey(publicKey));
 
             return hapiTest(

@@ -7,7 +7,7 @@ import com.swirlds.platform.network.Connection;
 import java.io.IOException;
 import java.net.SocketException;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Wraps another connection, but returns true for {@link #connected()} only the specified number of times

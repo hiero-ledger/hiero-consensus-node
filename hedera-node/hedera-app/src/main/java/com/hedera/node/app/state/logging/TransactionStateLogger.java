@@ -16,8 +16,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.system.Round;
-import org.hiero.consensus.model.system.events.ConsensusEvent;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.hashgraph.Round;
 
 /**
  * A logger for state changes. This records a separate log file for all input state read and output state changes from

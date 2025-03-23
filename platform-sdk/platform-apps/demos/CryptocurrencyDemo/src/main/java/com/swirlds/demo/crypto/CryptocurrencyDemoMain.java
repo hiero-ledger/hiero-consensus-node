@@ -35,7 +35,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.Random;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * This demonstrates a cryptocurrency and a stock market. There are 10 stocks, and each member repeatedly generates an

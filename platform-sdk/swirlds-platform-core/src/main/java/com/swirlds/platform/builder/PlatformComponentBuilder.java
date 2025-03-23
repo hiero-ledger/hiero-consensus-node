@@ -84,7 +84,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
-import org.hiero.consensus.model.system.events.CesEvent;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that

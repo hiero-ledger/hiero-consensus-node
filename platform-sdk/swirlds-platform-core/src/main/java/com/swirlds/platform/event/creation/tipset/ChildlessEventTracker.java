@@ -9,9 +9,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import org.hiero.consensus.model.consensus.EventWindow;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Keeps track of events created that have no children. These events are candidates to be used as parents when creating

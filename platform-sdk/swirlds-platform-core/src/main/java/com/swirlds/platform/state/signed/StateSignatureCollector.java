@@ -7,7 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Queue;
-import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * Collects signatures for signed states. This class ensures that all the non-ancient states that are not fully signed

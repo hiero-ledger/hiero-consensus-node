@@ -10,8 +10,8 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hiero.consensus.model.consensus.ConsensusConstants;
-import org.hiero.consensus.model.consensus.EventWindow;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * The default implementation of {@link LatestCompleteStateNexus}.

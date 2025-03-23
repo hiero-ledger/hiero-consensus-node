@@ -14,8 +14,8 @@ import java.util.Objects;
 import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.system.events.UnsignedEvent;
-import org.hiero.consensus.model.system.transaction.TransactionWrapper;
+import org.hiero.consensus.model.event.UnsignedEvent;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**
  * Hashes the PBJ representation of an event. This hasher double hashes each transaction in order to allow redaction of

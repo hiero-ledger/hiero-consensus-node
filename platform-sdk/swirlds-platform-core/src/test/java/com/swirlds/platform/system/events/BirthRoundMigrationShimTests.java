@@ -2,7 +2,7 @@
 package com.swirlds.platform.system.events;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.model.consensus.ConsensusConstants.ROUND_FIRST;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
@@ -16,7 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
 class BirthRoundMigrationShimTests {

@@ -7,7 +7,7 @@ import com.swirlds.platform.crypto.PlatformSigner;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.system.events.UnsignedEvent;
+import org.hiero.consensus.model.event.UnsignedEvent;
 
 /**
  * A default implementation of {@link SelfEventSigner}.

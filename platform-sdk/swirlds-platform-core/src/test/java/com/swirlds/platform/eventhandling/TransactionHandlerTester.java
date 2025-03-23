@@ -26,8 +26,8 @@ import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.Round;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.

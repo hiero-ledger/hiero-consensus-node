@@ -8,11 +8,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Objects;
-import org.hiero.consensus.model.internal.CommonUtils;
 import org.hiero.consensus.model.io.SerializableWithKnownLength;
 import org.hiero.consensus.model.io.exceptions.BadIOException;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * A cryptographic hash of some data.

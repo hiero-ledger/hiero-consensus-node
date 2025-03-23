@@ -28,7 +28,7 @@ import java.util.List;
 import javax.swing.JPanel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.system.events.EventConstants;
+import org.hiero.consensus.model.event.EventConstants;
 
 /**
  * This panel has the hashgraph picture, and appears in the window to the right of all the settings.

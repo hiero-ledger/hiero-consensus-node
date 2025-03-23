@@ -3,9 +3,9 @@ package com.swirlds.platform.event.creation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.system.events.UnsignedEvent;
+import org.hiero.consensus.model.event.UnsignedEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * An object that creates new events.

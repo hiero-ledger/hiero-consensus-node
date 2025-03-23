@@ -17,10 +17,10 @@ import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.consensus.ConsensusConstants;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.events.EventConstants;
+import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A round whose witnesses are currently having their fame voted on in elections. This class tracks the witnesses and

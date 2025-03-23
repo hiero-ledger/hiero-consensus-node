@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import org.hiero.consensus.model.system.events.CesEvent;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * Takes an iterator that walks over events and returns an iterator that walks over rounds.

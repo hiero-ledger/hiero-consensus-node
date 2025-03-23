@@ -15,7 +15,7 @@ import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.system.PlatformConstructionException;
 import java.time.Duration;
 import java.util.List;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
 class ExceptionTests {

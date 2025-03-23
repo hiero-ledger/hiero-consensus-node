@@ -31,9 +31,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.system.ConsensusRound;
-import org.hiero.consensus.model.system.events.UnsignedEvent;
-import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.event.UnsignedEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * Responsible for coordinating the clearing of the platform wiring objects.

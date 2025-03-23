@@ -9,7 +9,7 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.system.transaction.Transaction;
+import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * Collection of metrics related to stale events and transactions

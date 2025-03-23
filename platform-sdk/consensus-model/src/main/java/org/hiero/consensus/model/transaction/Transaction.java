@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.system.transaction;
+package org.hiero.consensus.model.transaction;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.concurrent.locks.ReadWriteLock;

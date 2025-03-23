@@ -39,7 +39,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A testing tool which generates a number of transactions per second, and simulates handling them

@@ -3,8 +3,8 @@ package com.hedera.node.app.hapi.utils.sysfiles.domain;
 
 import com.google.common.primitives.Longs;
 import com.hedera.node.app.hapi.utils.sysfiles.ParsingUtils;
-import com.swirlds.common.utility.CommonUtils;
 import java.util.Arrays;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public record KnownBlockValues(byte[] hash, long number) {
     private static final int KECCAK256_HASH_LENGTH = 32;
@@ -54,6 +54,7 @@ public record KnownBlockValues(byte[] hash, long number) {
 
     @Override
     public String toString() {
-        return "KnownBlockValues{" + "hash=" + CommonUtils.hex(hash) + ", number=" + number + '}';
+        return "KnownBlockValues{" + "hash=" + org.hiero.consensus.model.utility.CommonUtils.hex(hash) + ", number="
+                + number + '}';
     }
 }

@@ -14,11 +14,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.CONSTRUCTOR;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCall;
 import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
-import static com.swirlds.common.utility.CommonUtils.hex;
-import static com.swirlds.common.utility.CommonUtils.unhex;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.consensus.model.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -41,7 +41,6 @@ import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.SubType;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenID;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.io.FileInputStream;
@@ -332,7 +331,8 @@ public class Utils {
                 .setContractID(ContractID.newBuilder()
                         .setShardNum(shard)
                         .setRealmNum(realm)
-                        .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(hexedEvmAddress))))
+                        .setEvmAddress(ByteString.copyFrom(
+                                org.hiero.consensus.model.utility.CommonUtils.unhex(hexedEvmAddress))))
                 .build();
     }
 
@@ -341,7 +341,8 @@ public class Utils {
                 .setDelegatableContractId(ContractID.newBuilder()
                         .setShardNum(shard)
                         .setRealmNum(realm)
-                        .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(hexedEvmAddress))))
+                        .setEvmAddress(ByteString.copyFrom(
+                                org.hiero.consensus.model.utility.CommonUtils.unhex(hexedEvmAddress))))
                 .build();
     }
 

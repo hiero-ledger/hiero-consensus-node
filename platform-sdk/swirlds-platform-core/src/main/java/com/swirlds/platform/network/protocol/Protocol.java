@@ -2,7 +2,7 @@
 package com.swirlds.platform.network.protocol;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * API for building network protocols

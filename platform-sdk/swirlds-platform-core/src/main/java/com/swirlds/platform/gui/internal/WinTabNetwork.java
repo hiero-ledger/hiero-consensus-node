@@ -15,7 +15,7 @@ import java.awt.Rectangle;
 import javax.swing.JTabbedPane;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The tab in the Browser window that shows network speed, transactions per second, etc.

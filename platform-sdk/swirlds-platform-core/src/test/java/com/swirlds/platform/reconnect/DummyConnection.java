@@ -17,7 +17,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * An implementation of {@link Connection} for local testing.

@@ -20,7 +20,7 @@ import org.hiero.consensus.model.crypto.Hashable;
 import org.hiero.consensus.model.io.SelfSerializable;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The Address of every known member of the swirld. The getters are public and the setters aren't, so it is read-only

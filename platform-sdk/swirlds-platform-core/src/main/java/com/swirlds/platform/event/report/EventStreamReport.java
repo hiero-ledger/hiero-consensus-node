@@ -13,7 +13,7 @@ import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.formatting.UnitFormatter;
 import java.time.Duration;
 import java.util.List;
-import org.hiero.consensus.model.system.events.CesEvent;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * Useful information about an event stream

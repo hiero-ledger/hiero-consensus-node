@@ -82,15 +82,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.function.Function;
-import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.event.UnsignedEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
-import org.hiero.consensus.model.state.snapshot.StateSavingResult;
-import org.hiero.consensus.model.system.ConsensusRound;
-import org.hiero.consensus.model.system.events.UnsignedEvent;
-import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.model.system.transaction.TransactionWrapper;
+import org.hiero.consensus.model.state.StateSavingResult;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.event.creator.impl.EventCreationConfig;
 
 /**

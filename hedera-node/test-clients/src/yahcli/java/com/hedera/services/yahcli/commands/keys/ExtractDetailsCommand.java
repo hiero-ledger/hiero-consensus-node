@@ -8,7 +8,6 @@ import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
 import com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils;
-import com.swirlds.common.utility.CommonUtils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,6 +18,7 @@ import java.security.interfaces.ECPrivateKey;
 import java.util.concurrent.Callable;
 import javax.crypto.ShortBufferException;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
+import org.hiero.consensus.model.utility.CommonUtils;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -85,17 +85,18 @@ public class ExtractDetailsCommand implements Callable<Integer> {
 
     private static KeyOutput asEd25519Output(final EdDSAPrivateKey key) {
         final var publicKey = Ed25519Utils.extractEd25519PublicKey(key);
-        final var hexedPubKey = CommonUtils.hex(publicKey);
-        final var hexedPrivKey = CommonUtils.hex(key.getSeed());
-        final var derEncoded = CommonUtils.hex(key.getEncoded());
+        final var hexedPubKey = org.hiero.consensus.model.utility.CommonUtils.hex(publicKey);
+        final var hexedPrivKey = org.hiero.consensus.model.utility.CommonUtils.hex(key.getSeed());
+        final var derEncoded = org.hiero.consensus.model.utility.CommonUtils.hex(key.getEncoded());
         return new KeyOutput(hexedPubKey, hexedPrivKey, derEncoded);
     }
 
     private static KeyOutput asSecp256k1Output(final ECPrivateKey privateKey) {
         final var publicKey = Secp256k1Utils.extractEcdsaPublicKey(privateKey);
-        final var hexedPubKey = CommonUtils.hex(publicKey);
+        final var hexedPubKey = org.hiero.consensus.model.utility.CommonUtils.hex(publicKey);
 
-        String hexedPrivKey = CommonUtils.hex(privateKey.getS().toByteArray());
+        String hexedPrivKey = org.hiero.consensus.model.utility.CommonUtils.hex(
+                privateKey.getS().toByteArray());
         // It's possible to compute a legitimate private ECDSA key with more than ECDSA_HEX_KEY_LENGTH bytes _if_ the
         // key has leading zeros. In such cases, strip out the leading zeros
         hexedPrivKey = stripPrefixPaddingBytes(hexedPrivKey);

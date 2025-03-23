@@ -9,7 +9,7 @@ import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.metrics.api.Metrics;
 import java.util.Random;
 import java.util.concurrent.Executors;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 public class TestUtils {
     private static final Random RANDOM = new Random(9239992);

@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.spec.keys;
 
 import static com.hedera.node.app.hapi.utils.SignatureGenerator.BOUNCYCASTLE_PROVIDER;
-import static com.swirlds.common.utility.CommonUtils.hex;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
 
 import com.google.protobuf.ByteString;
 import com.hederahashgraph.api.proto.java.Key;

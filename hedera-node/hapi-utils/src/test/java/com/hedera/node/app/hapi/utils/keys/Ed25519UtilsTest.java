@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.keys;
 
-import static com.swirlds.common.utility.CommonUtils.hex;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.utility.CommonUtils;
 import java.io.File;
 import java.security.KeyPair;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
@@ -29,7 +28,7 @@ class Ed25519UtilsTest {
     void throwsIllegalArgumentOnMissingTargetLoc() {
         final var tmpLoc = "unreachable/missing/re-encrypted_genesis.pem";
         final var tmpPassphrase = "hedera";
-        final var seed = CommonUtils.unhex(devPrivateKey);
+        final var seed = org.hiero.consensus.model.utility.CommonUtils.unhex(devPrivateKey);
 
         assertThrows(IllegalArgumentException.class, () -> Ed25519Utils.writeKeyTo(seed, tmpLoc, tmpPassphrase));
     }
@@ -39,7 +38,8 @@ class Ed25519UtilsTest {
         final var tmpLoc = tempDir.getPath() + File.separator + "re-encrypted_genesis.pem";
         final var tmpPassphrase = "hedera";
 
-        Ed25519Utils.writeKeyTo(CommonUtils.unhex(devPrivateKey), tmpLoc, tmpPassphrase);
+        Ed25519Utils.writeKeyTo(
+                org.hiero.consensus.model.utility.CommonUtils.unhex(devPrivateKey), tmpLoc, tmpPassphrase);
         final var recovered = Ed25519Utils.readKeyFrom(tmpLoc, tmpPassphrase);
         assertIsGenesisDevKey(recovered);
 

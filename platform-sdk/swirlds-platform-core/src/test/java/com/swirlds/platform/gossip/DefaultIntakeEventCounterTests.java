@@ -10,7 +10,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.test.fixtures.ResettableRandom;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterEntryBuilder;
 import java.util.ArrayList;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

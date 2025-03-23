@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.merkle.map.internal;
 
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.EntityType.Crypto;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.EntityType.FCQ;
@@ -12,6 +11,7 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Cre
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Delete;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Expire;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Rebuild;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.swirlds.common.merkle.MerkleNode;

@@ -89,10 +89,10 @@ import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -461,8 +461,9 @@ class HevmTransactionFactoryTest {
     void fromHapiCreationAppendsConstructorArgsIfPresent() {
         given(fileStore.getFileLeaf(INITCODE_FILE_ID))
                 .willReturn(File.newBuilder().contents(INITCODE).build());
-        String hexedPayload = new String(INITCODE.toByteArray()) + CommonUtils.hex(CONSTRUCTOR_PARAMS.toByteArray());
-        final var expectedPayload = Bytes.wrap(CommonUtils.unhex(hexedPayload));
+        String hexedPayload = new String(INITCODE.toByteArray())
+                + org.hiero.consensus.model.utility.CommonUtils.hex(CONSTRUCTOR_PARAMS.toByteArray());
+        final var expectedPayload = Bytes.wrap(org.hiero.consensus.model.utility.CommonUtils.unhex(hexedPayload));
         final var transaction = getManufacturedCreation(b -> b.memo(SOME_MEMO)
                 .fileID(INITCODE_FILE_ID)
                 .constructorParameters(CONSTRUCTOR_PARAMS)
@@ -490,7 +491,8 @@ class HevmTransactionFactoryTest {
                 .willReturn(File.newBuilder()
                         .contents(Bytes.wrap("0x" + new String(INITCODE.toByteArray())))
                         .build());
-        String hexedPayload = new String(INITCODE.toByteArray()) + CommonUtils.hex(CONSTRUCTOR_PARAMS.toByteArray());
+        String hexedPayload = new String(INITCODE.toByteArray())
+                + org.hiero.consensus.model.utility.CommonUtils.hex(CONSTRUCTOR_PARAMS.toByteArray());
         final var expectedPayload = Bytes.wrap(CommonUtils.unhex(hexedPayload));
         final var transaction = getManufacturedCreation(b -> b.memo(SOME_MEMO)
                 .fileID(INITCODE_FILE_ID)

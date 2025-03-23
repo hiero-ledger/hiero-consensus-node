@@ -11,8 +11,8 @@ import java.time.Duration;
 import java.util.Collection;
 import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.system.ConsensusRound;
-import org.hiero.consensus.model.system.events.CesEvent;
+import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
  * Test utilities for the event stream

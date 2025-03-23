@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Test data for record stream file tests. It starts with a single JSON dump of a real main net record file in

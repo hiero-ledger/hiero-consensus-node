@@ -2,7 +2,7 @@
 package com.swirlds.platform.gossip.shadowgraph;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.consensus.EventWindow;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 public enum SyncFallenBehindStatus {
     NONE_FALLEN_BEHIND,

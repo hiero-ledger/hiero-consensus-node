@@ -4,7 +4,7 @@ package com.swirlds.platform.event.signing;
 import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.system.events.UnsignedEvent;
+import org.hiero.consensus.model.event.UnsignedEvent;
 
 /**
  * Signs self events.

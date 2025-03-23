@@ -10,7 +10,7 @@ import com.swirlds.platform.test.fixtures.communication.multithreaded.ExpiringCo
 import com.swirlds.platform.test.fixtures.communication.multithreaded.NegotiatorPair;
 import com.swirlds.platform.test.fixtures.sync.ConnectionFactory;
 import java.util.concurrent.TimeUnit;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

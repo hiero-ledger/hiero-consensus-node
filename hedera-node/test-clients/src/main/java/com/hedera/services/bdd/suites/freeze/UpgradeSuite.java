@@ -27,7 +27,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UPDATE_FILE_ID
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.suites.HapiSuite;
-import com.swirlds.common.utility.CommonUtils;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -38,6 +37,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 
 public class UpgradeSuite extends HapiSuite {
@@ -69,7 +69,7 @@ public class UpgradeSuite extends HapiSuite {
             poeticUpgradeHash = sha384.digest(poeticUpgrade);
             heavyPoeticUpgrade = Files.readAllBytes(Paths.get(heavyPoeticUpgradeLoc));
             heavyPoeticUpgradeHash = sha384.digest(heavyPoeticUpgrade);
-            log.info("Poetic upgrade hash: {}", CommonUtils.hex(poeticUpgradeHash));
+            log.info("Poetic upgrade hash: {}", org.hiero.consensus.model.utility.CommonUtils.hex(poeticUpgradeHash));
             log.info("Heavy poetic upgrade hash: {}", CommonUtils.hex(heavyPoeticUpgradeHash));
         } catch (NoSuchAlgorithmException | IOException e) {
             throw new IllegalStateException("UpgradeSuite environment is unsuitable", e);

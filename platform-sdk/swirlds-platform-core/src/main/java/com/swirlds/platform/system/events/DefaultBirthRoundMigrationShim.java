@@ -2,7 +2,7 @@
 package com.swirlds.platform.system.events;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static org.hiero.consensus.model.consensus.ConsensusConstants.ROUND_FIRST;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;

@@ -51,8 +51,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.system.events.Event;
-import org.hiero.consensus.model.system.transaction.Transaction;
+import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * Implementation of {@link PreHandleWorkflow}

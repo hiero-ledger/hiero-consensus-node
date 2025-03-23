@@ -4,7 +4,7 @@ package com.swirlds.platform.recovery.internal;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Objects;
-import org.hiero.consensus.model.system.events.CesEvent;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * A timestamp based lower bound on event streams.

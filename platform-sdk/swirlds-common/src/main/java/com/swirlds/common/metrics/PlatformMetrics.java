@@ -3,7 +3,7 @@ package com.swirlds.common.metrics;
 
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A {@link Metrics} implementation that knows about the platform. This interface has been extracted from the

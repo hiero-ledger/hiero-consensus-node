@@ -28,7 +28,6 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.Transaction;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -39,6 +38,7 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * Get the info of a account.
@@ -289,11 +289,15 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
             log.info("Constituent crypto keys are:");
             visitSimpleKeys(infoResponse.getAccountInfo().getKey(), simpleKey -> {
                 if (!simpleKey.getEd25519().isEmpty()) {
-                    log.info("  {}", CommonUtils.hex(simpleKey.getEd25519().toByteArray()));
+                    log.info(
+                            "  {}",
+                            org.hiero.consensus.model.utility.CommonUtils.hex(
+                                    simpleKey.getEd25519().toByteArray()));
                 } else if (!simpleKey.getECDSASecp256K1().isEmpty()) {
                     log.info(
                             "  {}",
-                            CommonUtils.hex(simpleKey.getECDSASecp256K1().toByteArray()));
+                            org.hiero.consensus.model.utility.CommonUtils.hex(
+                                    simpleKey.getECDSASecp256K1().toByteArray()));
                 }
             });
         }

@@ -3,8 +3,8 @@ package com.swirlds.platform.event.validation;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
-import static org.hiero.consensus.model.consensus.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
-import static org.hiero.consensus.model.system.events.EventConstants.FIRST_GENERATION;
+import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
 
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
@@ -26,10 +26,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.system.events.EventConstants;
-import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
-import org.hiero.consensus.model.system.transaction.Transaction;
+import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * A default implementation of the {@link InternalEventValidator} interface.

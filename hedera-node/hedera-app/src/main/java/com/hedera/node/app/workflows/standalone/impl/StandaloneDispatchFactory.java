@@ -64,8 +64,8 @@ import java.util.List;
 import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
-import org.hiero.consensus.model.system.transaction.TransactionWrapper;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**
  * Constructs a {@link Dispatch} appropriate for a standalone transaction executor that does not want to enforce

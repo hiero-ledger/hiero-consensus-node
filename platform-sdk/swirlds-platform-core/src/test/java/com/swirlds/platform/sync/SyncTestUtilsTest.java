@@ -13,7 +13,7 @@ import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Predicate;
-import org.hiero.consensus.model.consensus.EventWindow;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.junit.jupiter.api.Test;
 
 class SyncTestUtilsTest {

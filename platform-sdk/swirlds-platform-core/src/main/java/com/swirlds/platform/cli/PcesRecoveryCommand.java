@@ -7,7 +7,7 @@ import com.swirlds.platform.Browser;
 import com.swirlds.platform.CommandLineArgs;
 import java.io.IOException;
 import java.util.Set;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import picocli.CommandLine;
 
 @CommandLine.Command(

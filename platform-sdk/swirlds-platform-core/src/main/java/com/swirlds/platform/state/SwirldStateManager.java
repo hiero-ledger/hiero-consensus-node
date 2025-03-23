@@ -20,10 +20,10 @@ import java.time.Instant;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.ConsensusRound;
-import org.hiero.consensus.model.system.Round;
-import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * Manages all interactions with the state object required by {@link ConsensusStateEventHandler}.

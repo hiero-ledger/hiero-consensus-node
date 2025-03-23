@@ -27,7 +27,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.threading.interrupt.InterruptableConsumer;
 import org.hiero.consensus.model.threading.interrupt.InterruptableRunnable;
 import org.junit.jupiter.api.BeforeEach;

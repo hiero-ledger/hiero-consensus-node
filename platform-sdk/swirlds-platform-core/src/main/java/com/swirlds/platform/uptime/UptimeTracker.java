@@ -22,10 +22,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.ConsensusRound;
-import org.hiero.consensus.model.system.Round;
-import org.hiero.consensus.model.system.events.ConsensusEvent;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Monitors the uptime of nodes in the network.

@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.commons.lang3.StringUtils;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * Aggregates the properties to be used in setting up a {@link HapiSpec}.
@@ -106,7 +107,7 @@ public class HapiSpecSetup {
      */
     public EdDSAPrivateKey payerKeyAsEd25519() {
         if (StringUtils.isNotEmpty(defaultPayerKey())) {
-            return Ed25519Utils.keyFrom(com.swirlds.common.utility.CommonUtils.unhex(defaultPayerKey()));
+            return Ed25519Utils.keyFrom(CommonUtils.unhex(defaultPayerKey()));
         } else if (StringUtils.isNotEmpty(defaultPayerMnemonic())) {
             return mnemonicToEd25519Key(defaultPayerMnemonic());
         } else if (StringUtils.isNotEmpty(defaultPayerMnemonicFile())) {

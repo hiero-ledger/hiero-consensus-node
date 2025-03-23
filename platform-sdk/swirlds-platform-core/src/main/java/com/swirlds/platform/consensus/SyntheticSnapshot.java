@@ -8,10 +8,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.LongStream;
-import org.hiero.consensus.model.consensus.ConsensusConstants;
 import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.system.events.EventConstants;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
 /**
  * Utility class for generating "synthetic" snapshots

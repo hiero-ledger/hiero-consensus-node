@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.system.events;
+package org.hiero.consensus.model.event;
 
 import com.hedera.hapi.platform.event.EventDescriptor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A wrapper class for {@link EventDescriptor} that includes the hash of the event descriptor.

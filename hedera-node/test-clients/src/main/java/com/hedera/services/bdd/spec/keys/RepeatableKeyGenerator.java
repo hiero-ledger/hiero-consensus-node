@@ -4,12 +4,11 @@ package com.hedera.services.bdd.spec.keys;
 import static com.hedera.services.bdd.spec.keys.DefaultKeyGen.protoEcdsaKeyWith;
 import static com.hedera.services.bdd.spec.keys.DefaultKeyGen.protoEd25519KeyWith;
 import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromEcdsaFile.ecdsaFrom;
-import static com.swirlds.common.utility.CommonUtils.hex;
-import static com.swirlds.common.utility.CommonUtils.unhex;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.consensus.model.utility.CommonUtils.unhex;
 
 import com.hedera.services.bdd.spec.keys.deterministic.Ed25519Factory;
 import com.hederahashgraph.api.proto.java.Key;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.security.PrivateKey;
@@ -31,7 +30,7 @@ public class RepeatableKeyGenerator implements KeyGenerator {
 
     public RepeatableKeyGenerator() {
         ed25519Keys = Arrays.stream(TEST_ONLY_ED25519_KEYS)
-                .map(CommonUtils::unhex)
+                .map(org.hiero.consensus.model.utility.CommonUtils::unhex)
                 .map(Ed25519Factory::ed25519From)
                 .map(pk -> new RepeatableKey(hex(pk.getAbyte()), pk, protoEd25519KeyWith(pk.getAbyte())))
                 .toList();

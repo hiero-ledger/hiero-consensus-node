@@ -23,7 +23,7 @@ import com.swirlds.platform.stats.MaxStat;
 import com.swirlds.platform.system.PlatformStatNames;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
-import org.hiero.consensus.model.consensus.EventWindow;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * Interface to update relevant sync statistics

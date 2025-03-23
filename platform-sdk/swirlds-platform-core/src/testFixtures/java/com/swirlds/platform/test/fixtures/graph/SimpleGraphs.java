@@ -9,7 +9,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 public class SimpleGraphs {
     /**

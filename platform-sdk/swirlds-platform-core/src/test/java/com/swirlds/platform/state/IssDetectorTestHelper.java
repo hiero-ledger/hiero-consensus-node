@@ -11,7 +11,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.model.notification.IssNotification;
-import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * A helper class for testing the {@link com.swirlds.platform.state.iss.IssDetector}.

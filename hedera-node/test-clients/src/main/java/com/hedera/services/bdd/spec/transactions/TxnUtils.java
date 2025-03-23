@@ -74,7 +74,6 @@ import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.hederahashgraph.api.proto.java.TransferList;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -105,6 +104,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class TxnUtils {
     private static final Logger log = LogManager.getLogger(TxnUtils.class);
@@ -229,8 +229,8 @@ public class TxnUtils {
 
     public static ByteString asLiteralEvmAddress(@NonNull final String s) {
         return s.startsWith("0x")
-                ? ByteString.copyFrom(CommonUtils.unhex(s.substring(2)))
-                : ByteString.copyFrom(CommonUtils.unhex(s));
+                ? ByteString.copyFrom(org.hiero.consensus.model.utility.CommonUtils.unhex(s.substring(2)))
+                : ByteString.copyFrom(org.hiero.consensus.model.utility.CommonUtils.unhex(s));
     }
 
     public static boolean isNumericLiteral(final String s) {
@@ -395,7 +395,7 @@ public class TxnUtils {
         arraycopy(Longs.toByteArray(contract.getRealmNum()), 0, solidityAddress, 4, 8);
         arraycopy(Longs.toByteArray(contract.getContractNum()), 0, solidityAddress, 12, 8);
 
-        return CommonUtils.hex(solidityAddress);
+        return org.hiero.consensus.model.utility.CommonUtils.hex(solidityAddress);
     }
 
     public static TransactionID extractTxnId(final Transaction txn) throws Throwable {

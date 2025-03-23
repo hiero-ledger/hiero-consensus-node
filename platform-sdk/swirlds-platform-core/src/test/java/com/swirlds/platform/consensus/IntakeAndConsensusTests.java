@@ -15,7 +15,7 @@ import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.system.events.EventConstants;
+import org.hiero.consensus.model.event.EventConstants;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

@@ -14,9 +14,9 @@ import java.util.Objects;
 import java.util.stream.LongStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.consensus.ConsensusConstants;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.system.events.EventConstants;
+import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
 /**
  * Stores all hashgraph round information in a single place.

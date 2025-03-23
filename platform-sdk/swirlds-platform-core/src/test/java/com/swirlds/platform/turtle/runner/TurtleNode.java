@@ -47,8 +47,8 @@ import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.List;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Encapsulates a single node running in a TURTLE network.

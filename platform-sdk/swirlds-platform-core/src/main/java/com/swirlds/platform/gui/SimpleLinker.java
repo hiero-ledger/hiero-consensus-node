@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.Map;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
 
 /**
  * Similar to the {@link InOrderLinker} but simplified and streamlined. Also does unlinking and supports queries against

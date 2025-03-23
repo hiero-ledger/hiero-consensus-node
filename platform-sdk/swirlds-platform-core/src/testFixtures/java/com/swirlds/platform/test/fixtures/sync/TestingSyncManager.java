@@ -4,7 +4,7 @@ package com.swirlds.platform.test.fixtures.sync;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.hiero.consensus.gossip.FallenBehindManager;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 public class TestingSyncManager implements FallenBehindManager {
     /** whether we have fallen behind or not */

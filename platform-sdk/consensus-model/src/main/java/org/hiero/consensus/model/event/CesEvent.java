@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.system.events;
+package org.hiero.consensus.model.event;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -16,14 +16,13 @@ import java.util.Objects;
 import org.hiero.consensus.model.crypto.AbstractSerializableHashable;
 import org.hiero.consensus.model.crypto.RunningHash;
 import org.hiero.consensus.model.crypto.RunningHashable;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;
-import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
-import org.hiero.consensus.model.system.transaction.Transaction;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * A wrapper around a {@link PlatformEvent} that holds additional information required by the

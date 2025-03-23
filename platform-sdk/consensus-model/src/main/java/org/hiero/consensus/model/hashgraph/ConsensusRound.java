@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.system;
+package org.hiero.consensus.model.hashgraph;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -13,11 +13,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import org.hiero.consensus.model.consensus.EventWindow;
+import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.system.events.CesEvent;
-import org.hiero.consensus.model.system.events.ConsensusEvent;
-import org.hiero.consensus.model.system.transaction.Transaction;
+import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.utility.TypedIterator;
 
 /** A consensus round with events and all other relevant data. */

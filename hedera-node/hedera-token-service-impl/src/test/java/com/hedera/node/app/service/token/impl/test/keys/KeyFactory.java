@@ -7,7 +7,6 @@ import com.google.protobuf.ByteString;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import com.hederahashgraph.api.proto.java.ThresholdKey;
-import com.swirlds.common.utility.CommonUtils;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
@@ -27,6 +26,7 @@ import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
 import org.bouncycastle.jce.spec.ECPrivateKeySpec;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class KeyFactory {
     private static final KeyFactory DEFAULT_INSTANCE = new KeyFactory();
@@ -91,13 +91,17 @@ public class KeyFactory {
     public static String asPubKeyHex(Key key) {
         assert (!key.hasKeyList() && !key.hasThresholdKey());
         if (key.getRSA3072() != ByteString.EMPTY) {
-            return CommonUtils.hex(key.getRSA3072().toByteArray());
+            return org.hiero.consensus.model.utility.CommonUtils.hex(
+                    key.getRSA3072().toByteArray());
         } else if (key.getECDSA384() != ByteString.EMPTY) {
-            return CommonUtils.hex(key.getECDSA384().toByteArray());
+            return org.hiero.consensus.model.utility.CommonUtils.hex(
+                    key.getECDSA384().toByteArray());
         } else if (key.getECDSASecp256K1() != ByteString.EMPTY) {
-            return CommonUtils.hex(key.getECDSASecp256K1().toByteArray());
+            return org.hiero.consensus.model.utility.CommonUtils.hex(
+                    key.getECDSASecp256K1().toByteArray());
         } else {
-            return CommonUtils.hex(key.getEd25519().toByteArray());
+            return org.hiero.consensus.model.utility.CommonUtils.hex(
+                    key.getEd25519().toByteArray());
         }
     }
 
@@ -110,7 +114,7 @@ public class KeyFactory {
     public static Key genSingleEd25519Key(final Map<String, PrivateKey> publicToPrivateKey) {
         final var kp = new KeyPairGenerator().generateKeyPair();
         final var pubKey = ((EdDSAPublicKey) kp.getPublic()).getAbyte();
-        publicToPrivateKey.put(CommonUtils.hex(pubKey), kp.getPrivate());
+        publicToPrivateKey.put(org.hiero.consensus.model.utility.CommonUtils.hex(pubKey), kp.getPrivate());
 
         return Key.newBuilder().setEd25519(ByteString.copyFrom(pubKey)).build();
     }

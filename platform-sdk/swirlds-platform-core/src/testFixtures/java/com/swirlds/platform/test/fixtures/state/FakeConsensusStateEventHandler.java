@@ -53,9 +53,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.system.Round;
-import org.hiero.consensus.model.system.events.Event;
-import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler<MerkleNodeState> {
     FAKE_CONSENSUS_STATE_EVENT_HANDLER;

@@ -37,10 +37,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.events.CesEvent;
+import org.hiero.consensus.model.node.NodeId;
 import org.mockito.Mockito;
 
 /**

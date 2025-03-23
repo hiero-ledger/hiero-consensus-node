@@ -14,7 +14,7 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Connects {@link SimulatedGossip} peers in a simulated network.

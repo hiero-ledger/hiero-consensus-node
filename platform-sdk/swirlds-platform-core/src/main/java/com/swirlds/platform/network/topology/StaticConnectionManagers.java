@@ -9,7 +9,7 @@ import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Pre-builds connection managers for the supplied topology, does not allow changes at runtime

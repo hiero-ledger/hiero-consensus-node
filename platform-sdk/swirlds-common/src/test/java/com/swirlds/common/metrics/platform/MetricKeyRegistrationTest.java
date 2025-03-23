@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.IntegerGauge;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
 class MetricKeyRegistrationTest {

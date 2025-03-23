@@ -9,7 +9,7 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.util.Objects;
 import javax.swing.JTextArea;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The tab in the Browser window that shows network speed, transactions per second, etc.

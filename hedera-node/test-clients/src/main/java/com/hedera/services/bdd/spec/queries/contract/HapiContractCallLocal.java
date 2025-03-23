@@ -25,7 +25,6 @@ import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.Transaction;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
@@ -36,6 +35,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
     private static final Logger LOG = LogManager.getLogger(HapiContractCallLocal.class);
@@ -146,8 +146,8 @@ public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
         if (expectations.isPresent()) {
             ContractFunctionResult actual = response.getContractCallLocal().getFunctionResult();
             if (!loggingOff) {
-                final String hex =
-                        CommonUtils.hex(actual.getContractCallResult().toByteArray());
+                final String hex = org.hiero.consensus.model.utility.CommonUtils.hex(
+                        actual.getContractCallResult().toByteArray());
                 LOG.info(hex);
             }
             ErroringAsserts<ContractFunctionResult> asserts = expectations.get().assertsFor(spec);

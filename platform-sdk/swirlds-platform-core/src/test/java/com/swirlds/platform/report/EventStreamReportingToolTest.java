@@ -21,7 +21,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.system.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

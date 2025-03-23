@@ -2,8 +2,8 @@
 package com.swirlds.platform.components;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.consensus.EventWindow;
-import org.hiero.consensus.model.system.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * The default implementation of the {@link EventWindowManager} interface.

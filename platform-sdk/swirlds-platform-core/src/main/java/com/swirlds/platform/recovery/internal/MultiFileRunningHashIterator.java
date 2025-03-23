@@ -5,7 +5,7 @@ import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import java.io.IOException;
 import java.util.Objects;
-import org.hiero.consensus.model.system.events.CesEvent;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * A wrapper around {@link EventStreamMultiFileIterator}

@@ -4,8 +4,8 @@ package com.hedera.services.bdd.spec.transactions.token;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdForKeyLookUp;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdWithAlias;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTokenId;
-import static com.swirlds.common.utility.CommonUtils.unhex;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.utility.CommonUtils.unhex;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
@@ -20,7 +20,6 @@ import com.hederahashgraph.api.proto.java.PendingAirdropRecord;
 import com.hederahashgraph.api.proto.java.PendingAirdropValue;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.AbstractMap;
@@ -205,7 +204,8 @@ public class TokenMovement {
         }));
         // check if receiver is evm address
         if (accountsWithoutRel.isEmpty() && evmAddressReceiver.isPresent()) {
-            accountsWithoutRel.add(CommonUtils.hex(evmAddressReceiver.get().toByteArray()));
+            accountsWithoutRel.add(org.hiero.consensus.model.utility.CommonUtils.hex(
+                    evmAddressReceiver.get().toByteArray()));
         }
 
         return accountsWithoutRel;

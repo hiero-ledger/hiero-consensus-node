@@ -3,7 +3,7 @@ package org.hiero.consensus.gossip;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 public interface FallenBehindManager {
     /**

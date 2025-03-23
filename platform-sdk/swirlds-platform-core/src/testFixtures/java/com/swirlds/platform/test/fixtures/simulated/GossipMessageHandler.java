@@ -3,7 +3,7 @@ package com.swirlds.platform.test.fixtures.simulated;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * An interface for test classes that handle gossiped messages

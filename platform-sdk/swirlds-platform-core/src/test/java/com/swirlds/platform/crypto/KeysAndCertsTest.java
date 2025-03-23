@@ -15,7 +15,7 @@ import java.security.PublicKey;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 

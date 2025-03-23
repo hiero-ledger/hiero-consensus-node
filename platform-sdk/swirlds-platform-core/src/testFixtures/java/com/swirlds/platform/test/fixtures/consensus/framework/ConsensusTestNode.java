@@ -12,7 +12,7 @@ import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /** A type which is responsible for managing a node in a consensus test */
 public class ConsensusTestNode {

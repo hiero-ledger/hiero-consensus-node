@@ -9,7 +9,7 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * To implement a swirld, create a class that implements SwirldMain. Its constructor should have no parameters, and its

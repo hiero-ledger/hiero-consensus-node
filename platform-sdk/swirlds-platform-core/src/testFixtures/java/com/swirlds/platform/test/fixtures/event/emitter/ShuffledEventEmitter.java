@@ -4,7 +4,7 @@ package com.swirlds.platform.test.fixtures.event.emitter;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import java.util.Random;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Emits events in a random (but topologically correct) order.

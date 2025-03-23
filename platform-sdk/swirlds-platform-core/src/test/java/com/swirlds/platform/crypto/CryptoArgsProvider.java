@@ -22,7 +22,7 @@ import java.security.NoSuchProviderException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.params.provider.Arguments;
 
 /**

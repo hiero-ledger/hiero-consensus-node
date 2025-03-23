@@ -39,7 +39,6 @@ import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TopicID;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -48,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class HapiSpecRegistry {
     private final Map<String, Object> registry = new HashMap<>();
@@ -60,7 +60,7 @@ public class HapiSpecRegistry {
         this.setup = setup;
 
         final var key = setup.payerKeyAsEd25519();
-        final var genesisKey = asPublicKey(CommonUtils.hex(key.getAbyte()));
+        final var genesisKey = asPublicKey(org.hiero.consensus.model.utility.CommonUtils.hex(key.getAbyte()));
 
         saveAccountId(setup.genesisAccountName(), setup.genesisAccount());
         saveKey(setup.genesisAccountName(), asKeyList(genesisKey));

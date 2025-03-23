@@ -16,11 +16,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
-import org.hiero.consensus.model.system.events.UnsignedEvent;
-import org.hiero.consensus.model.system.transaction.TransactionWrapper;
+import org.hiero.consensus.model.event.UnsignedEvent;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 public class RandomEventUtils {
     public static final Instant DEFAULT_FIRST_EVENT_TIME_CREATED = Instant.ofEpochMilli(1588771316678L);

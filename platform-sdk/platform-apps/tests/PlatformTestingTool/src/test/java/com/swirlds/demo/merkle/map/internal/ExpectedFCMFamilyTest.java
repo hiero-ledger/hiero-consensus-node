@@ -58,7 +58,7 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.state.snapshot;
+package org.hiero.consensus.model.state;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;

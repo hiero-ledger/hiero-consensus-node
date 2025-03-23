@@ -9,7 +9,7 @@ import com.swirlds.config.api.Configuration;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Basic configuration data record. This record contains all general config properties that can not be defined for a

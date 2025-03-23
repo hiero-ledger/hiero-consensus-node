@@ -3,7 +3,7 @@ package com.swirlds.platform.gossip.shadowgraph;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.hiero.consensus.model.consensus.EventWindow;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * An event window that has been reserved in the shadowgraph. While this reservation is held, the shadowgraph will not

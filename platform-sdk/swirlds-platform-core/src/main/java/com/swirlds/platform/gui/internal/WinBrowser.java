@@ -34,7 +34,7 @@ import javax.swing.Timer;
 import javax.swing.WindowConstants;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The main browser window. It contains a tabbed pane, which contains the classes with names WinTab*, some of which

@@ -6,7 +6,7 @@ import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamily;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /*
  * Simulate Hedera Client to access file or map without going through

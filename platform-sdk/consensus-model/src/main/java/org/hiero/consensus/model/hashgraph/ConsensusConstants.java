@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.consensus;
+package org.hiero.consensus.model.hashgraph;
 
 /** Constants used for consensus */
 public final class ConsensusConstants {

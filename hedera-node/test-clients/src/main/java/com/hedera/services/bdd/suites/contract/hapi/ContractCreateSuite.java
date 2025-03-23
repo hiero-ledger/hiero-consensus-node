@@ -102,7 +102,6 @@ import com.hedera.services.bdd.utils.Signing;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import com.swirlds.common.utility.CommonUtils;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigInteger;
@@ -115,6 +114,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes32;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -145,7 +145,8 @@ public class ContractCreateSuite {
 
     @HapiTest
     final Stream<DynamicTest> createDeterministicDeployer() {
-        final var creatorAddress = ByteString.copyFrom(CommonUtils.unhex(DEPLOYMENT_SIGNER));
+        final var creatorAddress =
+                ByteString.copyFrom(org.hiero.consensus.model.utility.CommonUtils.unhex(DEPLOYMENT_SIGNER));
         final var transaction = ByteString.copyFrom(CommonUtils.unhex(DEPLOYMENT_TRANSACTION));
         final var systemFileId = FileID.newBuilder().setFileNum(159).build();
 
@@ -677,8 +678,9 @@ public class ContractCreateSuite {
                     assertEquals(Bytes32.ZERO, secondBlockHash);
                 }),
                 contractCallLocal(contract, "getLastBlockHash")
-                        .exposingTypedResultsTo(
-                                results -> log.info("Results were {}", CommonUtils.hex((byte[]) results[0]))));
+                        .exposingTypedResultsTo(results ->
+                                log.info("Results were {}", org.hiero.consensus.model.utility.CommonUtils.hex((byte[])
+                                        results[0]))));
     }
 
     @HapiTest

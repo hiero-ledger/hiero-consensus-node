@@ -6,7 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.model.consensus.ConsensusConstants;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
 /**
  * A lock-free implementation of {@link SignedStateNexus}. This implementation is the most efficient, but it makes it

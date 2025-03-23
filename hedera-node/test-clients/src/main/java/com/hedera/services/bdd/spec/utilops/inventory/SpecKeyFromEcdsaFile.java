@@ -10,7 +10,6 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import com.hederahashgraph.api.proto.java.Key;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -26,6 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.spec.ECPrivateKeySpec;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class SpecKeyFromEcdsaFile extends UtilOp {
     private static final Logger log = LogManager.getLogger(SpecKeyFromEcdsaFile.class);
@@ -67,7 +67,7 @@ public class SpecKeyFromEcdsaFile extends UtilOp {
             final String name,
             final Optional<String> linkedId,
             final @Nullable Logger logToUse) {
-        final var hexedKey = CommonUtils.hex(pubKey);
+        final var hexedKey = org.hiero.consensus.model.utility.CommonUtils.hex(pubKey);
         if (logToUse != null) {
             logToUse.info("Hex-encoded public key: {}", hexedKey);
         }

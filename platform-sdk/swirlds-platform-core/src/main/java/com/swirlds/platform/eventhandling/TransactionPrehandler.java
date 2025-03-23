@@ -6,7 +6,7 @@ import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Queue;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * Performs the prehandling of transactions

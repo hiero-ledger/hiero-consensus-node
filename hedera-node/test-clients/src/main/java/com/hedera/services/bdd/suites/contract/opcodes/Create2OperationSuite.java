@@ -94,8 +94,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_RE
 import static com.hederahashgraph.api.proto.java.TokenSupplyType.FINITE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
-import static com.swirlds.common.utility.CommonUtils.hex;
-import static com.swirlds.common.utility.CommonUtils.unhex;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.consensus.model.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -120,7 +120,6 @@ import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransferList;
-import com.swirlds.common.utility.CommonUtils;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
@@ -1518,7 +1517,8 @@ public class Create2OperationSuite {
         for (int i = 0; i < nftTransfersSize; i++) {
             nftTransfers[i] = ocWith(
                     accountId(partyAlias.get()),
-                    accountId(ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
+                    accountId(ByteString.copyFrom(
+                            org.hiero.consensus.model.utility.CommonUtils.unhex(expectedCreate2Address.get()))),
                     i + 1);
         }
         return Arrays.asList(nftTransfers);
@@ -1534,7 +1534,9 @@ public class Create2OperationSuite {
                             .setToken(ftId.get())
                             .addTransfers(aaWith(partyAlias.get(), -500))
                             .addTransfers(aaWith(
-                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +500)));
+                                    ByteString.copyFrom(org.hiero.consensus.model.utility.CommonUtils.unhex(
+                                            expectedCreate2Address.get())),
+                                    +500)));
                 })
                 .signedBy(DEFAULT_PAYER, PARTY)
                 .fee(ONE_HBAR)
@@ -1562,7 +1564,9 @@ public class Create2OperationSuite {
                     final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                     var transferListBuilder = TransferList.newBuilder()
                             .addAccountAmounts(aaWith(
-                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +ONE_HBAR))
+                                    ByteString.copyFrom(org.hiero.consensus.model.utility.CommonUtils.unhex(
+                                            expectedCreate2Address.get())),
+                                    +ONE_HBAR))
                             .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR));
 
                     b.setTransfers(transferListBuilder);
@@ -1571,13 +1575,16 @@ public class Create2OperationSuite {
                             .setToken(id.get())
                             .addTransfers(aaWith(partyAlias.get(), -500))
                             .addTransfers(aaWith(
-                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +500))));
+                                    ByteString.copyFrom(org.hiero.consensus.model.utility.CommonUtils.unhex(
+                                            expectedCreate2Address.get())),
+                                    +500))));
 
                     nftId.ifPresent(id -> b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(id.get())
                             .addNftTransfers(ocWith(
                                     accountId(partyAlias.get()),
-                                    accountId(ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
+                                    accountId(ByteString.copyFrom(org.hiero.consensus.model.utility.CommonUtils.unhex(
+                                            expectedCreate2Address.get()))),
                                     1L))));
                 })
                 .signedBy(DEFAULT_PAYER, PARTY)

@@ -31,7 +31,7 @@ import com.swirlds.platform.system.Platform;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Random;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;

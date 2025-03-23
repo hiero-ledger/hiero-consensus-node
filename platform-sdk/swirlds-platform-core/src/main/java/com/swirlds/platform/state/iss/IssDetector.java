@@ -12,7 +12,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.model.notification.IssNotification;
-import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * Keeps track of the state hashes reported by all network nodes. Responsible for detecting ISS events.

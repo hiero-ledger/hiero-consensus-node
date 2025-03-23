@@ -2,7 +2,7 @@
 package com.swirlds.platform.crypto;
 
 import com.swirlds.platform.roster.RosterUtils;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Denotes which of the three purposes a key or certificate serves

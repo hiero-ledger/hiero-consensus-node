@@ -24,7 +24,7 @@ import java.time.Instant;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.system.Round;
+import org.hiero.consensus.model.hashgraph.Round;
 
 /**
  * This class is an entry point for the platform state. Though the class itself is stateless, given an instance of {@link State},

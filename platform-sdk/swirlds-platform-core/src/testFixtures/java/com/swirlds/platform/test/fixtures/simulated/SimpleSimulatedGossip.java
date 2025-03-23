@@ -18,7 +18,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A simple gossip simulation where events are distributed with a delay

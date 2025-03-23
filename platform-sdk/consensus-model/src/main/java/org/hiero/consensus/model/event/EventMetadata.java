@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.system.events;
+package org.hiero.consensus.model.event;
 
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -13,8 +13,8 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.crypto.AbstractHashable;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.transaction.TransactionWrapper;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**
  * Metadata for an event that can be derived from the event itself

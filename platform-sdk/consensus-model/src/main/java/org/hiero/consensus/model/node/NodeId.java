@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.platform;
+package org.hiero.consensus.model.node;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;

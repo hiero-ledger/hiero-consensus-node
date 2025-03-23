@@ -23,7 +23,7 @@ import com.swirlds.platform.config.TransactionConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ScheduledExecutorService;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 public class FakePlatformContext implements PlatformContext {
     public static final Configuration PLATFORM_CONFIG = ConfigurationBuilder.create()

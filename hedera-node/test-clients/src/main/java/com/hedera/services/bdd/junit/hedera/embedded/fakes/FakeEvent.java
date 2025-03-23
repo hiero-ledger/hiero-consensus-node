@@ -13,10 +13,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.events.Event;
-import org.hiero.consensus.model.system.transaction.Transaction;
-import org.hiero.consensus.model.system.transaction.TransactionWrapper;
+import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 public class FakeEvent implements Event {
     private static final Bytes FAKE_SHA_384_SIGNATURE = Bytes.wrap(new byte[] {

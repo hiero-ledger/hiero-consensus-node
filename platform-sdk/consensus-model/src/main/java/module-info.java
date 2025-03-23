@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.model {
-    exports org.hiero.consensus.model.consensus;
     exports org.hiero.consensus.model.constructable;
     exports org.hiero.consensus.model.crypto;
     exports org.hiero.consensus.model.event;
+    exports org.hiero.consensus.model.hashgraph;
     exports org.hiero.consensus.model.io;
     exports org.hiero.consensus.model.io.exceptions;
     exports org.hiero.consensus.model.io.streams;
+    exports org.hiero.consensus.model.node;
     exports org.hiero.consensus.model.notification;
-    exports org.hiero.consensus.model.platform;
-    exports org.hiero.consensus.model.state.snapshot;
+    exports org.hiero.consensus.model.state;
     exports org.hiero.consensus.model.stream;
-    exports org.hiero.consensus.model.system;
-    exports org.hiero.consensus.model.system.events;
-    exports org.hiero.consensus.model.system.transaction;
+    exports org.hiero.consensus.model.transaction;
     exports org.hiero.consensus.model.threading.futures;
     exports org.hiero.consensus.model.threading.interrupt;
     exports org.hiero.consensus.model.utility;

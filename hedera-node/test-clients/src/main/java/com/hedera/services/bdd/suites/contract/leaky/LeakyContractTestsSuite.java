@@ -129,7 +129,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
-import static com.swirlds.common.utility.CommonUtils.hex;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
 import static org.hyperledger.besu.datatypes.Address.contractAddress;
 import static org.hyperledger.besu.datatypes.Address.fromHexString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -167,7 +167,6 @@ import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.hederahashgraph.api.proto.java.TransferList;
-import com.swirlds.common.utility.CommonUtils;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -283,7 +282,8 @@ public class LeakyContractTestsSuite {
                             final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                             b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(aaWith(
-                                            ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
+                                            ByteString.copyFrom(org.hiero.consensus.model.utility.CommonUtils.unhex(
+                                                    expectedCreate2Address.get())),
                                             +ONE_HBAR))
                                     .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR)));
                         })
@@ -733,7 +733,8 @@ public class LeakyContractTestsSuite {
                             .toString()
                             .toLowerCase()
                             .substring(2);
-                    expectedParentAddress.set(ByteString.copyFrom(CommonUtils.unhex(expectedParentContractAddress)));
+                    expectedParentAddress.set(ByteString.copyFrom(
+                            org.hiero.consensus.model.utility.CommonUtils.unhex(expectedParentContractAddress)));
 
                     final var expectedChildContractAddress =
                             contractAddress(fromHexString(expectedParentContractAddress), 1L);

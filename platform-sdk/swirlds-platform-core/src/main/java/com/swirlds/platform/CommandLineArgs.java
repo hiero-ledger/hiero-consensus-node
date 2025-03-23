@@ -4,7 +4,7 @@ package com.swirlds.platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashSet;
 import java.util.Set;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Command line arguments that can be passed to the browser when starting up

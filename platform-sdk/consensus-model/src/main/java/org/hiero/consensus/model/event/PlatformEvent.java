@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
-import static org.hiero.consensus.model.consensus.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
 import static org.hiero.consensus.model.threading.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -17,17 +17,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import org.hiero.consensus.model.consensus.ConsensusConstants;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.crypto.Hashable;
-import org.hiero.consensus.model.platform.NodeId;
-import org.hiero.consensus.model.system.events.ConsensusEvent;
-import org.hiero.consensus.model.system.events.EventDescriptorWrapper;
-import org.hiero.consensus.model.system.events.EventMetadata;
-import org.hiero.consensus.model.system.events.UnsignedEvent;
-import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
-import org.hiero.consensus.model.system.transaction.Transaction;
-import org.hiero.consensus.model.system.transaction.TransactionWrapper;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.model.utility.TypedIterator;
 
 /**

@@ -4,7 +4,7 @@ package com.swirlds.platform.test.fixtures.simulated.config;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A convenience class for building maps with repeating elements, keyed by {@link NodeId}s with monotonically increasing

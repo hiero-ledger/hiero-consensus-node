@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.system;
+package org.hiero.consensus.model.hashgraph;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -7,8 +7,8 @@ import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import org.hiero.consensus.model.system.events.ConsensusEvent;
-import org.hiero.consensus.model.system.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
 
 /**
  * A collection of unique events that reached consensus at the same time. The consensus data for every event in the

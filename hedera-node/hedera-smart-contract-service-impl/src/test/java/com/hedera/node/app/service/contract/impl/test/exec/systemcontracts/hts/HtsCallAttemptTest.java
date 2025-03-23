@@ -57,11 +57,11 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transf
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc721TransferFromTranslator;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
-import com.swirlds.common.utility.CommonUtils;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -284,7 +284,7 @@ class HtsCallAttemptTest extends CallAttemptTestBase {
         "true,true,0x5c9217e0",
     })
     void constructsAssociations(boolean useExplicitCall, boolean isRedirect, String hexedSelector) {
-        final var selector = CommonUtils.unhex(hexedSelector.substring(2));
+        final var selector = org.hiero.consensus.model.utility.CommonUtils.unhex(hexedSelector.substring(2));
         final var selectorHex = hexedSelector.substring(2);
         // Even the approval-based transfers need a verification strategy since the receiver could have
         // receiverSigRequired on; in which case the sender will need to activate a contract id key
@@ -337,7 +337,7 @@ class HtsCallAttemptTest extends CallAttemptTestBase {
         "0x9b23d3d9",
     })
     void constructsClassicTransfers(String hexedSelector) {
-        final var selector = CommonUtils.unhex(hexedSelector.substring(2));
+        final var selector = org.hiero.consensus.model.utility.CommonUtils.unhex(hexedSelector.substring(2));
         final var selectorHex = hexedSelector.substring(2);
         // Even the approval-based transfers need a verification strategy since the receiver could have
         // receiverSigRequired on; in which case the sender will need to activate a contract id key

@@ -73,9 +73,9 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -310,7 +310,8 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @Test
     @DisplayName("preHandle succeeds when has non zero evm alias")
     void preHandleWorksWhenHasEvmAlias() throws PreCheckException {
-        final byte[] evmAddress = CommonUtils.unhex("6aeb3773ea468a814d954e6dec795bfee7d76e26");
+        final byte[] evmAddress =
+                org.hiero.consensus.model.utility.CommonUtils.unhex("6aeb3773ea468a814d954e6dec795bfee7d76e26");
         txn = new CryptoCreateBuilder()
                 .withAlias(Bytes.wrap(evmAddress))
                 .withStakedAccountId(3)

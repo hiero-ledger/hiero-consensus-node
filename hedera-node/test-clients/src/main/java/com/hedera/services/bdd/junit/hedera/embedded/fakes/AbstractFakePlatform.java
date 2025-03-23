@@ -16,7 +16,7 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 public abstract class AbstractFakePlatform implements Platform {
     private static final Signature TOY_SIGNATURE = new Signature(SignatureType.RSA, new byte[384]);

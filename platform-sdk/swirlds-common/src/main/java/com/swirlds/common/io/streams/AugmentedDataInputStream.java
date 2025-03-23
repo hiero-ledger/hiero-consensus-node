@@ -5,7 +5,6 @@ import static com.swirlds.common.io.streams.SerializableStreamConstants.DEFAULT_
 import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_INSTANT_EPOCH_SECOND;
 import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_LIST_ARRAY_LENGTH;
 
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -15,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.model.io.exceptions.BadIOException;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * This data input stream provides additional functionality for deserializing various basic data structures.

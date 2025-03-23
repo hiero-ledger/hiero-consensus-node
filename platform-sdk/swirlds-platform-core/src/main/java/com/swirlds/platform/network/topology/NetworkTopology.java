@@ -2,7 +2,7 @@
 package com.swirlds.platform.network.topology;
 
 import java.util.Set;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Holds information about the topology of the network

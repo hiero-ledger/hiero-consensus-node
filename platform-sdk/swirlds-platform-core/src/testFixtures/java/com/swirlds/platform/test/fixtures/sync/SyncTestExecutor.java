@@ -30,8 +30,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import org.hiero.consensus.model.consensus.EventWindow;
 import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * This class executes a single sync between two {@link SyncNode} instances. It defines the high level structure and

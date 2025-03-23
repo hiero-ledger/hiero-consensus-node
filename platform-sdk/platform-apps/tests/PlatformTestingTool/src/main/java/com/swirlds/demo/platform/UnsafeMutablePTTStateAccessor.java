@@ -4,7 +4,7 @@ package com.swirlds.demo.platform;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import java.util.HashMap;
 import java.util.Map;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * PTT was written with some state access patterns that are unsafe. This class enables those patterns to be used, even

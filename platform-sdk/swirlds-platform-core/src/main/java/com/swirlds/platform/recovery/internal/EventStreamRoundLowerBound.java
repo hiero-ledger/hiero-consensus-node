@@ -2,7 +2,7 @@
 package com.swirlds.platform.recovery.internal;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.system.events.CesEvent;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * A round based lower bound on an event stream.

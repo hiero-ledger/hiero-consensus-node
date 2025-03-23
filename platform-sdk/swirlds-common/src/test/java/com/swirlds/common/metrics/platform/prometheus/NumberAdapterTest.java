@@ -13,7 +13,7 @@ import com.swirlds.metrics.api.snapshot.Snapshot;
 import com.swirlds.metrics.impl.DefaultIntegerGauge;
 import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
 class NumberAdapterTest {

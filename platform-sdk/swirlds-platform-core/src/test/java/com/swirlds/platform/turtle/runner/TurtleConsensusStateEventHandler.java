@@ -13,10 +13,10 @@ import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
-import org.hiero.consensus.model.system.Round;
-import org.hiero.consensus.model.system.events.Event;
-import org.hiero.consensus.model.system.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.model.system.transaction.Transaction;
+import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * This class handles the lifecycle events for the {@link TurtleTestingToolState}.

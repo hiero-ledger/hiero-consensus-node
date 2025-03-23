@@ -4,7 +4,7 @@ package com.swirlds.platform.test.fixtures.turtle.gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * An event that is in transit between nodes in the network.

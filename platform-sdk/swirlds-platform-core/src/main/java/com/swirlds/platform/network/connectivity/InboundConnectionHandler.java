@@ -25,7 +25,7 @@ import java.util.Objects;
 import javax.net.ssl.SSLSocket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.threading.interrupt.InterruptableConsumer;
 
 /**

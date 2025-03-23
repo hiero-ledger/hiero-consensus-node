@@ -8,7 +8,7 @@ import com.swirlds.platform.test.fixtures.sync.ConnectionFactory;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
-import org.hiero.consensus.model.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 
 /**

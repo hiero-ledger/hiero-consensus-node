@@ -2,7 +2,7 @@
 package com.swirlds.platform.event.report;
 
 import java.time.Instant;
-import org.hiero.consensus.model.system.events.CesEvent;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * Information about an event stream.
