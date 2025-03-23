@@ -60,7 +60,7 @@ public class HapiSpecRegistry {
         this.setup = setup;
 
         final var key = setup.payerKeyAsEd25519();
-        final var genesisKey = asPublicKey(org.hiero.consensus.model.utility.CommonUtils.hex(key.getAbyte()));
+        final var genesisKey = asPublicKey(CommonUtils.hex(key.getAbyte()));
 
         saveAccountId(setup.genesisAccountName(), setup.genesisAccount());
         saveKey(setup.genesisAccountName(), asKeyList(genesisKey));

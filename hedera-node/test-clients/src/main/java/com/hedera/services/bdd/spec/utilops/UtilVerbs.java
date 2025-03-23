@@ -830,8 +830,8 @@ public class UtilVerbs {
     public static HapiSpecOperation exposeTargetLedgerIdTo(@NonNull final Consumer<ByteString> ledgerIdConsumer) {
         return getAccountInfo(GENESIS).payingWith(GENESIS).exposingLedgerIdTo(ledgerId -> {
             if (!RECOGNIZED_LEDGER_IDS.contains(ledgerId)) {
-                Assertions.fail("Target network is claiming unrecognized ledger id "
-                        + org.hiero.consensus.model.utility.CommonUtils.hex(ledgerId.toByteArray()));
+                Assertions.fail(
+                        "Target network is claiming unrecognized ledger id " + CommonUtils.hex(ledgerId.toByteArray()));
             }
             ledgerIdConsumer.accept(ledgerId);
         });
@@ -1859,7 +1859,7 @@ public class UtilVerbs {
                     .sorted(Comparator.comparing(ContractID::getContractNum))
                     .toList();
             final var createdId = createdIds.get(creationNum);
-            final var accDetails = getContractInfo(org.hiero.consensus.model.utility.CommonUtils.hex(
+            final var accDetails = getContractInfo(CommonUtils.hex(
                             asEvmAddress(createdId.getShardNum(), createdId.getRealmNum(), createdId.getContractNum())))
                     .logged();
             allRunFor(spec, accDetails);
@@ -2519,8 +2519,7 @@ public class UtilVerbs {
     public static byte[] getEcdsaPrivateKeyFromSpec(final HapiSpec spec, final String privateKeyRef) {
         var key = spec.registry().getKey(privateKeyRef);
         final var privateKey = spec.keys()
-                .getEcdsaPrivateKey(org.hiero.consensus.model.utility.CommonUtils.hex(
-                        key.getECDSASecp256K1().toByteArray()));
+                .getEcdsaPrivateKey(CommonUtils.hex(key.getECDSASecp256K1().toByteArray()));
 
         byte[] privateKeyByteArray;
         byte[] dByteArray = ((BCECPrivateKey) privateKey).getD().toByteArray();

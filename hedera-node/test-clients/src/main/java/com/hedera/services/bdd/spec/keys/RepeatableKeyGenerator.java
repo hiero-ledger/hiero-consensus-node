@@ -15,6 +15,7 @@ import java.security.PrivateKey;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * A {@link KeyGenerator} that generates repeatable keys for testing purposes.
@@ -30,7 +31,7 @@ public class RepeatableKeyGenerator implements KeyGenerator {
 
     public RepeatableKeyGenerator() {
         ed25519Keys = Arrays.stream(TEST_ONLY_ED25519_KEYS)
-                .map(org.hiero.consensus.model.utility.CommonUtils::unhex)
+                .map(CommonUtils::unhex)
                 .map(Ed25519Factory::ed25519From)
                 .map(pk -> new RepeatableKey(hex(pk.getAbyte()), pk, protoEd25519KeyWith(pk.getAbyte())))
                 .toList();

@@ -461,9 +461,8 @@ class HevmTransactionFactoryTest {
     void fromHapiCreationAppendsConstructorArgsIfPresent() {
         given(fileStore.getFileLeaf(INITCODE_FILE_ID))
                 .willReturn(File.newBuilder().contents(INITCODE).build());
-        String hexedPayload = new String(INITCODE.toByteArray())
-                + org.hiero.consensus.model.utility.CommonUtils.hex(CONSTRUCTOR_PARAMS.toByteArray());
-        final var expectedPayload = Bytes.wrap(org.hiero.consensus.model.utility.CommonUtils.unhex(hexedPayload));
+        String hexedPayload = new String(INITCODE.toByteArray()) + CommonUtils.hex(CONSTRUCTOR_PARAMS.toByteArray());
+        final var expectedPayload = Bytes.wrap(CommonUtils.unhex(hexedPayload));
         final var transaction = getManufacturedCreation(b -> b.memo(SOME_MEMO)
                 .fileID(INITCODE_FILE_ID)
                 .constructorParameters(CONSTRUCTOR_PARAMS)
@@ -491,8 +490,7 @@ class HevmTransactionFactoryTest {
                 .willReturn(File.newBuilder()
                         .contents(Bytes.wrap("0x" + new String(INITCODE.toByteArray())))
                         .build());
-        String hexedPayload = new String(INITCODE.toByteArray())
-                + org.hiero.consensus.model.utility.CommonUtils.hex(CONSTRUCTOR_PARAMS.toByteArray());
+        String hexedPayload = new String(INITCODE.toByteArray()) + CommonUtils.hex(CONSTRUCTOR_PARAMS.toByteArray());
         final var expectedPayload = Bytes.wrap(CommonUtils.unhex(hexedPayload));
         final var transaction = getManufacturedCreation(b -> b.memo(SOME_MEMO)
                 .fileID(INITCODE_FILE_ID)

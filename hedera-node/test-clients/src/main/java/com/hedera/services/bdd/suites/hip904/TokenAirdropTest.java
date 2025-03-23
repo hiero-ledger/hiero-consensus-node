@@ -1254,8 +1254,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @DisplayName("EVM address account")
         final Stream<DynamicTest> airdropToNonExistingEvmAddressAccount() {
             // calculate evmAddress;
-            final byte[] publicKey = org.hiero.consensus.model.utility.CommonUtils.unhex(
-                    "02641dc27aa851ddc5a238dc569718f82b4e5eb3b61030942432fe7ac9088459c5");
+            final byte[] publicKey =
+                    CommonUtils.unhex("02641dc27aa851ddc5a238dc569718f82b4e5eb3b61030942432fe7ac9088459c5");
             final ByteString evmAddress = ByteStringUtils.wrapUnsafely(recoverAddressFromPubKey(publicKey));
 
             return hapiTest(
@@ -1298,8 +1298,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @DisplayName("a NFT to an EVM address account")
         final Stream<DynamicTest> airdropNftToNonExistingAccount() {
             // calculate evmAddress;
-            final byte[] publicKey = org.hiero.consensus.model.utility.CommonUtils.unhex(
-                    "02641dc27aa851ddc5a238dc569718f82b4e5eb3b61030942432fe7ac9088459c5");
+            final byte[] publicKey =
+                    CommonUtils.unhex("02641dc27aa851ddc5a238dc569718f82b4e5eb3b61030942432fe7ac9088459c5");
             final ByteString evmAddress = ByteStringUtils.wrapUnsafely(recoverAddressFromPubKey(publicKey));
 
             return hapiTest(

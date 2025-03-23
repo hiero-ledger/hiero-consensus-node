@@ -122,6 +122,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -684,8 +685,7 @@ public class EthereumSuite {
                             .getKey(SECP_256K1_SOURCE_KEY)
                             .getECDSASecp256K1()
                             .toByteArray();
-                    final var senderAddress =
-                            org.hiero.consensus.model.utility.CommonUtils.hex(recoverAddressFromPubKey(ecdsaKey));
+                    final var senderAddress = CommonUtils.hex(recoverAddressFromPubKey(ecdsaKey));
                     final var senderNonce = 0;
 
                     final var expectedParentContractAddress =
@@ -695,16 +695,16 @@ public class EthereumSuite {
                     final var expectedThirdChildContractAddress = contractAddress(expectedParentContractAddress, 3);
 
                     final var parentId = createdIds.get(0);
-                    final var parentContractId = org.hiero.consensus.model.utility.CommonUtils.hex(
+                    final var parentContractId = CommonUtils.hex(
                             asEvmAddress(parentId.getShardNum(), parentId.getRealmNum(), parentId.getContractNum()));
                     final var firstChildId = createdIds.get(1);
-                    final var firstChildContractId = org.hiero.consensus.model.utility.CommonUtils.hex(asEvmAddress(
+                    final var firstChildContractId = CommonUtils.hex(asEvmAddress(
                             firstChildId.getShardNum(), firstChildId.getRealmNum(), firstChildId.getContractNum()));
                     final var secondChildId = createdIds.get(2);
-                    final var secondChildContractId = org.hiero.consensus.model.utility.CommonUtils.hex(asEvmAddress(
+                    final var secondChildContractId = CommonUtils.hex(asEvmAddress(
                             secondChildId.getShardNum(), secondChildId.getRealmNum(), secondChildId.getContractNum()));
                     final var thirdChildId = createdIds.get(3);
-                    final var thirdChildContractId = org.hiero.consensus.model.utility.CommonUtils.hex(asEvmAddress(
+                    final var thirdChildContractId = CommonUtils.hex(asEvmAddress(
                             thirdChildId.getShardNum(), thirdChildId.getRealmNum(), thirdChildId.getContractNum()));
 
                     final var parentContractInfo = getContractInfo(parentContractId)

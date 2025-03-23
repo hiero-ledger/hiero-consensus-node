@@ -63,6 +63,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.bouncycastle.util.encoders.Hex;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.hyperledger.besu.crypto.Hash;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -331,8 +332,7 @@ public class Utils {
                 .setContractID(ContractID.newBuilder()
                         .setShardNum(shard)
                         .setRealmNum(realm)
-                        .setEvmAddress(ByteString.copyFrom(
-                                org.hiero.consensus.model.utility.CommonUtils.unhex(hexedEvmAddress))))
+                        .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(hexedEvmAddress))))
                 .build();
     }
 
@@ -341,8 +341,7 @@ public class Utils {
                 .setDelegatableContractId(ContractID.newBuilder()
                         .setShardNum(shard)
                         .setRealmNum(realm)
-                        .setEvmAddress(ByteString.copyFrom(
-                                org.hiero.consensus.model.utility.CommonUtils.unhex(hexedEvmAddress))))
+                        .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(hexedEvmAddress))))
                 .build();
     }
 

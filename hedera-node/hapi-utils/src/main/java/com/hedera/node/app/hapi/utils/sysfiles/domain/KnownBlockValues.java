@@ -54,7 +54,6 @@ public record KnownBlockValues(byte[] hash, long number) {
 
     @Override
     public String toString() {
-        return "KnownBlockValues{" + "hash=" + org.hiero.consensus.model.utility.CommonUtils.hex(hash) + ", number="
-                + number + '}';
+        return "KnownBlockValues{" + "hash=" + CommonUtils.hex(hash) + ", number=" + number + '}';
     }
 }

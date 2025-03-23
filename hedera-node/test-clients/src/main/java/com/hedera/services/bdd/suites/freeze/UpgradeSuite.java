@@ -69,7 +69,7 @@ public class UpgradeSuite extends HapiSuite {
             poeticUpgradeHash = sha384.digest(poeticUpgrade);
             heavyPoeticUpgrade = Files.readAllBytes(Paths.get(heavyPoeticUpgradeLoc));
             heavyPoeticUpgradeHash = sha384.digest(heavyPoeticUpgrade);
-            log.info("Poetic upgrade hash: {}", org.hiero.consensus.model.utility.CommonUtils.hex(poeticUpgradeHash));
+            log.info("Poetic upgrade hash: {}", CommonUtils.hex(poeticUpgradeHash));
             log.info("Heavy poetic upgrade hash: {}", CommonUtils.hex(heavyPoeticUpgradeHash));
         } catch (NoSuchAlgorithmException | IOException e) {
             throw new IllegalStateException("UpgradeSuite environment is unsuitable", e);

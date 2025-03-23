@@ -289,15 +289,11 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
             log.info("Constituent crypto keys are:");
             visitSimpleKeys(infoResponse.getAccountInfo().getKey(), simpleKey -> {
                 if (!simpleKey.getEd25519().isEmpty()) {
-                    log.info(
-                            "  {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(
-                                    simpleKey.getEd25519().toByteArray()));
+                    log.info("  {}", CommonUtils.hex(simpleKey.getEd25519().toByteArray()));
                 } else if (!simpleKey.getECDSASecp256K1().isEmpty()) {
                     log.info(
                             "  {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(
-                                    simpleKey.getECDSASecp256K1().toByteArray()));
+                            CommonUtils.hex(simpleKey.getECDSASecp256K1().toByteArray()));
                 }
             });
         }

@@ -458,15 +458,15 @@ public interface HapiPropertySource {
     }
 
     static String asHexedSolidityAddress(final AccountID accountId) {
-        return org.hiero.consensus.model.utility.CommonUtils.hex(asSolidityAddress(accountId));
+        return CommonUtils.hex(asSolidityAddress(accountId));
     }
 
     static String asHexedSolidityAddress(final ContractID contractId) {
-        return org.hiero.consensus.model.utility.CommonUtils.hex(asSolidityAddress(contractId));
+        return CommonUtils.hex(asSolidityAddress(contractId));
     }
 
     static String asHexedSolidityAddress(final TokenID tokenId) {
-        return org.hiero.consensus.model.utility.CommonUtils.hex(asSolidityAddress(tokenId));
+        return CommonUtils.hex(asSolidityAddress(tokenId));
     }
 
     static byte[] asSolidityAddress(final ContractID contractId) {
@@ -488,11 +488,11 @@ public interface HapiPropertySource {
     }
 
     static String asHexedSolidityAddress(final int shard, final long realm, final long num) {
-        return org.hiero.consensus.model.utility.CommonUtils.hex(asSolidityAddress(shard, realm, num));
+        return CommonUtils.hex(asSolidityAddress(shard, realm, num));
     }
 
     static ContractID contractIdFromHexedMirrorAddress(final String hexedEvm) {
-        byte[] unhex = org.hiero.consensus.model.utility.CommonUtils.unhex(hexedEvm);
+        byte[] unhex = CommonUtils.unhex(hexedEvm);
         return ContractID.newBuilder()
                 .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(unhex, 0, 4)))
                 .setRealmNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 4, 12)))
@@ -501,7 +501,7 @@ public interface HapiPropertySource {
     }
 
     static AccountID accountIdFromHexedMirrorAddress(final String hexedEvm) {
-        byte[] unhex = org.hiero.consensus.model.utility.CommonUtils.unhex(hexedEvm);
+        byte[] unhex = CommonUtils.unhex(hexedEvm);
         return AccountID.newBuilder()
                 .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(unhex, 0, 4)))
                 .setRealmNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 4, 12)))

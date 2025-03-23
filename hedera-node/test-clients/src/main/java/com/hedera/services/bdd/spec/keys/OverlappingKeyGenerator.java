@@ -49,8 +49,7 @@ public class OverlappingKeyGenerator implements KeyGenerator {
         }
         log.debug("**** Hexed Public Keys ****");
         precomputed.stream()
-                .forEach(k -> log.debug(org.hiero.consensus.model.utility.CommonUtils.hex(
-                        k.getEd25519().toByteArray())));
+                .forEach(k -> log.debug(CommonUtils.hex(k.getEd25519().toByteArray())));
     }
 
     private ByteString pubKeyPrefixOf(Key key, int prefixLen) {

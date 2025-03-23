@@ -28,7 +28,6 @@ import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.util.MarkerFileWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -51,6 +50,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * All the code for calculating the consensus for events in a hashgraph. This calculates the
@@ -246,7 +246,7 @@ public class ConsensusImpl implements Consensus {
                 snapshot.round(), snapshot.judgeHashes().stream().map(Hash::new).collect(Collectors.toSet()));
         rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
         numConsensus = snapshot.nextConsensusNumber();
-        lastConsensusTime = PbjConverter.fromPbjTimestamp(snapshot.consensusTimestamp());
+        lastConsensusTime = CommonUtils.fromPbjTimestamp(snapshot.consensusTimestamp());
     }
 
     /** Reset this instance to a state of a newly created instance */
@@ -745,7 +745,7 @@ public class ConsensusImpl implements Consensus {
                         ConsensusUtils.getHashBytes(judges),
                         rounds.getMinimumJudgeInfoList(),
                         numConsensus,
-                        PbjConverter.toPbjTimestamp(lastConsensusTime)),
+                        CommonUtils.toPbjTimestamp(lastConsensusTime)),
                 pcesMode,
                 time.now());
     }

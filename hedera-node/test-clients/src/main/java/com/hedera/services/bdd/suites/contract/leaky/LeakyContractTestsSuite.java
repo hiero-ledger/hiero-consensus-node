@@ -179,6 +179,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -282,8 +283,7 @@ public class LeakyContractTestsSuite {
                             final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                             b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(aaWith(
-                                            ByteString.copyFrom(org.hiero.consensus.model.utility.CommonUtils.unhex(
-                                                    expectedCreate2Address.get())),
+                                            ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
                                             +ONE_HBAR))
                                     .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR)));
                         })
@@ -733,8 +733,7 @@ public class LeakyContractTestsSuite {
                             .toString()
                             .toLowerCase()
                             .substring(2);
-                    expectedParentAddress.set(ByteString.copyFrom(
-                            org.hiero.consensus.model.utility.CommonUtils.unhex(expectedParentContractAddress)));
+                    expectedParentAddress.set(ByteString.copyFrom(CommonUtils.unhex(expectedParentContractAddress)));
 
                     final var expectedChildContractAddress =
                             contractAddress(fromHexString(expectedParentContractAddress), 1L);

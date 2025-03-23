@@ -17,7 +17,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
@@ -35,6 +34,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -84,7 +84,7 @@ class UptimeTests {
         final ConsensusRound round =
                 new ConsensusRound(roster, events, mock(EventWindow.class), snapshot, false, Instant.now());
         final Instant consensusTimestamp = events.get(events.size() - 1).getConsensusTimestamp();
-        when(snapshot.consensusTimestamp()).thenReturn(PbjConverter.toPbjTimestamp(consensusTimestamp));
+        when(snapshot.consensusTimestamp()).thenReturn(CommonUtils.toPbjTimestamp(consensusTimestamp));
         when(snapshot.round()).thenReturn(roundNum);
         when(round.getRoundNum()).thenReturn(roundNum);
         return round;

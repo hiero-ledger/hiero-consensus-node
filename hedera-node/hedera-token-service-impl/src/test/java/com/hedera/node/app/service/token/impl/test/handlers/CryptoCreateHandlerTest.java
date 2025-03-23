@@ -310,8 +310,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @Test
     @DisplayName("preHandle succeeds when has non zero evm alias")
     void preHandleWorksWhenHasEvmAlias() throws PreCheckException {
-        final byte[] evmAddress =
-                org.hiero.consensus.model.utility.CommonUtils.unhex("6aeb3773ea468a814d954e6dec795bfee7d76e26");
+        final byte[] evmAddress = CommonUtils.unhex("6aeb3773ea468a814d954e6dec795bfee7d76e26");
         txn = new CryptoCreateBuilder()
                 .withAlias(Bytes.wrap(evmAddress))
                 .withStakedAccountId(3)

@@ -146,8 +146,8 @@ public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
         if (expectations.isPresent()) {
             ContractFunctionResult actual = response.getContractCallLocal().getFunctionResult();
             if (!loggingOff) {
-                final String hex = org.hiero.consensus.model.utility.CommonUtils.hex(
-                        actual.getContractCallResult().toByteArray());
+                final String hex =
+                        CommonUtils.hex(actual.getContractCallResult().toByteArray());
                 LOG.info(hex);
             }
             ErroringAsserts<ContractFunctionResult> asserts = expectations.get().assertsFor(spec);

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.utility;
 
-import com.swirlds.logging.legacy.LogMarker;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static org.hiero.consensus.model.utility.StackTrace.getStackTrace;
+
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -262,18 +264,18 @@ public class StandardFuture<T> implements Future<T> {
         if (isDone()) {
             if (cancelled) {
                 logger.warn(
-                        LogMarker.EXCEPTION.getMarker(),
+                        EXCEPTION.getMarker(),
                         "Future has already been cancelled, can't complete " + "(provided value = {})\n{}",
                         value,
-                        StackTrace.getStackTrace());
+                        getStackTrace());
             } else {
                 logger.warn(
-                        LogMarker.EXCEPTION.getMarker(),
+                        EXCEPTION.getMarker(),
                         "Future has already been completed can not complete again "
                                 + "(current value = {}, provided value = {})\n{}",
                         this.value,
                         value,
-                        StackTrace.getStackTrace());
+                        getStackTrace());
             }
             return;
         }
@@ -293,16 +295,13 @@ public class StandardFuture<T> implements Future<T> {
     public synchronized boolean cancel(final boolean mayInterruptIfRunning) {
         if (isDone()) {
             if (cancelled) {
-                logger.warn(
-                        LogMarker.EXCEPTION.getMarker(),
-                        "Future has already been cancelled\n{}",
-                        StackTrace.getStackTrace());
+                logger.warn(EXCEPTION.getMarker(), "Future has already been cancelled\n{}", getStackTrace());
             } else {
                 logger.warn(
-                        LogMarker.EXCEPTION.getMarker(),
+                        EXCEPTION.getMarker(),
                         "Future has already been completed, can not cancel " + "(current value = {})\n{}",
                         value,
-                        StackTrace.getStackTrace());
+                        getStackTrace());
             }
             return false;
         }
@@ -350,16 +349,13 @@ public class StandardFuture<T> implements Future<T> {
     public synchronized void cancelWithError(final boolean mayInterruptIfRunning, final Throwable error) {
         if (isDone()) {
             if (cancelled) {
-                logger.warn(
-                        LogMarker.EXCEPTION.getMarker(),
-                        "Future has already been cancelled\n{}",
-                        StackTrace.getStackTrace());
+                logger.warn(EXCEPTION.getMarker(), "Future has already been cancelled\n{}", getStackTrace());
             } else {
                 logger.warn(
-                        LogMarker.EXCEPTION.getMarker(),
+                        EXCEPTION.getMarker(),
                         "Future has already been completed, can not cancel " + "(current value = {})\n{}",
                         value,
-                        StackTrace.getStackTrace());
+                        getStackTrace());
             }
             return;
         }

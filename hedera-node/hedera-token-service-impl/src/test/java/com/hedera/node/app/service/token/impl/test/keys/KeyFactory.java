@@ -91,17 +91,13 @@ public class KeyFactory {
     public static String asPubKeyHex(Key key) {
         assert (!key.hasKeyList() && !key.hasThresholdKey());
         if (key.getRSA3072() != ByteString.EMPTY) {
-            return org.hiero.consensus.model.utility.CommonUtils.hex(
-                    key.getRSA3072().toByteArray());
+            return CommonUtils.hex(key.getRSA3072().toByteArray());
         } else if (key.getECDSA384() != ByteString.EMPTY) {
-            return org.hiero.consensus.model.utility.CommonUtils.hex(
-                    key.getECDSA384().toByteArray());
+            return CommonUtils.hex(key.getECDSA384().toByteArray());
         } else if (key.getECDSASecp256K1() != ByteString.EMPTY) {
-            return org.hiero.consensus.model.utility.CommonUtils.hex(
-                    key.getECDSASecp256K1().toByteArray());
+            return CommonUtils.hex(key.getECDSASecp256K1().toByteArray());
         } else {
-            return org.hiero.consensus.model.utility.CommonUtils.hex(
-                    key.getEd25519().toByteArray());
+            return CommonUtils.hex(key.getEd25519().toByteArray());
         }
     }
 
@@ -114,7 +110,7 @@ public class KeyFactory {
     public static Key genSingleEd25519Key(final Map<String, PrivateKey> publicToPrivateKey) {
         final var kp = new KeyPairGenerator().generateKeyPair();
         final var pubKey = ((EdDSAPublicKey) kp.getPublic()).getAbyte();
-        publicToPrivateKey.put(org.hiero.consensus.model.utility.CommonUtils.hex(pubKey), kp.getPrivate());
+        publicToPrivateKey.put(CommonUtils.hex(pubKey), kp.getPrivate());
 
         return Key.newBuilder().setEd25519(ByteString.copyFrom(pubKey)).build();
     }

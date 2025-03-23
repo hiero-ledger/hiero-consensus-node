@@ -145,8 +145,7 @@ public class ContractCreateSuite {
 
     @HapiTest
     final Stream<DynamicTest> createDeterministicDeployer() {
-        final var creatorAddress =
-                ByteString.copyFrom(org.hiero.consensus.model.utility.CommonUtils.unhex(DEPLOYMENT_SIGNER));
+        final var creatorAddress = ByteString.copyFrom(CommonUtils.unhex(DEPLOYMENT_SIGNER));
         final var transaction = ByteString.copyFrom(CommonUtils.unhex(DEPLOYMENT_TRANSACTION));
         final var systemFileId = FileID.newBuilder().setFileNum(159).build();
 
@@ -678,9 +677,8 @@ public class ContractCreateSuite {
                     assertEquals(Bytes32.ZERO, secondBlockHash);
                 }),
                 contractCallLocal(contract, "getLastBlockHash")
-                        .exposingTypedResultsTo(results ->
-                                log.info("Results were {}", org.hiero.consensus.model.utility.CommonUtils.hex((byte[])
-                                        results[0]))));
+                        .exposingTypedResultsTo(
+                                results -> log.info("Results were {}", CommonUtils.hex((byte[]) results[0]))));
     }
 
     @HapiTest

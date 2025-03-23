@@ -52,7 +52,7 @@ public class NewPemCommand implements Callable<Integer> {
         final EdDSAPrivateKey privateKey = Ed25519Utils.keyFrom(curvePoint);
         final var pubKey = privateKey.getAbyte();
         COMMON_MESSAGES.info("Generating a new key @ " + loc);
-        final var hexedPubKey = org.hiero.consensus.model.utility.CommonUtils.hex(pubKey);
+        final var hexedPubKey = CommonUtils.hex(pubKey);
         final var pubKeyLoc = loc.replace(".pem", ".pubkey");
         Files.writeString(Paths.get(pubKeyLoc), hexedPubKey + "\n");
         final var privKeyLoc = loc.replace(".pem", ".privkey");

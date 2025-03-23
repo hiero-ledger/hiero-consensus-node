@@ -149,9 +149,7 @@ public class TrieSigMapGenerator implements SigMapGenerator {
                     prefix = trie.randomPrefix(key.length);
                     break;
             }
-            final String message = String.format(
-                    "%s gets prefix %s",
-                    org.hiero.consensus.model.utility.CommonUtils.hex(key), CommonUtils.hex(prefix));
+            final String message = String.format("%s gets prefix %s", CommonUtils.hex(key), CommonUtils.hex(prefix));
             log.debug(message);
             return prefix;
         };

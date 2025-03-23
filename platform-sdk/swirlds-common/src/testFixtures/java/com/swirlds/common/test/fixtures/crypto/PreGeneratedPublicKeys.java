@@ -72,8 +72,7 @@ public class PreGeneratedPublicKeys {
         for (int i = 0; i < number; i++) {
             // KeyPair keyPair = KeyUtils.generateKeyPair(KeyType.RSA, 3072, SecureRandom.getInstanceStrong());
             KeyPair keyPair = KeyUtils.generateKeyPair(KeyType.EC, 384, SecureRandom.getInstanceStrong());
-            String hex = org.hiero.consensus.model.utility.CommonUtils.hex(
-                    keyPair.getPublic().getEncoded());
+            String hex = CommonUtils.hex(keyPair.getPublic().getEncoded());
 
             sb.append('"');
             sb.append(hex);

@@ -82,7 +82,7 @@ public class PrngPrecompileSuite {
                                                         .toByteArray());
                                     }
                                 }
-                                prngSeeds.add(org.hiero.consensus.model.utility.CommonUtils.hex(rawResult));
+                                prngSeeds.add(CommonUtils.hex(rawResult));
                             }
                             opLog.info("Got prng seeds  : {}", prngSeeds);
                             assertEquals(
@@ -103,8 +103,8 @@ public class PrngPrecompileSuite {
                 uploadInitCode(prng),
                 contractCreate(prng),
                 sourcing(() -> contractCall(prng, GET_SEED)
-                        .withExplicitParams(() -> org.hiero.consensus.model.utility.CommonUtils.hex(
-                                Bytes.fromBase64String("").toArray()))
+                        .withExplicitParams(
+                                () -> CommonUtils.hex(Bytes.fromBase64String("").toArray()))
                         .gas(GAS_TO_OFFER)
                         .payingWith(BOB)
                         .via(emptyInputCall)
@@ -128,7 +128,7 @@ public class PrngPrecompileSuite {
                 uploadInitCode(prng),
                 contractCreate(prng),
                 sourcing(() -> contractCall(prng, GET_SEED)
-                        .withExplicitParams(() -> org.hiero.consensus.model.utility.CommonUtils.hex(
+                        .withExplicitParams(() -> CommonUtils.hex(
                                 Bytes.fromBase64String(EXPLICIT_LARGE_PARAMS).toArray()))
                         .gas(GAS_TO_OFFER)
                         .payingWith(BOB)

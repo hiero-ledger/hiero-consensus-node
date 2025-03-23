@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.hashgraph;
 
-import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.utility.ToStringBuilder;
@@ -17,6 +16,7 @@ import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.hiero.consensus.model.utility.TypedIterator;
 
 /** A consensus round with events and all other relevant data. */
@@ -190,10 +190,7 @@ public class ConsensusRound implements Round {
      */
     @Override
     public @NonNull Instant getConsensusTimestamp() {
-        final Timestamp timestamp = snapshot.consensusTimestamp();
-        final Instant instant =
-                timestamp == null ? null : Instant.ofEpochSecond(timestamp.seconds(), timestamp.nanos());
-        return Objects.requireNonNull(instant);
+        return Objects.requireNonNull(CommonUtils.fromPbjTimestamp(snapshot.consensusTimestamp()));
     }
 
     /**

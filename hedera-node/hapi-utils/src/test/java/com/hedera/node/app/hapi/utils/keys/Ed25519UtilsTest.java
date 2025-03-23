@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import java.security.KeyPair;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -28,7 +29,7 @@ class Ed25519UtilsTest {
     void throwsIllegalArgumentOnMissingTargetLoc() {
         final var tmpLoc = "unreachable/missing/re-encrypted_genesis.pem";
         final var tmpPassphrase = "hedera";
-        final var seed = org.hiero.consensus.model.utility.CommonUtils.unhex(devPrivateKey);
+        final var seed = CommonUtils.unhex(devPrivateKey);
 
         assertThrows(IllegalArgumentException.class, () -> Ed25519Utils.writeKeyTo(seed, tmpLoc, tmpPassphrase));
     }
@@ -38,8 +39,7 @@ class Ed25519UtilsTest {
         final var tmpLoc = tempDir.getPath() + File.separator + "re-encrypted_genesis.pem";
         final var tmpPassphrase = "hedera";
 
-        Ed25519Utils.writeKeyTo(
-                org.hiero.consensus.model.utility.CommonUtils.unhex(devPrivateKey), tmpLoc, tmpPassphrase);
+        Ed25519Utils.writeKeyTo(CommonUtils.unhex(devPrivateKey), tmpLoc, tmpPassphrase);
         final var recovered = Ed25519Utils.readKeyFrom(tmpLoc, tmpPassphrase);
         assertIsGenesisDevKey(recovered);
 

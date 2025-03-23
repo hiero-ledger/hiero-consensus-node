@@ -67,7 +67,7 @@ public class SpecKeyFromEcdsaFile extends UtilOp {
             final String name,
             final Optional<String> linkedId,
             final @Nullable Logger logToUse) {
-        final var hexedKey = org.hiero.consensus.model.utility.CommonUtils.hex(pubKey);
+        final var hexedKey = CommonUtils.hex(pubKey);
         if (logToUse != null) {
             logToUse.info("Hex-encoded public key: {}", hexedKey);
         }

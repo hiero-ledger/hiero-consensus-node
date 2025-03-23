@@ -4,6 +4,7 @@ package org.hiero.consensus.model.io;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A SerializableDet that knows how to serialize and deserialize itself.
@@ -11,7 +12,7 @@ import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 public interface SelfSerializable extends SerializableDet, FunctionalSerialize {
 
     /**
-     * Deserializes an instance that has been previously serialized by {@link FunctionalSerialize#serialize(org.hiero.consensus.model.io.streams.SerializableDataOutputStream)}.
+     * Deserializes an instance that has been previously serialized by {@link FunctionalSerialize#serialize(SerializableDataOutputStream)}.
      * This method should support all versions of the serialized data.
      *
      * @param in

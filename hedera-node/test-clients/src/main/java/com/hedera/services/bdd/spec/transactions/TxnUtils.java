@@ -229,8 +229,8 @@ public class TxnUtils {
 
     public static ByteString asLiteralEvmAddress(@NonNull final String s) {
         return s.startsWith("0x")
-                ? ByteString.copyFrom(org.hiero.consensus.model.utility.CommonUtils.unhex(s.substring(2)))
-                : ByteString.copyFrom(org.hiero.consensus.model.utility.CommonUtils.unhex(s));
+                ? ByteString.copyFrom(CommonUtils.unhex(s.substring(2)))
+                : ByteString.copyFrom(CommonUtils.unhex(s));
     }
 
     public static boolean isNumericLiteral(final String s) {
@@ -395,7 +395,7 @@ public class TxnUtils {
         arraycopy(Longs.toByteArray(contract.getRealmNum()), 0, solidityAddress, 4, 8);
         arraycopy(Longs.toByteArray(contract.getContractNum()), 0, solidityAddress, 12, 8);
 
-        return org.hiero.consensus.model.utility.CommonUtils.hex(solidityAddress);
+        return CommonUtils.hex(solidityAddress);
     }
 
     public static TransactionID extractTxnId(final Transaction txn) throws Throwable {

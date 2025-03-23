@@ -34,7 +34,7 @@ public class TestValueSerializer implements ValueSerializer<TestValue> {
 
     @Override
     public int getSerializedSize(final TestValue data) {
-        final byte[] bytes = org.hiero.consensus.model.utility.CommonUtils.getNormalisedStringBytes(data.getValue());
+        final byte[] bytes = CommonUtils.getNormalisedStringBytes(data.getValue());
         return Integer.BYTES + bytes.length;
     }
 
@@ -45,7 +45,7 @@ public class TestValueSerializer implements ValueSerializer<TestValue> {
 
     @Override
     public void serialize(final TestValue data, final WritableSequentialData out) {
-        final byte[] bytes = org.hiero.consensus.model.utility.CommonUtils.getNormalisedStringBytes(data.getValue());
+        final byte[] bytes = CommonUtils.getNormalisedStringBytes(data.getValue());
         out.writeInt(bytes.length);
         out.writeBytes(bytes);
     }

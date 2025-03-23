@@ -132,7 +132,7 @@ class EthTxDataTest {
         assertEquals(RAW_TX_TYPE_0, Hex.toHexString(frontierTx.rawTx()));
         assertEquals(EthTxData.EthTransactionType.LEGACY_ETHEREUM, frontierTx.type());
         assertEquals("012a", Hex.toHexString(frontierTx.chainId()));
-        assertTrue(frontierTx.matchesChainId(org.hiero.consensus.model.utility.CommonUtils.unhex("012a")));
+        assertTrue(frontierTx.matchesChainId(CommonUtils.unhex("012a")));
         assertFalse(frontierTx.matchesChainId(CommonUtils.unhex("a210")));
         assertEquals(1, frontierTx.nonce());
         assertEquals("2f", Hex.toHexString(frontierTx.gasPrice()));

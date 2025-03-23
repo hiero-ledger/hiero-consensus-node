@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class TokenMovement {
     private final long amount;
@@ -204,8 +205,7 @@ public class TokenMovement {
         }));
         // check if receiver is evm address
         if (accountsWithoutRel.isEmpty() && evmAddressReceiver.isPresent()) {
-            accountsWithoutRel.add(org.hiero.consensus.model.utility.CommonUtils.hex(
-                    evmAddressReceiver.get().toByteArray()));
+            accountsWithoutRel.add(CommonUtils.hex(evmAddressReceiver.get().toByteArray()));
         }
 
         return accountsWithoutRel;

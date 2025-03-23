@@ -38,7 +38,7 @@ public final class TestValue implements VirtualValue {
     }
 
     int sizeInBytes() {
-        final byte[] data = org.hiero.consensus.model.utility.CommonUtils.getNormalisedStringBytes(s);
+        final byte[] data = CommonUtils.getNormalisedStringBytes(s);
         return Integer.BYTES + data.length;
     }
 
@@ -48,7 +48,7 @@ public final class TestValue implements VirtualValue {
     }
 
     void serialize(ByteBuffer buffer) {
-        final byte[] data = org.hiero.consensus.model.utility.CommonUtils.getNormalisedStringBytes(this.s);
+        final byte[] data = CommonUtils.getNormalisedStringBytes(this.s);
         buffer.putInt(data.length);
         buffer.put(data);
     }

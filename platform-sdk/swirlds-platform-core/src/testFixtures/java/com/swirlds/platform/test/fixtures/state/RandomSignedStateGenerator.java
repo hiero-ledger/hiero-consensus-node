@@ -27,7 +27,6 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -48,6 +47,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * A utility for generating random signed states.
@@ -196,7 +196,7 @@ public class RandomSignedStateGenerator {
                             .mapToObj(i -> new MinimumJudgeInfo(roundInstance - i, 0L))
                             .toList(),
                     roundInstance,
-                    PbjConverter.toPbjTimestamp(consensusTimestampInstance));
+                    CommonUtils.toPbjTimestamp(consensusTimestampInstance));
         } else {
             consensusSnapshotInstance = consensusSnapshot;
         }

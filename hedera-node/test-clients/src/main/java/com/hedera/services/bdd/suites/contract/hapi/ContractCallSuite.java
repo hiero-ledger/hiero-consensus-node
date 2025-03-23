@@ -137,6 +137,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -722,8 +723,7 @@ public class ContractCallSuite {
                                 getABIForContract(jurisdictions),
                                 "JurisdictionAdded",
                                 data -> nyJurisCode.set((byte[]) data[0])),
-                sourcing(() -> logIt(
-                        "NY juris code is " + org.hiero.consensus.model.utility.CommonUtils.hex(nyJurisCode.get()))),
+                sourcing(() -> logIt("NY juris code is " + CommonUtils.hex(nyJurisCode.get()))),
                 sourcing(() -> contractCallLocal(jurisdictions, "isValid", nyJurisCode.get())
                         .has(resultWith()
                                 .resultThruAbi(
@@ -824,10 +824,7 @@ public class ContractCallSuite {
                         .initialSupply(0)
                         .supplyKey(DEFAULT_PAYER)
                         .treasury(DEFAULT_PAYER),
-                mintToken(
-                        "nft",
-                        List.of(ByteString.copyFrom(
-                                org.hiero.consensus.model.utility.CommonUtils.unhex(hexedNonUtf8Meta)))),
+                mintToken("nft", List.of(ByteString.copyFrom(CommonUtils.unhex(hexedNonUtf8Meta)))),
                 sourcing(() -> contractCall(
                                 contractAlternatives, "canGetMetadataViaERC", nftAddr.get(), BigInteger.valueOf(1))
                         .via(viaErc721TokenURI)),
@@ -848,8 +845,7 @@ public class ContractCallSuite {
                             .getContractCallResult();
                     final var htsMetadata = decoder.decode(htsResult.toByteArray());
                     // The HTS method leaves non-UTF-8 bytes as-is
-                    assertEquals(hexedNonUtf8Meta, org.hiero.consensus.model.utility.CommonUtils.hex((byte[])
-                            htsMetadata.get(0)));
+                    assertEquals(hexedNonUtf8Meta, CommonUtils.hex((byte[]) htsMetadata.get(0)));
 
                     final var ercResult = getErcResult
                             .getResponseRecord()
@@ -858,8 +854,7 @@ public class ContractCallSuite {
                     // But the ERC721 method returns the Unicode replacement
                     // character
                     final var ercMetadata = decoder.decode(ercResult.toByteArray());
-                    assertEquals(
-                            "efbfbd", org.hiero.consensus.model.utility.CommonUtils.hex((byte[]) ercMetadata.get(0)));
+                    assertEquals("efbfbd", CommonUtils.hex((byte[]) ercMetadata.get(0)));
                 }));
     }
 
@@ -934,8 +929,8 @@ public class ContractCallSuite {
                     final AtomicReference<AccountID> ercUserId = new AtomicReference<>();
                     final var lookup = getAliasedAccountInfo(ercUserKey)
                             .logged()
-                            .exposingContractAccountIdTo(evmAddress -> ercUserAddress.set(
-                                    asHeadlongAddress(org.hiero.consensus.model.utility.CommonUtils.unhex(evmAddress))))
+                            .exposingContractAccountIdTo(
+                                    evmAddress -> ercUserAddress.set(asHeadlongAddress(CommonUtils.unhex(evmAddress))))
                             .exposingIdTo(ercUserId::set);
                     allRunFor(spec, lookup);
                     System.out.println("ERC user is " + ercUserAddress.get() + " (" + ercUserId.get() + ")");
@@ -1030,48 +1025,20 @@ public class ContractCallSuite {
                         .exposingTypedResultsTo(results -> LOG.info("Is operator? {}", results[0]))
                         .exposingRawResultsTo(erc721IsOperatorOutput::set)),
                 withOpContext((spec, opLog) -> {
-                    LOG.info(
-                            "Explicit secret is {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(secretOutput.get()));
-                    LOG.info(
-                            "Explicit PRNG seed is {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(prngOutput.get()));
-                    LOG.info(
-                            "Explicit equiv tinycents is {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(tinycentEquivOutput.get()));
-                    LOG.info(
-                            "Explicit ERC-20 balance {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(erc20BalanceOutput.get()));
-                    LOG.info(
-                            "Explicit ERC-20 supply {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(erc20SupplyOutput.get()));
-                    LOG.info(
-                            "Explicit ERC-20 name {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(erc20NameOutput.get()));
-                    LOG.info(
-                            "Explicit ERC-20 symbol {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(erc20SymbolOutput.get()));
-                    LOG.info(
-                            "Explicit ERC-20 decimals {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(erc20DecimalsOutput.get()));
-                    LOG.info(
-                            "Explicit ERC-721 name {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(erc721NameOutput.get()));
-                    LOG.info(
-                            "Explicit ERC-721 symbol {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(erc721SymbolOutput.get()));
-                    LOG.info(
-                            "Explicit ERC-721 SN#2 metadata {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(erc721TokenUriOutput.get()));
-                    LOG.info(
-                            "Explicit ERC-721 user balance is {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(erc721BalanceOutput.get()));
-                    LOG.info(
-                            "Explicit ERC-721 SN#1 owner is {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(erc721OwnerOutput.get()));
-                    LOG.info(
-                            "Explicit ERC-721 operator is {}",
-                            org.hiero.consensus.model.utility.CommonUtils.hex(erc721IsOperatorOutput.get()));
+                    LOG.info("Explicit secret is {}", CommonUtils.hex(secretOutput.get()));
+                    LOG.info("Explicit PRNG seed is {}", CommonUtils.hex(prngOutput.get()));
+                    LOG.info("Explicit equiv tinycents is {}", CommonUtils.hex(tinycentEquivOutput.get()));
+                    LOG.info("Explicit ERC-20 balance {}", CommonUtils.hex(erc20BalanceOutput.get()));
+                    LOG.info("Explicit ERC-20 supply {}", CommonUtils.hex(erc20SupplyOutput.get()));
+                    LOG.info("Explicit ERC-20 name {}", CommonUtils.hex(erc20NameOutput.get()));
+                    LOG.info("Explicit ERC-20 symbol {}", CommonUtils.hex(erc20SymbolOutput.get()));
+                    LOG.info("Explicit ERC-20 decimals {}", CommonUtils.hex(erc20DecimalsOutput.get()));
+                    LOG.info("Explicit ERC-721 name {}", CommonUtils.hex(erc721NameOutput.get()));
+                    LOG.info("Explicit ERC-721 symbol {}", CommonUtils.hex(erc721SymbolOutput.get()));
+                    LOG.info("Explicit ERC-721 SN#2 metadata {}", CommonUtils.hex(erc721TokenUriOutput.get()));
+                    LOG.info("Explicit ERC-721 user balance is {}", CommonUtils.hex(erc721BalanceOutput.get()));
+                    LOG.info("Explicit ERC-721 SN#1 owner is {}", CommonUtils.hex(erc721OwnerOutput.get()));
+                    LOG.info("Explicit ERC-721 operator is {}", CommonUtils.hex(erc721IsOperatorOutput.get()));
                 }));
     }
 

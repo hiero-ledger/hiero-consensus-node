@@ -105,6 +105,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 
@@ -731,7 +732,7 @@ public class SystemFileExportsTest {
             return mapper.writeValueAsString(nodeAdminKeys.entrySet().stream()
                     .collect(toMap(
                             entry -> entry.getKey().toString(),
-                            entry -> org.hiero.consensus.model.utility.CommonUtils.hex(
+                            entry -> CommonUtils.hex(
                                     entry.getValue().getEd25519().toByteArray()))));
         } catch (Exception e) {
             throw new IllegalStateException("Unable to serialize node admin keys", e);
