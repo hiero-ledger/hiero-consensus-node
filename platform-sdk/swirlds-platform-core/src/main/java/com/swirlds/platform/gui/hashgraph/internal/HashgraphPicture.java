@@ -11,7 +11,6 @@ import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.HashgraphPictureOptions;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.EventConstants;
 import java.awt.AWTException;
 import java.awt.Color;
 import java.awt.Font;
@@ -29,6 +28,7 @@ import java.util.List;
 import javax.swing.JPanel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.EventConstants;
 
 /**
  * This panel has the hashgraph picture, and appears in the window to the right of all the settings.

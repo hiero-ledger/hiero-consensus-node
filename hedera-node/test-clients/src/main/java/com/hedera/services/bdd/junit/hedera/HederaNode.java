@@ -5,13 +5,13 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.internal.network.Network;
 import com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 public interface HederaNode {
     /**

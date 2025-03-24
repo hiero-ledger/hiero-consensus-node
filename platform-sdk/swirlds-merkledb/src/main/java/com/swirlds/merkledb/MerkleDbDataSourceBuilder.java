@@ -5,8 +5,6 @@ import static com.swirlds.merkledb.MerkleDbDataSourceBuilder.CLASS_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.constructable.ConstructableClass;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.constructable.constructors.MerkleDbDataSourceBuilderConstructor;
@@ -17,6 +15,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Objects;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * Virtual data source builder that manages {@link MerkleDb} based data sources.

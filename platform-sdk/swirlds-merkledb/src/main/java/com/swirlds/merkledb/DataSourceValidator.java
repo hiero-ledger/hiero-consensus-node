@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -10,6 +9,7 @@ import com.swirlds.virtualmap.serialize.KeySerializer;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.model.crypto.Hash;
 
 // Note: This class is intended to be used with a human in the loop who is watching standard in and standard err.
 

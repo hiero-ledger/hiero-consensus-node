@@ -31,9 +31,9 @@ import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.FAKE_
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileAppendsPerBurst;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
-import static com.swirlds.platform.system.status.PlatformStatus.CATASTROPHIC_FAILURE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpecOperation;

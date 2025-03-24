@@ -6,13 +6,13 @@ import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Holds fake network information for testing.
@@ -20,7 +20,7 @@ import java.util.List;
 public class FakeNetworkInfo implements NetworkInfo {
     private static final Bytes DEV_LEDGER_ID = Bytes.wrap(new byte[] {0x03});
     private static final List<NodeId> FAKE_NODE_INFO_IDS = List.of(NodeId.of(2), NodeId.of(4), NodeId.of(8));
-    private static final List<NodeInfo> FAKE_NODE_INFOS = List.of(
+    public static final List<NodeInfo> FAKE_NODE_INFOS = List.of(
             fakeInfoWith(
                     2L,
                     AccountID.newBuilder().accountNum(3).build(),

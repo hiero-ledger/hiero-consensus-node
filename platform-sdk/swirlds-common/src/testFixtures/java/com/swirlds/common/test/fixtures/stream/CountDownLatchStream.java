@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.stream;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.RunningHashable;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
 import java.util.concurrent.CountDownLatch;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.RunningHashable;
 
 /**
  * This stream contains a CountDownLatch(1) object.

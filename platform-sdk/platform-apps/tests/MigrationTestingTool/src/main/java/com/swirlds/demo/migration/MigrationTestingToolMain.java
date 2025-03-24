@@ -12,7 +12,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.fcqueue.FCQueueStatistics;
 import com.swirlds.logging.legacy.payload.ApplicationFinishedPayload;
 import com.swirlds.merkle.map.MerkleMapMetrics;
@@ -26,6 +25,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SignatureException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * An application designed for testing migration from version to version.

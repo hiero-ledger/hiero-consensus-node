@@ -25,6 +25,7 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.merkledb")
     requires("com.swirlds.metrics.api")
     requires("com.swirlds.virtualmap")
+    requires("org.hiero.consensus.model")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")

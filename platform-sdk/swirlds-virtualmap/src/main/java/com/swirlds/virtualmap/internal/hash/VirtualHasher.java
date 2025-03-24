@@ -9,7 +9,6 @@ import static java.util.Objects.requireNonNull;
 import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashBuilder;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
@@ -30,6 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Responsible for hashing virtual merkle trees. This class is designed to work both for normal

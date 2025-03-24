@@ -2,10 +2,10 @@
 package com.swirlds.platform.testreader;
 
 import static com.swirlds.common.formatting.HorizontalAlignment.ALIGNED_RIGHT;
-import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static com.swirlds.platform.testreader.TestStatus.FAIL;
 import static com.swirlds.platform.testreader.TestStatus.PASS;
 import static com.swirlds.platform.testreader.TestStatus.UNKNOWN;
+import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
 import com.swirlds.common.utility.CompareTo;
 import com.swirlds.platform.util.CommandResult;

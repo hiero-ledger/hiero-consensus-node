@@ -20,12 +20,12 @@ import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * A node running in the same OS process as the JUnit test runner, with a direct reference

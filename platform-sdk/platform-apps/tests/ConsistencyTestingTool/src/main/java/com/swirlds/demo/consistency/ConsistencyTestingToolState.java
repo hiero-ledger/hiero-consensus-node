@@ -9,12 +9,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.utility.NonCryptographicHashing;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.events.Event;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
-import com.swirlds.platform.system.transaction.Transaction;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,6 +20,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * State for the Consistency Testing Tool

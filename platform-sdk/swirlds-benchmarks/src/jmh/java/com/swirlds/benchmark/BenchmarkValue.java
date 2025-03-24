@@ -3,13 +3,13 @@ package com.swirlds.benchmark;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.virtualmap.VirtualValue;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.function.LongUnaryOperator;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 public class BenchmarkValue implements VirtualValue {
 

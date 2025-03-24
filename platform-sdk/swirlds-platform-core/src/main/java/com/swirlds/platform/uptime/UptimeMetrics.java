@@ -4,7 +4,6 @@ package com.swirlds.platform.uptime;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
@@ -12,6 +11,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Supplier;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Metrics that track node uptime.

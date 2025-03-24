@@ -9,10 +9,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingStateSignature
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 

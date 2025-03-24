@@ -2,10 +2,10 @@
 package com.hedera.node.app.service.file.impl.schemas;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.fromString;
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.Spliterator.DISTINCT;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

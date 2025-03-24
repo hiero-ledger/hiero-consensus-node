@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
-import com.swirlds.common.threading.interrupt.InterruptableRunnable;
-import com.swirlds.common.threading.interrupt.Uninterruptable;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.CountDownLatch;
+import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
+import org.hiero.consensus.model.utility.interrupt.Uninterruptable;
 
 /**
  * A request to dump a signed state to disk because of an unexpected occurrence.
