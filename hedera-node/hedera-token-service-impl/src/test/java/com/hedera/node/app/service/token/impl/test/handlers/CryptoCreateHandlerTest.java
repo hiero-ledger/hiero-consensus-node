@@ -73,9 +73,9 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -146,7 +146,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         lenient().when(handleContext.entityNumGenerator()).thenReturn(entityNumGenerator);
 
         given(handleContext.networkInfo()).willReturn(networkInfo);
-        subject = new CryptoCreateHandler(new CryptoCreateValidator());
+        subject = new CryptoCreateHandler(new CryptoCreateValidator(), null);
     }
 
     @Test

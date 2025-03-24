@@ -45,6 +45,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -93,6 +94,9 @@ class FileUpdateTest extends FileTestBase {
     @Mock
     private TransactionChecker transactionChecker;
 
+    @Mock
+    private NodeInfo creatorInfo;
+
     protected Configuration testConfig;
 
     private FileUpdateHandler subject;
@@ -116,8 +120,8 @@ class FileUpdateTest extends FileTestBase {
         BDDMockito.given(mockStoreFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
         BDDMockito.given(payerAccount.key()).willReturn(A_COMPLEX_KEY);
 
-        PreHandleContext realPreContext =
-                new PreHandleContextImpl(mockStoreFactory, txnWith(), testConfig, mockDispatcher, transactionChecker);
+        PreHandleContext realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, txnWith(), testConfig, mockDispatcher, transactionChecker, creatorInfo);
 
         subject.preHandle(realPreContext);
 
@@ -141,8 +145,8 @@ class FileUpdateTest extends FileTestBase {
                 .transactionID(txnId)
                 .fileUpdate(updateFileBuilder.build())
                 .build();
-        PreHandleContext realPreContext =
-                new PreHandleContextImpl(mockStoreFactory, txBody, testConfig, mockDispatcher, transactionChecker);
+        PreHandleContext realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, txBody, testConfig, mockDispatcher, transactionChecker, creatorInfo);
 
         subject.preHandle(realPreContext);
 

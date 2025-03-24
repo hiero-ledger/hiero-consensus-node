@@ -17,7 +17,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -32,9 +31,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 
-@OrderedInIsolation
 @HapiTestLifecycle
 public class ScheduleCreateTokenTest {
 
@@ -70,7 +67,6 @@ public class ScheduleCreateTokenTest {
     }
 
     @HapiTest
-    @Order(0)
     @DisplayName("Can successfully schedule a create fungible token operation")
     public Stream<DynamicTest> scheduledCreateToken() {
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -90,7 +86,6 @@ public class ScheduleCreateTokenTest {
     }
 
     @HapiTest
-    @Order(1)
     @DisplayName("Can successfully schedule a create fungible token operation with designated payer")
     public Stream<DynamicTest> scheduledCreateTokenWithDesignatedPayer() {
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -110,7 +105,6 @@ public class ScheduleCreateTokenTest {
     }
 
     @HapiTest
-    @Order(2)
     @DisplayName("Can successfully schedule a create non fungible token operation")
     public Stream<DynamicTest> scheduledCreateNonFungibleToken() {
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -130,7 +124,6 @@ public class ScheduleCreateTokenTest {
     }
 
     @HapiTest
-    @Order(3)
     @DisplayName("Can successfully schedule a create non fungible token operation with designated payer")
     public Stream<DynamicTest> scheduledCreateNonFungibleTokenWithDesignatedPayer() {
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -150,7 +143,6 @@ public class ScheduleCreateTokenTest {
     }
 
     @HapiTest
-    @Order(4)
     @DisplayName("Can successfully schedule an update token operation to set treasury and auto renew account")
     public Stream<DynamicTest> scheduledUpdateToken(@FungibleToken(initialSupply = 1000) SpecFungibleToken token) {
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -178,7 +170,6 @@ public class ScheduleCreateTokenTest {
     }
 
     @HapiTest
-    @Order(5)
     @DisplayName(
             "Can successfully schedule an update token operation to set treasury and auto renew account with a designated payer")
     public Stream<DynamicTest> scheduledUpdateTokenWithDesignatedPayer(
@@ -209,7 +200,6 @@ public class ScheduleCreateTokenTest {
     }
 
     @HapiTest
-    @Order(6)
     @DisplayName("Can successfully schedule a create fungible token operation and sign with EOA via proxy contract")
     public Stream<DynamicTest> scheduledCreateTokenSignWithEOA() {
         return hapiTest(withOpContext((spec, opLog) -> {

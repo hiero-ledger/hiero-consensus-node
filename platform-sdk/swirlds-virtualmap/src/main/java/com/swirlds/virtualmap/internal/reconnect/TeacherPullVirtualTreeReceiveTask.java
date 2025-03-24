@@ -5,9 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.exceptions.MerkleSerializationException;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
@@ -17,6 +15,8 @@ import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 
 /**
  * A task running on the teacher side, which is responsible for processing requests from the

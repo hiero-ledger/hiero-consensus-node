@@ -7,26 +7,18 @@ import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAttemptOptions;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.SystemContract;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.config.data.HederaConfig;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 
@@ -45,37 +37,11 @@ public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
     @NonNull
     private final SignatureVerifier signatureVerifier;
 
-    // too many parameters
-    @SuppressWarnings("java:S107")
     public HasCallAttempt(
-            @NonNull final ContractID contractID,
             @NonNull final Bytes input,
-            @NonNull final Address senderAddress,
-            final boolean onlyDelegatableContractKeysActive,
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final Configuration configuration,
-            @NonNull final AddressIdConverter addressIdConverter,
-            @NonNull final VerificationStrategies verificationStrategies,
-            @NonNull final SignatureVerifier signatureVerifier,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final List<CallTranslator<HasCallAttempt>> callTranslators,
-            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
-            final boolean isStaticCall) {
-        super(
-                contractID,
-                input,
-                senderAddress,
-                senderAddress,
-                onlyDelegatableContractKeysActive,
-                enhancement,
-                configuration,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                callTranslators,
-                isStaticCall,
-                systemContractMethodRegistry,
-                REDIRECT_FOR_ACCOUNT);
+            @NonNull final CallAttemptOptions<HasCallAttempt> options,
+            @NonNull final SignatureVerifier signatureVerifier) {
+        super(input, options, REDIRECT_FOR_ACCOUNT);
         if (isRedirect()) {
             this.redirectAccount = linkedAccount(requireNonNull(redirectAddress));
         } else {
@@ -92,16 +58,6 @@ public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
     @Override
     protected HasCallAttempt self() {
         return this;
-    }
-
-    /**
-     * Returns whether this is a account redirect.
-     *
-     * @return whether this is a account redirect
-     * @throws IllegalStateException if this is not a valid call
-     */
-    public boolean isAccountRedirect() {
-        return isRedirect();
     }
 
     /**
@@ -139,16 +95,16 @@ public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
     public @Nullable Account linkedAccount(@NonNull final Address accountAddress) {
         requireNonNull(accountAddress);
         if (isLongZero(enhancement().nativeOperations().entityIdFactory(), accountAddress)) {
-            return enhancement.nativeOperations().getAccount(numberOfLongZero(accountAddress.toArray()));
+            return enhancement().nativeOperations().getAccount(numberOfLongZero(accountAddress.toArray()));
         } else {
             final var config = configuration().getConfigData(HederaConfig.class);
-            final var addressNum = enhancement
+            final var addressNum = enhancement()
                     .nativeOperations()
                     .resolveAlias(
                             config.shard(),
                             config.realm(),
                             com.hedera.pbj.runtime.io.buffer.Bytes.wrap(accountAddress.toArray()));
-            return enhancement.nativeOperations().getAccount(addressNum);
+            return enhancement().nativeOperations().getAccount(addressNum);
         }
     }
 

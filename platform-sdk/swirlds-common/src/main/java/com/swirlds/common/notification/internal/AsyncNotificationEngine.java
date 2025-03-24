@@ -5,14 +5,14 @@ import com.swirlds.common.notification.DispatchMode;
 import com.swirlds.common.notification.DispatchOrder;
 import com.swirlds.common.notification.Listener;
 import com.swirlds.common.notification.NoListenersAvailableException;
-import com.swirlds.common.notification.Notification;
 import com.swirlds.common.notification.NotificationResult;
-import com.swirlds.common.threading.futures.StandardFuture;
 import com.swirlds.common.threading.manager.ThreadManager;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.notification.Notification;
+import org.hiero.consensus.model.utility.StandardFuture;
 
 public class AsyncNotificationEngine extends AbstractNotificationEngine {
 

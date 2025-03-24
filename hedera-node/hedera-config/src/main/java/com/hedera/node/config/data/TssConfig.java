@@ -8,7 +8,7 @@ import com.swirlds.config.api.ConfigProperty;
 import java.time.Duration;
 
 /**
- * Configuration for the TSS subsystem.
+ *
  */
 @ConfigData("tss")
 public record TssConfig(

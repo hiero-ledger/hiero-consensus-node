@@ -9,7 +9,6 @@ import static com.swirlds.platform.crypto.CryptoStatic.createEmptyTrustStore;
 import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
 
 import com.swirlds.common.crypto.config.CryptoConfig;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.roster.RosterUtils;
@@ -70,6 +69,7 @@ import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.util.encoders.DecoderException;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * This class is responsible for loading the key stores for all nodes in the address book.

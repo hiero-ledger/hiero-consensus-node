@@ -4,8 +4,6 @@ package com.swirlds.common.merkle.impl.internal;
 import static com.swirlds.common.merkle.route.MerkleRouteFactory.getEmptyRoute;
 
 import com.swirlds.base.state.Mutable;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Hashable;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.MerkleRouteException;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
@@ -14,6 +12,8 @@ import com.swirlds.common.merkle.interfaces.MerkleType;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.utility.AbstractReservable;
 import java.beans.Transient;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.Hashable;
 
 /**
  * This class implements boilerplate functionality for a {@link MerkleNode}.

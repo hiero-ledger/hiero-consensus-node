@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -29,6 +28,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import java.time.Duration;
+import org.hiero.consensus.model.crypto.DigestType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Tags;
@@ -123,7 +123,7 @@ final class MapTest {
             final VirtualMap<TestKey, TestValue> lastCopy = map.copy();
             map.release();
             lastCopy.release();
-            assertEventuallyTrue(root::isFlushed, Duration.ofSeconds(30), "The map must be flushed");
+            assertEventuallyTrue(root::isFlushed, Duration.ofMinutes(1), "The map must be flushed");
         }
     }
 

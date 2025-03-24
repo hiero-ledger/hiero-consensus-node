@@ -13,7 +13,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTIO
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -27,7 +26,6 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -36,10 +34,6 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(SMART_CONTRACT)
 @DisplayName("isAssociated")
-@SuppressWarnings("java:S1192")
-// For readability this test class shares a few accounts between test methods that it repeatedly associates and
-// dissociates with tokens, so we can't run concurrently to avoid race conditions; it is very fast regardless
-@OrderedInIsolation
 public class IsAssociatedSystemContractTest {
     @FungibleToken(name = "fungibleToken")
     static SpecFungibleToken fungibleToken;
@@ -59,7 +53,6 @@ public class IsAssociatedSystemContractTest {
     @Account(name = "senderAccount", tinybarBalance = ONE_HUNDRED_HBARS)
     static SpecAccount senderAccount;
 
-    @Order(0)
     @HapiTest
     @DisplayName("returns true for EOA msg.sender exactly when associated")
     public Stream<DynamicTest> returnsTrueIffEoaMsgSenderIsAssociated() {
@@ -71,7 +64,6 @@ public class IsAssociatedSystemContractTest {
                 assertEoaGetsResultForBothTokens(false));
     }
 
-    @Order(1)
     @HapiTest
     @DisplayName("returns true for contract msg.sender exactly when associated")
     public Stream<DynamicTest> returnsTrueIffContractMsgSenderIsAssociated() {
@@ -83,7 +75,6 @@ public class IsAssociatedSystemContractTest {
                 assertContractGetsResultForBothTokens(false));
     }
 
-    @Order(2)
     @HapiTest
     @DisplayName("returns true for contract msg.sender exactly when associated static call")
     public Stream<DynamicTest> returnsTrueIffContractMsgSenderIsAssociatedStatic() {
@@ -95,7 +86,6 @@ public class IsAssociatedSystemContractTest {
                 assertContractGetsResultForBothTokensStatic(false));
     }
 
-    @Order(3)
     @HapiTest
     @DisplayName("returns true for EOA msg.sender exactly when associated static call")
     public Stream<DynamicTest> returnsTrueIffEoaMsgSenderIsAssociatedStatic() {

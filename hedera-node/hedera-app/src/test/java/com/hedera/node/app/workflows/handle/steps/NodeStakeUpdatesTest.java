@@ -111,7 +111,7 @@ public class NodeStakeUpdatesTest {
                         .build());
         given(context.consensusTime()).willReturn(CONSENSUS_TIME_1234567);
 
-        subject.process(dispatch, stack, context, RECORDS, true, Instant.EPOCH);
+        subject.process(dispatch, stack, context, RECORDS, Instant.EPOCH);
 
         verify(stakingPeriodCalculator).updateNodes(eq(context), eq(ExchangeRateSet.DEFAULT));
         verify(exchangeRateManager).updateMidnightRates(stack);
@@ -128,7 +128,7 @@ public class NodeStakeUpdatesTest {
                                 .nanos(CONSENSUS_TIME_1234567.getNano()))
                         .build());
 
-        subject.process(dispatch, stack, context, RECORDS, false, Instant.EPOCH);
+        subject.process(dispatch, stack, context, RECORDS, Instant.EPOCH);
 
         verifyNoInteractions(stakingPeriodCalculator);
         verifyNoInteractions(exchangeRateManager);
@@ -156,7 +156,7 @@ public class NodeStakeUpdatesTest {
                 .isTrue();
         given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
 
-        subject.process(dispatch, stack, context, RECORDS, false, Instant.EPOCH);
+        subject.process(dispatch, stack, context, RECORDS, Instant.EPOCH);
 
         verify(stakingPeriodCalculator)
                 .updateNodes(
@@ -181,7 +181,7 @@ public class NodeStakeUpdatesTest {
         given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
         given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
 
-        subject.process(dispatch, stack, context, BLOCKS, false, CONSENSUS_TIME_1234567);
+        subject.process(dispatch, stack, context, BLOCKS, CONSENSUS_TIME_1234567);
 
         verify(stakingPeriodCalculator)
                 .updateNodes(
@@ -207,7 +207,7 @@ public class NodeStakeUpdatesTest {
         given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
 
         Assertions.assertThatNoException()
-                .isThrownBy(() -> subject.process(dispatch, stack, context, RECORDS, false, Instant.EPOCH));
+                .isThrownBy(() -> subject.process(dispatch, stack, context, RECORDS, Instant.EPOCH));
         verify(stakingPeriodCalculator).updateNodes(eq(context), eq(ExchangeRateSet.DEFAULT));
         verify(exchangeRateManager).updateMidnightRates(stack);
     }

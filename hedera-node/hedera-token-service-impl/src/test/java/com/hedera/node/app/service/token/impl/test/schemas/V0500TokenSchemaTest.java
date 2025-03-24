@@ -4,7 +4,7 @@ package com.hedera.node.app.service.token.impl.test.schemas;
 import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 
@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,7 +53,12 @@ class V0500TokenSchemaTest {
     @Mock
     private EntityIdFactory entityIdFactory;
 
-    private final V0500TokenSchema subject = new V0500TokenSchema();
+    private V0500TokenSchema subject;
+
+    @BeforeEach
+    void setUp() {
+        subject = new V0500TokenSchema(entityIdFactory);
+    }
 
     @Test
     @DisplayName("skips migration without shared values")
@@ -65,7 +71,6 @@ class V0500TokenSchemaTest {
     @DisplayName("works around missing account")
     void worksAroundMissing() {
         givenValidCtx();
-        given(ctx.entityIdFactory()).willReturn(entityIdFactory);
         given(entityIdFactory.newAccountId(anyLong())).willReturn(AccountID.DEFAULT);
         assertDoesNotThrow(() -> subject.migrate(ctx));
     }
@@ -74,7 +79,6 @@ class V0500TokenSchemaTest {
     @DisplayName("fixes first storage keys")
     void fixesFirstKeys() {
         givenValidCtx();
-        given(ctx.entityIdFactory()).willReturn(entityIdFactory);
         given(entityIdFactory.newAccountId(1))
                 .willReturn(AccountID.newBuilder().accountNum(1L).build());
         given(entityIdFactory.newAccountId(2))

@@ -9,7 +9,6 @@ import static java.nio.ByteBuffer.allocateDirect;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.HashTools;
@@ -25,6 +24,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * An implementation of {@link HashList} which makes use of an expanding, dynamic list of {@link ByteBuffer}s

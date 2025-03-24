@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
@@ -28,6 +27,7 @@ import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ScheduledExecutorService;
+import org.hiero.consensus.model.crypto.DigestType;
 
 /**
  * Supports parameterized testing of {@link MerkleDbDataSource} with

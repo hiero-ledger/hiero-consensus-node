@@ -2,7 +2,6 @@
 package com.swirlds.platform.network.connectivity;
 
 import com.swirlds.common.crypto.config.CryptoConfig;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.crypto.CryptoConstants;
 import com.swirlds.platform.crypto.CryptoStatic;
@@ -33,6 +32,7 @@ import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * used to create and receive TLS connections, based on the given trustStore
