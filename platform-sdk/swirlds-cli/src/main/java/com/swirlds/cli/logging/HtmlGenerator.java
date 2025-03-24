@@ -11,7 +11,6 @@ import static com.swirlds.cli.logging.LogProcessingUtils.getLogLevelColor;
 import static com.swirlds.cli.logging.PlatformStatusLog.STATUS_HTML_CLASS;
 
 import com.swirlds.common.formatting.TextEffect;
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -23,6 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.Level;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Generates an HTML log page

@@ -7,7 +7,6 @@ import static com.swirlds.platform.roster.RosterRetriever.retrieveActiveOrGenesi
 import static com.swirlds.platform.roster.RosterUtils.buildAddressBook;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -32,6 +31,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Determines the initial address book to use at platform start and validates it.

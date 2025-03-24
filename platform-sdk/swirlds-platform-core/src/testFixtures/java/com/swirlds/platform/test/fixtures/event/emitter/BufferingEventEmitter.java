@@ -12,6 +12,7 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A base event emitter class that buffers events created by the {@link GraphGenerator}. Buffering events allows

@@ -3,9 +3,7 @@ package com.swirlds.platform.state.iss;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.system.state.notifications.IssNotification;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -13,6 +11,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * Keeps track of the state hashes reported by all network nodes. Responsible for detecting ISS events.

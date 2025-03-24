@@ -50,7 +50,6 @@ module com.swirlds.common {
     exports com.swirlds.common.threading.framework;
     exports com.swirlds.common.threading.framework.config;
     exports com.swirlds.common.threading.futures;
-    exports com.swirlds.common.threading.interrupt;
     exports com.swirlds.common.threading.locks;
     exports com.swirlds.common.threading.locks.locked;
     exports com.swirlds.common.threading.manager;
@@ -138,6 +137,7 @@ module com.swirlds.common {
     requires transitive com.swirlds.logging;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.metrics.impl;
+    requires transitive org.hiero.consensus.model;
     requires transitive com.fasterxml.jackson.core;
     requires transitive com.fasterxml.jackson.databind;
     requires transitive io.prometheus.simpleclient;

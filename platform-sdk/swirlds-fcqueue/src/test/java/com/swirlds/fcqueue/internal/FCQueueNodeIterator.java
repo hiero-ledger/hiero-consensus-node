@@ -2,11 +2,11 @@
 package com.swirlds.fcqueue.internal;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.fcqueue.SlowMockFCQueue;
 import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import org.hiero.consensus.model.crypto.SerializableHashable;
 
 /**
  * An iterator for FCQueue, starts at the head of the given queue, ends at the tail of the given queue

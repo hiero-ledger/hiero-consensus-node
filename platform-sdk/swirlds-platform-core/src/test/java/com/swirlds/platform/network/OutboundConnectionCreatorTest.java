@@ -32,6 +32,8 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -69,7 +71,7 @@ class OutboundConnectionCreatorTest {
                 .close();
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
         out.writeInt(ByteConstants.COMM_CONNECT);
         out.close();
 
@@ -157,7 +159,7 @@ class OutboundConnectionCreatorTest {
                 .close();
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
         out.writeInt(ByteConstants.COMM_CONNECT);
         out.close();
 

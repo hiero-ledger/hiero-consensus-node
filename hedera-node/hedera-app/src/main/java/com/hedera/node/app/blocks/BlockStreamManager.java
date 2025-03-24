@@ -4,12 +4,12 @@ package com.hedera.node.app.blocks;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import org.hiero.consensus.model.hashgraph.Round;
 
 /**
  * Maintains the state and process objects needed to produce the block stream.

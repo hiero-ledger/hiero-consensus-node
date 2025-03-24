@@ -5,12 +5,12 @@ import com.swirlds.common.threading.framework.BlockingQueueInserter;
 import com.swirlds.common.threading.framework.MultiQueueThread;
 import com.swirlds.common.threading.framework.QueueThread;
 import com.swirlds.common.threading.framework.ThreadSeed;
-import com.swirlds.common.threading.interrupt.InterruptableConsumer;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.hiero.consensus.model.utility.interrupt.InterruptableConsumer;
 
 /**
  * A wrapper around a {@link QueueThread} that provides boilerplate

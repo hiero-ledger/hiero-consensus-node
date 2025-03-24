@@ -3,9 +3,9 @@ package com.swirlds.platform.consensus;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.NoSuchElementException;
+import org.hiero.consensus.model.event.EventConstants;
 
 /**
  * Utilities for calculating round numbers

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery.internal;
 
-import com.swirlds.platform.system.events.CesEvent;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * A lower bound on events in an event stream based on the consensus data in the events. The bound is inclusive of exact

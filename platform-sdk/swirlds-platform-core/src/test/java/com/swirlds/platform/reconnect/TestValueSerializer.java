@@ -3,9 +3,9 @@ package com.swirlds.platform.reconnect;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class TestValueSerializer implements ValueSerializer<TestValue> {
 
@@ -43,7 +43,7 @@ public class TestValueSerializer implements ValueSerializer<TestValue> {
     @Override
     public void serialize(final TestValue data, final WritableSequentialData out) {
         final String s = data.getValue();
-        final byte[] bytes = CommonUtils.getNormalisedStringBytes(s);
+        final byte[] bytes = org.hiero.consensus.model.utility.CommonUtils.getNormalisedStringBytes(s);
         out.writeInt(bytes.length);
         out.writeBytes(bytes);
     }

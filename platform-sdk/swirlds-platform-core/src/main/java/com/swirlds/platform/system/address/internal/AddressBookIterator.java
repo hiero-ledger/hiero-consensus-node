@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.address.internal;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.system.address.Address;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * An iterator that walks over entries in an address book.

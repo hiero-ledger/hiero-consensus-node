@@ -104,6 +104,14 @@ public interface ReadableHintsStore {
     CRSState getCrsState();
 
     /**
+     * Returns the current CRS, if known; or null otherwise;
+     */
+    default @Nullable Bytes crsIfKnown() {
+        final var candidate = getCrsState().crs();
+        return candidate.length() > 0 ? candidate : null;
+    }
+
+    /**
      * Returns the current CRS publications submitted by the nodes.
      *
      * @return the current CRS publications
