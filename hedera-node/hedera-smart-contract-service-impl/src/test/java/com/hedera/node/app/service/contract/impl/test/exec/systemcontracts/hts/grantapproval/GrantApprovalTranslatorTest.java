@@ -17,10 +17,10 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityI
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
@@ -63,7 +63,7 @@ class GrantApprovalTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void ERCGrantApprovalMatches() {
-        given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(any(TokenID.class))).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = createHtsCallAttemptForRedirect(ERC_GRANT_APPROVAL, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
@@ -71,7 +71,7 @@ class GrantApprovalTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void ERCGrantApprovalNFTMatches() {
-        given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(any(TokenID.class))).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = createHtsCallAttemptForRedirect(ERC_GRANT_APPROVAL_NFT, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
