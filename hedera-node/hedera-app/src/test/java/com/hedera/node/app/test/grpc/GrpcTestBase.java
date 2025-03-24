@@ -32,11 +32,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
+import io.grpc.ClientInterceptor;
+import io.grpc.ClientInterceptors;
+import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 import io.grpc.MethodDescriptor.Marshaller;
 import io.grpc.MethodDescriptor.MethodType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.ClientCalls;
+import io.grpc.stub.MetadataUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -69,6 +73,12 @@ abstract class GrpcTestBase extends TestBase {
     protected static final IngestWorkflow NOOP_INGEST_WORKFLOW = (requestBuffer, responseBuffer) -> {};
     /** A built-in {@link QueryWorkflow} which succeeds and does nothing. */
     protected static final QueryWorkflow NOOP_QUERY_WORKFLOW = (requestBuffer, responseBuffer) -> {};
+
+    /**
+     * Key used to identify the user-agent header when making GRPC calls.
+     */
+    private static final Metadata.Key<String> userAgentHeaderKey =
+            Metadata.Key.of("X-User-Agent", Metadata.ASCII_STRING_MARSHALLER);
 
     /**
      * Represents "this node" in our tests.
@@ -133,8 +143,12 @@ abstract class GrpcTestBase extends TestBase {
         this.operatorQueryWorkflow = operatorQueryWorkflow;
     }
 
+    protected void startServer(final boolean withNodeOperatorPort) {
+        startServer(withNodeOperatorPort, null);
+    }
+
     /** Starts the grpcServer and sets up the clients. */
-    protected void startServer(boolean withNodeOperatorPort) {
+    protected void startServer(final boolean withNodeOperatorPort, @Nullable final String userAgent) {
         final var testService = new RpcService() {
             @NonNull
             @Override
@@ -190,6 +204,13 @@ abstract class GrpcTestBase extends TestBase {
         this.channel = NettyChannelBuilder.forAddress("localhost", grpcServer.port())
                 .usePlaintext()
                 .build();
+
+        if (userAgent != null) {
+            final Metadata metadata = new Metadata();
+            metadata.put(userAgentHeaderKey, userAgent);
+            final ClientInterceptor clientInterceptor = MetadataUtils.newAttachHeadersInterceptor(metadata);
+            this.channel = ClientInterceptors.intercept(this.channel, clientInterceptor);
+        }
 
         this.nodeOperatorChannel = NettyChannelBuilder.forAddress("localhost", grpcServer.nodeOperatorPort())
                 .usePlaintext()
