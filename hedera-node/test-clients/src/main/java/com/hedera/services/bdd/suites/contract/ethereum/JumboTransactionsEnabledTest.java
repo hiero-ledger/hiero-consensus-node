@@ -94,7 +94,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     }
 
     @HapiTest
-    @DisplayName("Ethereum contract create jumbo transaction more then 6kb smart contract should pass")
+    @DisplayName("Allows Ethereum jumbo contract create jumbo above max transaction size of 6kb")
     public Stream<DynamicTest> ethereumContractCreateJumboTxnMoreThen6Kb() {
         final var contract = "TokenCreateContract";
         return hapiTest(
