@@ -77,8 +77,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         final var size = 131072 + 1; // Exceeding the limit
         final var payload = new byte[size];
         return hapiTest(
-                prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
@@ -98,8 +96,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     public Stream<DynamicTest> ethereumContractCreateJumboTxnMoreThen6Kb() {
         final var contract = "TokenCreateContract";
         return hapiTest(
-                prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
