@@ -12,6 +12,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.FileUtils;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContexts;
+import com.swirlds.platform.test.fixtures.event.preconsensus.PcesTestFilesGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -76,7 +78,7 @@ class PcesFileReaderTests {
                 .generate();
 
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContextFactories.context(ancientMode, dataDir, fileSystemDirectory),
+                TestPlatformContexts.context(ancientMode, dataDir, fileSystemDirectory),
                 fileDirectory,
                 0,
                 false,
@@ -107,7 +109,7 @@ class PcesFileReaderTests {
         final List<PcesFile> files = pcesFilesGeneratorResult.files();
 
         final PlatformContext platformContext =
-                TestPlatformContextFactories.context(true, ancientMode, dataDir, fileSystemDirectory);
+                TestPlatformContexts.context(true, ancientMode, dataDir, fileSystemDirectory);
 
         final PcesFileTracker fileTracker =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, true, ancientMode);
@@ -125,7 +127,7 @@ class PcesFileReaderTests {
                 .generate();
 
         final PlatformContext platformContext =
-                TestPlatformContextFactories.context(false, ancientMode, dataDir, fileSystemDirectory);
+                TestPlatformContexts.context(false, ancientMode, dataDir, fileSystemDirectory);
 
         // Gaps are not allowed.
         assertThrows(
@@ -143,7 +145,7 @@ class PcesFileReaderTests {
         final List<PcesFile> files = pcesFilesGeneratorResult.files();
 
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContextFactories.context(ancientMode, dataDir, fileSystemDirectory),
+                TestPlatformContexts.context(ancientMode, dataDir, fileSystemDirectory),
                 fileDirectory,
                 0,
                 false,
@@ -199,7 +201,7 @@ class PcesFileReaderTests {
         final List<PcesFile> files = pcesFilesGeneratorResult.files();
 
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContextFactories.context(ancientMode, dataDir, fileSystemDirectory),
+                TestPlatformContexts.context(ancientMode, dataDir, fileSystemDirectory),
                 fileDirectory,
                 0,
                 false,
@@ -248,7 +250,7 @@ class PcesFileReaderTests {
         final List<PcesFile> files = pcesFilesGeneratorResult.files();
 
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContextFactories.context(ancientMode, dataDir, fileSystemDirectory),
+                TestPlatformContexts.context(ancientMode, dataDir, fileSystemDirectory),
                 fileDirectory,
                 0,
                 false,
@@ -269,7 +271,7 @@ class PcesFileReaderTests {
         assertThrows(
                 NoSuchFileException.class,
                 () -> PcesFileReader.readFilesFromDisk(
-                        TestPlatformContextFactories.context(ancientMode, dataDir, fileSystemDirectory),
+                        TestPlatformContexts.context(ancientMode, dataDir, fileSystemDirectory),
                         fileDirectory,
                         0,
                         false,
@@ -301,7 +303,7 @@ class PcesFileReaderTests {
                 .generate();
 
         final PlatformContext platformContext =
-                TestPlatformContextFactories.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
+                TestPlatformContexts.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
         // Scenario 1: choose an resultingUnbrokenOrigin that lands on the resultingUnbrokenOrigin exactly.
         final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
                 platformContext, fileDirectory, pcesFilesGenerator.resultingUnbrokenOrigin(), false, ancientMode);
@@ -365,7 +367,7 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.files().getFirst().getUpperBound();
 
         final PlatformContext platformContext =
-                TestPlatformContextFactories.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
+                TestPlatformContexts.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
 
         // Scenario 1: choose an origin that lands on the origin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
@@ -427,7 +429,7 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().getFirst().getUpperBound();
 
         final PlatformContext platformContext =
-                TestPlatformContextFactories.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
+                TestPlatformContexts.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
         // Scenario 1: choose an origin that lands on the origin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
         final PcesFileTracker fileTracker1 =
@@ -489,7 +491,7 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().getFirst().getUpperBound();
 
         final PlatformContext platformContext =
-                TestPlatformContextFactories.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
+                TestPlatformContexts.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
 
         // Scenario 1: choose an origin that lands on the origin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
@@ -547,14 +549,14 @@ class PcesFileReaderTests {
         // Phase 2: write files using birth rounds
         final List<PcesFile> birthRoundFiles = birthroundPcesFilesGenerator.files();
         final PcesFileTracker generationFileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContextFactories.context(GENERATION_THRESHOLD, dataDir, fileSystemDirectory),
+                TestPlatformContexts.context(GENERATION_THRESHOLD, dataDir, fileSystemDirectory),
                 fileDirectory,
                 0,
                 false,
                 GENERATION_THRESHOLD);
 
         final PcesFileTracker birthRoundFileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContextFactories.context(BIRTH_ROUND_THRESHOLD, dataDir, fileSystemDirectory),
+                TestPlatformContexts.context(BIRTH_ROUND_THRESHOLD, dataDir, fileSystemDirectory),
                 fileDirectory,
                 0,
                 false,

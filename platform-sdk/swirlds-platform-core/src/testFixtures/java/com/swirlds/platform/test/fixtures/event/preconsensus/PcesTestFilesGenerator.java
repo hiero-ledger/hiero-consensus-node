@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.preconsensus;
+package com.swirlds.platform.test.fixtures.event.preconsensus;
 
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
+import com.swirlds.platform.event.preconsensus.PcesFile;
+import com.swirlds.platform.event.preconsensus.PcesFileVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.FileOutputStream;
@@ -21,7 +23,7 @@ import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
  * This class creates dummy PCES files with configurable parameters to simulate various scenarios, including
  * discontinuities, skipped files, and specific sequence number ranges.
  */
-final class PcesTestFilesGenerator {
+public final class PcesTestFilesGenerator {
     /**
      * Range for the first sequence number, intentionally chosen to cause sequence number wrapping.
      */
@@ -46,7 +48,7 @@ final class PcesTestFilesGenerator {
     /**
      * Default number of files to generate.
      */
-    static final int FILE_COUNT = 100;
+    public static final int FILE_COUNT = 100;
 
     private final Range startingRoundRange;
     private final AncientMode ancientMode;
@@ -117,7 +119,7 @@ final class PcesTestFilesGenerator {
      * @throws IOException If an I/O error occurs.
      */
     @NonNull
-    PcesFilesGeneratorResult generate() throws IOException {
+    public PcesFilesGeneratorResult generate() throws IOException {
         final int firstSequenceNumber = getIntFromRange(FIRST_SEQUENCE_RANGE);
         final int maxDelta = getIntFromRange(MAX_DELTA_RANGE);
         long lowerBound = getLongFromRange(LOWERBOUND_RANGE);
@@ -218,7 +220,7 @@ final class PcesTestFilesGenerator {
      * @param resultingUnbrokenOrigin  The final unbrokenOrigin value.
      * @param nonExistentValue         A value that does not exist in any generated file.
      */
-    record PcesFilesGeneratorResult(
+    public record PcesFilesGeneratorResult(
             @NonNull Random rng,
             @NonNull List<PcesFile> filesBeforeDiscontinuity,
             @NonNull List<PcesFile> filesAfterDiscontinuity,
@@ -230,14 +232,14 @@ final class PcesTestFilesGenerator {
         /**
          * @return a random value placed after {@code resultingUnbrokenOrigin}
          */
-        long getPointAfterUnbrokenOrigin() {
+        public long getPointAfterUnbrokenOrigin() {
             return this.rng.nextLong(this.resultingUnbrokenOrigin() + 1, this.resultingUnbrokenOrigin() + 1000);
         }
 
         /**
          * @return a random value placed before {@code resultingUnbrokenOrigin} and after {@code startUnbrokenOrigin}
          */
-        long getPointBeforeUnbrokenOrigin() {
+        public long getPointBeforeUnbrokenOrigin() {
             return this.rng.nextLong(this.startUnbrokenOrigin(), this.resultingUnbrokenOrigin());
         }
     }
@@ -245,7 +247,7 @@ final class PcesTestFilesGenerator {
     /**
      * A builder for creating PcesTestFilesGenerator instances.
      */
-    static class Builder {
+    public static class Builder {
         private final AncientMode ancientMode;
         private final Random rng;
         private final Path fileDirectory;
@@ -278,7 +280,7 @@ final class PcesTestFilesGenerator {
          * @return A new Builder instance.
          */
         @NonNull
-        static Builder create(
+        public static Builder create(
                 final @NonNull AncientMode ancientMode, final @NonNull Random rng, final @NonNull Path fileDirectory) {
             return new Builder(ancientMode, rng, fileDirectory);
         }
@@ -289,7 +291,7 @@ final class PcesTestFilesGenerator {
          * @return This Builder instance.
          */
         @NonNull
-        Builder discontinue() {
+        public Builder discontinue() {
             discontinue = true;
             return this;
         }
@@ -300,7 +302,7 @@ final class PcesTestFilesGenerator {
          * @return This Builder instance.
          */
         @NonNull
-        Builder introduceGapHalfway() {
+        public Builder introduceGapHalfway() {
             skipElementAtHalf = true;
             return this;
         }
@@ -311,7 +313,7 @@ final class PcesTestFilesGenerator {
          * @return This Builder instance.
          */
         @NonNull
-        Builder skipSomeAtStart() {
+        public Builder skipSomeAtStart() {
             ignoreSome = true;
             return this;
         }
@@ -322,7 +324,7 @@ final class PcesTestFilesGenerator {
          * @return This Builder instance.
          */
         @NonNull
-        Builder withDefaultOriginRange() {
+        public Builder withDefaultOriginRange() {
             this.originRange = DEFAULT_ORIGIN_RANGE;
             return this;
         }
@@ -333,7 +335,7 @@ final class PcesTestFilesGenerator {
          * @return This Builder instance.
          */
         @NonNull
-        Builder withAdvanceBoundsStrategy(final @NonNull Predicate<Integer> shouldAdvanceBoundsPredicate) {
+        public Builder withAdvanceBoundsStrategy(final @NonNull Predicate<Integer> shouldAdvanceBoundsPredicate) {
             this.shouldAdvanceBoundsPredicate = shouldAdvanceBoundsPredicate;
             return this;
         }
@@ -344,7 +346,7 @@ final class PcesTestFilesGenerator {
          * @return A new PcesTestFilesGenerator instance.
          */
         @NonNull
-        PcesTestFilesGenerator build() {
+        public PcesTestFilesGenerator build() {
             return new PcesTestFilesGenerator(
                     originRange,
                     ancientMode,
@@ -364,5 +366,5 @@ final class PcesTestFilesGenerator {
      * @param start The starting value of the range.
      * @param end   The ending value of the range.
      */
-    record Range(int start, int end) {}
+    public record Range(int start, int end) {}
 }

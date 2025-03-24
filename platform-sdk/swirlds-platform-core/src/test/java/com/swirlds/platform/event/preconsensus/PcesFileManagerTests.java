@@ -13,7 +13,9 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.FileUtils;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContexts;
 import com.swirlds.common.utility.CompareTo;
+import com.swirlds.platform.test.fixtures.event.preconsensus.PcesTestFilesGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -67,7 +69,7 @@ class PcesFileManagerTests {
     @DisplayName("Generate Descriptors With Manager Test")
     void generateDescriptorsWithManagerTest(@NonNull final AncientMode ancientMode) throws IOException {
         final PlatformContext platformContext =
-                TestPlatformContextFactories.context(ancientMode, Time.getCurrent(), dataDirectory);
+                TestPlatformContexts.context(ancientMode, Time.getCurrent(), dataDirectory);
 
         final var result = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
                 .build()
@@ -97,7 +99,7 @@ class PcesFileManagerTests {
 
         // Set the far in the future, we want all files to be GC eligible by temporal reckoning.
         final FakeTime time = new FakeTime(lastFile.getTimestamp().plus(Duration.ofHours(1)), Duration.ZERO);
-        final PlatformContext platformContext = TestPlatformContextFactories.context(ancientMode, time, dataDirectory);
+        final PlatformContext platformContext = TestPlatformContexts.context(ancientMode, time, dataDirectory);
 
         final PcesFileTracker fileTracker =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode);
@@ -190,7 +192,7 @@ class PcesFileManagerTests {
 
         // Set the clock before the first file is not garbage collection eligible
         final FakeTime time = new FakeTime(firstFile.getTimestamp().plus(Duration.ofMinutes(59)), Duration.ZERO);
-        final PlatformContext platformContext = TestPlatformContextFactories.context(ancientMode, time, dataDirectory);
+        final PlatformContext platformContext = TestPlatformContexts.context(ancientMode, time, dataDirectory);
 
         final PcesFileTracker fileTracker =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode);

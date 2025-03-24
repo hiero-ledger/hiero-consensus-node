@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.preconsensus;
+package com.swirlds.common.test.fixtures.platform;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
@@ -10,10 +10,10 @@ import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.TestRecycleBin;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.event.preconsensus.PcesConfig_;
 import com.swirlds.platform.eventhandling.EventConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -21,8 +21,19 @@ import java.nio.file.Path;
 import java.util.Optional;
 import org.hiero.consensus.model.event.AncientMode;
 
-public class TestPlatformContextFactories {
+/**
+ * A utility class for generating PlatformContexts.
+ */
+public class TestPlatformContexts {
 
+    /**
+     * Creates a context with no recycle bin and no metrics.
+     * @param ancientMode The strategy used to determine if an event is ancient
+     * @param time The time
+     * @param dataDir The directory where data is placed
+     * @return a platformContext
+     */
+    @NonNull
     public static PlatformContext context(
             @NonNull final AncientMode ancientMode, @NonNull final Time time, final Path dataDir) {
         final Configuration configuration = new TestConfigBuilder()
@@ -39,12 +50,22 @@ public class TestPlatformContextFactories {
                 .build();
     }
 
+    /**
+     * Creates a context.
+     * @param permitGaps  Whether gaps are permitted when reading pces files
+     * @param ancientMode The strategy used to determine if an event is ancient
+     * @param recycleBinPath The directory where recycle bin is placed
+     * @param dataDir The directory where data is placed
+     * @param fsDirectory the directory for the file-system
+     * @return a platformContext
+     */
+    @NonNull
     public static PlatformContext context(
             final boolean permitGaps,
             @NonNull final AncientMode ancientMode,
             @Nullable final Path recycleBinPath,
-            final Path dataDir,
-            final Path fsDirectory) {
+            @NonNull final Path dataDir,
+            @Nullable final Path fsDirectory) {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(PcesConfig_.DATABASE_DIRECTORY, dataDir)
                 .withValue(PcesConfig_.PREFERRED_FILE_SIZE_MEGABYTES, 5)
@@ -76,6 +97,15 @@ public class TestPlatformContextFactories {
         return builder.build();
     }
 
+    /**
+     * Creates a context with a test recycle bin and no-ops metrics.
+     * @param permitGaps  Whether gaps are permitted when reading pces files
+     * @param ancientMode The strategy used to determine if an event is ancient
+     * @param dataDir The directory where data is placed
+     * @param fsDirectory the directory for the file-system
+     * @return a platformContext
+     */
+    @NonNull
     public static PlatformContext context(
             final boolean permitGaps,
             @NonNull final AncientMode ancientMode,
@@ -84,6 +114,14 @@ public class TestPlatformContextFactories {
         return context(permitGaps, ancientMode, null, dataDir, fsDirectory);
     }
 
+    /**
+     * Creates a context with a test recycle bin and no-ops metrics.
+     * @param ancientMode The strategy used to determine if an event is ancient
+     * @param dataDir The directory where data is placed
+     * @param fsDirectory the directory for the file-system
+     * @return a platformContext
+     */
+    @NonNull
     public static PlatformContext context(
             @NonNull final AncientMode ancientMode, final Path dataDir, final Path fsDirectory) {
         return context(false, ancientMode, dataDir, fsDirectory);
