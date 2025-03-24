@@ -300,7 +300,7 @@ final class PcesTestFilesGenerator {
          * @return This Builder instance.
          */
         @NonNull
-        Builder skipElementAtHalf() {
+        Builder introduceGapHalfway() {
             skipElementAtHalf = true;
             return this;
         }

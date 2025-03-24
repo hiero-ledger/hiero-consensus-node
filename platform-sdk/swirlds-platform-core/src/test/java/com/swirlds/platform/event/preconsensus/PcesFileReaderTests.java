@@ -45,37 +45,9 @@ class PcesFileReaderTests {
     Path fileSystemDirectory;
 
     private Path fileDirectory = null;
-
     private Random random;
-
     private Path recycleBinPath;
     private Path dataDir;
-
-    /**
-     * When fixing a resultingUnbrokenOrigin, invalid files are moved to a "recycle bin" directory. This method validates that
-     * behavior.
-     */
-    static void validateRecycledFiles(
-            @NonNull final List<PcesFile> filesThatShouldBePresent,
-            @NonNull final List<PcesFile> allFiles,
-            final Path recycleBinPath)
-            throws IOException {
-
-        final Set<Path> recycledFiles = new HashSet<>();
-        try (final Stream<Path> stream = Files.walk(recycleBinPath)) {
-            stream.forEach(file -> recycledFiles.add(file.getFileName()));
-        }
-
-        final Set<PcesFile> filesThatShouldBePresentSet = new HashSet<>(filesThatShouldBePresent);
-
-        for (final PcesFile file : allFiles) {
-            if (filesThatShouldBePresentSet.contains(file)) {
-                assertTrue(Files.exists(file.getPath()));
-            } else {
-                assertTrue(recycledFiles.contains(file.getPath().getFileName()), file.toString());
-            }
-        }
-    }
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -91,12 +63,12 @@ class PcesFileReaderTests {
         FileUtils.deleteDirectory(fileSystemDirectory);
     }
 
-    protected static Stream<Arguments> buildArguments() {
+    static Stream<Arguments> ancientModes() {
         return Stream.of(Arguments.of(GENERATION_THRESHOLD), Arguments.of(BIRTH_ROUND_THRESHOLD));
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModes")
     @DisplayName("Read Files In Order Test")
     void readFilesInOrderTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -125,36 +97,44 @@ class PcesFileReaderTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
-    @DisplayName("Read Files In Order Gap Test")
+    @MethodSource("ancientModes")
+    @DisplayName("Read Files In Order With Gap allowed Test")
     void readFilesInOrderGapTest(@NonNull final AncientMode ancientMode) throws IOException {
-        for (final boolean permitGaps : List.of(true, false)) {
-            final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(
-                            ancientMode, random, fileDirectory)
-                    .skipElementAtHalf()
-                    .build()
-                    .generate();
-            final List<PcesFile> files = pcesFilesGeneratorResult.files();
+        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+                .introduceGapHalfway()
+                .build()
+                .generate();
+        final List<PcesFile> files = pcesFilesGeneratorResult.files();
 
-            final PlatformContext platformContext =
-                    TestPlatformContextFactories.context(permitGaps, ancientMode, dataDir, fileSystemDirectory);
+        final PlatformContext platformContext =
+                TestPlatformContextFactories.context(true, ancientMode, dataDir, fileSystemDirectory);
 
-            if (permitGaps) {
-                final PcesFileTracker fileTracker =
-                        PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, true, ancientMode);
-                // Gaps are allowed. We should see all files except for the one that was skipped.
-                assertIteratorEquality(files.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
-            } else {
-                // Gaps are not allowed.
-                assertThrows(
-                        IllegalStateException.class,
-                        () -> PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode));
-            }
-        }
+        final PcesFileTracker fileTracker =
+                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, true, ancientMode);
+        // Gaps are allowed. We should see all files except for the one that was skipped.
+        assertIteratorEquality(files.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModes")
+    @DisplayName("Read Files In Order Gap Not allowed Test")
+    void readFilesInOrderGapsNotAllowedTest(@NonNull final AncientMode ancientMode) throws IOException {
+        PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+                .introduceGapHalfway()
+                .build()
+                .generate();
+
+        final PlatformContext platformContext =
+                TestPlatformContextFactories.context(false, ancientMode, dataDir, fileSystemDirectory);
+
+        // Gaps are not allowed.
+        assertThrows(
+                IllegalStateException.class,
+                () -> PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode));
+    }
+
+    @ParameterizedTest
+    @MethodSource("ancientModes")
     @DisplayName("Read Files From Middle Test")
     void readFilesFromMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -208,7 +188,7 @@ class PcesFileReaderTests {
      * handle elegantly.
      */
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModes")
     @DisplayName("Read Files From Middle Repeating Boundaries Test")
     void readFilesFromMiddleRepeatingBoundariesTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -259,7 +239,7 @@ class PcesFileReaderTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModes")
     @DisplayName("Read Files From High ancient indicator Test")
     void readFilesFromHighAncientIdentifierTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -283,7 +263,7 @@ class PcesFileReaderTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModes")
     @DisplayName("Read Files From Empty Stream Test")
     void readFilesFromEmptyStreamTest(@NonNull final AncientMode ancientMode) {
         assertThrows(
@@ -311,7 +291,7 @@ class PcesFileReaderTests {
      *  * readFilesFromDisk is asked to read a non-existent resultingUnbrokenOrigin block
      */
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModes")
     @DisplayName("Start And First File Discontinuity In Middle Test")
     void startAtFirstFileDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -339,7 +319,7 @@ class PcesFileReaderTests {
 
         // Scenario 3: choose an resultingUnbrokenOrigin that comes before the resultingUnbrokenOrigin. This will cause
         // the files
-        // after the resultingUnbrokenOrigin to be deleted.
+        // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.getPointBeforeUnbrokenOrigin();
         final PcesFileTracker fileTracker3 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound3, false, ancientMode);
@@ -351,7 +331,7 @@ class PcesFileReaderTests {
         validateRecycledFiles(
                 pcesFilesGenerator.filesBeforeDiscontinuity(), pcesFilesGenerator.files(), this.recycleBinPath);
 
-        // Scenario 4: choose an resultingUnbrokenOrigin that is incompatible with all state files. This will cause all
+        // Scenario 4: choose an origin that is incompatible with all state files. This will cause all
         // remaining
         // files to be deleted.
         final long startingRound4 = 0;
@@ -369,7 +349,7 @@ class PcesFileReaderTests {
      * before the discontinuity, but it isn't the first file in the stream.
      */
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModes")
     @DisplayName("Start At Middle File Discontinuity In Middle Test")
     void startAtMiddleFileDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -384,10 +364,10 @@ class PcesFileReaderTests {
         final long startAncientIdentifier =
                 pcesFilesGenerator.files().getFirst().getUpperBound();
 
-        final PlatformContext platformContext = TestPlatformContextFactories.context(
-                false, ancientMode, fileSystemDirectory.resolve("recycle-bin"), dataDir, fileSystemDirectory);
+        final PlatformContext platformContext =
+                TestPlatformContextFactories.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
 
-        // Scenario 1: choose an resultingUnbrokenOrigin that lands on the resultingUnbrokenOrigin exactly.
+        // Scenario 1: choose an origin that lands on the origin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
         final PcesFileTracker fileTracker1 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound1, false, ancientMode);
@@ -395,7 +375,7 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(startAncientIdentifier, startingRound1));
 
-        // Scenario 2: choose an resultingUnbrokenOrigin that lands after the resultingUnbrokenOrigin.
+        // Scenario 2: choose an origin that lands after the origin.
         final long startingRound2 = pcesFilesGenerator.getPointAfterUnbrokenOrigin();
         final PcesFileTracker fileTracker2 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound2, false, ancientMode);
@@ -403,9 +383,9 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(startAncientIdentifier, startingRound2));
 
-        // Scenario 3: choose an resultingUnbrokenOrigin that comes before the resultingUnbrokenOrigin. This will cause
+        // Scenario 3: choose an origin that comes before the origin. This will cause
         // the files
-        // after the resultingUnbrokenOrigin to be deleted.
+        // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.getPointBeforeUnbrokenOrigin();
         final PcesFileTracker fileTracker3 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound3, false, ancientMode);
@@ -416,7 +396,7 @@ class PcesFileReaderTests {
         validateRecycledFiles(
                 pcesFilesGenerator.filesBeforeDiscontinuity(), pcesFilesGenerator.files(), this.recycleBinPath);
 
-        // Scenario 4: choose an resultingUnbrokenOrigin that is incompatible with all state files. This will cause all
+        // Scenario 4: choose an origin that is incompatible with all state files. This will cause all
         // remaining
         // files to be deleted.
         final long startingRound4 = 0;
@@ -432,7 +412,7 @@ class PcesFileReaderTests {
      * In this test, a discontinuity is placed in the middle of the stream, and we begin iterating on that exact file.
      */
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModes")
     @DisplayName("Start At Middle File Discontinuity In Middle Test")
     void startAtDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -446,9 +426,9 @@ class PcesFileReaderTests {
         final long startAncientIdentifier =
                 pcesFilesGenerator.filesAfterDiscontinuity().getFirst().getUpperBound();
 
-        final PlatformContext platformContext = TestPlatformContextFactories.context(
-                false, ancientMode, fileSystemDirectory.resolve("recycle-bin"), dataDir, fileSystemDirectory);
-        // Scenario 1: choose an resultingUnbrokenOrigin that lands on the resultingUnbrokenOrigin exactly.
+        final PlatformContext platformContext =
+                TestPlatformContextFactories.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
+        // Scenario 1: choose an origin that lands on the origin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
         final PcesFileTracker fileTracker1 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound1, false, ancientMode);
@@ -456,7 +436,7 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(startAncientIdentifier, startingRound1));
 
-        // Scenario 2: choose an resultingUnbrokenOrigin that lands after the resultingUnbrokenOrigin.
+        // Scenario 2: choose an origin that lands after the origin.
         final long startingRound2 = pcesFilesGenerator.getPointAfterUnbrokenOrigin();
         final PcesFileTracker fileTracker2 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound2, false, ancientMode);
@@ -464,13 +444,13 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(startAncientIdentifier, startingRound2));
 
-        // Scenario 3: choose an resultingUnbrokenOrigin that comes before the resultingUnbrokenOrigin. This will cause
+        // Scenario 3: choose an origin that comes before the origin. This will cause
         // the files
-        // after the resultingUnbrokenOrigin to be deleted.
+        // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.getPointBeforeUnbrokenOrigin();
         final PcesFileTracker fileTracker3 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound3, false, ancientMode);
-        // There is no files with a compatible resultingUnbrokenOrigin and events with ancient indicators in the span we
+        // There is no files with a compatible origin and events with ancient indicators in the span we
         // want.
         assertIteratorEquality(
                 Collections.emptyIterator(), fileTracker3.getFileIterator(startAncientIdentifier, startingRound3));
@@ -478,7 +458,7 @@ class PcesFileReaderTests {
         validateRecycledFiles(
                 pcesFilesGenerator.filesBeforeDiscontinuity(), pcesFilesGenerator.files(), this.recycleBinPath);
 
-        // Scenario 4: choose an resultingUnbrokenOrigin that is incompatible with all state files. This will cause all
+        // Scenario 4: choose an origin that is incompatible with all state files. This will cause all
         // remaining
         // files to be deleted.
         final long startingRound4 = 0;
@@ -494,7 +474,7 @@ class PcesFileReaderTests {
      * In this test, a discontinuity is placed in the middle of the stream, and we begin iterating after that file.
      */
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModes")
     @DisplayName("Start After Discontinuity In Middle Test")
     void startAfterDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
 
@@ -508,10 +488,10 @@ class PcesFileReaderTests {
         final long startAncientBoundary =
                 pcesFilesGenerator.filesAfterDiscontinuity().getFirst().getUpperBound();
 
-        final PlatformContext platformContext = TestPlatformContextFactories.context(
-                false, ancientMode, fileSystemDirectory.resolve("recycle-bin"), dataDir, fileSystemDirectory);
+        final PlatformContext platformContext =
+                TestPlatformContextFactories.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
 
-        // Scenario 1: choose an resultingUnbrokenOrigin that lands on the resultingUnbrokenOrigin exactly.
+        // Scenario 1: choose an origin that lands on the origin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
         final PcesFileTracker fileTracker1 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound1, false, ancientMode);
@@ -519,7 +499,7 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(startAncientBoundary, startingRound1));
 
-        // Scenario 2: choose an resultingUnbrokenOrigin that lands after the resultingUnbrokenOrigin.
+        // Scenario 2: choose an origin that lands after the origin.
         final long startingRound2 = pcesFilesGenerator.getPointAfterUnbrokenOrigin();
         final PcesFileTracker fileTracker2 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound2, false, ancientMode);
@@ -527,9 +507,9 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(startAncientBoundary, startingRound2));
 
-        // Scenario 3: choose an resultingUnbrokenOrigin that comes before the resultingUnbrokenOrigin. This will cause
+        // Scenario 3: choose an origin that comes before the origin. This will cause
         // the files
-        // after the resultingUnbrokenOrigin to be deleted.
+        // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.getPointBeforeUnbrokenOrigin();
         final PcesFileTracker fileTracker3 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound3, false, ancientMode);
@@ -539,7 +519,7 @@ class PcesFileReaderTests {
         validateRecycledFiles(
                 pcesFilesGenerator.filesBeforeDiscontinuity(), pcesFilesGenerator.files(), this.recycleBinPath);
 
-        // Scenario 4: choose an resultingUnbrokenOrigin that is incompatible with all state files. This will cause all
+        // Scenario 4: choose an origin that is incompatible with all state files. This will cause all
         // remaining
         // files to be deleted.
         final long startingRound4 = 0;
@@ -582,5 +562,31 @@ class PcesFileReaderTests {
 
         assertIteratorEquality(generationFiles.iterator(), generationFileTracker.getFileIterator(NO_LOWER_BOUND, 0));
         assertIteratorEquality(birthRoundFiles.iterator(), birthRoundFileTracker.getFileIterator(NO_LOWER_BOUND, 0));
+    }
+
+    /**
+     * When fixing an origin, invalid files are moved to a "recycle bin" directory.
+     * This method validates that behavior.
+     */
+    static void validateRecycledFiles(
+            @NonNull final List<PcesFile> filesThatShouldBePresent,
+            @NonNull final List<PcesFile> allFiles,
+            final Path recycleBinPath)
+            throws IOException {
+
+        final Set<Path> recycledFiles = new HashSet<>();
+        try (final Stream<Path> stream = Files.walk(recycleBinPath)) {
+            stream.forEach(file -> recycledFiles.add(file.getFileName()));
+        }
+
+        final Set<PcesFile> filesThatShouldBePresentSet = new HashSet<>(filesThatShouldBePresent);
+
+        for (final PcesFile file : allFiles) {
+            if (filesThatShouldBePresentSet.contains(file)) {
+                assertTrue(Files.exists(file.getPath()));
+            } else {
+                assertTrue(recycledFiles.contains(file.getPath().getFileName()), file.toString());
+            }
+        }
     }
 }
