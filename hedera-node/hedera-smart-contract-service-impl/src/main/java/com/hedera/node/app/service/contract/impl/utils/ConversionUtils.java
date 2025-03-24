@@ -192,8 +192,8 @@ public class ConversionUtils {
     /**
      * Given a {@link TokenID}, returns its address as a headlong address.
      *
-     * @param tokenId the
-     * @return
+     * @param tokenId the Token Id
+     * @return the headlong address
      */
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final TokenID tokenId) {
         requireNonNull(tokenId);
