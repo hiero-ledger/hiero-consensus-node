@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.event.emitter;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
