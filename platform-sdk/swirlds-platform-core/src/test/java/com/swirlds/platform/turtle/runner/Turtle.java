@@ -78,6 +78,7 @@ public class Turtle {
     private long tickCount;
     private Instant previousRealTime;
     private Instant previousSimulatedTime;
+    private final ConsensusRoundValidator consensusRoundValidator;
 
     /**
      * Constructor.
@@ -88,6 +89,7 @@ public class Turtle {
         final Randotron randotron = builder.getRandotron();
         simulationGranularity = builder.getSimulationGranularity();
         timeReportingEnabled = builder.isTimeReportingEnabled();
+        consensusRoundValidator = builder.getConsensusRoundValidator();
 
         try {
             ConstructableRegistry.getInstance()
@@ -133,6 +135,7 @@ public class Turtle {
      * Simulate the network for a period of time. Validate the correctness of collected items at a regular interval.
      *
      * @param duration the duration to simulate
+     * @param validationInterval the interval at which to validate the collected items
      */
     public void simulateTimeAndValidate(@NonNull final Duration duration, @NonNull final Duration validationInterval) {
         final Instant simulatedStart = time.now();
@@ -147,21 +150,18 @@ public class Turtle {
             tickAllNodes();
 
             if (time.now().isAfter(nextValidationTime)) {
-                validate();
+                validateConsensusRounds();
                 nextValidationTime = time.now().plus(validationInterval);
             }
         }
     }
 
     /**
-     * Validate all collected items during Turtle execution using the suitable validator types.
-     * Each different type of collected item has its own container and set of validation rules.
+     * Validate all collected {@link ConsensusRound} instances during Turtle execution using the suitable validator.
      *
      * At the end of the validation, all collected items are cleared to keep memory usage low.
      */
-    public void validate() {
-        final ConsensusRoundValidator consensusRoundValidator = new ConsensusRoundValidator();
-
+    public void validateConsensusRounds() {
         final TurtleNode node1 = nodes.getFirst();
         final List<ConsensusRound> consensusRoundsForNode1 =
                 node1.getConsensusRoundsHolder().getCollectedRounds();
