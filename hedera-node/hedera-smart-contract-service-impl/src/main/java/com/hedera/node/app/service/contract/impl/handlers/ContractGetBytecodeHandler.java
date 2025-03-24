@@ -29,7 +29,6 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -141,12 +140,7 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
             if (contract.deleted()) {
                 return null;
             } else {
-                final var bytecode = bytecodeFrom(context, contractId);
-                // TODO Glib: is this even possible to have contract w/o bytecode?
-                return Objects.requireNonNullElseGet(
-                        bytecode,
-                        () -> RedirectBytecodeUtils.accountProxyBytecodePjb(
-                                ConversionUtils.contractIDToBesuAddress(contractId)));
+                return bytecodeFrom(context, contractId);
             }
         } else if ((token = tokenFrom(context, contractId)) != null) {
             if (token.deleted()) {

@@ -50,7 +50,6 @@ public abstract class AbstractContractPaidQueryHandler<T> extends PaidQueryHandl
     }
 
     protected @Nullable Token tokenFrom(@NonNull final QueryContext context, @NonNull final ContractID contractId) {
-        // TODO Glib: Should we use entityIdFactory instead of new ... everywhere?
         final var tokenID = entityIdFactory.newTokenId(ConversionUtils.contractIDToNum(entityIdFactory, contractId));
         return context.createStore(ReadableTokenStore.class).get(tokenID);
     }
