@@ -78,7 +78,7 @@ import java.util.function.IntFunction;
 public class BlockImplUtils {
     private static final int UNKNOWN_STATE_ID = -1;
     private static final IntFunction<String> UPGRADE_DATA_FILE_FORMAT =
-            n -> String.format("UPGRADE_DATA\\[FileID\\[shardNum=\\d, realmNum=\\d, fileNum=%s]]", n);
+            n -> String.format("UPGRADE_DATA\\[FileID\\[shardNum=\\d+, realmNum=\\d+, fileNum=%s]]", n);
 
     /**
      * Prevent instantiation

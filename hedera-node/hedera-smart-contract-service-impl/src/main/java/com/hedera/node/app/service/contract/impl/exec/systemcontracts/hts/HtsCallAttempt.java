@@ -122,7 +122,9 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
     public @Nullable Token linkedToken(@NonNull final byte[] evmAddress) {
         requireNonNull(evmAddress);
         if (isLongZeroAddress(enhancement().nativeOperations().entityIdFactory(), evmAddress)) {
-            return enhancement().nativeOperations().getToken(numberOfLongZero(evmAddress));
+            return enhancement()
+                    .nativeOperations()
+                    .getToken(nativeOperations().entityIdFactory().newTokenId(numberOfLongZero(evmAddress)));
         } else {
             // No point in looking up a token that can't exist
             return null;

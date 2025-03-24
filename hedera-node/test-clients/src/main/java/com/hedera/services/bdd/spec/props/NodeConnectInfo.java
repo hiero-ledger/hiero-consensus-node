@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.spec.props;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isIdLiteral;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isNumericLiteral;
 
@@ -53,6 +55,11 @@ public class NodeConnectInfo {
         account = Stream.of(aspects)
                 .filter(TxnUtils::isIdLiteral)
                 .map(HapiPropertySource::asAccount)
+                .map(a -> AccountID.newBuilder()
+                        .setShardNum(shard)
+                        .setRealmNum(realm)
+                        .setAccountNum(a.getAccountNum())
+                        .build())
                 .findAny()
                 .orElse(HapiPropertySource.asAccount(asEntityString(NEXT_DEFAULT_ACCOUNT_NUM++)));
         host = Stream.of(aspects)

@@ -37,18 +37,21 @@ public interface HederaNode {
 
     /**
      * Gets the node ID, such as 0, 1, 2, or 3.
+     *
      * @return the node ID
      */
     long getNodeId();
 
     /**
      * The name of the node, such as "Alice" or "Bob".
+     *
      * @return the node name
      */
     String getName();
 
     /**
      * Gets the node Account ID
+     *
      * @return the node account ID
      */
     AccountID getAccountId();
@@ -73,8 +76,8 @@ public interface HederaNode {
     /**
      * Starts the node software.
      *
-     * @throws IllegalStateException if the working directory was not initialized
      * @return this
+     * @throws IllegalStateException if the working directory was not initialized
      */
     HederaNode start();
 
@@ -133,12 +136,18 @@ public interface HederaNode {
      *
      * @return this node's HAPI spec identifier
      */
+    default String hapiSpecInfo(long shard, long realm) {
+        return getHost() + ":" + getGrpcPort() + ":" + shard + "." + realm + "."
+                + getAccountId().accountNumOrThrow();
+    }
+
     default String hapiSpecInfo() {
-        return getHost() + ":" + getGrpcPort() + ":0.0." + getAccountId().accountNumOrThrow();
+        return hapiSpecInfo(getAccountId().shardNum(), getAccountId().realmNum());
     }
 
     /**
      * Returns the metadata for this node.
+     *
      * @return the metadata for this node
      */
     NodeMetadata metadata();
@@ -152,6 +161,7 @@ public interface HederaNode {
 
     /**
      * If this node's startup assets included a genesis or override address book, returns it.
+     *
      * @return the node's startup address book, if available
      */
     default Optional<Network> startupNetwork() {

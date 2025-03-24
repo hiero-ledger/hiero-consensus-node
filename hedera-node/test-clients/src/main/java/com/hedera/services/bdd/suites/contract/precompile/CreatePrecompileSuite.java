@@ -3,6 +3,9 @@ package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.numberOfLongZero;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
@@ -44,6 +47,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_TOKEN_SYMBOL;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.swirlds.common.utility.CommonUtils.unhex;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -170,7 +174,8 @@ public class CreatePrecompileSuite {
                                     .exposingResultTo(result -> {
                                         log.info(EXPLICIT_CREATE_RESULT, result[0]);
                                         final var res = (Address) result[0];
-                                        createTokenNum.set(res.value().longValueExact());
+                                        createTokenNum.set(numberOfLongZero(
+                                                unhex(res.toString().substring(2))));
                                     })
                                     .hasKnownStatus(SUCCESS),
                             newKeyNamed(TOKEN_CREATE_CONTRACT_AS_KEY).shape(CONTRACT.signedWith(TOKEN_CREATE_CONTRACT)),
@@ -195,6 +200,8 @@ public class CreatePrecompileSuite {
                         sourcing(() ->
                                 getAccountInfo(ACCOUNT_TO_ASSOCIATE).logged().hasTokenRelationShipCount(1)),
                         sourcing(() -> getTokenInfo(asTokenString(TokenID.newBuilder()
+                                        .setShardNum(SHARD)
+                                        .setRealmNum(REALM)
                                         .setTokenNum(createTokenNum.get())
                                         .build()))
                                 .logged()
@@ -266,7 +273,8 @@ public class CreatePrecompileSuite {
                             .exposingResultTo(result -> {
                                 log.info("Explicit create result is" + " {}", result[0]);
                                 final var res = (Address) result[0];
-                                createdNftTokenNum.set(res.value().longValueExact());
+                                createdNftTokenNum.set(
+                                        numberOfLongZero(unhex(res.toString().substring(2))));
                             })
                             .hasKnownStatus(SUCCESS);
 
@@ -280,6 +288,8 @@ public class CreatePrecompileSuite {
                                     TransactionRecordAsserts.recordWith().status(SUCCESS)));
 
                     final var nftInfo = getTokenInfo(asTokenString(TokenID.newBuilder()
+                                    .setShardNum(SHARD)
+                                    .setRealmNum(REALM)
                                     .setTokenNum(createdNftTokenNum.get())
                                     .build()))
                             .hasAutoRenewAccount(ACCOUNT)
@@ -347,10 +357,13 @@ public class CreatePrecompileSuite {
                                 .exposingResultTo(result -> {
                                     log.info(EXPLICIT_CREATE_RESULT, result[0]);
                                     final var res = (Address) result[0];
-                                    createTokenNum.set(res.value().longValueExact());
+                                    createTokenNum.set(numberOfLongZero(
+                                            unhex(res.toString().substring(2))));
                                 })
                                 .hasKnownStatus(SUCCESS))),
                 sourcing(() -> getTokenInfo(asTokenString(TokenID.newBuilder()
+                                .setShardNum(SHARD)
+                                .setRealmNum(REALM)
                                 .setTokenNum(createTokenNum.get())
                                 .build()))
                         .logged()
@@ -390,7 +403,8 @@ public class CreatePrecompileSuite {
                             .exposingResultTo(result -> {
                                 log.info("Explicit create result is" + " {}", result[0]);
                                 final var res = (Address) result[0];
-                                createdTokenNum.set(res.value().longValueExact());
+                                createdTokenNum.set(
+                                        numberOfLongZero(unhex(res.toString().substring(2))));
                             })
                             .refusingEthConversion()
                             .hasKnownStatus(SUCCESS);
@@ -420,6 +434,8 @@ public class CreatePrecompileSuite {
                                             .build()),
                                     0);
                     final var tokenInfo = getTokenInfo(asTokenString(TokenID.newBuilder()
+                                    .setShardNum(SHARD)
+                                    .setRealmNum(REALM)
                                     .setTokenNum(createdTokenNum.get())
                                     .build()))
                             .hasTokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -494,7 +510,8 @@ public class CreatePrecompileSuite {
                                     .exposingResultTo(result -> {
                                         log.info(EXPLICIT_CREATE_RESULT, result[0]);
                                         final var res = (Address) result[0];
-                                        createdTokenNum.set(res.value().longValueExact());
+                                        createdTokenNum.set(numberOfLongZero(
+                                                unhex(res.toString().substring(2))));
                                     })
                                     .hasKnownStatus(SUCCESS));
                 }),
@@ -514,16 +531,22 @@ public class CreatePrecompileSuite {
                         sourcing(() -> getAccountBalance(ACCOUNT)
                                 .hasTokenBalance(
                                         asTokenString(TokenID.newBuilder()
+                                                .setShardNum(SHARD)
+                                                .setRealmNum(REALM)
                                                 .setTokenNum(createdTokenNum.get())
                                                 .build()),
                                         20)),
                         sourcing(() -> getAccountBalance(TOKEN_CREATE_CONTRACT)
                                 .hasTokenBalance(
                                         asTokenString(TokenID.newBuilder()
+                                                .setShardNum(SHARD)
+                                                .setRealmNum(REALM)
                                                 .setTokenNum(createdTokenNum.get())
                                                 .build()),
                                         10)),
                         sourcing(() -> getTokenInfo(asTokenString(TokenID.newBuilder()
+                                        .setShardNum(SHARD)
+                                        .setRealmNum(REALM)
                                         .setTokenNum(createdTokenNum.get())
                                         .build()))
                                 .hasTokenType(TokenType.FUNGIBLE_COMMON)
@@ -575,7 +598,8 @@ public class CreatePrecompileSuite {
                                 .exposingResultTo(result -> {
                                     log.info(EXPLICIT_CREATE_RESULT, result[0]);
                                     final var res = (Address) result[0];
-                                    createdTokenNum.set(res.value().longValueExact());
+                                    createdTokenNum.set(numberOfLongZero(
+                                            unhex(res.toString().substring(2))));
                                 }),
                         newKeyNamed(TOKEN_CREATE_CONTRACT_AS_KEY).shape(CONTRACT.signedWith(TOKEN_CREATE_CONTRACT)))),
                 getTxnRecord(FIRST_CREATE_TXN).andAllChildRecords().logged(),
@@ -591,10 +615,14 @@ public class CreatePrecompileSuite {
                 sourcing(() -> getAccountBalance(TOKEN_CREATE_CONTRACT)
                         .hasTokenBalance(
                                 asTokenString(TokenID.newBuilder()
+                                        .setShardNum(SHARD)
+                                        .setRealmNum(REALM)
                                         .setTokenNum(createdTokenNum.get())
                                         .build()),
                                 0)),
                 sourcing(() -> getTokenInfo(asTokenString(TokenID.newBuilder()
+                                .setShardNum(SHARD)
+                                .setRealmNum(REALM)
                                 .setTokenNum(createdTokenNum.get())
                                 .build()))
                         .hasTokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -634,7 +662,8 @@ public class CreatePrecompileSuite {
                                 .exposingResultTo(result -> {
                                     log.info(EXPLICIT_CREATE_RESULT, result[0]);
                                     final var res = (Address) result[0];
-                                    createdTokenNum.set(res.value().longValueExact());
+                                    createdTokenNum.set(numberOfLongZero(
+                                            unhex(res.toString().substring(2))));
                                 })
                                 .hasKnownStatus(SUCCESS))),
                 getTxnRecord(FIRST_CREATE_TXN).andAllChildRecords().logged(),
@@ -648,10 +677,14 @@ public class CreatePrecompileSuite {
                 sourcing(() -> getAccountBalance(TOKEN_CREATE_CONTRACT)
                         .hasTokenBalance(
                                 asTokenString(TokenID.newBuilder()
+                                        .setShardNum(SHARD)
+                                        .setRealmNum(REALM)
                                         .setTokenNum(createdTokenNum.get())
                                         .build()),
                                 200)),
                 sourcing(() -> getTokenInfo(asTokenString(TokenID.newBuilder()
+                                .setShardNum(SHARD)
+                                .setRealmNum(REALM)
                                 .setTokenNum(createdTokenNum.get())
                                 .build()))
                         .hasTokenType(TokenType.FUNGIBLE_COMMON)
@@ -863,8 +896,8 @@ public class CreatePrecompileSuite {
                         contractCall(
                                         TOKEN_CREATE_CONTRACT,
                                         CREATE_NFT_WITH_KEYS_AND_EXPIRY_FUNCTION,
-                                        HapiParserUtil.asHeadlongAddress((byte[])
-                                                ArrayUtils.toPrimitive(Utils.asSolidityAddress(0, 0, 999_999_999L))),
+                                        HapiParserUtil.asHeadlongAddress((byte[]) ArrayUtils.toPrimitive(
+                                                Utils.asSolidityAddress(SHARD, REALM, 999_999_999L))),
                                         spec.registry()
                                                 .getKey(ED25519KEY)
                                                 .getEd25519()
@@ -1023,7 +1056,8 @@ public class CreatePrecompileSuite {
                                 .exposingResultTo(result -> {
                                     log.info(EXPLICIT_CREATE_RESULT, result[0]);
                                     final var res = (Address) result[0];
-                                    createTokenNum.set(res.value().longValueExact());
+                                    createTokenNum.set(numberOfLongZero(
+                                            unhex(res.toString().substring(2))));
                                 })
                                 .hasKnownStatus(SUCCESS))),
                 withOpContext((spec, opLog) -> allRunFor(
@@ -1032,18 +1066,24 @@ public class CreatePrecompileSuite {
                         getAccountBalance(RECIPIENT)
                                 .hasTokenBalance(
                                         asTokenString(TokenID.newBuilder()
+                                                .setShardNum(SHARD)
+                                                .setRealmNum(REALM)
                                                 .setTokenNum(createTokenNum.get())
                                                 .build()),
                                         0L),
                         getAccountBalance(SECOND_RECIPIENT)
                                 .hasTokenBalance(
                                         asTokenString(TokenID.newBuilder()
+                                                .setShardNum(SHARD)
+                                                .setRealmNum(REALM)
                                                 .setTokenNum(createTokenNum.get())
                                                 .build()),
                                         1L),
                         getAccountBalance(ACCOUNT)
                                 .hasTokenBalance(
                                         asTokenString(TokenID.newBuilder()
+                                                .setShardNum(SHARD)
+                                                .setRealmNum(REALM)
                                                 .setTokenNum(createTokenNum.get())
                                                 .build()),
                                         199L),

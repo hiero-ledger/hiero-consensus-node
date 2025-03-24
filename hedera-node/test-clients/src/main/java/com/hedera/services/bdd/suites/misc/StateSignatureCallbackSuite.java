@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.misc;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.USES_STATE_SIGNATURE_TRANSACTION_CALLBACK;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.hapiStateSignature;
@@ -41,7 +42,7 @@ public class StateSignatureCallbackSuite {
         final var handleCallback = new Callback();
         return hapiTest(hapiStateSignature()
                 .withSubmissionStrategy(usingStateSignatureTransactionCallback(preHandleCallback, handleCallback))
-                .setNode("0.0.4")
+                .setNode(asEntityString(4))
                 .fireAndForget()
                 .satisfies(
                         () -> preHandleCallback.counter.get() == 1,
