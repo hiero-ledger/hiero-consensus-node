@@ -1,1 +1,38 @@
-[{"inputs":[],"stateMutability":"payable","type":"constructor"},{"inputs":[{"internalType":"uint32","name":"keepAmountDivisor","type":"uint32"},{"internalType":"uint256","name":"stopBalance","type":"uint256"}],"name":"receiveAndSend","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"uint160[]","name":"accounts","type":"uint160[]"}],"name":"setNodes","outputs":[],"stateMutability":"payable","type":"function"}]
+[
+  {
+    "inputs": [],
+    "stateMutability": "payable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "keepAmountDivisor",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "stopBalance",
+        "type": "uint256"
+      }
+    ],
+    "name": "receiveAndSend",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint160[]",
+        "name": "accounts",
+        "type": "uint160[]"
+      }
+    ],
+    "name": "setNodes",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  }
+]

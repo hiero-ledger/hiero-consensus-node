@@ -78,7 +78,7 @@ public class SyntheticIds {
             if (address.equals(ZERO_ADDRESS)) {
                 return isCredit
                         ? nativeOperations.entityIdFactory().newAccountIdWithAlias(Bytes.wrap(explicit))
-                        : AccountID.newBuilder().accountNum(0L).build();
+                        : AccountID.DEFAULT;
             }
 
             if (isLongZero(nativeOperations.entityIdFactory(), address)) {
