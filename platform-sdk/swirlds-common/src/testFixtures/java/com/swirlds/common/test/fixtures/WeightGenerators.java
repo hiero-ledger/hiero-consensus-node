@@ -112,7 +112,7 @@ public final class WeightGenerators {
      * 		the total amount of weight to distribute
      * @return a list of weight values
      */
-    public static List<Long> randomNodeWeights(final Long weightSeed, final int numberOfNodes, final long totalWeight) {
+    public static List<Long> randomNodeWeights(final long weightSeed, final int numberOfNodes, final long totalWeight) {
         final Random r = initRandom(weightSeed);
         final List<Long> weights = new ArrayList<>(numberOfNodes);
         final long halfTotalWeight = totalWeight / 2;
@@ -137,7 +137,7 @@ public final class WeightGenerators {
      * 		the number of nodes to generate weight for
      * @return a list of weight values
      */
-    public static List<Long> randomNodeWeights(final Long weightSeed, final int numberOfNodes) {
+    public static List<Long> randomNodeWeights(final long weightSeed, final int numberOfNodes) {
         final RandomGenerator r = initRandom(weightSeed);
         final List<Long> nodeWeights = new ArrayList<>(numberOfNodes);
         for (int i = 0; i < numberOfNodes; i++) {
@@ -152,7 +152,7 @@ public final class WeightGenerators {
      *
      * @return test arguments
      */
-    public static List<Long> oneThirdNodesZeroWeight(final Long weightSeed, final int numberOfNodes) {
+    public static List<Long> oneThirdNodesZeroWeight(final long weightSeed, final int numberOfNodes) {
         final RandomGenerator r = initRandom(weightSeed);
         final List<Long> nodeWeights = new ArrayList<>(numberOfNodes);
 

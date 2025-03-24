@@ -24,7 +24,7 @@ public class GaussianWeightGenerator implements WeightGenerator {
     }
 
     @Override
-    public List<Long> getWeights(final Long seed, final int numberOfNodes) {
+    public List<Long> getWeights(final long seed, final int numberOfNodes) {
         final RandomGenerator r = Randotron.create(seed);
         final List<Long> nodeWeights = new ArrayList<>(numberOfNodes);
         for (int i = 0; i < numberOfNodes; i++) {
