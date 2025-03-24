@@ -84,8 +84,9 @@ public class OutboundConnectionManager implements ConnectionManager {
         try (final LockedResource<Connection> resource = lock.lock()) {
             while (!resource.getResource().connected()) {
                 resource.getResource().disconnect();
-                resource.setResource(createConnection());
-                if (this.socketConfig.waitBetweenConnectionRetries() > 0) {
+                var connection = createConnection();
+                resource.setResource(connection);
+                if (!connection.connected() && this.socketConfig.waitBetweenConnectionRetries() > 0) {
                     try {
                         Thread.sleep(this.socketConfig.waitBetweenConnectionRetries());
                     } catch (InterruptedException e) {

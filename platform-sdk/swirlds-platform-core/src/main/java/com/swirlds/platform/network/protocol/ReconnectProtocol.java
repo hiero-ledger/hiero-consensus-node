@@ -80,16 +80,17 @@ public class ReconnectProtocol implements Protocol {
 
     /**
      * Utility method for creating ReconnectProtocol from shared state, while staying compatible with pre-refactor code
-     * @param platformContext       the platform context
-     * @param fallenBehindManager   tracks if we have fallen behind
-     * @param threadManager         the thread manager
-     * @param latestCompleteState   holds the latest signed state that has enough signatures to be verifiable
-     * @param roster                the current roster
-     * @param loadReconnectState    a method that should be called when a state from reconnect is obtained
+     *
+     * @param platformContext               the platform context
+     * @param fallenBehindManager           tracks if we have fallen behind
+     * @param threadManager                 the thread manager
+     * @param latestCompleteState           holds the latest signed state that has enough signatures to be verifiable
+     * @param roster                        the current roster
+     * @param loadReconnectState            a method that should be called when a state from reconnect is obtained
      * @param clearAllPipelinesForReconnect this method should be called to clear all pipelines prior to a reconnect
-     * @param swirldStateManager    manages the mutable state
-     * @param selfId                this node's ID
-     * @param gossipController      way to pause/resume gossip while reconnect is in progress
+     * @param swirldStateManager            manages the mutable state
+     * @param selfId                        this node's ID
+     * @param gossipController              way to pause/resume gossip while reconnect is in progress
      * @return constructed ReconnectProtocol
      */
     public static ReconnectProtocol create(
@@ -187,6 +188,11 @@ public class ReconnectProtocol implements Protocol {
      */
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus status) {
-        platformStatus.set(status);
+        var previousState = platformStatus.getAndSet(status);
+        if (status != previousState) {
+            if (PlatformStatus.BEHIND == status) {
+                this.reconnectController.start();
+            }
+        }
     }
 }
