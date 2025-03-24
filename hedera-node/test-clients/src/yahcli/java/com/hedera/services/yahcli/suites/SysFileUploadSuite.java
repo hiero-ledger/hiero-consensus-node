@@ -15,7 +15,6 @@ import com.hedera.services.bdd.suites.utils.sysfiles.serdes.StandardSerdes;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.SysFileSerde;
 import com.hedera.services.yahcli.commands.files.SysFileUploadCommand;
 import com.hedera.services.yahcli.output.CommonMessages;
-import com.swirlds.common.utility.CommonUtils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -28,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 
 public class SysFileUploadSuite extends HapiSuite {

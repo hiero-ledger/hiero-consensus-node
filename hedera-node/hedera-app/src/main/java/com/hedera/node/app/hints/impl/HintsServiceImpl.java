@@ -20,6 +20,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -44,11 +45,12 @@ public class HintsServiceImpl implements HintsService {
             @NonNull final Metrics metrics,
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
-            @NonNull final HintsLibrary library) {
+            @NonNull final HintsLibrary library,
+            @NonNull final Duration blockPeriod) {
         this.library = requireNonNull(library);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
-                .create(library, appContext, executor, metrics, currentRoster);
+                .create(library, appContext, executor, metrics, currentRoster, blockPeriod);
     }
 
     @VisibleForTesting
@@ -92,15 +94,14 @@ public class HintsServiceImpl implements HintsService {
             @NonNull final WritableHintsStore hintsStore, @NonNull final Instant now, final boolean isActive) {
         requireNonNull(hintsStore);
         requireNonNull(now);
-
         final var controller = component.controllers().getAnyInProgress();
+        // On the very first round the hinTS controller won't be available yet
         if (controller.isEmpty()) {
-            logger.info("No controller present to proceed for executing CRS work");
             return;
         }
         // Do the work needed to set the CRS for network and start the preprocessing vote
         if (hintsStore.getCrsState().stage() != COMPLETED) {
-            controller.get().advanceCRSWork(now, hintsStore, isActive);
+            controller.get().advanceCrsWork(now, hintsStore, isActive);
         }
     }
 

@@ -7,7 +7,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.platform.wiring.components.StateAndRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -54,8 +53,7 @@ public class DefaultStateGarbageCollector implements StateGarbageCollector {
      * {@inheritDoc}
      */
     @Override
-    public void registerState(@NonNull final StateAndRound stateAndRound) {
-        final ReservedSignedState reservedState = stateAndRound.reservedSignedState();
+    public void registerState(@NonNull final ReservedSignedState reservedState) {
         try (reservedState) {
             final SignedState state = reservedState.get();
             if (state.shouldDeleteOnBackgroundThread()) {

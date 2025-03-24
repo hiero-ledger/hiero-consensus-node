@@ -23,6 +23,8 @@ import org.junit.jupiter.api.Assertions;
 public class BlockContentsValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(BlockContentsValidator.class);
 
+    private static final int REASONABLE_NUM_PENDING_PROOFS_AT_FREEZE = 3;
+
     public static void main(String[] args) {
         final var node0Dir = Paths.get("hedera-node/test-clients")
                 .resolve(workingDirFor(0, "hapi"))
@@ -44,10 +46,9 @@ public class BlockContentsValidator implements BlockStreamValidator {
 
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
-        for (int i = 0; i < blocks.size(); i++) {
+        for (int i = 0, n = blocks.size(); i < n; i++) {
             try {
-                final var isLastBlock = i == blocks.size() - 1;
-                validate(blocks.get(i), isLastBlock);
+                validate(blocks.get(i), n - 1 - i);
             } catch (AssertionError err) {
                 logger.error("Error validating block {}", blocks.get(i));
                 throw err;
@@ -55,7 +56,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
         }
     }
 
-    private static void validate(Block block, final boolean isLastBlock) {
+    private static void validate(Block block, final int blocksRemaining) {
         final var items = block.items();
         if (items.isEmpty()) {
             Assertions.fail("Block is empty");
@@ -71,7 +72,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
         validateRounds(items.subList(1, items.size() - 1));
 
         // A block SHALL end with a `block_proof`.
-        if (!isLastBlock) {
+        if (blocksRemaining > REASONABLE_NUM_PENDING_PROOFS_AT_FREEZE) {
             validateBlockProof(items.getLast());
         }
     }

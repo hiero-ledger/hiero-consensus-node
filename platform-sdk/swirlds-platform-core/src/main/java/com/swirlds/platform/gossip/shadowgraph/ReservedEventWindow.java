@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
-import com.swirlds.platform.consensus.EventWindow;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * An event window that has been reserved in the shadowgraph. While this reservation is held, the shadowgraph will not

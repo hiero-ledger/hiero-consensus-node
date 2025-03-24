@@ -6,6 +6,7 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import org.hiero.consensus.model.notification.Notification;
 
 /**
  * Allows per {@link Listener} configuration of {@link DispatchMode} and {@link DispatchOrder}. Default configuration is

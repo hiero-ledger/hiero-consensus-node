@@ -12,9 +12,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.config.api.Configuration;
@@ -50,6 +49,9 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Tags;
@@ -228,7 +230,7 @@ class VirtualRootNodeTest extends VirtualTestBase {
     private void deserializeRootNodeAndVerify(InputStream resourceAsStream, int version) throws IOException {
         final VirtualRootNode<TestKey, TestValue> root = createRoot();
 
-        try (SerializableDataInputStream input = new SerializableDataInputStream(resourceAsStream)) {
+        try (SerializableDataInputStream input = new SerializableDataInputStreamImpl(resourceAsStream)) {
             root.deserialize(input, tempDir, version);
             root.postInit(new DummyVirtualStateAccessor());
             final VirtualNodeCache<TestKey, TestValue> cache = root.getCache();
@@ -251,7 +253,7 @@ class VirtualRootNodeTest extends VirtualTestBase {
     private void serializeRoot(String fileName) throws IOException {
         try (FileOutputStream fileOutputStream =
                         new FileOutputStream(tempDir.resolve(fileName).toFile());
-                SerializableDataOutputStream out = new SerializableDataOutputStream(fileOutputStream)) {
+                SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(fileOutputStream)) {
             VirtualRootNode<TestKey, TestValue> testKeyTestValueVirtualRootNode = prepareRootForSerialization();
             testKeyTestValueVirtualRootNode.serialize(out, tempDir);
             fileOutputStream.flush();
@@ -373,10 +375,10 @@ class VirtualRootNodeTest extends VirtualTestBase {
         final Path snapshotPath =
                 LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshotAndRestore", CONFIGURATION);
         try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
-                final SerializableDataOutputStream out = new SerializableDataOutputStream(bout)) {
+                final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(bout)) {
             copy5.serialize(out, snapshotPath);
             try (final ByteArrayInputStream bin = new ByteArrayInputStream(bout.toByteArray());
-                    final SerializableDataInputStream in = new SerializableDataInputStream(bin)) {
+                    final SerializableDataInputStream in = new SerializableDataInputStreamImpl(bin)) {
                 final VirtualMap<TestKey, TestValue> restored = new VirtualMap<>(CONFIGURATION);
                 restored.deserialize(in, snapshotPath, copy0.getVersion());
                 // All keys 1 to 5 should be in the snapshot

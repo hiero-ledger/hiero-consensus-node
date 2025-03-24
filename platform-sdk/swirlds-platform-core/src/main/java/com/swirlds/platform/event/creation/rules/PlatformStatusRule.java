@@ -4,10 +4,10 @@ package com.swirlds.platform.event.creation.rules;
 import static org.hiero.event.creator.EventCreationStatus.PLATFORM_STATUS;
 
 import com.swirlds.platform.pool.TransactionPoolNexus;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.Supplier;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.event.creator.EventCreationRule;
 import org.hiero.event.creator.EventCreationStatus;
 

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.utilops.streams;
 
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeys;
+import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.NODE_ADMIN_KEYS_JSON;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.doIfNotInterrupted;
@@ -45,6 +46,10 @@ public class LogValidationOp extends UtilOp {
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         doIfNotInterrupted(() -> MILLISECONDS.sleep(delay.toMillis()));
         nodesToValidate(spec).forEach(node -> {
+            // A node added after genesis initialization will not have admin key override logs
+            if (node.getNodeId() >= CLASSIC_HAPI_TEST_NETWORK_SIZE) {
+                return;
+            }
             try {
                 final var overrideNodeAdminKeys =
                         parseEd25519NodeAdminKeysFrom(node.getExternalPath(NODE_ADMIN_KEYS_JSON)

@@ -2,9 +2,9 @@
 package com.swirlds.platform.test.fixtures.sync;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.platform.event.AncientMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
+import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * Data holder for parameters needed for every sync unit test.

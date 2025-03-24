@@ -3,7 +3,6 @@ package com.swirlds.common.metrics.noop;
 
 import com.swirlds.common.metrics.PlatformMetrics;
 import com.swirlds.common.metrics.noop.internal.NoOpMetricsFactory;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricConfig;
 import com.swirlds.metrics.api.Metrics;
@@ -15,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A no-op {@link Metrics} implementation.

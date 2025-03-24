@@ -5,13 +5,13 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.internal.network.Network;
 import com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 public interface HederaNode {
     /**
@@ -81,12 +81,12 @@ public interface HederaNode {
     /**
      * Returns a future that resolves when the node has the given status.
      *
-     * @param status the status to wait for
      * @param nodeStatusObserver if non-null, an observer that will receive the node's status each time it is checked
+     * @param statuses the status to wait for
      * @return a future that resolves when the node has the given status
      */
     CompletableFuture<Void> statusFuture(
-            @NonNull PlatformStatus status, @Nullable Consumer<NodeStatus> nodeStatusObserver);
+            @Nullable Consumer<NodeStatus> nodeStatusObserver, @NonNull PlatformStatus... statuses);
 
     /**
      * Returns a future that resolves when the node has written the specified log pattern.

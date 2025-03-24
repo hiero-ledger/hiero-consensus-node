@@ -14,9 +14,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.test.fixtures.fcqueue.FCInt;
 import com.swirlds.common.test.fixtures.io.SerializationUtils;
 import java.io.ByteArrayInputStream;
@@ -32,6 +31,9 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -860,7 +862,7 @@ class MockFCQueueTest {
         // Serialize the original MockFCQueue
         final byte[] serializedQueue;
         try (final ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            try (final SerializableDataOutputStream dos = new SerializableDataOutputStream(bos)) {
+            try (final SerializableDataOutputStream dos = new SerializableDataOutputStreamImpl(bos)) {
 
                 dos.writeSerializable(origFCQ, true);
 
@@ -875,7 +877,7 @@ class MockFCQueueTest {
 
         // Recover the serialized MockFCQueue into the recoveredFCQ variable
         try (final ByteArrayInputStream bis = new ByteArrayInputStream(serializedQueue)) {
-            try (final SerializableDataInputStream dis = new SerializableDataInputStream(bis)) {
+            try (final SerializableDataInputStream dis = new SerializableDataInputStreamImpl(bis)) {
                 recoveredFCQ = dis.readSerializable();
             }
         }
@@ -949,12 +951,12 @@ class MockFCQueueTest {
             assertEquals(0, fcq.size(), "Mock FCQ is not empty");
 
             final ByteArrayOutputStream outStream = new ByteArrayOutputStream();
-            final SerializableDataOutputStream outputStream = new SerializableDataOutputStream(outStream);
+            final SerializableDataOutputStream outputStream = new SerializableDataOutputStreamImpl(outStream);
 
             outputStream.writeSerializableIterableWithSize(Collections.emptyIterator(), 0, true, false);
 
             final ByteArrayInputStream inStream = new ByteArrayInputStream(outStream.toByteArray());
-            final SerializableDataInputStream inputStream = new SerializableDataInputStream(inStream);
+            final SerializableDataInputStream inputStream = new SerializableDataInputStreamImpl(inStream);
             inputStream.readSerializableIterableWithSize(10, fcq::add);
         } catch (Exception ex) {
             // should not fail with EOFException

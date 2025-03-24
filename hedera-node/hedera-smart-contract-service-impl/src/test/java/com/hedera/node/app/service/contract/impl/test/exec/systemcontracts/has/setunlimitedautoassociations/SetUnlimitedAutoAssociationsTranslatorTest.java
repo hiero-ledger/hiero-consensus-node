@@ -2,53 +2,27 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has.setunlimitedautoassociations;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.setunlimitedautoassociations.SetUnlimitedAutoAssociationsTranslator.SET_UNLIMITED_AUTO_ASSOC;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHasAttemptWithSelectorAndCustomConfig;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.BDDMockito.given;
 
-import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.setunlimitedautoassociations.SetUnlimitedAutoAssociationsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.setunlimitedautoassociations.SetUnlimitedAutoAssociationsTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.app.spi.signatures.SignatureVerifier;
+import com.hedera.node.app.service.contract.impl.test.TestHelpers;
+import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-class SetUnlimitedAutoAssociationsTranslatorTest {
+class SetUnlimitedAutoAssociationsTranslatorTest extends CallAttemptTestBase {
 
     @Mock
     private HasCallAttempt attempt;
-
-    @Mock
-    private SystemContractGasCalculator gasCalculator;
-
-    @Mock
-    private AddressIdConverter addressIdConverter;
-
-    @Mock
-    private HederaWorldUpdater.Enhancement enhancement;
-
-    @Mock
-    private VerificationStrategies verificationStrategies;
-
-    @Mock
-    private SignatureVerifier signatureVerifier;
-
-    @Mock
-    private HederaNativeOperations nativeOperations;
 
     @Mock
     private Configuration configuration;
@@ -59,8 +33,6 @@ class SetUnlimitedAutoAssociationsTranslatorTest {
     @Mock
     private ContractMetrics contractMetrics;
 
-    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
-
     private SetUnlimitedAutoAssociationsTranslator subject;
 
     @BeforeEach
@@ -70,41 +42,31 @@ class SetUnlimitedAutoAssociationsTranslatorTest {
 
     @Test
     void matchesWhenEnabled() {
-        given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractSetUnlimitedAutoAssociationsEnabled())
                 .willReturn(true);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        attempt = prepareHasAttemptWithSelectorAndCustomConfig(
-                SET_UNLIMITED_AUTO_ASSOC,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                signatureVerifier,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
+        // when
+        attempt = createHasCallAttempt(
+                TestHelpers.bytesForRedirectAccount(SET_UNLIMITED_AUTO_ASSOC.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS),
+                configuration,
+                subject);
+        // then
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesWhenDisabled() {
-        given(enhancement.nativeOperations()).willReturn(nativeOperations);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractSetUnlimitedAutoAssociationsEnabled())
                 .willReturn(false);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        attempt = prepareHasAttemptWithSelectorAndCustomConfig(
-                SET_UNLIMITED_AUTO_ASSOC,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                signatureVerifier,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
+        // when
+        attempt = createHasCallAttempt(
+                TestHelpers.bytesForRedirectAccount(SET_UNLIMITED_AUTO_ASSOC.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS),
+                configuration,
+                subject);
+        // then
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
@@ -112,10 +74,11 @@ class SetUnlimitedAutoAssociationsTranslatorTest {
     void callFromWithTrueValue() {
         final var inputBytes = SET_UNLIMITED_AUTO_ASSOC.encodeCallWithArgs(true);
         given(attempt.inputBytes()).willReturn(inputBytes.array());
-        given(attempt.enhancement()).willReturn(enhancement);
+        given(attempt.enhancement()).willReturn(mockEnhancement());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-
+        // when
         final var call = subject.callFrom(attempt);
+        // then
         assertThat(call).isInstanceOf(SetUnlimitedAutoAssociationsCall.class);
     }
 
@@ -123,10 +86,11 @@ class SetUnlimitedAutoAssociationsTranslatorTest {
     void callFromWithFalseValue() {
         final var inputBytes = SET_UNLIMITED_AUTO_ASSOC.encodeCallWithArgs(false);
         given(attempt.inputBytes()).willReturn(inputBytes.array());
-        given(attempt.enhancement()).willReturn(enhancement);
+        given(attempt.enhancement()).willReturn(mockEnhancement());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-
+        // when
         final var call = subject.callFrom(attempt);
+        // then
         assertThat(call).isInstanceOf(SetUnlimitedAutoAssociationsCall.class);
     }
 }

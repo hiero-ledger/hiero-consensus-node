@@ -5,13 +5,13 @@ import static com.swirlds.platform.crypto.KeyCertPurpose.AGREEMENT;
 import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
 
 import com.swirlds.common.crypto.CryptographyException;
-import com.swirlds.common.platform.NodeId;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Public certificates for all the members of the network
