@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.streams;
 
-import com.swirlds.common.io.SelfSerializable;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 public final class SerializableStreamConstants {
 
@@ -24,8 +24,8 @@ public final class SerializableStreamConstants {
     public static final int VERSION_BYTES = Integer.BYTES;
 
     /**
-     * The current version of the serialization protocol implemented by {@link SerializableDataOutputStream} and
-     * {@link SerializableDataInputStream}
+     * The current version of the serialization protocol implemented by {@link SerializableDataOutputStreamImpl} and
+     * {@link SerializableDataInputStreamImpl}
      */
     public static final int SERIALIZATION_PROTOCOL_VERSION = 1;
 

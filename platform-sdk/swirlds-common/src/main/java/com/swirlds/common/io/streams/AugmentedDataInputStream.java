@@ -5,20 +5,21 @@ import static com.swirlds.common.io.streams.SerializableStreamConstants.DEFAULT_
 import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_INSTANT_EPOCH_SECOND;
 import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_LIST_ARRAY_LENGTH;
 
-import com.swirlds.common.io.exceptions.BadIOException;
-import com.swirlds.common.utility.CommonUtils;
-import java.io.DataInput;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.model.io.exceptions.BadIOException;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * This data input stream provides additional functionality for deserializing various basic data structures.
  */
-public class AugmentedDataInputStream extends InputStream implements DataInput {
+public abstract class AugmentedDataInputStream extends SerializableDataInputStream {
 
     private final DataInputStream baseStream;
 
@@ -28,7 +29,7 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
      * @param in
      * 		the base input stream
      */
-    public AugmentedDataInputStream(final InputStream in) {
+    protected AugmentedDataInputStream(final InputStream in) {
         baseStream = new DataInputStream(in);
     }
 
@@ -180,17 +181,8 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return baseStream.readLine();
     }
 
-    /**
-     * Reads a byte array from the stream.
-     *
-     * @param maxLength
-     * 		the maximum expected length of the array
-     * @param readChecksum
-     * 		whether to read the checksum or not
-     * @return the byte[] read or null if null was written
-     * @throws IOException
-     * 		thrown if any problems occur
-     */
+    @Override
+    @Nullable
     public byte[] readByteArray(final int maxLength, final boolean readChecksum) throws IOException {
         int len = this.readInt();
         if (len < 0) {
@@ -212,29 +204,14 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return bytes;
     }
 
-    /**
-     * Reads a byte array from the stream.
-     * Same as {@link #readByteArray(int, boolean)} with {@code readChecksum} set to false
-     *
-     * @param maxLength
-     * 		the maximum expected length of the array
-     * @return the byte[] read or null if null was written
-     * @throws IOException
-     * 		thrown if any problems occur
-     */
+    @Override
+    @Nullable
     public byte[] readByteArray(final int maxLength) throws IOException {
         return readByteArray(maxLength, DEFAULT_CHECKSUM);
     }
 
-    /**
-     * Reads an int array from the stream.
-     *
-     * @param maxLength
-     * 		the maximum expected length of the array
-     * @return the int[] read or null if null was written
-     * @throws IOException
-     * 		thrown if any problems occur
-     */
+    @Override
+    @Nullable
     public int[] readIntArray(final int maxLength) throws IOException {
         int len = readInt();
         if (len == NULL_LIST_ARRAY_LENGTH) {
@@ -249,15 +226,8 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return data;
     }
 
-    /**
-     * Reads an int list from the stream.
-     *
-     * @param maxLength
-     * 		the maximum expected length of the list
-     * @return the list read or null if null was written
-     * @throws IOException
-     * 		thrown if any problems occur
-     */
+    @Override
+    @Nullable
     public List<Integer> readIntList(final int maxLength) throws IOException {
         int len = readInt();
         if (len == NULL_LIST_ARRAY_LENGTH) {
@@ -272,15 +242,8 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return data;
     }
 
-    /**
-     * Reads a long array from the stream.
-     *
-     * @param maxLength
-     * 		the maximum expected length of the array
-     * @return the long[] read or null if null was written
-     * @throws IOException
-     * 		thrown if any problems occur
-     */
+    @Override
+    @Nullable
     public long[] readLongArray(final int maxLength) throws IOException {
         int len = readInt();
         if (len == NULL_LIST_ARRAY_LENGTH) {
@@ -295,15 +258,8 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return data;
     }
 
-    /**
-     * Reads an long list from the stream.
-     *
-     * @param maxLength
-     * 		the maximum expected length of the list
-     * @return the list read or null if null was written
-     * @throws IOException
-     * 		thrown if any problems occur
-     */
+    @Override
+    @Nullable
     public List<Long> readLongList(final int maxLength) throws IOException {
         int len = readInt();
         if (len == NULL_LIST_ARRAY_LENGTH) {
@@ -318,15 +274,8 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return data;
     }
 
-    /**
-     * Reads an boolean list from the stream.
-     *
-     * @param maxLength
-     * 		the maximum expected length of the list
-     * @return the list read or null if null was written
-     * @throws IOException
-     * 		thrown if any problems occur
-     */
+    @Override
+    @Nullable
     public List<Boolean> readBooleanList(final int maxLength) throws IOException {
         int len = readInt();
         if (len == NULL_LIST_ARRAY_LENGTH) {
@@ -341,15 +290,8 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return data;
     }
 
-    /**
-     * Reads a float array from the stream.
-     *
-     * @param maxLength
-     * 		the maximum expected length of the array
-     * @return the float[] read or null if null was written
-     * @throws IOException
-     * 		thrown if any problems occur
-     */
+    @Override
+    @Nullable
     public float[] readFloatArray(final int maxLength) throws IOException {
         int len = readInt();
         if (len == NULL_LIST_ARRAY_LENGTH) {
@@ -365,15 +307,8 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return data;
     }
 
-    /**
-     * Reads an float list from the stream.
-     *
-     * @param maxLength
-     * 		the maximum expected length of the list
-     * @return the list read or null if null was written
-     * @throws IOException
-     * 		thrown if any problems occur
-     */
+    @Override
+    @Nullable
     public List<Float> readFloatList(final int maxLength) throws IOException {
         int len = readInt();
         if (len == NULL_LIST_ARRAY_LENGTH) {
@@ -388,15 +323,8 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return data;
     }
 
-    /**
-     * Reads a double array from the stream.
-     *
-     * @param maxLength
-     * 		the maximum expected length of the array
-     * @return the double[] read or null if null was written
-     * @throws IOException
-     * 		thrown if any problems occur
-     */
+    @Override
+    @Nullable
     public double[] readDoubleArray(final int maxLength) throws IOException {
         int len = readInt();
         if (len == NULL_LIST_ARRAY_LENGTH) {
@@ -411,15 +339,8 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return data;
     }
 
-    /**
-     * Reads an double list from the stream.
-     *
-     * @param maxLength
-     * 		the maximum expected length of the list
-     * @return the list read or null if null was written
-     * @throws IOException
-     * 		thrown if any problems occur
-     */
+    @Override
+    @Nullable
     public List<Double> readDoubleList(final int maxLength) throws IOException {
         int len = readInt();
         if (len == NULL_LIST_ARRAY_LENGTH) {
@@ -434,17 +355,8 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return data;
     }
 
-    /**
-     * Reads a String array from the stream.
-     *
-     * @param maxLength
-     * 		the maximum expected length of the array
-     * @param maxStringLength
-     * 		The maximum expected length of a string in the array.
-     * @return the String[] read or null if null was written
-     * @throws IOException
-     * 		thrown if any problems occur
-     */
+    @Override
+    @Nullable
     public String[] readStringArray(final int maxLength, final int maxStringLength) throws IOException {
         int len = readInt();
         if (len == NULL_LIST_ARRAY_LENGTH) {
@@ -459,17 +371,8 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return data;
     }
 
-    /**
-     * Reads an String list from the stream.
-     *
-     * @param maxLength
-     * 		the maximum expected length of the list
-     * @param maxStringLength
-     * 		The maximum expected length of a string in the array.
-     * @return the list read or null if null was written
-     * @throws IOException
-     * 		thrown if any problems occur
-     */
+    @Override
+    @Nullable
     public List<String> readStringList(final int maxLength, final int maxStringLength) throws IOException {
         int len = readInt();
         if (len == NULL_LIST_ARRAY_LENGTH) {
@@ -484,13 +387,8 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return data;
     }
 
-    /**
-     * Read an Instant from the stream
-     *
-     * @return the Instant that was read
-     * @throws IOException
-     * 		thrown if there are any problems during the operation
-     */
+    @Override
+    @Nullable
     public Instant readInstant() throws IOException {
         long epochSecond = this.readLong(); // from getEpochSecond()
         if (epochSecond == NULL_INSTANT_EPOCH_SECOND) {
@@ -504,15 +402,8 @@ public class AugmentedDataInputStream extends InputStream implements DataInput {
         return Instant.ofEpochSecond(epochSecond, nanos);
     }
 
-    /**
-     * Reads a String encoded in the Swirlds default charset (UTF8) from the input stream
-     *
-     * @param maxLength
-     * 		the maximum length of the String in bytes
-     * @return the String read
-     * @throws IOException
-     * 		thrown if there are any problems during the operation
-     */
+    @Override
+    @Nullable
     public String readNormalisedString(final int maxLength) throws IOException {
         byte[] data = readByteArray(maxLength);
         if (data == null) {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.threading.framework;
 
-import com.swirlds.common.threading.interrupt.InterruptableRunnable;
+import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
 
 /**
  * A {@link StoppableThread} that is aware of the type of object being used to do work.

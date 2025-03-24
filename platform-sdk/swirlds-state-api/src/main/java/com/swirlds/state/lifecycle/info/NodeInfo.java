@@ -4,13 +4,13 @@ package com.swirlds.state.lifecycle.info;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * Summarizes useful information about the nodes in the AddressBook from the Platform. In

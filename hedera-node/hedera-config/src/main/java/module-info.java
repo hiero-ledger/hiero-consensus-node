@@ -12,7 +12,7 @@ module com.hedera.node.config {
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.config.extensions;
-    requires com.swirlds.common;
+    requires org.hiero.consensus.model;
     requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;

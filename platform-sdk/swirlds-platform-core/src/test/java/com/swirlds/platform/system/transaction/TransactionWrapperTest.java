@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.Test;
 
 class TransactionWrapperTest {

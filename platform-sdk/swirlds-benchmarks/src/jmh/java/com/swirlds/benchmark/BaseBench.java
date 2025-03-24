@@ -114,6 +114,7 @@ public abstract class BaseBench {
             registry.registerConstructables("com.swirlds.benchmark");
             registry.registerConstructables("com.swirlds.common.crypto");
             registry.registerConstructables("com.swirlds.common");
+            registry.registerConstructables("org.hiero.consensus");
             registry.registerConstructable(
                     new ClassConstructorPair(BenchmarkMerkleInternal.class, BenchmarkMerkleInternal::new));
             registry.registerConstructable(new ClassConstructorPair(BenchmarkKey.class, BenchmarkKey::new));

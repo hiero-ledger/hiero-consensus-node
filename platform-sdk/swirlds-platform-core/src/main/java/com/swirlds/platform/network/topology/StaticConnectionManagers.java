@@ -4,12 +4,12 @@ package com.swirlds.platform.network.topology;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.network.*;
 import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Pre-builds connection managers for the supplied topology, does not allow changes at runtime

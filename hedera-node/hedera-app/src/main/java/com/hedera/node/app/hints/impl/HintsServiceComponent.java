@@ -10,6 +10,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import dagger.BindsInstance;
 import dagger.Component;
+import java.time.Duration;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -26,7 +27,8 @@ public interface HintsServiceComponent {
                 @BindsInstance AppContext appContext,
                 @BindsInstance Executor executor,
                 @BindsInstance Metrics metrics,
-                @BindsInstance AtomicReference<Roster> currentRoster);
+                @BindsInstance AtomicReference<Roster> currentRoster,
+                @BindsInstance Duration blockPeriod);
     }
 
     HintsHandlers handlers();

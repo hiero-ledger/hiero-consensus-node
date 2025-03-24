@@ -6,7 +6,6 @@ import static com.swirlds.platform.crypto.CryptoStatic.generateKeysAndCerts;
 import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.platform.crypto.EnhancedKeyStoreLoader;
 import com.swirlds.platform.roster.RosterUtils;
@@ -17,6 +16,7 @@ import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import org.hiero.consensus.model.node.NodeId;
 import picocli.CommandLine;
 import picocli.CommandLine.Parameters;
 

@@ -4,7 +4,6 @@ package com.swirlds.platform.network;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -17,6 +16,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.LongAdder;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Collection of metrics related to the network

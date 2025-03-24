@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtual.merkle;
 
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.virtualmap.VirtualValue;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public final class TestValue implements VirtualValue {
 

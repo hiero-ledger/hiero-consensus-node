@@ -81,49 +81,44 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     @NonNull
     @Override
     public Bytes proveChainOfTrust(
-            @NonNull final Bytes ledgerId,
+            @NonNull final Bytes genesisAddressBookHash,
             @Nullable final Bytes sourceProof,
             @NonNull final long[] currentAddressBookWeights,
             @NonNull final byte[][] currentAddressBookVerifyingKeys,
             @NonNull final long[] nextAddressBookWeights,
             @NonNull final byte[][] nextAddressBookVerifyingKeys,
             @NonNull byte[][] sourceSignatures,
-            @NonNull final Bytes targetMetadata) {
-        requireNonNull(ledgerId);
+            @NonNull final Bytes targetMetadataHash) {
+        requireNonNull(genesisAddressBookHash);
         requireNonNull(currentAddressBookWeights);
         requireNonNull(currentAddressBookVerifyingKeys);
         requireNonNull(nextAddressBookWeights);
         requireNonNull(nextAddressBookVerifyingKeys);
         requireNonNull(sourceSignatures);
-        requireNonNull(targetMetadata);
+        requireNonNull(targetMetadataHash);
         if (currentAddressBookWeights.length != currentAddressBookVerifyingKeys.length) {
             throw new IllegalArgumentException("The number of weights and verifying keys must be the same");
         }
         if (nextAddressBookWeights.length != nextAddressBookVerifyingKeys.length) {
             throw new IllegalArgumentException("The number of weights and verifying keys must be the same");
         }
-        return Bytes.wrap(BRIDGE.proveChainOfTrust(
+        final var proof = BRIDGE.proveChainOfTrust(
                 SNARK_KEYS.provingKey(),
                 SNARK_KEYS.verifyingKey(),
-                ledgerId.toByteArray(),
+                genesisAddressBookHash.toByteArray(),
                 currentAddressBookVerifyingKeys,
                 currentAddressBookWeights,
                 nextAddressBookVerifyingKeys,
                 nextAddressBookWeights,
                 sourceProof == null ? null : sourceProof.toByteArray(),
-                targetMetadata.toByteArray(),
-                sourceSignatures));
+                targetMetadataHash.toByteArray(),
+                sourceSignatures);
+        requireNonNull(proof);
+        return Bytes.wrap(proof);
     }
 
     @Override
-    public boolean verifyChainOfTrust(
-            @NonNull final Bytes ledgerId,
-            @NonNull final Bytes addressBookHash,
-            @NonNull final Bytes metadata,
-            @NonNull final Bytes proof) {
-        requireNonNull(ledgerId);
-        requireNonNull(addressBookHash);
-        requireNonNull(metadata);
+    public boolean verifyChainOfTrust(@NonNull final Bytes proof) {
         requireNonNull(proof);
         return BRIDGE.verifyChainOfTrust(SNARK_KEYS.verifyingKey(), proof.toByteArray());
     }

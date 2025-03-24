@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionManager;
@@ -20,6 +19,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Holds all the connection managers for incoming and outgoing connections. Able to react to change in peers/topology

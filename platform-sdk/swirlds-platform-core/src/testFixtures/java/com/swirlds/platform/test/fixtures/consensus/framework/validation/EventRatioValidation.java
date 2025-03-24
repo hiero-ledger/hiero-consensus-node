@@ -3,10 +3,10 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 public class EventRatioValidation implements ConsensusOutputValidation {
     /**

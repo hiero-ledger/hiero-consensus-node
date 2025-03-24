@@ -2,9 +2,9 @@
 package com.swirlds.common.notification;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTimeout;
-import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -18,7 +18,6 @@ import com.swirlds.common.notification.internal.AsyncNotificationEngine;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.threading.futures.ConcurrentFuturePool;
 import com.swirlds.common.threading.futures.FuturePool;
-import com.swirlds.common.threading.futures.StandardFuture;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -35,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.utility.StandardFuture;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
