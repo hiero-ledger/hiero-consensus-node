@@ -121,10 +121,11 @@ public class ContractGetBytecodeSuite {
     @HapiTest
     final Stream<DynamicTest> getByteCodeWorksForToken() {
         final var token = "fungibleToken";
+        final var key = "tokenByteCode";
         return hapiTest(tokenCreate(token).asCallableContract(), withOpContext((spec, opLog) -> {
-            final var getBytecode = getContractBytecode(token).saveResultTo("tokenByteCode");
+            final var getBytecode = getContractBytecode(token).saveResultTo(key);
             allRunFor(spec, getBytecode);
-            final var actualBytecode = spec.registry().getBytes("tokenByteCode");
+            final var actualBytecode = spec.registry().getBytes(key);
             ContractID contractId = TxnUtils.asContractId(token, spec);
             final byte[] expectedBytecode = RedirectBytecodeUtils.tokenProxyBytecodeFor(
                             Address.wrap(Bytes.wrap(ConversionUtils.asEvmAddress(
@@ -137,14 +138,15 @@ public class ContractGetBytecodeSuite {
     @HapiTest
     final Stream<DynamicTest> getByteCodeWorksForSchedule() {
         final var schedule = "callableSchedule";
+        final var key = "scheduleByteCode";
         return hapiTest(
                 cryptoCreate("sender"),
                 scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo("sender", GENESIS, 1)))
                         .asCallableSchedule(),
                 withOpContext((spec, opLog) -> {
-                    final var getBytecode = getContractBytecode(schedule).saveResultTo("scheduleByteCode");
+                    final var getBytecode = getContractBytecode(schedule).saveResultTo(key);
                     allRunFor(spec, getBytecode);
-                    final var actualBytecode = spec.registry().getBytes("scheduleByteCode");
+                    final var actualBytecode = spec.registry().getBytes(key);
                     ContractID contractId = TxnUtils.asContractId(schedule, spec);
                     final byte[] expectedBytecode = RedirectBytecodeUtils.scheduleProxyBytecodeFor(
                                     Address.wrap(Bytes.wrap(ConversionUtils.asEvmAddress(
@@ -156,5 +158,24 @@ public class ContractGetBytecodeSuite {
                 }));
     }
 
-    // TODO Glib: Add getByteCodeWorksFor'contract W/O bytecode', that will return redirect account bytecode?
+    @HapiTest
+    final Stream<DynamicTest> getByteCodeWorksForContractWithOutBytecode() {
+        final var contract = "noBytecodeContract";
+        final var key = "contractByteCode";
+        return hapiTest(
+                contractCreate(contract),
+                withOpContext((spec, opLog) -> {
+                    final var getBytecode = getContractBytecode(contract).saveResultTo(key);
+                    allRunFor(spec, getBytecode);
+                    final var actualBytecode = spec.registry().getBytes(key);
+                    ContractID contractId = TxnUtils.asContractId(contract, spec);
+                    final byte[] expectedBytecode = RedirectBytecodeUtils.accountProxyBytecodeFor(
+                                    Address.wrap(Bytes.wrap(ConversionUtils.asEvmAddress(
+                                            contractId.getShardNum(),
+                                            contractId.getRealmNum(),
+                                            contractId.getContractNum()))))
+                            .toArray();
+                    Assertions.assertArrayEquals(expectedBytecode, actualBytecode);
+                }));
+    }
 }

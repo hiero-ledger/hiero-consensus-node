@@ -142,6 +142,7 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
                 return null;
             } else {
                 final var bytecode = bytecodeFrom(context, contractId);
+                // TODO Glib: is this even possible to have contract w/o bytecode?
                 return Objects.requireNonNullElseGet(
                         bytecode,
                         () -> RedirectBytecodeUtils.accountProxyBytecodePjb(

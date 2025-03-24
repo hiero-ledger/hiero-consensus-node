@@ -451,7 +451,7 @@ class ContractGetBytecodeHandlerTest {
     }
 
     @Test
-    void computeFeesResponseIdAsContractId() {
+    void findResponseScheduleIdAsContractId() {
         givenScheduleIdAsContractId();
         given(responseHeader.nodeTransactionPrecheckCode()).willReturn(OK);
         given(responseHeader.responseType()).willReturn(ANSWER_ONLY);
