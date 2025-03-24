@@ -991,4 +991,32 @@ public class ConversionUtils {
         final var len = contents.length() - offset;
         return contents.getBytes(offset, len).toByteArray();
     }
+
+    public static long accountNumForEVMReference(
+            @NonNull final com.esaulpaugh.headlong.abi.Address address,
+            @NonNull final HederaNativeOperations nativeOperations,
+            final boolean isCredit) {
+        return isCredit
+                ? accountNumReference(address, nativeOperations)
+                : accountNumberForEvmReference(address, nativeOperations);
+    }
+
+    private static long accountNumReference(
+            @NonNull final com.esaulpaugh.headlong.abi.Address address,
+            @NonNull final HederaNativeOperations nativeOperations) {
+        final var explicit = explicitFromHeadlong(address);
+        final var number = maybeMissingNumberOf(explicit, nativeOperations);
+        if (number == MISSING_ENTITY_NUMBER) {
+            return MISSING_ENTITY_NUMBER;
+        } else {
+            final var account = nativeOperations.getAccount(number);
+            if (account == null) {
+                return MISSING_ENTITY_NUMBER;
+            } else if (!Arrays.equals(explicit, explicitAddressOf(account))
+                    && !Arrays.equals(explicit, fromHeadlongAddress(address).toArray())) {
+                return NON_CANONICAL_REFERENCE_NUMBER;
+            }
+            return number;
+        }
+    }
 }
