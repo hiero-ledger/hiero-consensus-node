@@ -65,11 +65,11 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_UPGRA
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.DigestType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.function.IntFunction;
+import org.hiero.consensus.model.crypto.DigestType;
 
 /**
  * Utility methods for block implementation.

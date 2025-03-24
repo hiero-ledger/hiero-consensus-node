@@ -10,8 +10,6 @@ import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.RosterStateId;
 import com.swirlds.common.crypto.CryptographyException;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.ReadableRosterStore;
@@ -33,6 +31,8 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A utility class to help use Rooster and RosterEntry instances.
@@ -281,15 +281,15 @@ public final class RosterUtils {
      * Creates the Roster History to be used by Platform.
      *
      * @param rosterStore the roster store containing the active rosters.
-     * @return the roster history if roster store contains active rosters, otherwise IllegalStateException is thrown.
+     * @return the roster history if roster store contains active rosters, otherwise NullPointerException is thrown.
      */
     @NonNull
     public static RosterHistory createRosterHistory(@NonNull final ReadableRosterStore rosterStore) {
         final var roundRosterPairs = rosterStore.getRosterHistory();
-        final var rosterMap = roundRosterPairs.stream()
-                .collect(Collectors.toMap(
-                        RoundRosterPair::activeRosterHash,
-                        pair -> Objects.requireNonNull(rosterStore.get(pair.activeRosterHash()))));
+        final Map<Bytes, Roster> rosterMap = new HashMap<>();
+        for (final var pair : roundRosterPairs) {
+            rosterMap.put(pair.activeRosterHash(), Objects.requireNonNull(rosterStore.get(pair.activeRosterHash())));
+        }
         return new RosterHistory(roundRosterPairs, rosterMap);
     }
 

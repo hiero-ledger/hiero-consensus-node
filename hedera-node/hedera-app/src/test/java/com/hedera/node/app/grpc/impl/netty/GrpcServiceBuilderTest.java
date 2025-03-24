@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl.netty;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.spy;
@@ -15,7 +15,6 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.metrics.api.Metrics;
 import java.io.ByteArrayInputStream;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,14 +32,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 final class GrpcServiceBuilderTest {
     private static final String SERVICE_NAME = "TestService";
-    private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL =
-            ThreadLocal.withInitial(() -> BufferedData.allocate(6145));
-    private static final ThreadLocal<BufferedData> JUMBO_BUFFER_THREAD_LOCAL =
-            ThreadLocal.withInitial(() -> BufferedData.allocate(133121));
-    private static final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller(6144, BUFFER_THREAD_LOCAL::get);
-    private static final DataBufferMarshaller JUMBO_MARSHALLER =
-            new DataBufferMarshaller(130 * 1024, JUMBO_BUFFER_THREAD_LOCAL::get);
-
     // These are simple no-op workflows
     private final QueryWorkflow queryWorkflow = (requestBuffer, responseBuffer) -> {};
     private final IngestWorkflow ingestWorkflow = (requestBuffer, responseBuffer) -> {};
@@ -48,15 +39,18 @@ final class GrpcServiceBuilderTest {
     private GrpcServiceBuilder builder;
     private final Metrics metrics = TestUtils.metrics();
 
-    private ConfigProvider configProvider;
-
     private final VersionedConfiguration configuration =
             new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1);
+    private final ConfigProvider configProvider = () -> configuration;
+    private static final int MAX_MESSAGE_SIZE = 6144;
+    private static final int MAX_JUMBO_TXN_SIZE = 133120;
+    private static final int BUFFER_CAPACITY = 133120;
+    private final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller(BUFFER_CAPACITY, MAX_MESSAGE_SIZE);
+    private final DataBufferMarshaller JUMBO_MARSHALLER = new DataBufferMarshaller(BUFFER_CAPACITY, MAX_JUMBO_TXN_SIZE);
 
     @BeforeEach
     void setUp() {
         builder = new GrpcServiceBuilder(SERVICE_NAME, ingestWorkflow, queryWorkflow, MARSHALLER, JUMBO_MARSHALLER);
-        configProvider = () -> configuration;
     }
 
     @Test
@@ -179,10 +173,8 @@ final class GrpcServiceBuilderTest {
     @DisplayName("Building a service with a jumbo transaction")
     void buildDefinitionWithJumboSizedMethod() {
         final var config = enableJumboTransactions();
-        // add normal transaction
-        builder.transaction("txnA");
-        // add jumbo transaction
-        final var sd = builder.transaction("callEthereum").build(metrics, () -> config);
+        // add one regular and one jumbo transactions
+        final var sd = builder.transaction("txnA").transaction("callEthereum").build(metrics, () -> config);
 
         final var arr = TestUtils.randomBytes(1024 * 1024);
         final var stream = new ByteArrayInputStream(arr);
@@ -191,15 +183,16 @@ final class GrpcServiceBuilderTest {
         final var marshaller = (DataBufferMarshaller)
                 sd.getMethod(SERVICE_NAME + "/txnA").getMethodDescriptor().getRequestMarshaller();
         final var buff = marshaller.parse(stream);
+        // assert the buffer size limit
+        assertThat(buff.length()).isEqualTo(MAX_MESSAGE_SIZE + 1);
+
         // parse jumbo transaction
         final var jumboMarshaller = (DataBufferMarshaller) sd.getMethod(SERVICE_NAME + "/callEthereum")
                 .getMethodDescriptor()
                 .getRequestMarshaller();
         final var jumboBuff = jumboMarshaller.parse(stream);
-
-        // assert buffer size limits
-        assertThat(buff.length()).isEqualTo(6 * 1024 + 1);
-        assertThat(jumboBuff.length()).isEqualTo(130 * 1024 + 1);
+        // assert the buffer size limits
+        assertThat(jumboBuff.length()).isEqualTo(MAX_JUMBO_TXN_SIZE + 1);
     }
 
     private VersionedConfiguration enableJumboTransactions() {

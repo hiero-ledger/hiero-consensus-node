@@ -5,9 +5,10 @@ import com.swirlds.common.Releasable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 
 /**
- * Keeps track of a {@link com.swirlds.common.constructable.RuntimeConstructable} object. When the object is released,
+ * Keeps track of a {@link RuntimeConstructable} object. When the object is released,
  * this record will also be released.
  */
 public class RuntimeObjectRecord implements Releasable {

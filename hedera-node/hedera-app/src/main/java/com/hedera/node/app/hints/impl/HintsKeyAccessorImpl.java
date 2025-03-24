@@ -18,8 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 @Singleton
 public class HintsKeyAccessorImpl
@@ -27,9 +25,8 @@ public class HintsKeyAccessorImpl
                 SequentialContentManager.ContentReader<Bytes>,
                 SequentialContentManager.ContentWriter<Bytes> {
     private static final String SUB_DIRECTORY = "hints";
-    private static final String FILE_CONTENT = "Hints private key";
+    private static final String FILE_CONTENT = "hinTS private key";
     private static final String FILE_NAME = "bls.bin";
-    private static final Logger log = LogManager.getLogger(HintsKeyAccessorImpl.class);
 
     private final HintsLibrary library;
     // Volatile because lazy initialized and, in principle, could be accessed by multiple threads

@@ -64,7 +64,7 @@ public class HintsSubmissions extends TssSubmissions {
      * @param proof the proof of the update
      * @return a future that completes when the update has been submitted
      */
-    public CompletableFuture<Void> submitUpdateCRS(@NonNull final Bytes crs, @NonNull final Bytes proof) {
+    public CompletableFuture<Void> submitCrsUpdate(@NonNull final Bytes crs, @NonNull final Bytes proof) {
         requireNonNull(crs);
         final var op = CrsPublicationTransactionBody.newBuilder()
                 .newCrs(crs)

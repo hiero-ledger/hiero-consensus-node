@@ -3,7 +3,6 @@ package com.swirlds.state.lifecycle;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -59,31 +58,10 @@ public interface MigrationContext {
     Configuration platformConfig();
 
     /**
-     * Information about the network itself. Generally, this is not useful information for migrations, but is used at
-     * genesis for the file service. In the future, this may no longer be required.
-     *
-     * @return The {@link NetworkInfo} of the network at the time of migration.
-     */
-    @Nullable
-    NetworkInfo genesisNetworkInfo();
-
-    /**
      * Returns the startup networks in use.
      */
     @NonNull
     StartupNetworks startupNetworks();
-
-    /**
-     * Returns the startup networks in use.
-     */
-    @NonNull
-    EntityIdFactory entityIdFactory();
-
-    /**
-     * Consumes and returns the next entity number. For use by migrations that need to create entities.
-     * @return the next entity number
-     */
-    long newEntityNumForAccount();
 
     /**
      * Copies and releases the underlying on-disk state for the given key. If this is not called
@@ -128,8 +106,6 @@ public interface MigrationContext {
     default <T extends Comparable<? super T>> boolean isUpgrade(
             @NonNull final Function<Configuration, T> currentVersionFn,
             @NonNull final Function<SemanticVersion, T> previousVersionFn) {
-        final var current = currentVersionFn.apply(appConfig());
-        final var previous = previousVersion();
         return currentVersionFn.apply(appConfig()).compareTo(previousVersionFn.apply(previousVersion())) > 0;
     }
 }

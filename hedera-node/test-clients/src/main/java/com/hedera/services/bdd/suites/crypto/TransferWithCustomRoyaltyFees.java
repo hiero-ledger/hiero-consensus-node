@@ -17,6 +17,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAl
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
@@ -46,6 +47,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_REPEAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static java.util.Collections.emptyList;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -1574,5 +1576,58 @@ public class TransferWithCustomRoyaltyFees {
                         .payingWith(bufferAccount)
                         .signedBy(bufferAccount, tokenOwner, tokenReceiver)
                         .hasPrecheck(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS));
+    }
+
+    /**
+     * Verifies that bidirectional airdrops cannot trigger NFT royalty fee payments.
+     * <p>
+     * That is, checks that if an NFT is airdropped by a sender that also <i>receives</i> a fungible airdrop in
+     * the same transaction, that can only succeed if the sender is exempt from the non-fungible token type's
+     * fees.
+     */
+    @HapiTest
+    final Stream<DynamicTest> biDirectionalAirdropsCannotTriggerRoyaltyPayments() {
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenReceiver).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenTreasury),
+                cryptoCreate(tokenOwner),
+                tokenCreate(feeDenom).treasury(tokenTreasury).initialSupply(2000),
+                tokenAssociate(tokenOwner, feeDenom),
+                tokenAssociate(tokenReceiver, feeDenom),
+                tokenAssociate(htsCollector, feeDenom),
+                cryptoTransfer(moving(1000, feeDenom).between(tokenTreasury, tokenReceiver)),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .withCustom(royaltyFeeNoFallback(1, 1, htsCollector)),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                mintToken(
+                        nonFungibleToken,
+                        List.of(
+                                ByteStringUtils.wrapUnsafely("meta1".getBytes()),
+                                ByteStringUtils.wrapUnsafely("meta2".getBytes()))),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+
+                // If the sender in a bidirectional airdrop would pay a royalty fee for the NFT it is sending, we fail
+                tokenAirdrop(
+                                movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver),
+                                moving(1000, feeDenom).between(tokenReceiver, tokenOwner))
+                        .signedByPayerAnd(tokenOwner, tokenReceiver)
+                        .hasKnownStatus(TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY),
+                // But an exempt sender in the exact situation is fine (no royalty charged)
+                tokenAirdrop(
+                                movingUnique(nonFungibleToken, 2L).between(tokenTreasury, tokenReceiver),
+                                moving(1000, feeDenom).between(tokenReceiver, tokenTreasury))
+                        .signedByPayerAnd(tokenTreasury, tokenReceiver),
+                // And even the non-sender can still airdrop without receiving a bidirectional airdrop
+                tokenAirdrop(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
+                        .signedByPayerAnd(tokenOwner),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
     }
 }
