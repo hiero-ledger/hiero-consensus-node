@@ -7,12 +7,10 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.internal.ConsensusRound;
+import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
-import com.swirlds.platform.wiring.components.StateAndRound;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -36,11 +34,8 @@ public class DefaultStateHasherTests {
         when(reservedSignedState.get()).thenReturn(signedState);
         when(signedState.getState()).thenReturn(merkleNodeState);
 
-        final StateAndRound stateAndRound =
-                new StateAndRound(reservedSignedState, mock(ConsensusRound.class), mock(ConcurrentLinkedQueue.class));
-
         // do the test
-        final StateAndRound result = hasher.hashState(stateAndRound);
+        final ReservedSignedState result = hasher.hashState(new StateWithHashComplexity(reservedSignedState, 1));
         assertNotEquals(null, result, "The hasher should return a new StateAndRound");
     }
 }

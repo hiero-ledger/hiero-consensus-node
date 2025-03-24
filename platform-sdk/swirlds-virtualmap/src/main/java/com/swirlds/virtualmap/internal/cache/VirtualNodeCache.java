@@ -10,13 +10,9 @@ import static java.util.Objects.requireNonNull;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.constructable.ConstructableClass;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.exceptions.PlatformException;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.exceptions.ReferenceCountException;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.futures.StandardFuture;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualValue;
@@ -41,6 +37,11 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.utility.StandardFuture;
 
 /**
  * A cache for virtual merkel trees.
@@ -653,7 +654,7 @@ public final class VirtualNodeCache<K extends VirtualKey, V extends VirtualValue
      * 		copy in the chain), or null if there is not one.
      * @throws NullPointerException
      * 		if the key is null
-     * @throws com.swirlds.common.exceptions.ReferenceCountException
+     * @throws ReferenceCountException
      * 		if the cache has already been released
      */
     public VirtualLeafRecord<K, V> lookupLeafByKey(final K key, final boolean forModify) {
@@ -716,7 +717,7 @@ public final class VirtualNodeCache<K extends VirtualKey, V extends VirtualValue
      * 		modify the value, then you do not need to make any additional calls.
      * @return A {@link VirtualLeafRecord} if there is one in the cache (this instance or a previous
      * 		copy in the chain), or null if there is not one.
-     * @throws com.swirlds.common.exceptions.ReferenceCountException
+     * @throws ReferenceCountException
      * 		if the cache has already been released
      */
     public VirtualLeafRecord<K, V> lookupLeafByPath(final long path, final boolean forModify) {
@@ -944,7 +945,7 @@ public final class VirtualNodeCache<K extends VirtualKey, V extends VirtualValue
      * 		returned record, if it exists.
      * @return A {@link Hash} if there is one in the cache (this instance or a previous
      * 		copy in the chain), or null if there is not one.
-     * @throws com.swirlds.common.exceptions.ReferenceCountException
+     * @throws ReferenceCountException
      * 		if the cache has already been released
      */
     public Hash lookupHashByPath(final long path, final boolean forModify) {

@@ -267,7 +267,13 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         final var nestedPureChecksContext = new PureChecksContextImpl(nestedTxn, dispatcher);
         dispatcher.dispatchPureChecks(nestedPureChecksContext);
         final var nestedContext = new PreHandleContextImpl(
-                storeFactory.asReadOnly(), nestedTxn, payerForNested, configuration(), dispatcher, transactionChecker);
+                storeFactory.asReadOnly(),
+                nestedTxn,
+                payerForNested,
+                configuration(),
+                dispatcher,
+                transactionChecker,
+                creatorInfo);
         try {
             dispatcher.dispatchPreHandle(nestedContext);
         } catch (final PreCheckException ignored) {
@@ -371,17 +377,17 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                 childPreHandleResult);
         dispatchProcessor.processDispatch(childDispatch);
         if (options.commitImmediately()) {
-            stack.commitTransaction(childDispatch.recordBuilder());
+            stack.commitTransaction(childDispatch.streamBuilder());
         }
         // This can be non-empty for SCHEDULED dispatches, if rewards are paid for the triggered transaction
-        final var paidStakingRewards = childDispatch.recordBuilder().getPaidStakingRewards();
+        final var paidStakingRewards = childDispatch.streamBuilder().getPaidStakingRewards();
         if (!paidStakingRewards.isEmpty()) {
             if (dispatchPaidRewards == null) {
                 dispatchPaidRewards = new LinkedHashMap<>();
             }
             paidStakingRewards.forEach(aa -> dispatchPaidRewards.put(aa.accountIDOrThrow(), aa.amount()));
         }
-        return castBuilder(childDispatch.recordBuilder(), options.streamBuilderType());
+        return castBuilder(childDispatch.streamBuilder(), options.streamBuilderType());
     }
 
     @NonNull

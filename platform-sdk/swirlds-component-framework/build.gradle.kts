@@ -18,8 +18,8 @@ testModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.base.test.fixtures")
     requires("org.assertj.core")
+    requires("org.hiero.consensus.model")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
-    requiresStatic("com.github.spotbugs.annotations")
 }

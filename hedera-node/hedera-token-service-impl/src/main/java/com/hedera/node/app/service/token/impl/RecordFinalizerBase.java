@@ -26,9 +26,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class RecordFinalizerBase {
+public abstract class RecordFinalizerBase {
     protected static final AccountID ZERO_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).build();
+
+    /**
+     * Whether system entities are being created (which in particular requires non-zero sum
+     * hbar balance changes).
+     */
+    protected abstract boolean systemEntitiesCreated();
 
     /**
      * Gets all hbar changes for all modified accounts from the given {@link WritableAccountStore}.
@@ -59,10 +65,8 @@ public class RecordFinalizerBase {
                 hbarChanges.put(modifiedAcctId, netHbarChange);
             }
         }
-        // Since this is a finalization handler, we should have already succeeded in handling the transaction in a
-        // handler before getting here. Therefore, if the sum is non-zero, something went wrong, and we'll respond with
-        // FAIL_INVALID
-        if (netHbarBalance != 0) {
+        // Net HBAR balances can only change when creating system entities at genesis
+        if (netHbarBalance != 0 && systemEntitiesCreated()) {
             throw new HandleException(FAIL_INVALID);
         }
 

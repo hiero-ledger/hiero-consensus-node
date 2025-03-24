@@ -2,12 +2,12 @@
 package com.swirlds.platform.network;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.locks.AutoClosableResourceLock;
 import com.swirlds.common.threading.locks.Locks;
 import com.swirlds.common.threading.locks.locked.LockedResource;
 import com.swirlds.platform.network.connection.NotConnectedConnection;
 import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Manages a connection that is initiated by this node. If the connection in use is broken, it will try to establish a

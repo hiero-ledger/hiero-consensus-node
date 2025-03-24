@@ -70,7 +70,7 @@ public interface HandleContext {
         /**
          * A child transaction submitted via atomic batch user transaction.
          */
-        BATCH
+        BATCH_INNER
     }
 
     /**

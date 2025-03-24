@@ -2,13 +2,13 @@
 package com.swirlds.demo.platform;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.demo.platform.fs.stresstest.proto.ControlType;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Objects;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 public class ControlAction implements SelfSerializable {
     private static final long CLASS_ID = 0x9d36e40b51de36fdL;

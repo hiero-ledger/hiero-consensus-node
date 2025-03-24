@@ -74,7 +74,7 @@ public interface WritableHintsStore extends ReadableHintsStore {
      *
      * @param crsState the {@link CRSState} to set
      */
-    void setCRSState(@NonNull CRSState crsState);
+    void setCrsState(@NonNull CRSState crsState);
 
     /**
      * Moves the CRS contribution to be done by the next node in the roster. This is called when the

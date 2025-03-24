@@ -1,29 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream.internal;
 
-import static com.swirlds.common.crypto.DigestType.SHA_384;
 import static com.swirlds.common.crypto.SignatureType.RSA;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.generateSigFilePath;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.generateStreamFileNameFromInstant;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
-import static com.swirlds.common.stream.StreamAligned.NO_ALIGNMENT;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.FREEZE;
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM_FILE;
+import static org.hiero.consensus.model.crypto.DigestType.SHA_384;
+import static org.hiero.consensus.model.stream.StreamAligned.NO_ALIGNMENT;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.crypto.RunningHash;
-import com.swirlds.common.crypto.RunningHashable;
-import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.stream.Signer;
-import com.swirlds.common.stream.StreamAligned;
 import com.swirlds.common.stream.StreamType;
-import com.swirlds.common.stream.Timestamped;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -35,6 +29,13 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.RunningHash;
+import org.hiero.consensus.model.crypto.RunningHashable;
+import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.stream.StreamAligned;
+import org.hiero.consensus.model.stream.Timestamped;
 
 /**
  * <p>
@@ -198,7 +199,7 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
             throws IOException {
 
         try (final SerializableDataOutputStream output =
-                new SerializableDataOutputStream(new BufferedOutputStream(new FileOutputStream(sigFilePath)))) {
+                new SerializableDataOutputStreamImpl(new BufferedOutputStream(new FileOutputStream(sigFilePath)))) {
 
             // write signature file header
             for (final byte num : streamType.getSigFileHeader()) {
@@ -240,9 +241,9 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
                 logger.info(OBJECT_STREAM.getMarker(), "Stream file already exists {}", currentFile::getName);
             } else {
                 fileStream = new FileOutputStream(currentFile, false);
-                out = new SerializableDataOutputStream(
+                out = new SerializableDataOutputStreamImpl(
                         new BufferedOutputStream(new HashingOutputStream(streamDigest, fileStream)));
-                metadataOut = new SerializableDataOutputStream(new HashingOutputStream(metadataStreamDigest));
+                metadataOut = new SerializableDataOutputStreamImpl(new HashingOutputStream(metadataStreamDigest));
                 logger.info(OBJECT_STREAM_FILE.getMarker(), "Stream file created {}", currentFile::getName);
             }
         } catch (final FileNotFoundException e) {
