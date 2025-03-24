@@ -8,7 +8,6 @@ import static java.nio.file.Files.exists;
 import static java.nio.file.Files.isDirectory;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -20,6 +19,7 @@ import java.util.TreeMap;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Utility methods for determining the path of signed states on disk.

@@ -8,7 +8,6 @@ import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
@@ -25,6 +24,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Represents a virtual internal merkle node.

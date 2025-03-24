@@ -7,7 +7,6 @@ import static com.swirlds.common.merkle.utility.MerkleUtils.findChildPositionInP
 import static com.swirlds.fchashmap.FCHashMap.REBUILD_SPLIT_FACTOR;
 import static com.swirlds.fchashmap.FCHashMap.REBUILD_THREAD_COUNT;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
@@ -40,6 +39,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.StampedLock;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * <p>

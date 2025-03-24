@@ -7,12 +7,12 @@ import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
-import com.swirlds.common.utility.CommonUtils;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
+import org.hiero.consensus.model.utility.CommonUtils;
 import picocli.CommandLine;
 
 @CommandLine.Command(

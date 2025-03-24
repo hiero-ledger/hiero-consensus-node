@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
 import java.io.IOException;
 import java.net.SocketException;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A connection between two nodes for the purposes of syncing.

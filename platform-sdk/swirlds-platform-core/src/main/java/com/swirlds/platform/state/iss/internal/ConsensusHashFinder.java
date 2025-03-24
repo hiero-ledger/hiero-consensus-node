@@ -3,8 +3,7 @@ package com.swirlds.platform.state.iss.internal;
 
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.platform.metrics.IssMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -15,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Tracks hash partitions for a particular round and determines the consensus hash.
@@ -227,7 +228,9 @@ public class ConsensusHashFinder {
                 .append(".\n");
 
         if (consensusHash != null) {
-            sb.append("Consensus mnemonic: ").append(consensusHash.toMnemonic()).append("\n");
+            sb.append("Consensus mnemonic: ")
+                    .append(Mnemonics.generateMnemonic(consensusHash))
+                    .append("\n");
             sb.append("Consensus hash: ").append(consensusHash).append("\n");
         }
 
@@ -266,7 +269,7 @@ public class ConsensusHashFinder {
                     .append((float) partitionWeight / totalWeight * 100)
                     .append("% of total weight)\n");
             sb.append("  partition mnemonic: ")
-                    .append(partition.getHash().toMnemonic())
+                    .append(Mnemonics.generateMnemonic(partition.getHash()))
                     .append("\n");
             sb.append("  partition hash: ").append(partition.getHash()).append("\n");
         }

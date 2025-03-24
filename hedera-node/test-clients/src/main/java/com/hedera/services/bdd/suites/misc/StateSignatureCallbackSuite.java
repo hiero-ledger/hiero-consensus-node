@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.misc;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.USES_STATE_SIGNATURE_TRANSACTION_CALLBACK;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.hapiStateSignature;
@@ -9,10 +10,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingStateSignature
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
@@ -41,7 +42,7 @@ public class StateSignatureCallbackSuite {
         final var handleCallback = new Callback();
         return hapiTest(hapiStateSignature()
                 .withSubmissionStrategy(usingStateSignatureTransactionCallback(preHandleCallback, handleCallback))
-                .setNode("0.0.4")
+                .setNode(asEntityString(4))
                 .fireAndForget()
                 .satisfies(
                         () -> preHandleCallback.counter.get() == 1,

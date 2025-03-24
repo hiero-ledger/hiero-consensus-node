@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.5.3;
+pragma solidity ^0.8.3;
 
 contract Multipurpose {
     uint32 luckyNumber = 42;
 
     event Boast(string saying);
 
-    function() external payable {}
+    receive() external payable {}
+    fallback() external payable {}
     constructor() public payable {}
 
     function believeIn(uint32 no) public {
@@ -17,8 +18,8 @@ contract Multipurpose {
         return luckyNumber;
     }
 
-    function donate(uint32 toNum, string memory saying) public payable {
-        address payable beneficiary = address(uint120(toNum));
+    function donate(uint160 toNum, string memory saying) public payable {
+        address payable beneficiary = payable(address(uint160(toNum)));
         beneficiary.transfer(1);
         emit Boast(saying);
     }

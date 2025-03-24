@@ -7,7 +7,7 @@ module org.hiero.event.creator.impl {
     requires transitive com.swirlds.config.api;
     requires transitive org.hiero.event.creator;
     requires com.swirlds.base;
-    requires com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 
     provides org.hiero.event.creator.EventCreator with
             org.hiero.event.creator.impl.EventCreatorImpl;
