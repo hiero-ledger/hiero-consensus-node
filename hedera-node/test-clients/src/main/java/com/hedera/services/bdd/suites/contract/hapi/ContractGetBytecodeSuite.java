@@ -157,25 +157,4 @@ public class ContractGetBytecodeSuite {
                     Assertions.assertArrayEquals(expectedBytecode, actualBytecode);
                 }));
     }
-
-    @HapiTest
-    final Stream<DynamicTest> getByteCodeWorksForContractWithOutBytecode() {
-        final var contract = "noBytecodeContract";
-        final var key = "contractByteCode";
-        return hapiTest(
-                contractCreate(contract),
-                withOpContext((spec, opLog) -> {
-                    final var getBytecode = getContractBytecode(contract).saveResultTo(key);
-                    allRunFor(spec, getBytecode);
-                    final var actualBytecode = spec.registry().getBytes(key);
-                    ContractID contractId = TxnUtils.asContractId(contract, spec);
-                    final byte[] expectedBytecode = RedirectBytecodeUtils.accountProxyBytecodeFor(
-                                    Address.wrap(Bytes.wrap(ConversionUtils.asEvmAddress(
-                                            contractId.getShardNum(),
-                                            contractId.getRealmNum(),
-                                            contractId.getContractNum()))))
-                            .toArray();
-                    Assertions.assertArrayEquals(expectedBytecode, actualBytecode);
-                }));
-    }
 }

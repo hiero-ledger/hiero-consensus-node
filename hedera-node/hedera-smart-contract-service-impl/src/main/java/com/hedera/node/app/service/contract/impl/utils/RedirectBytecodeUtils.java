@@ -13,8 +13,8 @@ public class RedirectBytecodeUtils {
 
     private static final String ADDRESS_BYTECODE_PATTERN = "fefefefefefefefefefefefefefefefefefefefe";
 
-    private static final String PROXY_PRE_BYTES = "6080604052348015600f57600080fd5b50600061";
-    private static final String PROXY_MID_BYTES = "905077";
+    public static final String PROXY_PRE_BYTES = "6080604052348015600f57600080fd5b50600061";
+    public static final String PROXY_MID_BYTES = "905077";
     private static final String PROXY_POST_BYTES =
             ADDRESS_BYTECODE_PATTERN + "600052366000602037600080366018016008845af43d806000803e8160008114"
                     + "605857816000f35b816000fdfea2646970667358221220d8378feed472ba49a0"
@@ -31,13 +31,13 @@ public class RedirectBytecodeUtils {
             + PROXY_POST_BYTES;
 
     // The following byte code is created by compiling the contract defined in HIP-906
-    // (https://hips.hedera.com/hip/hip-906).  The only exception is that the function selector for `redirectForAddress`
+    // (https://hips.hedera.com/hip/hip-906).  The only exception is that the function selector for `redirectForAccount`
     // (0xe4cbd3a7)
     // has been pre substituted before the ADDRESS_BYTECODE_PATTERN.
     private static final String ACCOUNT_CALL_REDIRECT_CONTRACT_BINARY = PROXY_PRE_BYTES
             + "016a" // System contract address for HAS
             + PROXY_MID_BYTES
-            + "e4cbd3a7" // function selector for `redirectForAddress`
+            + "e4cbd3a7" // function selector for `redirectForAccount`
             + PROXY_POST_BYTES;
 
     // The following byte code is copied from the `redirectForToken` and `redirectForAccount` contract defined above.
@@ -81,7 +81,7 @@ public class RedirectBytecodeUtils {
     }
 
     public static Bytes scheduleProxyBytecodeFor(@Nullable final Address address) {
-        return address == null // TODO Glib: switch to @NonNull
+        return address == null
                 ? Bytes.EMPTY
                 : Bytes.fromHexString(SCHEDULE_CALL_REDIRECT_CONTRACT_BINARY.replace(
                         ADDRESS_BYTECODE_PATTERN, address.toUnprefixedHexString()));
