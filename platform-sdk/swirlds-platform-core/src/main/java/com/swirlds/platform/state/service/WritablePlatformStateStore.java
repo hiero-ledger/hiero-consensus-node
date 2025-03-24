@@ -2,14 +2,13 @@
 package com.swirlds.platform.state.service;
 
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
-import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.utility.CommonUtils.toPbjTimestamp;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -22,6 +21,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Extends the read-only platform state store to provide write access to the platform state.

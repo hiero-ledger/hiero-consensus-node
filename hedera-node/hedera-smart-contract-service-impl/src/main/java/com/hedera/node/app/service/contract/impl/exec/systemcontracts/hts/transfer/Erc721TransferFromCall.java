@@ -130,8 +130,8 @@ public class Erc721TransferFromCall extends AbstractCall {
 
     @Nullable
     private AccountID getOwner() {
-        final var nft = nativeOperations().getNft(tokenId.tokenNum(), serialNo);
-        final var token = nativeOperations().getToken(tokenId.tokenNum());
+        final var nft = nativeOperations().getNft(tokenId, serialNo);
+        final var token = nativeOperations().getToken(tokenId);
         return nft != null ? nft.ownerIdOrElse(token.treasuryAccountIdOrThrow()) : null;
     }
 }

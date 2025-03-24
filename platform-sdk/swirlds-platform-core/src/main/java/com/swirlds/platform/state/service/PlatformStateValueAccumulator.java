@@ -4,8 +4,6 @@ package com.swirlds.platform.state.service;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.PlatformStateModifier;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -13,6 +11,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * As the name suggest, the sole purpose of this class is to accumulate changes, so that they could be applied to the

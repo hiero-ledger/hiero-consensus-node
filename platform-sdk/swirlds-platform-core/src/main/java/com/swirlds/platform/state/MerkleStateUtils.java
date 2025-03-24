@@ -3,12 +3,13 @@ package com.swirlds.platform.state;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
+import com.swirlds.common.utility.Mnemonics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * A utility class for the Merkle state.
@@ -41,7 +42,9 @@ public class MerkleStateUtils {
                 .addRow("Timestamp:", platformState.getConsensusTimestamp())
                 .addRow("Next consensus number:", snapshot == null ? "null" : snapshot.nextConsensusNumber())
                 .addRow("Legacy running event hash:", hashEventsCons)
-                .addRow("Legacy running event mnemonic:", hashEventsCons == null ? "null" : hashEventsCons.toMnemonic())
+                .addRow(
+                        "Legacy running event mnemonic:",
+                        hashEventsCons == null ? "null" : Mnemonics.generateMnemonic(hashEventsCons))
                 .addRow("Rounds non-ancient:", platformState.getRoundsNonAncient())
                 .addRow("Creation version:", platformState.getCreationSoftwareVersion())
                 .addRow("Minimum judge hash code:", minimumJudgeInfo == null ? "null" : minimumJudgeInfo.hashCode())

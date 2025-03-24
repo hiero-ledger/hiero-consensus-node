@@ -3,8 +3,8 @@ package com.swirlds.platform.eventhandling;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import com.swirlds.platform.event.AncientMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * Configuration for event handling inside the platform.

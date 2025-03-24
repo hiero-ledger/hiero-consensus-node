@@ -46,7 +46,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.roster.RosterUtils;
@@ -67,6 +66,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.IntStream;
 import org.assertj.core.api.Assertions;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -163,7 +163,8 @@ class DiskStartupNetworksTest {
                         null,
                         "0.0." + (i + 3)))
                 .toList());
-        final var network = fromLegacyAddressBook(legacyBook);
+        final var network = fromLegacyAddressBook(
+                legacyBook, HederaTestConfigBuilder.createConfigProvider().getConfiguration());
         for (int i = 0; i < n; i++) {
             final var rosterEntry = network.nodeMetadata().get(i).rosterEntryOrThrow();
             assertThat(rosterEntry.nodeId()).isEqualTo(i);

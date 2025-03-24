@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.TransactionSignature;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.demo.stats.signing.algorithms.ExtendedSignature;
 import com.swirlds.demo.stats.signing.algorithms.SigningAlgorithm;
 import com.swirlds.demo.stats.signing.algorithms.X25519SigningAlgorithm;
@@ -21,6 +20,7 @@ import java.util.Objects;
 import java.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Provides pre-generated random transactions that are optionally pre-signed.

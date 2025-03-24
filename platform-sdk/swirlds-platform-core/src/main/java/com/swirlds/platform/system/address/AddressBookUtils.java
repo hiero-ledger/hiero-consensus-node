@@ -8,7 +8,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.formatting.TextTable;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -22,6 +21,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.text.ParseException;
 import java.util.Objects;
 import java.util.regex.Pattern;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A utility class for AddressBook functionality.

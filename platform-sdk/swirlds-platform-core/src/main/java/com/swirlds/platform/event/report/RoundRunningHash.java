@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.report;
 
-import com.swirlds.common.crypto.Hash;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * The running hash of the event stream at the end of a round

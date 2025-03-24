@@ -46,6 +46,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,6 +86,9 @@ class FileSystemUndeleteTest extends FileTestBase {
 
     @Mock
     private PureChecksContext context;
+
+    @Mock
+    private NodeInfo creatorInfo;
 
     @Mock
     private TransactionChecker transactionChecker;
@@ -150,7 +154,7 @@ class FileSystemUndeleteTest extends FileTestBase {
         mockPayerLookup();
         given(mockStore.getFileMetadata(notNull())).willReturn(null);
         final var context = new PreHandleContextImpl(
-                mockStoreFactory, newFileUnDeleteTxn(), testConfig, mockDispatcher, transactionChecker);
+                mockStoreFactory, newFileUnDeleteTxn(), testConfig, mockDispatcher, transactionChecker, creatorInfo);
 
         // when:
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_FILE_ID);
