@@ -198,7 +198,7 @@ public final class IngestChecker {
         final var consensusTime = instantSource.instant();
 
         // 1. Check the syntax
-        final var maxBytes = getTransactionMaxSize(configuration);
+        final var maxBytes = maxIngestParseSize(configuration);
         final var txInfo = transactionChecker.parseAndCheck(serializedTransaction, maxBytes);
         final var txBody = txInfo.txBody();
         final var functionality = txInfo.functionality();
@@ -268,7 +268,7 @@ public final class IngestChecker {
         return txInfo;
     }
 
-    private static int getTransactionMaxSize(Configuration configuration) {
+    private static int maxIngestParseSize(Configuration configuration) {
         final var jumboTxnEnabled =
                 configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
         final var jumboMaxTxnSize =
