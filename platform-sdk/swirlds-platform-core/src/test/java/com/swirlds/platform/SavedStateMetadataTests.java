@@ -25,9 +25,8 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.signed.SigSet;
@@ -50,6 +49,8 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -104,11 +105,11 @@ class SavedStateMetadataTests {
         final SavedStateMetadata metadata = new SavedStateMetadata(
                 round,
                 hash,
-                hash.toMnemonic(),
+                Mnemonics.generateMnemonic(hash),
                 numberOfConsensusEvents,
                 timestamp,
                 legacyRunningEventHash,
-                legacyRunningEventHash.toMnemonic(),
+                Mnemonics.generateMnemonic(legacyRunningEventHash),
                 minimumGenerationNonAncient,
                 softwareVersion.toString(),
                 wallClockTime,
@@ -121,11 +122,11 @@ class SavedStateMetadataTests {
 
         assertEquals(round, deserialized.round());
         assertEquals(hash, deserialized.hash());
-        assertEquals(hash.toMnemonic(), deserialized.hashMnemonic());
+        assertEquals(Mnemonics.generateMnemonic(hash), deserialized.hashMnemonic());
         assertEquals(numberOfConsensusEvents, deserialized.numberOfConsensusEvents());
         assertEquals(timestamp, deserialized.consensusTimestamp());
         assertEquals(legacyRunningEventHash, deserialized.legacyRunningEventHash());
-        assertEquals(legacyRunningEventHash.toMnemonic(), deserialized.legacyRunningEventHashMnemonic());
+        assertEquals(Mnemonics.generateMnemonic(legacyRunningEventHash), deserialized.legacyRunningEventHashMnemonic());
         assertEquals(minimumGenerationNonAncient, deserialized.minimumGenerationNonAncient());
         assertEquals(softwareVersion.toString(), deserialized.softwareVersion());
         assertEquals(wallClockTime, deserialized.wallClockTime());
@@ -156,11 +157,11 @@ class SavedStateMetadataTests {
         final SavedStateMetadata metadata = new SavedStateMetadata(
                 round,
                 hash,
-                hash.toMnemonic(),
+                Mnemonics.generateMnemonic(hash),
                 numberOfConsensusEvents,
                 timestamp,
                 legacyRunningEventHash,
-                legacyRunningEventHash.toMnemonic(),
+                Mnemonics.generateMnemonic(legacyRunningEventHash),
                 minimumGenerationNonAncient,
                 softwareVersion.toString(),
                 wallClockTime,
@@ -173,7 +174,7 @@ class SavedStateMetadataTests {
 
         assertEquals(round, deserialized.round());
         assertEquals(hash, deserialized.hash());
-        assertEquals(hash.toMnemonic(), deserialized.hashMnemonic());
+        assertEquals(Mnemonics.generateMnemonic(hash), deserialized.hashMnemonic());
         assertEquals(numberOfConsensusEvents, deserialized.numberOfConsensusEvents());
         assertEquals(timestamp, deserialized.consensusTimestamp());
         assertEquals(minimumGenerationNonAncient, deserialized.minimumGenerationNonAncient());
@@ -222,11 +223,11 @@ class SavedStateMetadataTests {
 
         final long round = random.nextLong();
         final Hash hash = randomHash(random);
-        final String hashMnemonic = hash.toMnemonic();
+        final String hashMnemonic = Mnemonics.generateMnemonic(hash);
         final long numberOfConsensusEvents = random.nextLong();
         final Instant timestamp = RandomUtils.randomInstant(random);
         final Hash legacyRunningEventHash = randomHash(random);
-        final String legacyRunningEventHashMnemonic = legacyRunningEventHash.toMnemonic();
+        final String legacyRunningEventHashMnemonic = Mnemonics.generateMnemonic(legacyRunningEventHash);
         final long minimumGenerationNonAncient = random.nextLong();
         final Instant wallClockTime = RandomUtils.randomInstant(random);
         final NodeId nodeId = generateRandomNodeId(random);
@@ -237,7 +238,7 @@ class SavedStateMetadataTests {
         final long signingWeightSum = random.nextLong();
         final long totalWeight = random.nextLong();
         final Hash epochHash = random.nextBoolean() ? randomHash(random) : null;
-        final String epochHashString = epochHash == null ? "null" : epochHash.toMnemonic();
+        final String epochHashString = epochHash == null ? "null" : Mnemonics.generateMnemonic(epochHash);
 
         final SavedStateMetadata metadata = new SavedStateMetadata(
                 round,
@@ -320,11 +321,11 @@ class SavedStateMetadataTests {
         final SavedStateMetadata metadata = new SavedStateMetadata(
                 round,
                 hash,
-                hash.toMnemonic(),
+                Mnemonics.generateMnemonic(hash),
                 numberOfConsensusEvents,
                 timestamp,
                 legacyRunningEventHash,
-                legacyRunningEventHash.toMnemonic(),
+                Mnemonics.generateMnemonic(legacyRunningEventHash),
                 minimumGenerationNonAncient,
                 softwareVersion.toString(),
                 wallClockTime,
@@ -365,7 +366,7 @@ class SavedStateMetadataTests {
         if (invalidFields.contains(HASH_MNEMONIC)) {
             assertNull(deserialized.hashMnemonic());
         } else {
-            assertEquals(hash.toMnemonic(), deserialized.hashMnemonic());
+            assertEquals(Mnemonics.generateMnemonic(hash), deserialized.hashMnemonic());
         }
         assertEquals(numberOfConsensusEvents, deserialized.numberOfConsensusEvents());
         assertEquals(timestamp, deserialized.consensusTimestamp());
@@ -377,7 +378,8 @@ class SavedStateMetadataTests {
         if (invalidFields.contains(LEGACY_RUNNING_EVENT_HASH_MNEMONIC)) {
             assertNull(deserialized.legacyRunningEventHashMnemonic());
         } else {
-            assertEquals(legacyRunningEventHash.toMnemonic(), deserialized.legacyRunningEventHashMnemonic());
+            assertEquals(
+                    Mnemonics.generateMnemonic(legacyRunningEventHash), deserialized.legacyRunningEventHashMnemonic());
         }
         assertEquals(minimumGenerationNonAncient, deserialized.minimumGenerationNonAncient());
         assertEquals(softwareVersion.toString(), deserialized.softwareVersion());

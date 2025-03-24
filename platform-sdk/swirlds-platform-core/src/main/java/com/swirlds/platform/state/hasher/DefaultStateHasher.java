@@ -5,7 +5,8 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.platform.wiring.components.StateAndRound;
+import com.swirlds.platform.eventhandling.StateWithHashComplexity;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -40,16 +41,16 @@ public class DefaultStateHasher implements StateHasher {
      */
     @Override
     @Nullable
-    public StateAndRound hashState(@NonNull final StateAndRound stateAndRound) {
+    public ReservedSignedState hashState(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
+        final ReservedSignedState reservedSignedState = stateWithHashComplexity.reservedSignedState();
         final Instant start = Instant.now();
         try {
             merkleCryptography
-                    .digestTreeAsync(
-                            stateAndRound.reservedSignedState().get().getState().getRoot())
+                    .digestTreeAsync(reservedSignedState.get().getState().getRoot())
                     .get();
             metrics.reportHashingTime(Duration.between(start, Instant.now()));
 
-            return stateAndRound;
+            return reservedSignedState;
         } catch (final ExecutionException e) {
             logger.fatal(EXCEPTION.getMarker(), "Exception occurred during SignedState hashing", e);
         } catch (final InterruptedException e) {

@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.TestTags.ISS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateBootstrapProperties;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -65,7 +66,14 @@ class IssHandlingTest implements LifecycleTest {
                         NodeSelector.byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
                 // Submit a transaction within the normal allowed transfers.maxLen limit
                 cryptoTransfer(movingHbar(6L)
-                                .distributing(GENESIS, "0.0.3", "0.0.4", "0.0.5", "0.0.6", "0.0.7", "0.0.8"))
+                                .distributing(
+                                        GENESIS,
+                                        SHARD_AND_REALM + "3",
+                                        SHARD_AND_REALM + "4",
+                                        SHARD_AND_REALM + "5",
+                                        SHARD_AND_REALM + "6",
+                                        SHARD_AND_REALM + "7",
+                                        SHARD_AND_REALM + "8"))
                         .signedBy(GENESIS),
                 // Verify we actually got an ISS in node1
                 assertHgcaaLogContains(NodeSelector.byNodeId(ISS_NODE_ID), "ISS detected", Duration.ofSeconds(60)),

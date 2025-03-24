@@ -4,6 +4,7 @@ package com.swirlds.platform.system.transaction;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**
  * Utility class for creating {@link TransactionWrapper} instances.

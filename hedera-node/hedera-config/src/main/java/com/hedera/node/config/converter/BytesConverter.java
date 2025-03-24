@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.config.converter;
 
-import static com.swirlds.common.utility.CommonUtils.unhex;
+import static org.hiero.consensus.model.utility.CommonUtils.unhex;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.converter.ConfigConverter;

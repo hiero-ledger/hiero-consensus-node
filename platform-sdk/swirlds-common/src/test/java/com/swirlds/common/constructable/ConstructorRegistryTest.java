@@ -12,6 +12,7 @@ import com.swirlds.common.constructable.constructors.NotInterfaceConstructor;
 import com.swirlds.common.constructable.constructors.PrimitiveAndObjectConstructor;
 import com.swirlds.common.constructable.constructors.RecordConstructor;
 import com.swirlds.common.constructable.constructors.StringConstructor;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
