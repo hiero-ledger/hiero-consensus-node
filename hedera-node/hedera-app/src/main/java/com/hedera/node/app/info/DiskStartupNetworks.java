@@ -109,7 +109,7 @@ public class DiskStartupNetworks implements StartupNetworks {
 
         if (platformConfig.getConfigData(AddressBookConfig.class).forceUseOfConfigAddressBook()) {
             try {
-                return networkFromConfigTxt(platformConfig);
+                return networkFromConfigTxt(platformConfig, config);
             } catch (Exception e) {
                 // Since we're attempting to load an override network (instead of genesis), it's not a fatal error if we
                 // can't find config.txt
