@@ -7,13 +7,16 @@ import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * Validate that the base events contained in ConsensusOutput are the same
+ * Validate that the base events contained in {@link ConsensusOutput} are the same.
  */
 public class OutputEqualityEventsValidation implements ConsensusOutputValidation {
 
     /**
      * Verify that ALL base events fed into consensus are exactly identical this will check only pre-consensus data, for
-     * non-consensus events, the consensus data does not have to match
+     * non-consensus events, the consensus data does not have to match.
+     *
+     * @param output1 the output from one node
+     * @param output2 the output from another node
      */
     @Override
     public void validate(@NonNull ConsensusOutput output1, @NonNull ConsensusOutput output2) {

@@ -8,7 +8,10 @@ import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 public class OutputEventsAddedInDifferentOrderValidation implements ConsensusOutputValidation {
 
     /**
-     * Validate that the events are added in a different order
+     * Validate that the events are added in a different order.
+     *
+     * @param output1 the output from one node
+     * @param output2 the output from another node
      */
     @Override
     public void validate(final ConsensusOutput output1, final ConsensusOutput output2) {

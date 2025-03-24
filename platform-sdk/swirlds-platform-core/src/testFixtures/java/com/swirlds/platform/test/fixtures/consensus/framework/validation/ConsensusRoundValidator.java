@@ -2,23 +2,23 @@
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
 import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * This is a specific validator for consensus related tests. It allows defining custom validations related to
- * {@link ConsensusOutput} that are specific objects used in ConsensusTests or validations
- * related to {@link ConsensusRound} that are commonly used in ConsensusTests and TurtleTests.
+ * This is a specific validator for consensus round related tests. It allows defining custom validations related to
+ * {@link ConsensusRound}
  *
- * Each custom validation should be defined with an enum value and be added in the suitable map structure holding
- * entries of common validations.
+ * Each custom validation should be initialized in the constructor and added to the list of validations.
  */
 public class ConsensusRoundValidator {
 
     private final List<ConsensusRoundValidation> consensusRoundValidations;
 
+    /**
+     * Creates a new instance of the validator with all available validations for {@link ConsensusRound}.
+     */
     public ConsensusRoundValidator() {
         this.consensusRoundValidations = new ArrayList<>();
         consensusRoundValidations.add(new RoundTimestampCheckerValidation());
@@ -26,9 +26,15 @@ public class ConsensusRoundValidator {
         consensusRoundValidations.add(new RoundAncientThresholdIncreasesValidation());
     }
 
-    public void validate(@NonNull final ConsensusRound firstRound, @NonNull final ConsensusRound secondRound) {
+    /**
+     * Validates the given {@link ConsensusRound} objects coming from separate nodes
+     *
+     * @param round1 the round from one node
+     * @param round2 the round from another node
+     */
+    public void validate(@NonNull final ConsensusRound round1, @NonNull final ConsensusRound round2) {
         for (final ConsensusRoundValidation validation : consensusRoundValidations) {
-            validation.validate(firstRound, secondRound);
+            validation.validate(round1, round2);
         }
     }
 }

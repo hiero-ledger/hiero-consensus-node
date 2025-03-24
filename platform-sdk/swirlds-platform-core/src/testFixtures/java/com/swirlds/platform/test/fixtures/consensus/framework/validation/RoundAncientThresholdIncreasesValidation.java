@@ -5,28 +5,30 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class RoundAncientThresholdIncreasesValidation implements ConsensusRoundValidation {
 
     /**
-     * Validates that the threshold info of the rounds in the list is increasing for each next round
+     * Validates that the threshold info of consequent rounds for the same node are increasing.
      *
-     * @param firstRound to validate
+     * @param round1 a given node's round be validated
+     * @param round2 the consequent round from the same node to be validated
      */
     @Override
-    public void validate(@NonNull final ConsensusRound firstRound, @NonNull final ConsensusRound ignoredRound) {
-        long lastAncientThreshold = EventConstants.ANCIENT_THRESHOLD_UNDEFINED;
-        final MinimumJudgeInfo thresholdInfo =
-                firstRound.getSnapshot().minimumJudgeInfoList().getLast();
-        assertThat(firstRound.getRoundNum())
-                .isEqualTo(thresholdInfo.round())
-                .withFailMessage(() -> "the last threshold should be for the current round");
-        if (EventConstants.ANCIENT_THRESHOLD_UNDEFINED != thresholdInfo.minimumJudgeAncientThreshold())
-            lastAncientThreshold = thresholdInfo.minimumJudgeAncientThreshold();
-        assertThat(thresholdInfo.minimumJudgeAncientThreshold())
-                .isGreaterThanOrEqualTo(lastAncientThreshold)
-                .withFailMessage(() -> "the ancient threshold should never decrease");
+    public void validate(@NonNull final ConsensusRound round1, @NonNull final ConsensusRound round2) {
+        final MinimumJudgeInfo thresholdInfoForFirstRound =
+                round1.getSnapshot().minimumJudgeInfoList().getLast();
+        final MinimumJudgeInfo thresholdInfoForSecondRound =
+                round2.getSnapshot().minimumJudgeInfoList().getLast();
+        assertThat(round1.getRoundNum())
+                .isEqualTo(thresholdInfoForFirstRound.round())
+                .withFailMessage("the last threshold should be for the current round");
+        assertThat(round2.getRoundNum())
+                .isEqualTo(thresholdInfoForSecondRound.round())
+                .withFailMessage("the last threshold should be for the current round");
+        assertThat(thresholdInfoForFirstRound.minimumJudgeAncientThreshold())
+                .isLessThanOrEqualTo(thresholdInfoForSecondRound.minimumJudgeAncientThreshold())
+                .withFailMessage("the ancient threshold should never decrease");
     }
 }

@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
 public class ConsensusTestOrchestrator {
-    private static final ConsensusRoundValidator defaultConsensusRoundValidator = new ConsensusRoundValidator();
+    private static final ConsensusRoundValidator consensusRoundValidatorWithAllChecks = new ConsensusRoundValidator();
     private final PlatformContext platformContext;
     private final List<ConsensusTestNode> nodes;
     private long currentSequence = 0;
@@ -122,7 +122,7 @@ public class ConsensusTestOrchestrator {
                             node1.getOutput().getConsensusRounds().size(),
                             otherNode.getOutput().getConsensusRounds().size()));
             for (int j = 0; j < node1.getOutput().getConsensusRounds().size(); j++) {
-                defaultConsensusRoundValidator.validate(
+                consensusRoundValidatorWithAllChecks.validate(
                         node1.getOutput().getConsensusRounds().get(j),
                         otherNode.getOutput().getConsensusRounds().get(j));
             }

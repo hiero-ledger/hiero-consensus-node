@@ -8,20 +8,20 @@ import com.swirlds.platform.internal.ConsensusRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * Validates that the timestamps in consensus rounds are correct.
+ * Validates that the timestamps in consensus rounds are increasing in proper manner.
  */
 public class RoundTimestampCheckerValidation implements ConsensusRoundValidation {
 
     /**
-     * Validate the timestamps in consensus rounds are properly increasing.
+     * Validate the timestamps in consensus rounds.
      *
-     * @param round to validate
+     * @param round1 the round to validate
      */
     @Override
-    public void validate(@NonNull final ConsensusRound round, @NonNull final ConsensusRound ignoredRound) {
+    public void validate(@NonNull final ConsensusRound round1, @NonNull final ConsensusRound ignoredRound) {
         PlatformEvent previousConsensusEvent = null;
 
-        for (final PlatformEvent e : round.getConsensusEvents()) {
+        for (final PlatformEvent e : round1.getConsensusEvents()) {
             if (previousConsensusEvent == null) {
                 previousConsensusEvent = e;
                 continue;
