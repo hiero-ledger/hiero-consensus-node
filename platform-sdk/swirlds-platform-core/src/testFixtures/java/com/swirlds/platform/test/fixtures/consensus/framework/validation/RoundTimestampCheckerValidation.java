@@ -3,9 +3,9 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.internal.ConsensusRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
  * Validates that the timestamps in consensus rounds are increasing in proper manner.

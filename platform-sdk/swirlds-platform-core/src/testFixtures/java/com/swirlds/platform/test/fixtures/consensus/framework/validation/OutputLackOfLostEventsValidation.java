@@ -8,11 +8,10 @@ import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.assertj.core.api.Assertions;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.crypto.Hashable;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.junit.jupiter.api.Assertions;
-import org.assertj.core.api.Assertions;
 
 @SuppressWarnings("unused") // issue tracked #6998
 public final class OutputLackOfLostEventsValidation {

@@ -4,8 +4,8 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.platform.internal.ConsensusRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 public class RoundAncientThresholdIncreasesValidation implements ConsensusRoundValidation {
 

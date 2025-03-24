@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidation;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.gui.ListEventProvider;
 import com.swirlds.platform.test.fixtures.gui.TestGuiSource;
