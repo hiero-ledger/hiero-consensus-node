@@ -5,11 +5,18 @@ import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumContractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
@@ -98,6 +105,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     }
 
     @HapiTest
+    @Order(3)
     @DisplayName("Ethereum Call jumbo transaction with ethereum data overflow should fail")
     public Stream<DynamicTest> ethereumCallJumboTxnWithEthereumDataOverflow() {
         final var contract = "CalldataSize";
@@ -120,6 +128,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     }
 
     @HapiTest
+    @Order(4)
     @DisplayName("Allows Ethereum jumbo contract create jumbo above max transaction size of 6kb")
     public Stream<DynamicTest> ethereumContractCreateJumboTxnMoreThen6Kb() {
         final var contract = "TokenCreateContract";
