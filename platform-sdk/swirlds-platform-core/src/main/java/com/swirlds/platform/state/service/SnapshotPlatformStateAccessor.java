@@ -11,7 +11,6 @@ import com.swirlds.platform.state.PlatformStateAccessor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.function.Function;
 import org.hiero.consensus.model.crypto.Hash;
 
 /**
