@@ -58,12 +58,12 @@ class PcesFileManagerTests {
         random = getRandomPrintSeed();
     }
 
-    protected static Stream<Arguments> buildArguments() {
+    protected static Stream<Arguments> ancientModes() {
         return Stream.of(Arguments.of(GENERATION_THRESHOLD), Arguments.of(BIRTH_ROUND_THRESHOLD));
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModes")
     @DisplayName("Generate Descriptors With Manager Test")
     void generateDescriptorsWithManagerTest(@NonNull final AncientMode ancientMode) throws IOException {
         final PlatformContext platformContext =
@@ -80,7 +80,7 @@ class PcesFileManagerTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModes")
     @DisplayName("Incremental Pruning By Ancient Boundary Test")
     void incrementalPruningByAncientBoundaryTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var result = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -172,7 +172,7 @@ class PcesFileManagerTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @MethodSource("ancientModes")
     @DisplayName("Incremental Pruning By Timestamp Test")
     void incrementalPruningByTimestampTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var result = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
