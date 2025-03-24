@@ -112,11 +112,11 @@ class GrpcLoggingInterceptorTest {
                 Arguments.of("hiero-sdk-lua/1.1.8", "Unknown", "Unknown"),
                 Arguments.of("hiero-sdk-lua", "Unknown", "Unknown"),
                 Arguments.of("hiero-sdk-java", "HieroSdkJava", "Unknown"),
-                Arguments.of(null, "Unknown", "Unknown"),
-                Arguments.of("", "Unknown", "Unknown"),
-                Arguments.of("/1.1.3", "Unknown", "Unknown"),
+                Arguments.of(null, "Unspecified", "Unknown"),
+                Arguments.of("", "Unspecified", "Unknown"),
+                Arguments.of("/1.1.3", "Unspecified", "Unknown"),
                 Arguments.of("hiero-sdk-lua/1.1.3 foo-bar/42 baz", "Unknown", "Unknown"),
-                Arguments.of("/", "Unknown", "Unknown"),
+                Arguments.of("/", "Unspecified", "Unknown"),
                 Arguments.of("foo-bar/2 hiero-sdk-java/1.2.3", "HieroSdkJava", "1.2.3"),
                 Arguments.of("hiero-sdk-java/1.2.3/foo", "Unknown", "Unknown"),
                 Arguments.of("hiero-sdk-java/dev", "HieroSdkJava", "dev"),
@@ -133,12 +133,12 @@ class GrpcLoggingInterceptorTest {
 
     static List<Arguments> testUserAgentTypeArgs() {
         return List.of(
-                Arguments.of(null, UserAgentType.UNKNOWN),
-                Arguments.of("", UserAgentType.UNKNOWN),
-                Arguments.of("  ", UserAgentType.UNKNOWN),
+                Arguments.of(null, UserAgentType.UNSPECIFIED),
+                Arguments.of("", UserAgentType.UNSPECIFIED),
+                Arguments.of("  ", UserAgentType.UNSPECIFIED),
                 Arguments.of(" hiero-sdk-java   ", UserAgentType.HIERO_SDK_JAVA),
                 Arguments.of("Hiero-Sdk-Java", UserAgentType.HIERO_SDK_JAVA),
-                Arguments.of("grpc-sdk-java", UserAgentType.OTHER));
+                Arguments.of("grpc-sdk-java", UserAgentType.UNKNOWN));
     }
 
     static MethodDescriptor<String, String> newDescriptor(final String fullMethodName) {

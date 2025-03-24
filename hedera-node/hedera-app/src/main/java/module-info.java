@@ -28,8 +28,8 @@ module com.hedera.node.app {
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
     requires transitive dagger;
-    requires transitive io.grpc;
     requires transitive io.grpc.stub;
+    requires transitive io.grpc;
     requires transitive io.helidon.webclient.grpc;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;

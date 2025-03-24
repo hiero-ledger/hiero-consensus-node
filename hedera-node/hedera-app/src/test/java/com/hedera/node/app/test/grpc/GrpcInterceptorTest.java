@@ -61,6 +61,6 @@ public class GrpcInterceptorTest extends GrpcTestBase {
         return List.of(
                 Arguments.of("hiero-sdk-java/1.1.0", "uaType=HieroSdkJava, uaVersion=1.1.0"),
                 Arguments.of("foo/bar hiero-sdk-java/3 baz", "uaType=HieroSdkJava, uaVersion=3"),
-                Arguments.of(null, "uaType=Unknown, uaVersion=Unknown"));
+                Arguments.of(null, "uaType=Unspecified, uaVersion=Unknown"));
     }
 }

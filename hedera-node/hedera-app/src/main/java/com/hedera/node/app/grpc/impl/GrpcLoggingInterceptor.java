@@ -92,7 +92,7 @@ public class GrpcLoggingInterceptor implements ServerInterceptor {
 
         if (userAgentStr == null || userAgentStr.isBlank()) {
             // the user-agent is missing, escape early and don't cache it
-            return UserAgent.UNKNOWN;
+            return UserAgent.UNSPECIFIED;
         }
 
         UserAgent userAgent = userAgentCache.get(userAgentStr);
@@ -110,28 +110,39 @@ public class GrpcLoggingInterceptor implements ServerInterceptor {
         final String[] tokens = userAgentStr.split("\\s"); // split on spaces
         for (final String token : tokens) {
             final String[] subTokens = token.split("/"); // split on forward-slash '/'
-            if (subTokens.length == 0 || subTokens.length > 2) {
+            if (subTokens.length == 0 && userAgent == null) {
+                // the user-agent is missing
+                userAgent = UserAgent.UNSPECIFIED;
+                continue;
+            } else if (subTokens.length > 2 && userAgent == null) {
+                // the user-agent is not formatted properly
+                userAgent = UserAgent.UNKNOWN;
                 continue;
             }
 
             final UserAgentType type = UserAgentType.fromString(subTokens[0]);
-            final String version = subTokens.length == 1 || subTokens[1].isBlank() ? UNKNOWN : subTokens[1];
+            // If the version is blank/missing or the type is a known type, then set the version to unknown
+            final String version =
+                    subTokens.length == 1 || subTokens[1].isBlank() || !type.isKnownType ? UNKNOWN : subTokens[1];
 
-            if (type.isKnownType) {
-                if (userAgent == null) {
-                    userAgent = new UserAgent(type, version);
-                } else if (userAgent.agentType.isKnownType) {
-                    // we just parsed a known user-agent AND we parsed another known user-agent previously
-                    // because of this, we now have multiple types and can't be certain what is real
-                    clsLogger.warn("Multiple known user-agent types found: {}", userAgentStr);
-                    userAgent = UserAgent.UNKNOWN;
-                }
+            if (userAgent == null) {
+                userAgent = new UserAgent(type, version);
+            } else if (type.isKnownType && userAgent.agentType.isKnownType) {
+                // we just parsed a known user-agent AND we parsed another known user-agent previously
+                // because of this, we now have multiple types and can't be certain what is real
+                clsLogger.warn("Multiple known user-agent types found: {}", userAgentStr);
+                userAgent = UserAgent.UNKNOWN;
+            } else if (!type.isKnownType && userAgent.agentType.isKnownType) {
+                // do not override the already known agent type
+            } else if (type.isKnownType) {
+                // we previously captured an unknown agent type, now replace it with the known type we parsed
+                userAgent = new UserAgent(type, version);
             }
         }
 
         if (userAgent == null) {
             // we didn't find a properly formatted user-agent
-            userAgent = UserAgent.UNKNOWN;
+            userAgent = UserAgent.UNSPECIFIED;
         }
 
         if (!userAgent.agentType.isKnownType) {
@@ -184,6 +195,7 @@ public class GrpcLoggingInterceptor implements ServerInterceptor {
 
     private record UserAgent(@NonNull UserAgentType agentType, @NonNull String version) {
         static final UserAgent UNKNOWN = new UserAgent(UserAgentType.UNKNOWN, GrpcLoggingInterceptor.UNKNOWN);
+        static final UserAgent UNSPECIFIED = new UserAgent(UserAgentType.UNSPECIFIED, GrpcLoggingInterceptor.UNKNOWN);
 
         UserAgent {
             requireNonNull(agentType, "agentType is required");
@@ -209,7 +221,7 @@ public class GrpcLoggingInterceptor implements ServerInterceptor {
         HIERO_SDK_PYTHON("HieroSdkPython", true, "hiero-sdk-python"),
         HIERO_SDK_RUST("HieroSdkRust", true, "hiero-sdk-rust"),
         HIERO_SDK_SWIFT("HieroSdkSwift", true, "hiero-sdk-swift"),
-        OTHER("Other", false),
+        UNSPECIFIED("Unspecified", false),
         UNKNOWN(GrpcLoggingInterceptor.UNKNOWN, false);
 
         private static final Map<String, UserAgentType> values = new HashMap<>();
@@ -248,8 +260,8 @@ public class GrpcLoggingInterceptor implements ServerInterceptor {
 
         /**
          * Parses the specified user-agent string into one of the known user-agent IDs. If the specified user-agent is
-         * missing, then {@link UserAgentType#UNKNOWN} is returned. If a user-agent was provided, but it doesn't match
-         * any of the known user-agents, then {@link UserAgentType#OTHER} is returned.
+         * missing, then {@link UserAgentType#UNSPECIFIED} is returned. If a user-agent was provided, but it doesn't match
+         * any of the known user-agents, then {@link UserAgentType#UNKNOWN} is returned.
          *
          * @param userAgentType the user-agent string to parse
          * @return the user-agent type
@@ -257,7 +269,7 @@ public class GrpcLoggingInterceptor implements ServerInterceptor {
         static @NonNull UserAgentType fromString(@Nullable String userAgentType) {
             if (userAgentType == null || userAgentType.isBlank()) {
                 // No user-agent was specified
-                return UNKNOWN;
+                return UNSPECIFIED;
             }
 
             userAgentType = userAgentType.trim();
@@ -273,7 +285,7 @@ public class GrpcLoggingInterceptor implements ServerInterceptor {
             }
 
             // There was a user-agent present, but it doesn't match any one that we know
-            return OTHER;
+            return UNKNOWN;
         }
     }
 }
