@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashSet;
 import java.util.Set;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Command line arguments that can be passed to the browser when starting up

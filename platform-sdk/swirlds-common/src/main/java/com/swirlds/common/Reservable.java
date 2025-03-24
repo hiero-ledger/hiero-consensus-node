@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common;
 
+import com.swirlds.common.exceptions.ReferenceCountException;
+
 /**
  * <p>
  * An object that can be reserved and released. Number of reservations and releases are tracked via a reference count.
@@ -42,7 +44,7 @@ public interface Reservable extends Releasable {
     /**
      * Acquire a reservation on this object. Increments the reference count by 1.
      *
-     * @throws com.swirlds.common.exceptions.ReferenceCountException
+     * @throws ReferenceCountException
      * 		if this object has been fully released and destroyed
      */
     void reserve();
@@ -69,7 +71,7 @@ public interface Reservable extends Releasable {
      * </p>
      *
      * @return true if this call to release() caused the object to become destroyed
-     * @throws com.swirlds.common.exceptions.ReferenceCountException
+     * @throws ReferenceCountException
      * 		this object has already been fully released and destroyed
      */
     @Override

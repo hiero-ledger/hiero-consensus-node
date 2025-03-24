@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
+import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.junit.jupiter.api.Assertions;
 import org.assertj.core.api.Assertions;
 
 public class PlatformTestFixtureValidationUtils {

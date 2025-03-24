@@ -77,7 +77,9 @@ public class HgcaaLogValidator {
                 // Some PR checks don't stake any HBAR, so after crossing a staking boundary all nodes
                 // have zero weight and the RosterStore rejects a zero-weight roster as invalid
                 List.of("Candidate roster was rejected"),
-                List.of("Throttle multiplier for CryptoTransfer throughput congestion has no throttle buckets"));
+                List.of("Throttle multiplier for CryptoTransfer throughput congestion has no throttle buckets"),
+                // Although we do want a little more visibility for these messages, they shouldn't fail a CI run
+                List.of("Proof future for construction", "must wait until previous finished"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

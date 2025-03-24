@@ -6,7 +6,6 @@ import static com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants.DEFAULT_G
 
 import com.swirlds.platform.gui.GuiUtils;
 import com.swirlds.platform.gui.hashgraph.HashgraphPictureOptions;
-import com.swirlds.platform.system.events.EventConstants;
 import java.awt.Checkbox;
 import java.awt.Color;
 import java.awt.Component;
@@ -19,6 +18,7 @@ import java.awt.event.ItemListener;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
+import org.hiero.consensus.model.event.EventConstants;
 
 /**
  * GUI controls for changing display options for the {@link HashgraphPicture}

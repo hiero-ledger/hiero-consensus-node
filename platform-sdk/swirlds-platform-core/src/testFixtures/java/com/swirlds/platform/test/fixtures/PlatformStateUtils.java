@@ -9,13 +9,13 @@ import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public final class PlatformStateUtils {
 
@@ -52,7 +52,7 @@ public final class PlatformStateUtils {
                         List.of(randomHashBytes(random), randomHashBytes(random), randomHashBytes(random)),
                         minimumJudgeInfo,
                         random.nextLong(),
-                        PbjConverter.toPbjTimestamp(randomInstant(random))));
+                        CommonUtils.toPbjTimestamp(randomInstant(random))));
 
         return platformStateFacade.getWritablePlatformStateOf(state);
     }

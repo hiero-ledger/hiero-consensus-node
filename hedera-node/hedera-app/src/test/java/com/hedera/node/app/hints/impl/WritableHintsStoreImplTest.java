@@ -40,6 +40,7 @@ import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -385,7 +386,7 @@ class WritableHintsStoreImplTest {
                         ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
 
         subject = new WritableHintsStoreImpl(writableStates);
-        subject.setCRSState(crsState);
+        subject.setCrsState(crsState);
         return crsState;
     }
 
@@ -450,7 +451,14 @@ class WritableHintsStoreImplTest {
         final var servicesRegistry = new FakeServicesRegistry();
         Set.of(
                         new EntityIdService(),
-                        new HintsServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library))
+                        new HintsServiceImpl(
+                                NO_OP_METRICS,
+                                ForkJoinPool.commonPool(),
+                                appContext,
+                                library,
+                                DEFAULT_CONFIG
+                                        .getConfigData(BlockStreamConfig.class)
+                                        .blockPeriod()))
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();

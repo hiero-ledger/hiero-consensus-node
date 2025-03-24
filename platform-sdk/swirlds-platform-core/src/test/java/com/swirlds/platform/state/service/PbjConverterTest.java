@@ -5,9 +5,10 @@ import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
-import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.consensus.model.utility.CommonUtils.fromPbjTimestamp;
+import static org.hiero.consensus.model.utility.CommonUtils.toPbjTimestamp;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -67,14 +68,14 @@ class PbjConverterTest {
 
     @Test
     void testFromPbjTimestamp_null() {
-        assertNull(PbjConverter.fromPbjTimestamp(null));
+        assertNull(fromPbjTimestamp(null));
     }
 
     @Test
     void testFromPbjTimestamp() {
         final Instant instant = randomInstant(randotron);
         final Timestamp pbjTimestamp = toPbjTimestamp(instant);
-        assertEquals(instant, PbjConverter.fromPbjTimestamp(pbjTimestamp));
+        assertEquals(instant, fromPbjTimestamp(pbjTimestamp));
     }
 
     @Test
@@ -349,7 +350,7 @@ class PbjConverterTest {
                 asList(randomHash().getBytes(), randomHash().getBytes()),
                 asList(new MinimumJudgeInfo(nextInt(), nextInt()), new MinimumJudgeInfo(nextInt(), nextInt())),
                 nextInt(),
-                PbjConverter.toPbjTimestamp(randomInstant(randotron)));
+                toPbjTimestamp(randomInstant(randotron)));
     }
 
     private static SemanticVersion randomSoftwareVersion() {

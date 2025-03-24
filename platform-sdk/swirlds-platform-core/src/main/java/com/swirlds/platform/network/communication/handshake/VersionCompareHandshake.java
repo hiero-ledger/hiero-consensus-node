@@ -3,7 +3,6 @@ package com.swirlds.platform.network.communication.handshake;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
@@ -13,6 +12,7 @@ import java.util.Objects;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 /**
  * Exchanges software versions with the peer, either throws a {@link HandshakeException} or logs an error if the versions

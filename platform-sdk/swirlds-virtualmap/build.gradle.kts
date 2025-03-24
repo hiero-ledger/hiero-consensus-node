@@ -24,6 +24,7 @@ jmhModuleInfo {
     requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.virtualmap.test.fixtures")
+    requires("org.hiero.consensus.model")
     requires("jmh.core")
     requires("org.junit.jupiter.api")
 }
@@ -45,6 +46,7 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.metrics.api")
     requires("com.swirlds.virtualmap.test.fixtures")
+    requires("org.hiero.consensus.model")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")

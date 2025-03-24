@@ -3,14 +3,14 @@ package com.swirlds.common.merkle;
 
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.Reservable;
-import com.swirlds.common.crypto.Hashable;
-import com.swirlds.common.io.SerializableDet;
 import com.swirlds.common.merkle.interfaces.MerkleMigratable;
 import com.swirlds.common.merkle.interfaces.MerkleTraversable;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.common.merkle.synchronization.views.MaybeCustomReconnectRoot;
+import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.consensus.model.io.SerializableDet;
 
 /**
  * A MerkleNode object has the following properties

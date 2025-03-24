@@ -14,6 +14,7 @@ module com.swirlds.platform.core.test.fixtures {
     requires transitive com.swirlds.state.impl;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.consensus.gossip;
+    requires transitive org.hiero.consensus.model;
     requires transitive org.junit.jupiter.api;
     requires com.swirlds.component.framework;
     requires com.swirlds.logging;

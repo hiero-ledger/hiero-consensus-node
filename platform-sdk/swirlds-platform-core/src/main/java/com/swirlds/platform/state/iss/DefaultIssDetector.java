@@ -11,11 +11,9 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.payload.IssPayload;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.metrics.IssMetrics;
@@ -29,8 +27,6 @@ import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.state.notifications.IssNotification;
-import com.swirlds.platform.system.state.notifications.IssNotification.IssType;
 import com.swirlds.platform.util.MarkerFileWriter;
 import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -42,6 +38,11 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.model.notification.IssNotification.IssType;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * A default implementation of the {@link IssDetector}.
@@ -537,7 +538,12 @@ public class DefaultIssDetector implements IssDetector {
 
             logger.fatal(
                     EXCEPTION.getMarker(),
-                    new IssPayload(sb.toString(), round, selfHash.toMnemonic(), consensusHash.toMnemonic(), false));
+                    new IssPayload(
+                            sb.toString(),
+                            round,
+                            Mnemonics.generateMnemonic(selfHash),
+                            Mnemonics.generateMnemonic(consensusHash),
+                            false));
         }
     }
 
@@ -563,7 +569,9 @@ public class DefaultIssDetector implements IssDetector {
             hashFinder.writePartitionData(sb);
             writeSkippedLogCount(sb, skipCount);
 
-            logger.fatal(EXCEPTION.getMarker(), new IssPayload(sb.toString(), round, selfHash.toMnemonic(), "", true));
+            logger.fatal(
+                    EXCEPTION.getMarker(),
+                    new IssPayload(sb.toString(), round, Mnemonics.generateMnemonic(selfHash), "", true));
         }
     }
 
