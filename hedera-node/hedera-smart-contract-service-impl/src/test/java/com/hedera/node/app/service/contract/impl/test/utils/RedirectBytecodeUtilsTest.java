@@ -1,4 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.utils;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.contract.impl.utils.RedirectBytecodeUtils;
@@ -9,19 +12,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 @ExtendWith(MockitoExtension.class)
 public class RedirectBytecodeUtilsTest {
 
     private void testProxyBytecodeFor(Function<Address, Bytes> function, String signature) {
         Bytes res = function.apply(Address.ZERO);
         assertThat(res).isNotNull();
-        assertThat(res.toFastHex(false)).startsWith(RedirectBytecodeUtils.PROXY_PRE_BYTES)
+        assertThat(res.toFastHex(false))
+                .startsWith(RedirectBytecodeUtils.PROXY_PRE_BYTES)
                 .contains(RedirectBytecodeUtils.PROXY_MID_BYTES)
                 .contains(Address.ZERO.toFastHex(false))
                 .contains(Bytes.wrap(MiscCryptoUtils.keccak256DigestOf(signature.getBytes()))
-                        .toFastHex(false).substring(0, 8));
+                        .toFastHex(false)
+                        .substring(0, 8));
     }
 
     @Test
@@ -39,14 +42,17 @@ public class RedirectBytecodeUtilsTest {
         testProxyBytecodeFor(RedirectBytecodeUtils::scheduleProxyBytecodeFor, "redirectForScheduleTxn(address,bytes)");
     }
 
-    private void testProxyBytecodePbj(Function<Address, com.hedera.pbj.runtime.io.buffer.Bytes> function, String signature) {
+    private void testProxyBytecodePbj(
+            Function<Address, com.hedera.pbj.runtime.io.buffer.Bytes> function, String signature) {
         com.hedera.pbj.runtime.io.buffer.Bytes res = function.apply(Address.ZERO);
         assertThat(res).isNotNull();
-        assertThat(res.toHex()).startsWith(RedirectBytecodeUtils.PROXY_PRE_BYTES)
+        assertThat(res.toHex())
+                .startsWith(RedirectBytecodeUtils.PROXY_PRE_BYTES)
                 .contains(RedirectBytecodeUtils.PROXY_MID_BYTES)
                 .contains(Address.ZERO.toFastHex(false))
                 .contains(Bytes.wrap(MiscCryptoUtils.keccak256DigestOf(signature.getBytes()))
-                        .toFastHex(false).substring(0, 8));
+                        .toFastHex(false)
+                        .substring(0, 8));
     }
 
     @Test
