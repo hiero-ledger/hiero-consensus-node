@@ -1126,8 +1126,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .round();
         final var initialStateHash = new InitialStateHash(initialStateHashFuture, roundNum);
 
-        final var rosterStore =
-                new ReadableStoreFactory(state).getStore(ReadableRosterStore.class);
+        final var rosterStore = new ReadableStoreFactory(state).getStore(ReadableRosterStore.class);
         final var networkInfo = new StateNetworkInfo(
                 platform.getSelfId().id(),
                 state,
