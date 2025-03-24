@@ -63,7 +63,12 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
     @Test
     void preHandleVanilla() throws PreCheckException {
         realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, scheduleCreateTransaction(payer), testConfig, mockDispatcher, mockTransactionChecker);
+                mockStoreFactory,
+                scheduleCreateTransaction(payer),
+                testConfig,
+                mockDispatcher,
+                mockTransactionChecker,
+                creatorInfo);
         subject.preHandle(realPreContext);
 
         assertThat(realPreContext).isNotNull();
@@ -82,7 +87,7 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
         final TransactionBody transactionToTest = ScheduledTransactionFactory.scheduleCreateTransactionWith(
                 null, "", payer, scheduler, Timestamp.newBuilder().seconds(1L).build());
         realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, transactionToTest, testConfig, mockDispatcher, mockTransactionChecker);
+                mockStoreFactory, transactionToTest, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
         subject.preHandle(realPreContext);
 
         assertThat(realPreContext).isNotNull();
@@ -96,7 +101,12 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
     @Test
     void preHandleUsesCreatePayerIfScheduledPayerNotSet() throws PreCheckException {
         realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, scheduleCreateTransaction(null), testConfig, mockDispatcher, mockTransactionChecker);
+                mockStoreFactory,
+                scheduleCreateTransaction(null),
+                testConfig,
+                mockDispatcher,
+                mockTransactionChecker,
+                creatorInfo);
         subject.preHandle(realPreContext);
 
         assertThat(realPreContext).isNotNull();
@@ -114,7 +124,7 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
 
         final TransactionBody createBody = scheduleCreateTransaction(payer);
         realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, createBody, testConfig, mockDispatcher, mockTransactionChecker);
+                mockStoreFactory, createBody, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
         Assertions.assertThrowsPreCheck(() -> subject.preHandle(realPreContext), ACCOUNT_ID_DOES_NOT_EXIST);
     }
 
@@ -128,7 +138,12 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
             final DataOneOfType transactionType = child.data().kind();
             final HederaFunctionality functionType = HandlerUtility.functionalityForType(transactionType);
             realPreContext = new PreHandleContextImpl(
-                    mockStoreFactory, createTransaction, testConfig, mockDispatcher, mockTransactionChecker);
+                    mockStoreFactory,
+                    createTransaction,
+                    testConfig,
+                    mockDispatcher,
+                    mockTransactionChecker,
+                    creatorInfo);
             if (configuredWhitelist.contains(functionType)) {
                 subject.preHandle(realPreContext);
                 assertThat(realPreContext.payerKey()).isNotNull().isEqualTo(schedulerKey);

@@ -5,14 +5,14 @@ import static com.swirlds.common.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
 import static com.swirlds.common.crypto.Cryptography.DEFAULT_SET_HASH;
 
 import com.swirlds.common.crypto.CryptographyException;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Hashable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
 import java.util.List;
 import java.util.concurrent.Future;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.Hashable;
 
 /**
  * Cryptography service that provides specific functions for merkle classes.

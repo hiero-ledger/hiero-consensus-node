@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fixtures.ids;
 
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static java.lang.System.arraycopy;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
 
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;

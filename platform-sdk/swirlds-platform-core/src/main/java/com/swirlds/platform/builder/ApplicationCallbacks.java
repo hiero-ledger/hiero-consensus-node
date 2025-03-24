@@ -4,11 +4,11 @@ package com.swirlds.platform.builder;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * A collection of callbacks that the application can provide to the platform to be notified of certain events.

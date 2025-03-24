@@ -89,6 +89,10 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
                 log.error("Error while responding to freeze state notification", e);
             }
         }
-        startupNetworks.archiveStartupNetworks();
+        // We don't archive genesis startup assets until at least one round has actually been handled,
+        // since we need these assets to create genesis entities at the beginning of the first round
+        if (notification.getRoundNumber() > 0) {
+            startupNetworks.archiveStartupNetworks();
+        }
     }
 }

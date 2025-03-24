@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.platform.state.service.PbjConverter.fromPbjTimestamp;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.utility.CommonUtils.fromPbjTimestamp;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
@@ -18,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.function.Function;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Gives read-only access to the platform state, encapsulating conversion from PBJ types to the current types

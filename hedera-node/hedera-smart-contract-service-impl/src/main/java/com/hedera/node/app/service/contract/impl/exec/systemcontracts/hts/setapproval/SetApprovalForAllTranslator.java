@@ -56,7 +56,7 @@ public class SetApprovalForAllTranslator extends AbstractCallTranslator<HtsCallA
 
     @Override
     public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
-        return attempt.isTokenRedirect()
+        return attempt.isRedirect()
                 ? attempt.isMethod(ERC721_SET_APPROVAL_FOR_ALL)
                 : attempt.isMethod(SET_APPROVAL_FOR_ALL);
     }

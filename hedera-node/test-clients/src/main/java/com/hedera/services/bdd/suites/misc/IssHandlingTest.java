@@ -50,7 +50,7 @@ class IssHandlingTest implements LifecycleTest {
         return hapiTest(
                 getVersionInfo().exposingServicesVersionTo(startVersion::set),
                 // Reconnect node1 with an aberrant ledger.transfers.maxLen override
-                sourcing(() -> reconnectNode(
+                sourcing(() -> reconnectIssNode(
                         byNodeId(ISS_NODE_ID),
                         configVersionOf(startVersion.get()),
                         // Before restarting node0, update its application properties to have a low transfer limit

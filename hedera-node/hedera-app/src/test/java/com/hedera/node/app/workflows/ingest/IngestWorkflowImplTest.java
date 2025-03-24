@@ -12,7 +12,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN_FIELDS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doThrow;
@@ -40,11 +39,11 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
-import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -83,9 +82,6 @@ class IngestWorkflowImplTest extends AppTestBase {
 
     @Mock(strictness = LENIENT)
     Supplier<AutoCloseableWrapper<State>> stateAccessor;
-
-    @Mock(strictness = LENIENT)
-    TransactionChecker transactionChecker;
 
     @Mock(strictness = LENIENT)
     IngestChecker ingestChecker;
@@ -130,28 +126,7 @@ class IngestWorkflowImplTest extends AppTestBase {
         when(ingestChecker.runAllChecks(state, requestBuffer, configuration)).thenReturn(transactionInfo);
 
         // Create the workflow we are going to test with
-        workflow = new IngestWorkflowImpl(
-                stateAccessor, transactionChecker, ingestChecker, submissionManager, configProvider);
-    }
-
-    @SuppressWarnings("ConstantConditions")
-    @Test
-    void testConstructorWithInvalidArguments() {
-        assertThatThrownBy(() -> new IngestWorkflowImpl(
-                        null, transactionChecker, ingestChecker, submissionManager, configProvider))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() ->
-                        new IngestWorkflowImpl(stateAccessor, null, ingestChecker, submissionManager, configProvider))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new IngestWorkflowImpl(
-                        stateAccessor, transactionChecker, null, submissionManager, configProvider))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() ->
-                        new IngestWorkflowImpl(stateAccessor, transactionChecker, ingestChecker, null, configProvider))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new IngestWorkflowImpl(
-                        stateAccessor, transactionChecker, ingestChecker, submissionManager, null))
-                .isInstanceOf(NullPointerException.class);
+        workflow = new IngestWorkflowImpl(stateAccessor, ingestChecker, submissionManager, configProvider);
     }
 
     @Test
