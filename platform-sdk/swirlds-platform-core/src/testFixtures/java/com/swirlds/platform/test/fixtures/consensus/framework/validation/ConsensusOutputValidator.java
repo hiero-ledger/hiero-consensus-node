@@ -2,8 +2,8 @@
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * This is a specific validator for consensus output related tests. It allows defining custom validations related to
@@ -14,21 +14,21 @@ import java.util.List;
  */
 public class ConsensusOutputValidator {
 
-    private final List<ConsensusOutputValidation> outputValidations;
+    private final Set<ConsensusOutputValidation> outputValidations;
 
     /**
-     * Creates a new instance of the validator with all available validations for {@link ConsensusOutput}.
+     * Creates a new instance of the validator with equality and different order validations for {@link ConsensusOutput}.
      */
     public ConsensusOutputValidator() {
-        outputValidations = new ArrayList<>();
-        outputValidations.add(new OutputEqualityEventsValidation());
+        outputValidations = new HashSet<>();
+        outputValidations.add(new OutputEventsEqualityValidation());
         outputValidations.add(new OutputEventsAddedInDifferentOrderValidation());
     }
 
     /**
      * Creates a new instance of the validator with a custom set of {@link ConsensusOutput}.
      */
-    public ConsensusOutputValidator(final List<ConsensusOutputValidation> outputValidations) {
+    public ConsensusOutputValidator(final Set<ConsensusOutputValidation> outputValidations) {
         this.outputValidations = outputValidations;
     }
 

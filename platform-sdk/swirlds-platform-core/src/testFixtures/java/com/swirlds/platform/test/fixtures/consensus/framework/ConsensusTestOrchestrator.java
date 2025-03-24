@@ -114,18 +114,16 @@ public class ConsensusTestOrchestrator {
             final ConsensusTestNode otherNode = nodes.get(i);
 
             consensusOutputValidator.validate(node1.getOutput(), otherNode.getOutput());
-            assertThat(node1.getOutput().getConsensusRounds().size())
-                    .isEqualTo(otherNode.getOutput().getConsensusRounds().size())
+            assertThat(node1.getOutput().getConsensusRounds())
+                    .hasSameSizeAs(otherNode.getOutput().getConsensusRounds())
                     .withFailMessage(String.format(
                             "The number of consensus rounds is not the same."
                                     + "output1 has %d rounds, output2 has %d rounds",
                             node1.getOutput().getConsensusRounds().size(),
                             otherNode.getOutput().getConsensusRounds().size()));
-            for (int j = 0; j < node1.getOutput().getConsensusRounds().size(); j++) {
-                consensusRoundValidatorWithAllChecks.validate(
-                        node1.getOutput().getConsensusRounds().get(j),
-                        otherNode.getOutput().getConsensusRounds().get(j));
-            }
+            consensusRoundValidatorWithAllChecks.validate(
+                    node1.getOutput().getConsensusRounds(),
+                    otherNode.getOutput().getConsensusRounds());
         }
     }
 

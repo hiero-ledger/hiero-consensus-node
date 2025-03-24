@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
-import static com.swirlds.platform.test.fixtures.consensus.framework.validation.PlatformTestFixtureValidationUtils.assertBaseEventLists;
+import static com.swirlds.platform.test.fixtures.consensus.framework.validation.TestFixtureValidationUtils.assertBaseEventLists;
 
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 

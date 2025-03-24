@@ -3,6 +3,7 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator.ConsensusRoundsNodeOrigin;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -11,6 +12,10 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
  * Validates that the timestamps in consensus rounds are increasing in proper manner.
  */
 public class RoundTimestampCheckerValidation implements ConsensusRoundValidation {
+
+    public ConsensusRoundsNodeOrigin getNodeOrigin() {
+        return ConsensusRoundsNodeOrigin.DIFFERENT;
+    }
 
     /**
      * Validate the timestamps in consensus rounds.

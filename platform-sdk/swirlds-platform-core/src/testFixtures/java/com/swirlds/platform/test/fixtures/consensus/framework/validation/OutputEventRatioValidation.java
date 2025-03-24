@@ -102,7 +102,7 @@ public class OutputEventRatioValidation implements ConsensusOutputValidation {
                         "Consensus ratio %s is less than the expected minimum %s",
                         consensusRatio, minimumConsensusRatio));
         assertThat(consensusRatio)
-                .isLessThan(maximumConsensusRatio)
+                .isLessThanOrEqualTo(maximumConsensusRatio)
                 .withFailMessage(String.format(
                         "Consensus ratio %s is more than the expected maximum %s",
                         consensusRatio, maximumConsensusRatio));

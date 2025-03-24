@@ -8,7 +8,6 @@ import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
@@ -25,6 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -178,9 +178,7 @@ public class Turtle {
                             "The number of consensus rounds is not the same."
                                     + "output1 has %d rounds, output2 has %d rounds",
                             consensusRoundsForNode1.size(), consensusRoundsForOtherNode.size()));
-            for (int j = 0; i < consensusRoundsForNode1.size(); j++) {
-                consensusRoundValidator.validate(consensusRoundsForNode1.get(j), consensusRoundsForOtherNode.get(j));
-            }
+            consensusRoundValidator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
 
             otherNode.getConsensusRoundsHolder().clear();
         }

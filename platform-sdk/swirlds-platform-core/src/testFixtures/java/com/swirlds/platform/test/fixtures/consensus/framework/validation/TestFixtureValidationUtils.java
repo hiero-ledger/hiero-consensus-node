@@ -6,7 +6,7 @@ import java.util.List;
 import org.assertj.core.api.Assertions;
 import org.hiero.consensus.model.event.PlatformEvent;
 
-public class PlatformTestFixtureValidationUtils {
+public class TestFixtureValidationUtils {
 
     /**
      * Assert that base events for equality. This does not check any consensus data, only pre-consensus. If the equality

@@ -3,6 +3,7 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator.ConsensusRoundsNodeOrigin;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 import java.util.Objects;
@@ -10,6 +11,10 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 public class RoundInternalEqualityValidation implements ConsensusRoundValidation {
+
+    public ConsensusRoundsNodeOrigin getNodeOrigin() {
+        return ConsensusRoundsNodeOrigin.DIFFERENT;
+    }
 
     @Override
     public void validate(@NonNull final ConsensusRound round1, @NonNull final ConsensusRound round2) {

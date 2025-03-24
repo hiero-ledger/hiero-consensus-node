@@ -14,7 +14,7 @@ import org.hiero.consensus.model.crypto.Hashable;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 @SuppressWarnings("unused") // issue tracked #6998
-public final class OutputLackOfLostEventsValidation {
+public final class OutputLackOfLostEventsValidation implements ConsensusOutputValidation {
     private static final ConsensusConfig CONFIG =
             new TestConfigBuilder().getOrCreateConfig().getConfigData(ConsensusConfig.class);
 
@@ -24,8 +24,7 @@ public final class OutputLackOfLostEventsValidation {
      * Validates that all ancient events are either stale or consensus, but not both. Non-ancient events could be
      * neither, so they are not checked.
      */
-    public static void validateNoEventsAreLost(
-            @NonNull final ConsensusOutput output, @NonNull final ConsensusOutput ignored) {
+    public void validate(@NonNull final ConsensusOutput output, @NonNull final ConsensusOutput ignored) {
         final Map<Hash, PlatformEvent> stale =
                 output.getStaleEvents().stream().collect(Collectors.toMap(Hashable::getHash, e -> e));
         final Map<Hash, PlatformEvent> cons = output.getConsensusRounds().stream()
