@@ -10,12 +10,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -25,8 +22,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -69,12 +64,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                ethereumCall(CONTRACT, FUNCTION, jumboPayload)
-                        .markAsJumboTxn()
-                        .payingWith(RELAYER)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L)
+                jumboEthCall(jumboPayload)
                         // gRPC request terminated immediately
                         .orUnavailableStatus());
     }
@@ -101,22 +91,12 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .orUnavailableStatus(),
 
                 // send too big payload to jumbo endpoint
-                ethereumCall(CONTRACT, FUNCTION, tooBigPayload)
-                        .payingWith(RELAYER)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .markAsJumboTxn()
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L)
+                jumboEthCall(tooBigPayload)
                         // gRPC request terminated immediately
                         .orUnavailableStatus(),
 
                 // send jumbo payload to jumbo endpoint
-                ethereumCall(CONTRACT, FUNCTION, jumboPayload)
-                        .payingWith(RELAYER)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .markAsJumboTxn()
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L));
+                jumboEthCall(jumboPayload));
     }
 
     // This tests depends on the feature flag being enabled, so we need to upgrade to the next config version.
@@ -125,8 +105,8 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @DisplayName("Jumbo transaction gets bytes throttled at ingest")
     @LeakyHapiTest(overrides = {"jumboTransactions.isEnabled", "jumboTransactions.maxBytesPerSec"})
     public Stream<DynamicTest> jumboTransactionGetsThrottledAtIngest() {
-        final var size = 126 * 1024;
-        final var bytesPerSec = 140 * 1024;
+        final var size = 127 * 1024;
+        final var bytesPerSec = 130 * 1024;
         final var payload = new byte[size];
         return hapiTest(
                 overridingTwo(

@@ -811,7 +811,6 @@ public class ThrottleAccumulator {
             @NonNull final ThrottleReqsManager manager, final long bytesUsed, @NonNull final Instant now) {
         // If the bucket doesn't allow the thx enforce the throttle
         if (bytesThrottle != null && !bytesThrottle.allow(now, bytesUsed)) {
-            bytesThrottle.reclaimLastAllowedUse();
             return true;
         }
         // We enforce the limit on the EthereumTxn TPS

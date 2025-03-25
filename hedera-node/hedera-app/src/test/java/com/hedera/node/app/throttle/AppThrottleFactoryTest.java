@@ -111,7 +111,6 @@ class AppThrottleFactoryTest {
                 .willReturn(throttleAccumulator);
         given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
         given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);
-        given(throttleAccumulator.bytesLimitThrottle()).willReturn(bytesThrottle);
 
         final var throttle = subject.newThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS);
 
