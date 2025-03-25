@@ -146,7 +146,7 @@ public class GasCalculationIntegrityTest {
                 updateRates(rates.hBarEquiv, rates.centEquiv),
                 numericContract
                         .call("approveRedirect", nft, bob, BigInteger.valueOf(7))
-                        .gas(756_829L)
+                        .gas(756_829L + MAX_GAS_VARIANCE)
                         .via("approveRedirectTxn")
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
                 restoreOriginalRates(),
@@ -161,7 +161,7 @@ public class GasCalculationIntegrityTest {
                 updateRates(rates.hBarEquiv, rates.centEquiv),
                 numericContract
                         .call("approve", fungibleToken, alice, BigInteger.TWO)
-                        .gas(742_977L)
+                        .gas(742_977L + MAX_GAS_VARIANCE)
                         .via("approveTxn")
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
                 restoreOriginalRates(),
@@ -185,7 +185,7 @@ public class GasCalculationIntegrityTest {
                                 denominator,
                                 minAmount,
                                 maxAmount)
-                        .gas(165_038L)
+                        .gas(165_038L + MAX_GAS_VARIANCE)
                         .sending(THOUSAND_HBAR)
                         .via("createWithCustomFeeFractional")
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
@@ -201,7 +201,7 @@ public class GasCalculationIntegrityTest {
                 updateRates(rates.hBarEquiv, rates.centEquiv),
                 numericContractComplex
                         .call("createNonFungibleTokenWithCustomRoyaltyFeesV3", alice.getED25519KeyBytes(), 1L, 2L, 10L)
-                        .gas(169_584L)
+                        .gas(169_584L + MAX_GAS_VARIANCE)
                         .sending(THOUSAND_HBAR)
                         .payingWith(alice)
                         .via("createWithCustomFeeRoyalty")
@@ -218,7 +218,7 @@ public class GasCalculationIntegrityTest {
                 updateRates(rates.hBarEquiv, rates.centEquiv),
                 numericContractComplex
                         .call("createFungibleToken", EXPIRY_RENEW, EXPIRY_RENEW, 10000L, BigInteger.TEN, BigInteger.TWO)
-                        .gas(165_800L)
+                        .gas(165_800L + MAX_GAS_VARIANCE)
                         .sending(THOUSAND_HBAR)
                         .via("createFungibleToken")
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
@@ -234,7 +234,7 @@ public class GasCalculationIntegrityTest {
                 updateRates(rates.hBarEquiv, rates.centEquiv),
                 numericContractComplex
                         .call("createNonFungibleTokenV3", alice.getED25519KeyBytes(), EXPIRY_RENEW, EXPIRY_RENEW, 10L)
-                        .gas(166_944L)
+                        .gas(166_944L + MAX_GAS_VARIANCE)
                         .sending(THOUSAND_HBAR)
                         .payingWith(alice)
                         .via("createNonFungibleTokenV3")
@@ -251,7 +251,7 @@ public class GasCalculationIntegrityTest {
                 updateRates(rates.hBarEquiv, rates.centEquiv),
                 numericContractComplex
                         .call("cryptoTransferV2", new long[] {-5, 5}, alice, bob)
-                        .gas(33_404L)
+                        .gas(33_404L + MAX_GAS_VARIANCE)
                         .via("cryptoTransferV2")
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
                 restoreOriginalRates(),
@@ -273,7 +273,7 @@ public class GasCalculationIntegrityTest {
                                 fungibleToken.treasury(),
                                 bob)
                         .via("cryptoTransferFungibleV1")
-                        .gas(763_580L)
+                        .gas(763_580L + MAX_GAS_VARIANCE)
                         .andAssert(
                                 txn -> txn.exposingGasTo(autoAssociationGasAssertion(autoAssociateGasUsed, gasUsed))),
                 restoreOriginalRates(),
@@ -289,7 +289,7 @@ public class GasCalculationIntegrityTest {
                 updateRates(rates.hBarEquiv, rates.centEquiv),
                 numericContractComplex
                         .call("cryptoTransferNonFungible", nft, nft.treasury(), bob, 1L)
-                        .gas(761_170L)
+                        .gas(761_170L + MAX_GAS_VARIANCE)
                         .via("cryptoTransferNonFungible")
                         .andAssert(
                                 txn -> txn.exposingGasTo(autoAssociationGasAssertion(autoAssociateGasUsed, gasUsed))),
@@ -308,7 +308,7 @@ public class GasCalculationIntegrityTest {
                 numericContractComplex
                         .call("transferNFTs", nft, nft.treasury(), alice, new long[] {4L})
                         .via("transferNFTs")
-                        .gas(761_619L)
+                        .gas(761_619L + MAX_GAS_VARIANCE)
                         .andAssert(
                                 txn -> txn.exposingGasTo(autoAssociationGasAssertion(autoAssociateGasUsed, gasUsed))),
                 restoreOriginalRates(),
@@ -326,7 +326,7 @@ public class GasCalculationIntegrityTest {
                 numericContractComplex
                         .call("transferTokenTest", anotherFungibleToken, anotherFungibleToken.treasury(), alice, 1L)
                         .via("transferTokenTest")
-                        .gas(758_668L)
+                        .gas(758_668L + MAX_GAS_VARIANCE)
                         .andAssert(
                                 txn -> txn.exposingGasTo(autoAssociationGasAssertion(autoAssociateGasUsed, gasUsed))),
                 restoreOriginalRates(),
@@ -343,7 +343,7 @@ public class GasCalculationIntegrityTest {
                 numericContractComplex
                         .call("transferNFTTest", nft, nft.treasury(), alice, 3L)
                         .via("transferNFTTest")
-                        .gas(42_335L)
+                        .gas(42_335L + MAX_GAS_VARIANCE)
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
                 restoreOriginalRates(),
                 getTxnRecord("transferNFTTest").logged(),
@@ -360,7 +360,7 @@ public class GasCalculationIntegrityTest {
                 numericContractComplex
                         .call("transferFrom", fungibleToken, fungibleToken.treasury(), alice, BigInteger.ONE)
                         .via("transferFrom")
-                        .gas(42_364L)
+                        .gas(42_364L + MAX_GAS_VARIANCE)
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
                 restoreOriginalRates(),
                 getTxnRecord("transferFrom").logged()));
@@ -376,7 +376,7 @@ public class GasCalculationIntegrityTest {
                 numericContractComplex
                         .call("transferFromERC", fungibleToken, fungibleToken.treasury(), alice, BigInteger.ONE)
                         .via("transferFromERC")
-                        .gas(44_900L)
+                        .gas(44_900L + MAX_GAS_VARIANCE)
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
                 restoreOriginalRates(),
                 getTxnRecord("transferFromERC").logged()));
@@ -392,7 +392,7 @@ public class GasCalculationIntegrityTest {
                 numericContractComplex
                         .call("transferFromNFT", nft, nft.treasury(), alice, BigInteger.TWO)
                         .via("transferFromNFT")
-                        .gas(42_363L)
+                        .gas(42_363L + MAX_GAS_VARIANCE)
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
                 getTxnRecord("transferFromNFT").logged(),
                 restoreOriginalRates(),
@@ -407,7 +407,7 @@ public class GasCalculationIntegrityTest {
                 updateRates(ratesProvider.hBarEquiv, ratesProvider.centEquiv),
                 tokenInfoContract
                         .call("getInformationForToken", token)
-                        .gas(78_905L)
+                        .gas(78_905L + MAX_GAS_VARIANCE)
                         .via("tokenInfo")
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
                 restoreOriginalRates(),
@@ -422,7 +422,7 @@ public class GasCalculationIntegrityTest {
                 updateRates(ratesProvider.hBarEquiv, ratesProvider.centEquiv),
                 tokenInfoContract
                         .call("getCustomFeesForToken", token)
-                        .gas(31_521L)
+                        .gas(31_521L + MAX_GAS_VARIANCE)
                         .via("customFees")
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
                 restoreOriginalRates(),
@@ -437,7 +437,7 @@ public class GasCalculationIntegrityTest {
                 updateRates(ratesProvider.hBarEquiv, ratesProvider.centEquiv),
                 erc20Contract
                         .call("name", token)
-                        .gas(30_307L)
+                        .gas(30_307L + MAX_GAS_VARIANCE)
                         .via("name")
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
                 restoreOriginalRates(),
@@ -452,7 +452,7 @@ public class GasCalculationIntegrityTest {
                 updateRates(ratesProvider.hBarEquiv, ratesProvider.centEquiv),
                 erc20Contract
                         .call("balanceOf", token, alice)
-                        .gas(30_174L)
+                        .gas(30_174L + MAX_GAS_VARIANCE)
                         .via("balance")
                         .andAssert(txn -> txn.exposingGasTo(constantGasAssertion(gasUsed))),
                 restoreOriginalRates(),
