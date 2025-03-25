@@ -18,7 +18,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
@@ -51,6 +50,10 @@ import org.junit.jupiter.api.Tag;
 @DisplayName("Gas Integrity Tests for Token Contracts")
 @HapiTestLifecycle
 public class GasCalculationIntegrityTest {
+    // The intrinsic gas cost can vary with the number of binary zeros in the calldata,
+    // so larger token id numbers can actually result in higher gas costs; we assume
+    // even in CI this will not amount to more than a few hundred gas units
+    public static final long MAX_GAS_VARIANCE = 256L;
 
     @Contract(contract = "NumericContract", creationGas = 1_000_000L)
     static SpecContract numericContract;
@@ -475,7 +478,9 @@ public class GasCalculationIntegrityTest {
             if (gasUsed.get() == 0) {
                 gasUsed.set(gas);
             }
-            assertEquals(gasUsed.get(), gas, "Gas used should be constant!");
+            assertTrue(
+                    Math.abs(gasUsed.get() - gas) < MAX_GAS_VARIANCE,
+                    "Gas used " + gas + " should be within " + MAX_GAS_VARIANCE + " of " + gasUsed.get());
         };
     }
 
