@@ -12,6 +12,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -66,11 +70,11 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         final var jumboPayload = new byte[10 * 1024];
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
                 ethereumCall(CONTRACT, FUNCTION, jumboPayload)
                         .markAsJumboTxn()
-                        .signingWith(SECP_256K1_SOURCE_KEY)
                         .payingWith(RELAYER)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .gasLimit(1_000_000L)
                         // gRPC request terminated immediately
@@ -84,12 +88,13 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         final var jumboPayload = new byte[10 * 1024];
         final var tooBigPayload = new byte[130 * 1024 + 1];
         return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+
                 // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),
                 // so we can't toggle it via overriding(). Instead, we need to upgrade to the config version.
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
 
                 // send jumbo payload to non jumbo endpoint
                 contractCall(CONTRACT, FUNCTION, jumboPayload)
@@ -99,24 +104,21 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
                 // send too big payload to jumbo endpoint
                 ethereumCall(CONTRACT, FUNCTION, tooBigPayload)
+                        .payingWith(RELAYER)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
                         .markAsJumboTxn()
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .gasLimit(1_000_000L)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .payingWith(RELAYER)
                         // gRPC request terminated immediately
                         .orUnavailableStatus(),
 
                 // send jumbo payload to jumbo endpoint
                 ethereumCall(CONTRACT, FUNCTION, jumboPayload)
+                        .payingWith(RELAYER)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
                         .markAsJumboTxn()
                         .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .payingWith(RELAYER)
-                        // Ethereum call should pass
-                        // (TRANSACTION_OVERSIZE will be returned on ingest until we merge the ingest checks)
-                        .hasPrecheckFrom(OK, TRANSACTION_OVERSIZE));
+                        .gasLimit(1_000_000L));
     }
 
     // This tests depends on the feature flag being enabled, so we need to upgrade to the next config version.
