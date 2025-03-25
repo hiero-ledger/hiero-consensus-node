@@ -29,7 +29,6 @@ module com.hedera.node.app {
     requires transitive com.swirlds.state.impl;
     requires transitive dagger;
     requires transitive io.grpc.stub;
-    requires transitive io.helidon.webclient.grpc;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;
     requires transitive org.hyperledger.besu.datatypes;
@@ -50,8 +49,6 @@ module com.hedera.node.app {
     requires com.google.common;
     requires io.grpc.netty;
     requires io.grpc;
-    requires io.helidon.common.tls;
-    requires io.helidon.webclient.api;
     requires io.netty.handler;
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;
