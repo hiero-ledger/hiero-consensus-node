@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Tag;
  *
  * <p>Even with a 3s TTL, a number of these tests fail. FUTURE: revisit
  */
-@Tag(CRYPTO)
+//@Tag(CRYPTO)
 public class TxnRecordRegression {
     @HapiTest
     final Stream<DynamicTest> recordsStillQueryableWithDeletedPayerId() {

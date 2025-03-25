@@ -88,7 +88,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(CRYPTO)
+//@Tag(CRYPTO)
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 public class CryptoUpdateSuite {
     private static final String TEST_ACCOUNT = "testAccount";

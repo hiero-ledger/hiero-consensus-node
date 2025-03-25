@@ -43,7 +43,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(CRYPTO)
+//@Tag(CRYPTO)
 public class CryptoGetInfoRegression {
     static final Logger log = LogManager.getLogger(CryptoGetInfoRegression.class);
 

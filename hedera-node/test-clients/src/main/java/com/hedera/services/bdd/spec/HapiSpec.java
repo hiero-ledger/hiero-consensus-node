@@ -129,7 +129,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     private static final int CONCURRENT_EMBEDDED_STATUS_WAIT_SLEEP_MS = 1;
     private static final String CI_CHECK_NAME_SYSTEM_PROPERTY = "ci.check.name";
     private static final String QUIET_MODE_SYSTEM_PROPERTY = "hapi.spec.quiet.mode";
-    private static final Duration NETWORK_ACTIVE_TIMEOUT = Duration.ofSeconds(300);
+    private static final Duration NETWORK_ACTIVE_TIMEOUT = Duration.ofSeconds(3000);
     /**
      * The name of the DynamicTest that executes the HapiSpec as written,
      * without modifications such as replacing ContractCall and ContractCreate

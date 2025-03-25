@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Tag;
  * to decrease the expiration time of any entity, so we cannot test the behavior of the network when
  * the auto-created account is about to expire.
  */
-@Tag(CRYPTO)
+//@Tag(CRYPTO)
 public class AutoAccountUpdateSuite {
     public static final long INITIAL_BALANCE = 1000L;
 

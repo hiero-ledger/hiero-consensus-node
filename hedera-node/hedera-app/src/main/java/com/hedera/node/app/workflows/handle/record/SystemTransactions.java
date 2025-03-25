@@ -5,23 +5,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
-import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
-import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.BYTECODE_KEY;
-import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.STORAGE_KEY;
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
-import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_COUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_KEY;
 import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.independentDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
@@ -46,7 +32,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -55,14 +40,10 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.records.BlockRecordManager;
-import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
-import com.hedera.node.app.service.consensus.ConsensusService;
-import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
-import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
@@ -371,95 +352,6 @@ public class SystemTransactions {
         if (autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext)) {
             dispatch.stack().commitFullStack();
         }
-    }
-
-    /**
-     * Initialize the entity counts in entityId service from the post-upgrade and genesis state.
-     * This should only be done as part of 0.59.0 post upgrade step.
-     * This code is deprecated and should be removed
-     * after 0.59.0 release.
-     *
-     * @param dispatch the transaction dispatch
-     */
-    @Deprecated
-    public void initializeEntityCounts(@NonNull final Dispatch dispatch) {
-        final var stack = dispatch.stack();
-        final var entityCountsState =
-                stack.getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_KEY);
-        final var builder = EntityCounts.newBuilder();
-
-        final var tokenService = stack.getReadableStates(TokenService.NAME);
-        final var numAccounts = tokenService.get(ACCOUNTS_KEY).size();
-        final var numAliases = tokenService.get(ALIASES_KEY).size();
-        final var numTokens = tokenService.get(TOKENS_KEY).size();
-        final var numTokenRelations = tokenService.get(TOKEN_RELS_KEY).size();
-        final var numNfts = tokenService.get(NFTS_KEY).size();
-        final var numAirdrops = tokenService.get(AIRDROPS_KEY).size();
-        final var numStakingInfos = tokenService.get(STAKING_INFO_KEY).size();
-
-        final var numTopics =
-                stack.getReadableStates(ConsensusService.NAME).get(TOPICS_KEY).size();
-        final var numFiles =
-                stack.getReadableStates(FileServiceImpl.NAME).get(BLOBS_KEY).size();
-        final var numNodes =
-                stack.getReadableStates(AddressBookService.NAME).get(NODES_KEY).size();
-        final var numSchedules = stack.getReadableStates(ScheduleService.NAME)
-                .get(SCHEDULED_COUNTS_KEY)
-                .size();
-
-        final var contractService = stack.getReadableStates(ContractService.NAME);
-        final var numContractBytecodes = contractService.get(BYTECODE_KEY).size();
-        final var numContractStorageSlots = contractService.get(STORAGE_KEY).size();
-
-        log.info(
-                """
-                         Entity size from state:
-                         Accounts: {},\s
-                         Aliases: {},\s
-                         Tokens: {},\s
-                         TokenRelations: {},\s
-                         NFTs: {},\s
-                         Airdrops: {},\s
-                         StakingInfos: {},\s
-                         Topics: {},\s
-                         Files: {},\s
-                         Nodes: {},\s
-                         Schedules: {},\s
-                         ContractBytecodes: {},\s
-                         ContractStorageSlots: {}
-                        \s""",
-                numAccounts,
-                numAliases,
-                numTokens,
-                numTokenRelations,
-                numNfts,
-                numAirdrops,
-                numStakingInfos,
-                numTopics,
-                numFiles,
-                numNodes,
-                numSchedules,
-                numContractBytecodes,
-                numContractStorageSlots);
-
-        final var entityCountsUpdated = builder.numAccounts(numAccounts)
-                .numAliases(numAliases)
-                .numTokens(numTokens)
-                .numTokenRelations(numTokenRelations)
-                .numNfts(numNfts)
-                .numAirdrops(numAirdrops)
-                .numStakingInfos(numStakingInfos)
-                .numTopics(numTopics)
-                .numFiles(numFiles)
-                .numNodes(numNodes)
-                .numSchedules(numSchedules)
-                .numContractBytecodes(numContractBytecodes)
-                .numContractStorageSlots(numContractStorageSlots)
-                .build();
-
-        entityCountsState.put(entityCountsUpdated);
-        log.info("Initialized entity counts for post-upgrade state to {}", entityCountsUpdated);
-        dispatch.stack().commitFullStack();
     }
 
     /**

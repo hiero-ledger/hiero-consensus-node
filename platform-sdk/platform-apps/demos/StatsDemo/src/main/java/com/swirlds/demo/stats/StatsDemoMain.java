@@ -36,6 +36,7 @@ import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -45,6 +46,7 @@ import java.util.IllegalFormatException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
+import java.util.function.Function;
 
 /**
  * This demo collects statistics on the running of the network and consensus systems. It writes them to the
@@ -306,6 +308,12 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
         final StatsDemoState state = new StatsDemoState();
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
         return state;
+    }
+
+    // TODO: GitHub issue TBD
+    @Override
+    public Function<VirtualMap, StatsDemoState> stateRootFromVirtualMap() {
+        throw new UnsupportedOperationException();
     }
 
     @NonNull

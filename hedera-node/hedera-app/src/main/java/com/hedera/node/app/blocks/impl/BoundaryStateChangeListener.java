@@ -43,6 +43,7 @@ import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.merkle.StateUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -64,8 +65,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
 
     private final SortedMap<Integer, StateChange> singletonUpdates = new TreeMap<>();
     private final SortedMap<Integer, List<StateChange>> queueUpdates = new TreeMap<>();
-    private static final int ENTITY_COUNTS_STATE_ID =
-            BlockImplUtils.stateIdFor(EntityIdService.NAME, ENTITY_COUNTS_KEY);
+    private static final int ENTITY_COUNTS_STATE_ID = StateUtils.stateIdFor(EntityIdService.NAME, ENTITY_COUNTS_KEY);
 
     @Nullable
     private Instant lastConsensusTime;
@@ -160,7 +160,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
 
     @Override
     public int stateIdFor(@NonNull final String serviceName, @NonNull final String stateKey) {
-        return BlockImplUtils.stateIdFor(serviceName, stateKey);
+        return StateUtils.stateIdFor(serviceName, stateKey);
     }
 
     @Override

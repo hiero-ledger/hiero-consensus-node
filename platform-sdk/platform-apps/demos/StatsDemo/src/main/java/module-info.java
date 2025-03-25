@@ -9,6 +9,7 @@ module com.swirlds.demo.stats {
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
     requires com.swirlds.state.impl;
+    requires com.swirlds.virtualmap;
     requires java.desktop;
     requires static com.github.spotbugs.annotations;
 }

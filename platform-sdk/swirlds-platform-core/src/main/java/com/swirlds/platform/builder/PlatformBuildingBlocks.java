@@ -16,6 +16,7 @@ import com.swirlds.platform.pool.TransactionPoolNexus;
 import com.swirlds.platform.roster.RosterHistory;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -25,6 +26,7 @@ import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -115,7 +117,9 @@ public record PlatformBuildingBlocks(
         @NonNull AtomicReference<Runnable> clearAllPipelinesForReconnectReference,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
-        @NonNull PlatformStateFacade platformStateFacade) {
+        @NonNull PlatformStateFacade platformStateFacade,
+        // TODO: add javadoc
+        @NonNull Function<VirtualMap, MerkleNodeState> stateRootFunction) {
 
     public PlatformBuildingBlocks {
         requireNonNull(platformWiring);
@@ -143,5 +147,8 @@ public record PlatformBuildingBlocks(
         requireNonNull(getLatestCompleteStateReference);
         requireNonNull(loadReconnectStateReference);
         requireNonNull(clearAllPipelinesForReconnectReference);
+        requireNonNull(consensusStateEventHandler);
+        requireNonNull(platformStateFacade);
+        requireNonNull(stateRootFunction);
     }
 }

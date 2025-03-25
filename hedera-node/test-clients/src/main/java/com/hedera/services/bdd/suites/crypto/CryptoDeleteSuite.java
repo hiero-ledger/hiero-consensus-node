@@ -55,7 +55,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(CRYPTO)
+//@Tag(CRYPTO)
 public class CryptoDeleteSuite {
     private static final long TOKEN_INITIAL_SUPPLY = 500;
     private static final String TRANSFER_ACCOUNT = "transferAccount";

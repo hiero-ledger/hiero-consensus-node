@@ -51,8 +51,8 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -97,12 +97,15 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
         entityCountsBackingStore = new AtomicReference<>(EntityCounts.DEFAULT);
 
         when(writableStates.getSingleton(ENTITY_COUNTS_KEY))
-                .then(invocation -> new WritableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY, entityCountsBackingStore::get, entityCountsBackingStore::set));
+                .then(invocation -> new FunctionWritableSingletonState<>(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_KEY,
+                        entityCountsBackingStore::get,
+                        entityCountsBackingStore::set));
 
         when(writableStates.getSingleton(FREEZE_TIME_KEY))
-                .then(invocation -> new WritableSingletonStateBase<>(
-                        FREEZE_TIME_KEY, freezeTimeBackingStore::get, freezeTimeBackingStore::set));
+                .then(invocation -> new FunctionWritableSingletonState<>(
+                        FreezeService.NAME, FREEZE_TIME_KEY, freezeTimeBackingStore::get, freezeTimeBackingStore::set));
 
         state = new FakeState()
                 .addService(FreezeService.NAME, Map.of(FREEZE_TIME_KEY, freezeTimeBackingStore))

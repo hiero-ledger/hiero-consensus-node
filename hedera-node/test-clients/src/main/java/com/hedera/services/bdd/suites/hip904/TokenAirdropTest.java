@@ -127,7 +127,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
 
-@Tag(CRYPTO)
+//@Tag(CRYPTO)
 @HapiTestLifecycle
 @DisplayName("Token airdrop")
 public class TokenAirdropTest extends TokenAirdropBase {

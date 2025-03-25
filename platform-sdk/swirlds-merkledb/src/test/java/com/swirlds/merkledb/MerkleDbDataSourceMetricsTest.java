@@ -3,11 +3,11 @@ package com.swirlds.merkledb;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFalse;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createMetrics;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getMetric;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.hash;
 import static com.swirlds.merkledb.test.fixtures.TestType.long_fixed;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.base.units.UnitConstants;
@@ -15,8 +15,8 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
-import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;

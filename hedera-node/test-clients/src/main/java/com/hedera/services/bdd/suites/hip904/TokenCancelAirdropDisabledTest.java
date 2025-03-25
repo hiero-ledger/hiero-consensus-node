@@ -18,7 +18,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(CRYPTO)
+//@Tag(CRYPTO)
 @HapiTestLifecycle
 @DisplayName("Disabled token cancel airdrop")
 public class TokenCancelAirdropDisabledTest extends TokenAirdropBase {

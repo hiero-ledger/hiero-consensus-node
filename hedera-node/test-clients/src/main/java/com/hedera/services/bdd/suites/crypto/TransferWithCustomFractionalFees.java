@@ -28,7 +28,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(CRYPTO)
+//@Tag(CRYPTO)
 public class TransferWithCustomFractionalFees {
     private static final long tokenTotal = 1_000L;
     private static final long numerator = 1L;

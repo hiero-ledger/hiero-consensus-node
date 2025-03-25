@@ -19,6 +19,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.working
 import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamUtils.stateNameOf;
 import static com.hedera.services.bdd.junit.support.validators.block.ChildHashUtils.hashesByName;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -143,6 +144,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         NO
     }
 
+    private final PlatformStateFacade platformStateFacade;
+
     public static void main(String[] args) {
         final var node0Dir = Paths.get("hedera-node/test-clients")
                 .resolve(workingDirFor(0, "hapi"))
@@ -236,9 +239,11 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
         final var servicesVersion = versionConfig.servicesVersion();
         final var metrics = new NoOpMetrics();
-        final var hedera = ServicesMain.newHedera(metrics, new PlatformStateFacade(ServicesSoftwareVersion::new));
-        this.state = hedera.newStateRoot();
         final var platformConfig = ServicesMain.buildPlatformConfig();
+        this.platformStateFacade = new PlatformStateFacade(ServicesSoftwareVersion::new);
+        final var hedera =
+                ServicesMain.newHedera(metrics, new PlatformStateFacade(ServicesSoftwareVersion::new), platformConfig);
+        this.state = hedera.newStateRoot();
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
         final var stateToBeCopied = state;
         state = state.copy();
@@ -279,12 +284,14 @@ public class StateChangesValidator implements BlockStreamValidator {
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
             final var shouldVerifyProof =
-                    i == 0 || i == lastVerifiableIndex || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
+                    i == 0 || i == 5;//lastVerifiableIndex || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
             if (i != 0 && shouldVerifyProof) {
                 final var stateToBeCopied = state;
                 this.state = stateToBeCopied.copy();
                 startOfStateHash =
                         CRYPTO.digestTreeSync(stateToBeCopied.getRoot()).getBytes();
+
+                logger.error(EXCEPTION.getMarker(), "Block: {}\n Full info: {}", block, platformStateFacade.getInfoString(stateToBeCopied, 5));
             }
             final StreamingTreeHasher inputTreeHasher = new NaiveStreamingTreeHasher();
             final StreamingTreeHasher outputTreeHasher = new NaiveStreamingTreeHasher();

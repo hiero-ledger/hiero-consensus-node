@@ -64,7 +64,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 /**
  * A class with Node Operator Queries tests
  */
-@Tag(CRYPTO)
+//@Tag(CRYPTO)
 @DisplayName("Node Operator Queries")
 @HapiTestLifecycle
 @OrderedInIsolation

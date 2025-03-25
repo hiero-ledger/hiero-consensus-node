@@ -5,7 +5,6 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static com.swirlds.state.merkle.MerkleStateRoot.CURRENT_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.node.app.services.MigrationStateChanges;
 import com.hedera.node.config.data.HederaConfig;
@@ -23,7 +22,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -291,12 +289,11 @@ class SerializationTest extends MerkleTestBase {
                 schemaV1.getVersion(),
                 config,
                 config,
-                mock(Metrics.class),
                 new HashMap<>(),
                 migrationStateChanges,
                 startupNetworks,
                 TEST_PLATFORM_STATE_FACADE);
-        loadedTree.getRoot().migrate(CURRENT_VERSION);
+        loadedTree.getRoot().migrate(CONFIGURATION, CURRENT_VERSION);
     }
 
     private MerkleNodeState createMerkleHederaState(Schema schemaV1) {
@@ -313,7 +310,6 @@ class SerializationTest extends MerkleTestBase {
                 v1,
                 config,
                 config,
-                mock(Metrics.class),
                 new HashMap<>(),
                 migrationStateChanges,
                 startupNetworks,

@@ -224,7 +224,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      *
      * @return The current root node
      */
-    VirtualRootNode getRoot() {
+    public VirtualRootNode getRoot() {
         return root;
     }
 

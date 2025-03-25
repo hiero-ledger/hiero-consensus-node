@@ -86,9 +86,9 @@ public record VirtualMapConfig(
         @ConstraintMethod("virtualMapWarningIntervalValidation") @Min(1) @ConfigProperty(defaultValue = "100000")
                 long virtualMapWarningInterval,
         @Min(1) @ConfigProperty(defaultValue = "20") int flushInterval,
-        @ConfigProperty(defaultValue = "250000000") long copyFlushCandidateThreshold,
+        @ConfigProperty(defaultValue = "2000000000") long copyFlushCandidateThreshold,
         // values
-        @ConfigProperty(defaultValue = "2500000000") long familyThrottleThreshold,
+        @ConfigProperty(defaultValue = "20000000000") long familyThrottleThreshold,
         @ConfigProperty(defaultValue = "10000") int preferredFlushQueueSize,
         @ConfigProperty(defaultValue = "200ms") Duration flushThrottleStepSize,
         @ConfigProperty(defaultValue = "5s") Duration maximumFlushThrottlePeriod) {

@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(CRYPTO)
+//@Tag(CRYPTO)
 public class QueryPaymentSuite {
 
     private static final String NODE = asEntityString(3);

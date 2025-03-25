@@ -67,7 +67,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(CRYPTO)
+//@Tag(CRYPTO)
 public class TransferWithCustomRoyaltyFees {
     private static final long numerator = 1L;
     private static final long denominator = 10L;

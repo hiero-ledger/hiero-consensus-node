@@ -21,16 +21,19 @@ import com.swirlds.platform.reconnect.ReconnectLearnerFactory;
 import com.swirlds.platform.reconnect.ReconnectLearnerThrottle;
 import com.swirlds.platform.reconnect.ReconnectPeerProtocol;
 import com.swirlds.platform.reconnect.ReconnectThrottle;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.system.status.PlatformStatus;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.hiero.consensus.gossip.FallenBehindManager;
@@ -113,7 +116,9 @@ public class ReconnectProtocol implements Protocol {
             @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final NodeId selfId,
             @NonNull final GossipController gossipController,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            // TODO: add javadoc
+            @NonNull Function<VirtualMap, MerkleNodeState> stateRootFunction) {
 
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
@@ -152,7 +157,8 @@ public class ReconnectProtocol implements Protocol {
                         roster,
                         reconnectConfig.asyncStreamTimeout(),
                         reconnectMetrics,
-                        platformStateFacade),
+                        platformStateFacade,
+                        stateRootFunction),
                 stateConfig,
                 platformStateFacade,
                 platformContext.getMerkleCryptography());

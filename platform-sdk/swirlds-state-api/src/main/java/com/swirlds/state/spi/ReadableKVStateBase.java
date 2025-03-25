@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.spi;
 
+import static java.util.Objects.requireNonNull;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.*;
@@ -14,8 +16,6 @@ import java.util.concurrent.ConcurrentMap;
  * @param <V> The value type
  */
 public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V> {
-    /** The state key, which cannot be null */
-    private final String stateKey;
 
     /**
      * A cache of all values read from this {@link ReadableKVState}. If the same value is read
@@ -31,23 +31,32 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
 
     private static final Object marker = new Object();
 
+    protected final String serviceName;
+
+    /** The state key, which cannot be null */
+    protected final String stateKey;
+
     /**
      * Create a new StateBase.
      *
+     * @param serviceName The name of the service that owns the state. Cannot be null.
      * @param stateKey The state key. Cannot be null.
      */
-    protected ReadableKVStateBase(@NonNull String stateKey) {
-        this(stateKey, new ConcurrentHashMap<>());
+    protected ReadableKVStateBase(@NonNull final String serviceName, @NonNull String stateKey) {
+        this(serviceName, stateKey, new ConcurrentHashMap<>());
     }
 
     /**
      * Create a new StateBase from the provided map.
      *
+     * @param serviceName The name of the service that owns the state. Cannot be null.
      * @param stateKey The state key. Cannot be null.
      * @param readCache A map that is used to init the cache.
      */
     // This constructor is used by some consumers of the API that are outside of this repository.
-    protected ReadableKVStateBase(@NonNull String stateKey, @NonNull ConcurrentMap<K, V> readCache) {
+    protected ReadableKVStateBase(
+            @NonNull final String serviceName, @NonNull String stateKey, @NonNull ConcurrentMap<K, V> readCache) {
+        this.serviceName = requireNonNull(serviceName);
         this.stateKey = Objects.requireNonNull(stateKey);
         this.readCache = Objects.requireNonNull(readCache);
         this.unmodifiableReadKeys = Collections.unmodifiableSet(readCache.keySet());
@@ -58,6 +67,12 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
     @NonNull
     public final String getStateKey() {
         return stateKey;
+    }
+
+    @Override
+    @NonNull
+    public final String getServiceName() {
+        return serviceName;
     }
 
     /** {@inheritDoc} */

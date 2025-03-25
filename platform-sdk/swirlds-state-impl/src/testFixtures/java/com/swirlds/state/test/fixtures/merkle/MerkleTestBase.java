@@ -265,7 +265,7 @@ public class MerkleTestBase extends StateTestBase {
         MerkleDb.resetDefaultInstancePath();
         final var byteInputStream = new ByteArrayInputStream(state);
         try (final var in = new MerkleDataInputStream(byteInputStream)) {
-            return in.readMerkleTree(tempDir, 100);
+            return in.readMerkleTree(CONFIGURATION, tempDir, 100);
         }
     }
 

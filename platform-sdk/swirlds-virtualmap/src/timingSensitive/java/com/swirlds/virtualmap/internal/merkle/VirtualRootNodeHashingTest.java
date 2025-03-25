@@ -8,9 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
-import com.swirlds.virtualmap.internal.hash.VirtualHasher;
-import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
+import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.test.fixtures.DummyVirtualStateAccessor;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;

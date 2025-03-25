@@ -49,8 +49,8 @@ import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.TestBase;
@@ -102,17 +102,18 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     protected State state;
 
     protected void setupStandardStates() {
-        accountsState = new MapWritableKVState<>(ACCOUNTS_KEY);
+        accountsState = new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_KEY);
         accountsState.put(ALICE.accountID(), ALICE.account());
         accountsState.put(ERIN.accountID(), ERIN.account());
         accountsState.put(STAKING_REWARD_ACCOUNT.accountID(), STAKING_REWARD_ACCOUNT.account());
         accountsState.put(FUNDING_ACCOUNT.accountID(), FUNDING_ACCOUNT.account());
         accountsState.put(nodeSelfAccountId, nodeSelfAccount);
         accountsState.commit();
-        aliasesState = new MapWritableKVState<>(ALIASES_KEY);
+        aliasesState = new MapWritableKVState<>(TokenService.NAME, ALIASES_KEY);
 
-        entityIdState = new WritableSingletonStateBase<>("ENTITY_ID", () -> null, (a) -> {});
-        entityCountsState = new WritableSingletonStateBase<>("ENTITY_COUNTS", () -> EntityCounts.DEFAULT, (a) -> {});
+        entityIdState = new FunctionWritableSingletonState<>(EntityIdService.NAME, "ENTITY_ID", () -> null, (a) -> {});
+        entityCountsState = new FunctionWritableSingletonState<>(
+                EntityIdService.NAME, "ENTITY_COUNTS", () -> EntityCounts.DEFAULT, (a) -> {});
         final var writableStates = MapWritableStates.builder()
                 .state(accountsState)
                 .state(aliasesState)

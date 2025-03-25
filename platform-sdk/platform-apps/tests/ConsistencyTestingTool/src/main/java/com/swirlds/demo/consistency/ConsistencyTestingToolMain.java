@@ -17,11 +17,13 @@ import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -105,6 +107,12 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
 
         return state;
+    }
+
+    // TODO: GitHub issue TBD
+    @Override
+    public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap() {
+        throw new UnsupportedOperationException();
     }
 
     /**

@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(CRYPTO)
+//@Tag(CRYPTO)
 public class NftTransferSuite {
     private static final String KEY = "multipurpose";
     private static final String USER_ACCOUNT_PREFIX = "party-";

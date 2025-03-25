@@ -22,11 +22,30 @@ class InMemoryWritableStateTest extends MerkleTestBase {
         }
 
         @Test
-        @DisplayName("You must specify the metadata")
-        void nullMetadataThrows() {
+        @DisplayName("You must specify the serviceName")
+        void nullServiceNameThrows() {
             //noinspection DataFlowIssue
             assertThatThrownBy(() -> new InMemoryWritableKVState<>(
-                            null, inMemoryValueClassId(FRUIT_STATE_KEY), STRING_CODEC, STRING_CODEC, fruitMerkleMap))
+                            null,
+                            FRUIT_STATE_KEY,
+                            inMemoryValueClassId(FRUIT_STATE_KEY),
+                            STRING_CODEC,
+                            STRING_CODEC,
+                            fruitMerkleMap))
+                    .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        @DisplayName("You must specify the stateKey")
+        void nullStateKeyThrows() {
+            //noinspection DataFlowIssue
+            assertThatThrownBy(() -> new InMemoryWritableKVState<>(
+                            FRUIT_SERVICE_NAME,
+                            null,
+                            inMemoryValueClassId(FRUIT_STATE_KEY),
+                            STRING_CODEC,
+                            STRING_CODEC,
+                            fruitMerkleMap))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -35,7 +54,12 @@ class InMemoryWritableStateTest extends MerkleTestBase {
         void nullMerkleMapThrows() {
             //noinspection DataFlowIssue
             assertThatThrownBy(() -> new InMemoryWritableKVState<>(
-                            FRUIT_STATE_KEY, inMemoryValueClassId(FRUIT_STATE_KEY), STRING_CODEC, STRING_CODEC, null))
+                            FRUIT_SERVICE_NAME,
+                            FRUIT_STATE_KEY,
+                            inMemoryValueClassId(FRUIT_STATE_KEY),
+                            STRING_CODEC,
+                            STRING_CODEC,
+                            null))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -49,7 +73,12 @@ class InMemoryWritableStateTest extends MerkleTestBase {
 
     private InMemoryWritableKVState<String, String> createState() {
         return new InMemoryWritableKVState<>(
-                FRUIT_STATE_KEY, inMemoryValueClassId(FRUIT_STATE_KEY), STRING_CODEC, STRING_CODEC, fruitMerkleMap);
+                FRUIT_SERVICE_NAME,
+                FRUIT_STATE_KEY,
+                inMemoryValueClassId(FRUIT_STATE_KEY),
+                STRING_CODEC,
+                STRING_CODEC,
+                fruitMerkleMap);
     }
 
     private void add(String key, String value) {

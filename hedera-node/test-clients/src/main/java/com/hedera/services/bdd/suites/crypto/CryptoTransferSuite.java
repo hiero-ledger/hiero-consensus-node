@@ -144,7 +144,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(CRYPTO)
+//@Tag(CRYPTO)
 public class CryptoTransferSuite {
     private static final String OWNER = "owner";
     private static final String OTHER_OWNER = "otherOwner";
