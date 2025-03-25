@@ -6,7 +6,6 @@ import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_B
 
 import com.swirlds.common.utility.RandomAccessDeque;
 import com.swirlds.common.utility.UnmodifiableIterator;
-import com.swirlds.platform.event.AncientMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -15,6 +14,7 @@ import java.util.Iterator;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * Tracks preconsensus event files currently on disk.

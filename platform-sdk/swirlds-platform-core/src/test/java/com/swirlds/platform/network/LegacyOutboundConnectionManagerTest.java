@@ -11,7 +11,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
 import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.util.ArrayList;
@@ -19,6 +18,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
 class LegacyOutboundConnectionManagerTest {

@@ -8,11 +8,9 @@ import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.formatting.TextTable;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.locks.AutoClosableLock;
 import com.swirlds.common.threading.locks.Locks;
 import com.swirlds.common.threading.locks.locked.Locked;
@@ -40,6 +38,10 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A utility for "taking notes" that are preserved across restart boundaries.
@@ -235,7 +237,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
             final Path scratchpadFile = files.get(files.size() - 1);
             nextScratchpadIndex = getFileIndex(scratchpadFile) + 1;
 
-            try (final SerializableDataInputStream in = new SerializableDataInputStream(
+            try (final SerializableDataInputStream in = new SerializableDataInputStreamImpl(
                     new BufferedInputStream(new FileInputStream(scratchpadFile.toFile())))) {
 
                 final int fileVersion = in.readInt();
@@ -269,7 +271,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
     @NonNull
     private Path flushToTemporaryFile() throws IOException {
         final Path temporaryFile = buildTemporaryFile(configuration);
-        try (final SerializableDataOutputStream out = new SerializableDataOutputStream(
+        try (final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(
                 new BufferedOutputStream(new FileOutputStream(temporaryFile.toFile(), false)))) {
 
             out.writeInt(fileVersion);

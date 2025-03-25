@@ -2,8 +2,8 @@
 package com.swirlds.common.test.fixtures.stream;
 
 import static com.swirlds.common.crypto.internal.CryptoUtils.getDetRandom;
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
 
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.stream.Signer;

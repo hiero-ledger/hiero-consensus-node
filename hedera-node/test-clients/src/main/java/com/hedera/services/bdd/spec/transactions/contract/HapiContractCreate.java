@@ -27,10 +27,11 @@ import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
+import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.reflect.InvocationTargetException;
@@ -47,6 +48,7 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreate> {
     static final Key DEPRECATED_CID_ADMIN_KEY = Key.newBuilder()
@@ -367,6 +369,9 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
                                 b.setStakedNodeId(stakedNodeId.get());
                             }
                             b.setDeclineReward(isDeclinedReward);
+
+                            b.setRealmID(RealmID.newBuilder().setShardNum(shard).setRealmNum(realm));
+                            b.setShardID(ShardID.newBuilder().setShardNum(shard));
                         });
         return b -> b.setContractCreateInstance(opBody);
     }

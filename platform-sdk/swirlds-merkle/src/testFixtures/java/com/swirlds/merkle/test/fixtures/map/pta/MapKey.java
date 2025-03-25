@@ -4,12 +4,12 @@ package com.swirlds.merkle.test.fixtures.map.pta;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Objects;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 public class MapKey implements SelfSerializable, Comparable<MapKey>, FastCopyable {
 

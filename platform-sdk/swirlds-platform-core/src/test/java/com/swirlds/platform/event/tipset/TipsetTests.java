@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.event.creation.tipset.Tipset;
 import com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
@@ -16,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

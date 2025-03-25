@@ -3,12 +3,11 @@ package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.parseSanitizedTimestamp;
 import static com.swirlds.common.formatting.StringFormattingUtils.sanitizeTimestamp;
-import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
+import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
+import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.utility.NonCryptographicHashing;
-import com.swirlds.platform.event.AncientMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -20,6 +19,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * <p>

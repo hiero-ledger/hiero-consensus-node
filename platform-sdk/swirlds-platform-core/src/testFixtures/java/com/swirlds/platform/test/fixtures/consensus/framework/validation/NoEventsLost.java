@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Hashable;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.RoundCalculationUtils;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.junit.jupiter.api.Assertions;
 
 @SuppressWarnings("unused") // issue tracked #6998

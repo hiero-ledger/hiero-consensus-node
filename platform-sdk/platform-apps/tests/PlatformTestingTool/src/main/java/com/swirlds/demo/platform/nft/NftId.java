@@ -2,12 +2,12 @@
 package com.swirlds.demo.platform.nft;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.exceptions.InvalidVersionException;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import java.io.IOException;
 import java.util.Objects;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A unique identifier for an {@link Nft}.

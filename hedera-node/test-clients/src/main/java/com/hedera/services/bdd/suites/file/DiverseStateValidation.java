@@ -32,7 +32,6 @@ import static com.hedera.services.bdd.suites.file.DiverseStateCreation.STATE_MET
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.services.bdd.suites.HapiSuite;
-import com.swirlds.common.utility.CommonUtils;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigInteger;
@@ -44,6 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 
 /**

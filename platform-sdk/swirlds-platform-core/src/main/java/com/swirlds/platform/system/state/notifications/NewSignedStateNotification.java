@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.state.notifications;
 
-import com.swirlds.common.notification.AbstractNotification;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
 import java.time.Instant;
+import org.hiero.consensus.model.notification.AbstractNotification;
+import org.hiero.consensus.model.notification.Notification;
 
 /**
- * A {@link com.swirlds.common.notification.Notification Notification} that a new signed state has been completed. Not
+ * A {@link Notification Notification} that a new signed state has been completed. Not
  * guaranteed to be called for every round, and not guaranteed to be called in order. State is guaranteed to hold a
  * reservation until callback completes.
  */

@@ -7,11 +7,6 @@ import static com.swirlds.common.utility.ByteUtils.longToByteArray;
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.SerializableHashable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import java.io.IOException;
@@ -24,6 +19,11 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A threadsafe fast-copyable queue, each of whose elements is fast-copyable. Elements must always be inserted at the
