@@ -4,7 +4,6 @@ package com.swirlds.platform.base.example.ext;
 import static com.swirlds.base.utility.FileSystemUtils.waitForPathPresence;
 
 import com.swirlds.common.metrics.platform.DefaultMetricsProvider;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.ClasspathFileConfigSource;
@@ -17,6 +16,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Static factory that creates {@link BaseContext}

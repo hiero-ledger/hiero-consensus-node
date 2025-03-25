@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
+import org.hiero.consensus.model.event.AncientMode;
+
 /**
  * Fields written to the signed state metadata file.
  */
@@ -35,7 +37,7 @@ public enum SavedStateMetadataField {
     LEGACY_RUNNING_EVENT_HASH_MNEMONIC,
     /**
      * The minimum generation of non-ancient events after this state reached consensus. Future work: this needs to be
-     * migrated once we have switched to {@link com.swirlds.platform.event.AncientMode#BIRTH_ROUND_THRESHOLD}.
+     * migrated once we have switched to {@link AncientMode#BIRTH_ROUND_THRESHOLD}.
      */
     MINIMUM_GENERATION_NON_ANCIENT,
     /**

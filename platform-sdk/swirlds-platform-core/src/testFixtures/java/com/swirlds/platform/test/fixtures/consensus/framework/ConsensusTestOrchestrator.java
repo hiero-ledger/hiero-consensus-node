@@ -1,21 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.EventConstants;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidation;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.gui.ListEventProvider;
 import com.swirlds.platform.test.fixtures.gui.TestGuiSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.node.NodeId;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
 public class ConsensusTestOrchestrator {
+    private static final ConsensusRoundValidator consensusRoundValidatorWithAllChecks = new ConsensusRoundValidator();
     private final PlatformContext platformContext;
     private final List<ConsensusTestNode> nodes;
     private long currentSequence = 0;
@@ -93,32 +96,34 @@ public class ConsensusTestOrchestrator {
     /**
      * Validates the output of all nodes against the given validations and clears the output
      *
-     * @param validations the validations to run
+     * @param consensusOutputValidator the validator to run all neeeded validations
      */
-    public void validateAndClear(final Validations validations) {
-        validate(validations);
+    public void validateAndClear(final ConsensusOutputValidator consensusOutputValidator) {
+        validate(consensusOutputValidator);
         clearOutput();
     }
 
     /**
      * Validates the output of all nodes against the given validations
      *
-     * @param validations the validations to run
+     * @param consensusOutputValidator the validator to run
      */
-    public void validate(final Validations validations) {
-        final ConsensusTestNode node1 = nodes.get(0);
+    public void validate(final ConsensusOutputValidator consensusOutputValidator) {
+        final ConsensusTestNode node1 = nodes.getFirst();
         for (int i = 1; i < nodes.size(); i++) {
-            final ConsensusTestNode node2 = nodes.get(i);
-            for (final com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidation
-                    validator : validations.getConsensusValidator().getOutputValidations()) {
-                validator.validate(node1.getOutput(), node2.getOutput());
-            }
-            for (final ConsensusRoundValidation validator :
-                    validations.getConsensusValidator().getRoundValidations()) {
-                validator.validate(
-                        node1.getOutput().getConsensusRounds(),
-                        node2.getOutput().getConsensusRounds());
-            }
+            final ConsensusTestNode otherNode = nodes.get(i);
+
+            consensusOutputValidator.validate(node1.getOutput(), otherNode.getOutput());
+            assertThat(node1.getOutput().getConsensusRounds())
+                    .hasSameSizeAs(otherNode.getOutput().getConsensusRounds())
+                    .withFailMessage(String.format(
+                            "The number of consensus rounds is not the same."
+                                    + "output1 has %d rounds, output2 has %d rounds",
+                            node1.getOutput().getConsensusRounds().size(),
+                            otherNode.getOutput().getConsensusRounds().size()));
+            consensusRoundValidatorWithAllChecks.validate(
+                    node1.getOutput().getConsensusRounds(),
+                    otherNode.getOutput().getConsensusRounds());
         }
     }
 

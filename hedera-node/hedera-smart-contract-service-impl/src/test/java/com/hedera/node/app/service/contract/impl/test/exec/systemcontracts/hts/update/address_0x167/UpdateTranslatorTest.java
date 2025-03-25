@@ -6,7 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUNT_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder.FAILURE_CUSTOMIZER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V1;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V2;
@@ -18,8 +17,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBL
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.MUTABLE_FUNGIBLE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_ACCOUNT_ID;
-import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelector;
-import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorWithContractID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -31,42 +28,26 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.freeze.FreezeUnfreezeTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateTranslator;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
+import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-class UpdateTranslatorTest extends CallTestBase {
+class UpdateTranslatorTest extends CallAttemptTestBase {
     @Mock
     private HtsCallAttempt attempt;
 
     @Mock
-    private AddressIdConverter addressIdConverter;
-
-    @Mock
     private VerificationStrategy verificationStrategy;
-
-    @Mock
-    private VerificationStrategies verificationStrategies;
-
-    @Mock
-    private HederaWorldUpdater.Enhancement enhancement;
 
     @Mock
     private ReadableTokenStore readableTokenStore;
@@ -76,8 +57,6 @@ class UpdateTranslatorTest extends CallTestBase {
 
     @Mock
     private ContractMetrics contractMetrics;
-
-    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
     private UpdateTranslator subject;
 
@@ -164,67 +143,31 @@ class UpdateTranslatorTest extends CallTestBase {
 
     @Test
     void matchesUpdateV1Test() {
-        attempt = prepareHtsAttemptWithSelector(
-                TOKEN_UPDATE_INFO_FUNCTION_V1,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry);
+        attempt = createHtsCallAttempt(TOKEN_UPDATE_INFO_FUNCTION_V1, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesUpdateV2Test() {
-        attempt = prepareHtsAttemptWithSelector(
-                TOKEN_UPDATE_INFO_FUNCTION_V2,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry);
+        attempt = createHtsCallAttempt(TOKEN_UPDATE_INFO_FUNCTION_V2, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesUpdateV3Test() {
-        attempt = prepareHtsAttemptWithSelector(
-                TOKEN_UPDATE_INFO_FUNCTION_V3,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry);
+        attempt = createHtsCallAttempt(TOKEN_UPDATE_INFO_FUNCTION_V3, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
     @Test
     void matchesFailsOnIncorrectSelector() {
-        attempt = prepareHtsAttemptWithSelector(
-                FreezeUnfreezeTranslator.FREEZE,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry);
+        attempt = createHtsCallAttempt(FreezeUnfreezeTranslator.FREEZE, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 
     @Test
     void matchesFailsOnUpdateMetadataTest() {
-        attempt = prepareHtsAttemptWithSelectorWithContractID(
-                HTS_167_CONTRACT_ID,
-                TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry);
+        attempt = createHtsCallAttempt(TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

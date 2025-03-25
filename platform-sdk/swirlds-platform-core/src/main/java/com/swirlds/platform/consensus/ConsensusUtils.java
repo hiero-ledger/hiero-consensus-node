@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import static com.swirlds.platform.consensus.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.crypto.CryptoConstants;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import org.hiero.consensus.model.crypto.Hash;
 
 /** Various utility methods used by {@link com.swirlds.platform.ConsensusImpl} */
 public final class ConsensusUtils {
@@ -51,15 +51,15 @@ public final class ConsensusUtils {
     }
 
     /**
-     * @return a XOR of all judge signatures in this round
+     * @return a XOR of all judge hashes in this round
      */
     public static @NonNull byte[] generateWhitening(@NonNull final Iterable<EventImpl> judges) {
-        // an XOR of the signatures of judges in a round, used during sorting
+        // an XOR of the hashes of judges in a round, used during sorting
         final byte[] whitening = new byte[CryptoConstants.SIG_SIZE_BYTES];
         // find whitening for round
         for (final EventImpl w : judges) { // calculate the whitening byte array
             if (w != null) {
-                final Bytes sig = w.getBaseEvent().getSignature();
+                final Bytes sig = w.getBaseHash().getBytes();
                 final int mn = Math.min(whitening.length, (int) sig.length());
                 for (int i = 0; i < mn; i++) {
                     whitening[i] ^= sig.getByte(i);

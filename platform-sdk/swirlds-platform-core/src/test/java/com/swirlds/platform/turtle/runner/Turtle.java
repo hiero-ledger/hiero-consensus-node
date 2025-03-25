@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.turtle.runner;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidation;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,7 +24,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opentest4j.AssertionFailedError;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Runs a TURTLE network. All nodes run in this JVM, and if configured properly the execution is expected to be
@@ -78,6 +78,7 @@ public class Turtle {
     private long tickCount;
     private Instant previousRealTime;
     private Instant previousSimulatedTime;
+    private final ConsensusRoundValidator consensusRoundValidator;
 
     /**
      * Constructor.
@@ -88,6 +89,7 @@ public class Turtle {
         final Randotron randotron = builder.getRandotron();
         simulationGranularity = builder.getSimulationGranularity();
         timeReportingEnabled = builder.isTimeReportingEnabled();
+        consensusRoundValidator = builder.getConsensusRoundValidator();
 
         try {
             ConstructableRegistry.getInstance()
@@ -133,6 +135,7 @@ public class Turtle {
      * Simulate the network for a period of time. Validate the correctness of collected items at a regular interval.
      *
      * @param duration the duration to simulate
+     * @param validationInterval the interval at which to validate the collected items
      */
     public void simulateTimeAndValidate(@NonNull final Duration duration, @NonNull final Duration validationInterval) {
         final Instant simulatedStart = time.now();
@@ -147,43 +150,39 @@ public class Turtle {
             tickAllNodes();
 
             if (time.now().isAfter(nextValidationTime)) {
-                validate();
+                validateConsensusRounds();
                 nextValidationTime = time.now().plus(validationInterval);
             }
         }
     }
 
     /**
-     * Validate all collected items during Turtle execution using the suitable validator types.
-     * Each different type of collected item has its own container and set of validation rules.
+     * Validate all collected {@link ConsensusRound} instances during Turtle execution using the suitable validator.
      *
      * At the end of the validation, all collected items are cleared to keep memory usage low.
      */
-    public void validate() {
-        try {
-            final Validations validations = Validations.newInstance().consensusRoundValidations();
+    public void validateConsensusRounds() {
+        final TurtleNode node1 = nodes.getFirst();
+        final List<ConsensusRound> consensusRoundsForNode1 =
+                node1.getConsensusRoundsHolder().getCollectedRounds();
 
-            final TurtleNode node1 = nodes.getFirst();
-            final List<ConsensusRound> consensusRoundsForNode1 =
-                    node1.getConsensusRoundsHolder().getCollectedRounds();
+        for (int i = 1; i < nodes.size(); i++) {
+            final TurtleNode otherNode = nodes.get(i);
+            final List<ConsensusRound> consensusRoundsForOtherNode =
+                    otherNode.getConsensusRoundsHolder().getCollectedRounds();
 
-            for (int i = 1; i < nodes.size(); i++) {
-                final TurtleNode otherNode = nodes.get(i);
-                final List<ConsensusRound> consensusRoundsForOtherNode =
-                        otherNode.getConsensusRoundsHolder().getCollectedRounds();
+            assertThat(consensusRoundsForNode1)
+                    .hasSameSizeAs(consensusRoundsForOtherNode)
+                    .withFailMessage(String.format(
+                            "The number of consensus rounds is not the same."
+                                    + "output1 has %d rounds, output2 has %d rounds",
+                            consensusRoundsForNode1.size(), consensusRoundsForOtherNode.size()));
+            consensusRoundValidator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
 
-                for (final ConsensusRoundValidation validator :
-                        validations.getConsensusValidator().getRoundValidations()) {
-                    validator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
-                }
-
-                otherNode.getConsensusRoundsHolder().clear();
-            }
-
-            node1.getConsensusRoundsHolder().clear();
-        } catch (final AssertionFailedError | IndexOutOfBoundsException e) {
-            log.error("Validation failed: {}", e.getMessage());
+            otherNode.getConsensusRoundsHolder().clear();
         }
+
+        node1.getConsensusRoundsHolder().clear();
     }
 
     /**

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.listeners;
 
-import com.swirlds.common.notification.AbstractNotification;
 import java.time.Instant;
+import org.hiero.consensus.model.notification.AbstractNotification;
+import org.hiero.consensus.model.notification.Notification;
 
 /**
- * Class that provides {@link com.swirlds.common.notification.Notification} when state is written to disk
+ * Class that provides {@link Notification} when state is written to disk
  */
 public class StateWriteToDiskCompleteNotification extends AbstractNotification {
 

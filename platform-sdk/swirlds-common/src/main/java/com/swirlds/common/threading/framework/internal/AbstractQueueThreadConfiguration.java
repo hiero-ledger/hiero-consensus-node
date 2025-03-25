@@ -4,8 +4,6 @@ package com.swirlds.common.threading.framework.internal;
 import com.swirlds.common.threading.framework.QueueThread;
 import com.swirlds.common.threading.framework.Stoppable;
 import com.swirlds.common.threading.framework.config.QueueThreadMetricsConfiguration;
-import com.swirlds.common.threading.interrupt.InterruptableConsumer;
-import com.swirlds.common.threading.interrupt.InterruptableRunnable;
 import com.swirlds.common.threading.manager.ThreadManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -13,6 +11,8 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import org.hiero.consensus.model.utility.interrupt.InterruptableConsumer;
+import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
 
 /**
  * Boilerplate getters, setters, and configuration for queue thread configuration.

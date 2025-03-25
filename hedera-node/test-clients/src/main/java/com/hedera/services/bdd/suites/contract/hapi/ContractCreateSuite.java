@@ -2,6 +2,9 @@
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -93,6 +96,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -102,7 +106,6 @@ import com.hedera.services.bdd.utils.Signing;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import com.swirlds.common.utility.CommonUtils;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigInteger;
@@ -115,6 +118,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes32;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -181,13 +185,13 @@ public class ContractCreateSuite {
                 contractCreate(contract)
                         .adminKey(THRESHOLD)
                         .declinedReward(true)
-                        .stakedAccountId("0.0.10")
+                        .stakedAccountId(SHARD_AND_REALM + "10")
                         .refusingEthConversion(),
                 getContractInfo(contract)
                         .has(contractWith()
                                 .isDeclinedReward(true)
                                 .noStakingNodeId()
-                                .stakedAccountId("0.0.10")),
+                                .stakedAccountId(SHARD_AND_REALM + "10")),
                 contractCreate(contract)
                         .adminKey(THRESHOLD)
                         .declinedReward(false)
@@ -202,13 +206,13 @@ public class ContractCreateSuite {
                 contractCreate(contract)
                         .adminKey(THRESHOLD)
                         .declinedReward(false)
-                        .stakedAccountId("0.0.10")
+                        .stakedAccountId(SHARD_AND_REALM + "10")
                         .refusingEthConversion(),
                 getContractInfo(contract)
                         .has(contractWith()
                                 .isDeclinedReward(false)
                                 .noStakingNodeId()
-                                .stakedAccountId("0.0.10"))
+                                .stakedAccountId(SHARD_AND_REALM + "10"))
                         .logged(),
                 /* sentinel values throw */
                 contractCreate(contract)
@@ -253,7 +257,8 @@ public class ContractCreateSuite {
     @HapiTest
     final Stream<DynamicTest> cannotSendToNonExistentAccount() {
         final var contract = "Multipurpose";
-        Object[] donationArgs = new Object[] {666666L, "Hey, Ma!"};
+        Object[] donationArgs =
+                new Object[] {new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, 666666L)), "Hey, Ma!"};
 
         return hapiTest(
                 uploadInitCode(contract),
@@ -378,19 +383,20 @@ public class ContractCreateSuite {
                     secondStickId.set(createdIds.get(2).getContractNum());
                     thirdStickId.set(createdIds.get(3).getContractNum());
                 }),
-                sourcing(() -> getContractInfo("0.0." + firstStickId.get())
-                        .has(contractWith().immutableContractKey("0.0." + firstStickId.get()))
+                sourcing(() -> getContractInfo(SHARD_AND_REALM + firstStickId.get())
+                        .has(contractWith().immutableContractKey(SHARD_AND_REALM + firstStickId.get()))
                         .logged()),
-                sourcing(() -> getContractInfo("0.0." + secondStickId.get())
-                        .has(contractWith().immutableContractKey("0.0." + secondStickId.get()))
+                sourcing(() -> getContractInfo(SHARD_AND_REALM + secondStickId.get())
+                        .has(contractWith().immutableContractKey(SHARD_AND_REALM + secondStickId.get()))
                         .logged()),
-                sourcing(() -> getContractInfo("0.0." + thirdStickId.get()).logged()),
+                sourcing(() ->
+                        getContractInfo(SHARD_AND_REALM + thirdStickId.get()).logged()),
                 contractCall(contract, "light").via("lightTxn"),
-                sourcing(() -> getContractInfo("0.0." + firstStickId.get())
+                sourcing(() -> getContractInfo(SHARD_AND_REALM + firstStickId.get())
                         .has(contractWith().isDeleted())),
-                sourcing(() -> getContractInfo("0.0." + secondStickId.get())
+                sourcing(() -> getContractInfo(SHARD_AND_REALM + secondStickId.get())
                         .has(contractWith().isDeleted())),
-                sourcing(() -> getContractInfo("0.0." + thirdStickId.get())
+                sourcing(() -> getContractInfo(SHARD_AND_REALM + thirdStickId.get())
                         .has(contractWith().isDeleted())));
     }
 
@@ -578,8 +584,8 @@ public class ContractCreateSuite {
                 sourcing(() -> contractCall(
                         sendInternalAndDelegateContract,
                         "sendRepeatedlyTo",
-                        BigInteger.valueOf(justSendContractNum.get()),
-                        BigInteger.valueOf(beneficiaryAccountNum.get()),
+                        new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, justSendContractNum.get())),
+                        new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, beneficiaryAccountNum.get())),
                         BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(totalToSend / 2),
                 /* But now we update the beneficiary to have a delegateContractId */
@@ -588,8 +594,8 @@ public class ContractCreateSuite {
                 sourcing(() -> contractCall(
                         sendInternalAndDelegateContract,
                         "sendRepeatedlyTo",
-                        BigInteger.valueOf(justSendContractNum.get()),
-                        BigInteger.valueOf(beneficiaryAccountNum.get()),
+                        new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, justSendContractNum.get())),
+                        new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, beneficiaryAccountNum.get())),
                         BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(3 * (totalToSend / 2)));
     }

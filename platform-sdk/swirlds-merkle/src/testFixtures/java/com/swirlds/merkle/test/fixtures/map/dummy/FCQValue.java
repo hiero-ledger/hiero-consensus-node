@@ -2,7 +2,6 @@
 package com.swirlds.merkle.test.fixtures.map.dummy;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.exceptions.IllegalChildIndexException;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
@@ -15,6 +14,7 @@ import com.swirlds.merkle.test.fixtures.map.pta.TransactionRecord;
 import com.swirlds.merkle.test.fixtures.map.util.MerkleMapTestUtil;
 import java.util.Iterator;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.SerializableHashable;
 
 /**
  * MapValue with a {@link FCQueue}

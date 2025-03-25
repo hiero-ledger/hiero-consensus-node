@@ -62,6 +62,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.bouncycastle.jcajce.provider.digest.SHA384.Digest;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -264,8 +265,8 @@ public class IsAuthorizedTest {
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
-                                .getEd25519PrivateKey(com.swirlds.common.utility.CommonUtils.hex(edKey.toByteArray())
-                                        .substring(4));
+                                .getEd25519PrivateKey(
+                                        CommonUtils.hex(edKey.toByteArray()).substring(4));
                         final var signedBytes = SignatureGenerator.signBytes(messageHash, privateKey);
 
                         final var call = contractCall(
@@ -302,8 +303,8 @@ public class IsAuthorizedTest {
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
-                                .getEd25519PrivateKey(com.swirlds.common.utility.CommonUtils.hex(edKey.toByteArray())
-                                        .substring(4));
+                                .getEd25519PrivateKey(
+                                        CommonUtils.hex(edKey.toByteArray()).substring(4));
                         final var signedBytes = SignatureGenerator.signBytes(messageHash, privateKey);
 
                         final var call = contractCall(
@@ -339,8 +340,8 @@ public class IsAuthorizedTest {
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
-                                .getEd25519PrivateKey(com.swirlds.common.utility.CommonUtils.hex(edKey.toByteArray())
-                                        .substring(4));
+                                .getEd25519PrivateKey(
+                                        CommonUtils.hex(edKey.toByteArray()).substring(4));
                         final var signedBytes = SignatureGenerator.signBytes(messageHash, privateKey);
 
                         final var call = contractCall(
@@ -457,8 +458,8 @@ public class IsAuthorizedTest {
                         final var messageHash = new Digest().digest("submit".getBytes());
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
-                                .getEd25519PrivateKey(com.swirlds.common.utility.CommonUtils.hex(edKey.toByteArray())
-                                        .substring(4));
+                                .getEd25519PrivateKey(
+                                        CommonUtils.hex(edKey.toByteArray()).substring(4));
                         final var signedBytes = SignatureGenerator.signBytes(messageHash, privateKey);
 
                         final var callWithThreshold = contractCall(
@@ -516,8 +517,8 @@ public class IsAuthorizedTest {
                         // Sign message with ED25519
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
-                                .getEd25519PrivateKey(com.swirlds.common.utility.CommonUtils.hex(edKey.toByteArray())
-                                        .substring(4));
+                                .getEd25519PrivateKey(
+                                        CommonUtils.hex(edKey.toByteArray()).substring(4));
                         final var signedBytes = SignatureGenerator.signBytes(messageHash, privateKey);
 
                         // Sign message with ECDSA
@@ -678,8 +679,7 @@ public class IsAuthorizedTest {
                             final var edKey = spec.registry().getKey(ED25519_KEY);
                             final var privateKey = spec.keys()
                                     .getEd25519PrivateKey(
-                                            com.swirlds.common.utility.CommonUtils.hex(edKey.toByteArray())
-                                                    .substring(4));
+                                            CommonUtils.hex(edKey.toByteArray()).substring(4));
                             final var signedBytes = SignatureGenerator.signBytes(messageHash, privateKey);
 
                             var call = contractCall(

@@ -2,9 +2,9 @@
 package com.swirlds.platform.crypto;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A record representing a roster with the keys and certificates associated with each node.

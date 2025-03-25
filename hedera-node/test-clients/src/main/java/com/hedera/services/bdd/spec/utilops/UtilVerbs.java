@@ -68,9 +68,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECO
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
-import static com.swirlds.platform.system.status.PlatformStatus.FREEZE_COMPLETE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -180,8 +180,6 @@ import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
-import com.swirlds.common.utility.CommonUtils;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -226,10 +224,14 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
+import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 
 public class UtilVerbs {
     public static final int DEFAULT_COLLISION_AVOIDANCE_FACTOR = 2;
+    private static final Duration HISTORY_PROOF_WAIT_TIMEOUT = Duration.ofMinutes(50);
 
     /**
      * Private constructor to prevent instantiation.
@@ -363,7 +365,10 @@ public class UtilVerbs {
      * @return the operation that validates the streams
      */
     public static StreamValidationOp validateStreams() {
-        return new StreamValidationOp();
+        final int proofsToWaitFor = Optional.ofNullable(System.getProperty("hapi.spec.numHistoryProofsToObserve"))
+                .map(Integer::parseInt)
+                .orElse(0);
+        return new StreamValidationOp(proofsToWaitFor, HISTORY_PROOF_WAIT_TIMEOUT);
     }
 
     /**
@@ -500,7 +505,21 @@ public class UtilVerbs {
     }
 
     public static WaitForStatusOp waitForActive(@NonNull final NodeSelector selector, @NonNull final Duration timeout) {
-        return new WaitForStatusOp(selector, ACTIVE, timeout);
+        return new WaitForStatusOp(selector, timeout, ACTIVE);
+    }
+
+    /**
+     * Returns an operation that waits for the target node to be any of the given statuses.
+     * @param selector the selector for the node to wait for
+     * @param timeout the maximum time to wait for the node to reach one of the desired statuses
+     * @param statuses the statuses to wait for
+     * @return the operation that waits for the node to reach one of the desired statuses
+     */
+    public static WaitForStatusOp waitForAny(
+            @NonNull final NodeSelector selector,
+            @NonNull final Duration timeout,
+            @NonNull final PlatformStatus... statuses) {
+        return new WaitForStatusOp(selector, timeout, statuses);
     }
 
     /**
@@ -510,7 +529,7 @@ public class UtilVerbs {
      * @return the operation that waits for the network to become active
      */
     public static SpecOperation waitForActiveNetworkWithReassignedPorts(@NonNull final Duration timeout) {
-        return blockingOrder(new WaitForStatusOp(NodeSelector.allNodes(), ACTIVE, timeout), doingContextual(spec -> {
+        return blockingOrder(new WaitForStatusOp(NodeSelector.allNodes(), timeout, ACTIVE), doingContextual(spec -> {
             if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
                 subProcessNetwork.refreshClients();
             }
@@ -560,12 +579,12 @@ public class UtilVerbs {
 
     public static WaitForStatusOp waitForFrozenNetwork(
             @NonNull final Duration timeout, @NonNull final NodeSelector selector) {
-        return new WaitForStatusOp(selector, FREEZE_COMPLETE, timeout);
+        return new WaitForStatusOp(selector, timeout, FREEZE_COMPLETE);
     }
 
     /**
      * Returns an operation that initiates background traffic running until the target network's
-     * first node has reached {@link com.swirlds.platform.system.status.PlatformStatus#FREEZE_COMPLETE}.
+     * first node has reached {@link PlatformStatus#FREEZE_COMPLETE}.
      * @return the operation
      */
     public static SpecOperation runBackgroundTrafficUntilFreezeComplete() {
@@ -585,7 +604,7 @@ public class UtilVerbs {
             spec.targetNetworkOrThrow()
                     .nodes()
                     .getFirst()
-                    .statusFuture(FREEZE_COMPLETE, (status) -> {})
+                    .statusFuture((status) -> {}, FREEZE_COMPLETE)
                     .thenRun(() -> {
                         stopTraffic.set(true);
                         opLog.info("Stopping background traffic after freeze complete");
@@ -2500,8 +2519,7 @@ public class UtilVerbs {
     public static byte[] getEcdsaPrivateKeyFromSpec(final HapiSpec spec, final String privateKeyRef) {
         var key = spec.registry().getKey(privateKeyRef);
         final var privateKey = spec.keys()
-                .getEcdsaPrivateKey(com.swirlds.common.utility.CommonUtils.hex(
-                        key.getECDSASecp256K1().toByteArray()));
+                .getEcdsaPrivateKey(CommonUtils.hex(key.getECDSASecp256K1().toByteArray()));
 
         byte[] privateKeyByteArray;
         byte[] dByteArray = ((BCECPrivateKey) privateKey).getD().toByteArray();
@@ -2521,8 +2539,7 @@ public class UtilVerbs {
     public static PrivateKey getEd25519PrivateKeyFromSpec(final HapiSpec spec, final String privateKeyRef) {
         var key = spec.registry().getKey(privateKeyRef);
         final var privateKey = spec.keys()
-                .getEd25519PrivateKey(com.swirlds.common.utility.CommonUtils.hex(
-                        key.getEd25519().toByteArray()));
+                .getEd25519PrivateKey(CommonUtils.hex(key.getEd25519().toByteArray()));
         return privateKey;
     }
 
@@ -2556,14 +2573,12 @@ public class UtilVerbs {
     }
 
     /**
-     * Returns the charged gas for a transaction in USD.
-     * The multiplier 71 is used to convert gas to tinybars. This multiplier comes from the feeScheduls.json file.
-     * See
-     * {@link com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues#topLevelTinybarGasPrice() topLevelTinybarGasPrice}
-     * for more information.
+     * Returns the charged gas for a transaction in USD, assuming a standard cost of
+     * 71 tinybars per gas unit.
+     *
      * @param spec the spec
      * @param txn the transaction
-     * @return
+     * @return the charged gas in USD
      */
     private static double getChargedGas(@NonNull final HapiSpec spec, @NonNull final String txn) {
         requireNonNull(spec);

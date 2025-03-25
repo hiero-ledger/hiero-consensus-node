@@ -3,10 +3,10 @@ package com.swirlds.platform.state.nexus;
 
 import com.swirlds.common.utility.Clearable;
 import com.swirlds.component.framework.component.SchedulerLabel;
-import com.swirlds.platform.consensus.ConsensusConstants;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
 /**
  * A thread-safe container that also manages reservations for a single signed state.

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.NodeId;
 
 /** A type which is responsible for managing a node in a consensus test */
 public class ConsensusTestNode {
@@ -99,7 +99,9 @@ public class ConsensusTestNode {
                 Objects.requireNonNull(getOutput().getConsensusRounds().peekLast())
                         .getSnapshot());
 
-        assertTrue(consensusTestNode.intake.getConsensusRounds().isEmpty(), "we should not have reached consensus yet");
+        assertThat(consensusTestNode.intake.getConsensusRounds())
+                .withFailMessage("we should not have reached consensus yet")
+                .isEmpty();
 
         return consensusTestNode;
     }

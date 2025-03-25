@@ -69,7 +69,7 @@ public interface Dispatch extends FeeCharging.Context {
      *
      * @return the builder
      */
-    StreamBuilder recordBuilder();
+    StreamBuilder streamBuilder();
 
     /**
      * The configuration for the dispatch.

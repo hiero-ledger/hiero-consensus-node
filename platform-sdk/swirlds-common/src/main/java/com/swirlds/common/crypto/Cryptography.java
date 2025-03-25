@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.crypto;
 
-import com.swirlds.common.io.SelfSerializable;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 public interface Cryptography {
     /** The default value for the setHash argument */

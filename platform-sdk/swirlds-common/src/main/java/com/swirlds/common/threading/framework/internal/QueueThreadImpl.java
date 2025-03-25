@@ -7,12 +7,12 @@ import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.threading.framework.QueueThread;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.ThreadSeed;
-import com.swirlds.common.threading.interrupt.InterruptableConsumer;
-import com.swirlds.common.threading.interrupt.InterruptableRunnable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.consensus.model.utility.interrupt.InterruptableConsumer;
+import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
 
 /**
  * Implements a thread that continuously takes elements from a queue and handles them.
