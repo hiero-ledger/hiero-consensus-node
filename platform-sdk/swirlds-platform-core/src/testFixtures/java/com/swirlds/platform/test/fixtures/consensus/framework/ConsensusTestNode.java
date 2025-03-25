@@ -100,8 +100,8 @@ public class ConsensusTestNode {
                         .getSnapshot());
 
         assertThat(consensusTestNode.intake.getConsensusRounds())
-                .isEqualTo(0)
-                .withFailMessage("we should not have reached consensus yet");
+                .withFailMessage("we should not have reached consensus yet")
+                .isEmpty();
 
         return consensusTestNode;
     }

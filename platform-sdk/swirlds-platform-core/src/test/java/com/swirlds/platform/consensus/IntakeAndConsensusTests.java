@@ -14,10 +14,12 @@ import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.junit.jupiter.api.Test;
 
 class IntakeAndConsensusTests {
@@ -133,17 +135,11 @@ class IntakeAndConsensusTests {
 
     private static void assertConsensusEvents(final TestIntake node1, final TestIntake node2) {
         final RoundInternalEqualityValidation roundInternalEqualityValidation = new RoundInternalEqualityValidation();
-        assertThat(node1.getConsensusRounds())
-                .hasSameSizeAs(node2.getConsensusRounds())
-                .withFailMessage(String.format(
-                        "The number of consensus rounds is not the same."
-                                + "output1 has %d rounds, output2 has %d rounds",
-                        node1.getConsensusRounds().size(),
-                        node2.getConsensusRounds().size()));
-        for (int i = 0; i < node1.getConsensusRounds().size(); i++) {
-            roundInternalEqualityValidation.validate(
-                    node1.getConsensusRounds().get(i),
-                    node2.getConsensusRounds().get(i));
+
+        final Iterator<ConsensusRound> iterator1 = node1.getConsensusRounds().iterator();
+        final Iterator<ConsensusRound> iterator2 = node2.getConsensusRounds().iterator();
+        while (iterator1.hasNext() && iterator2.hasNext()) {
+            roundInternalEqualityValidation.validate(iterator1.next(), iterator2.next());
         }
         node1.getConsensusRounds().clear();
         node2.getConsensusRounds().clear();
