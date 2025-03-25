@@ -146,14 +146,14 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
             if (token.deleted()) {
                 return null;
             } else {
-                return RedirectBytecodeUtils.tokenProxyBytecodePjb(ConversionUtils.contractIDToBesuAddress(contractId));
+                return RedirectBytecodeUtils.tokenProxyBytecodePjb(ConversionUtils.contractIDToBesuAddress(entityIdFactory, contractId));
             }
         } else if ((schedule = scheduleFrom(context, contractId)) != null) {
             if (schedule.deleted()) {
                 return null;
             } else {
                 return RedirectBytecodeUtils.scheduleProxyBytecodePjb(
-                        ConversionUtils.contractIDToBesuAddress(contractId));
+                        ConversionUtils.contractIDToBesuAddress(entityIdFactory, contractId));
             }
         } else {
             return null;

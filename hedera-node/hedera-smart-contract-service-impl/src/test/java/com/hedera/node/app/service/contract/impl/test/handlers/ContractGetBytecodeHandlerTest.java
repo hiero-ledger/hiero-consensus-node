@@ -12,6 +12,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
@@ -74,6 +75,9 @@ class ContractGetBytecodeHandlerTest {
 
     @Mock
     private ContractID contractID;
+
+    @Mock
+    private AccountID accountId;
 
     @Mock
     private Account contract;
@@ -180,8 +184,8 @@ class ContractGetBytecodeHandlerTest {
         given(responseHeader.nodeTransactionPrecheckCode()).willReturn(OK);
         given(responseHeader.responseType()).willReturn(ANSWER_ONLY);
         assertThat(Objects.requireNonNull(
-                                subject.findResponse(context, responseHeader).contractGetBytecodeResponse())
-                        .bytecode())
+                        subject.findResponse(context, responseHeader).contractGetBytecodeResponse())
+                .bytecode())
                 .isEqualTo(Bytes.EMPTY);
     }
 
@@ -225,8 +229,8 @@ class ContractGetBytecodeHandlerTest {
         given(responseHeader.nodeTransactionPrecheckCode()).willReturn(OK);
         given(responseHeader.responseType()).willReturn(ANSWER_ONLY);
         assertThat(Objects.requireNonNull(
-                                subject.findResponse(context, responseHeader).contractGetBytecodeResponse())
-                        .bytecode())
+                        subject.findResponse(context, responseHeader).contractGetBytecodeResponse())
+                .bytecode())
                 .isEqualTo(Bytes.EMPTY);
     }
 
@@ -266,8 +270,8 @@ class ContractGetBytecodeHandlerTest {
         given(responseHeader.nodeTransactionPrecheckCode()).willReturn(OK);
         given(responseHeader.responseType()).willReturn(ANSWER_ONLY);
         assertThat(Objects.requireNonNull(
-                                subject.findResponse(context, responseHeader).contractGetBytecodeResponse())
-                        .bytecode())
+                        subject.findResponse(context, responseHeader).contractGetBytecodeResponse())
+                .bytecode())
                 .isEqualTo(Bytes.EMPTY);
     }
 
@@ -309,8 +313,8 @@ class ContractGetBytecodeHandlerTest {
         given(responseHeader.nodeTransactionPrecheckCode()).willReturn(OK);
         given(responseHeader.responseType()).willReturn(ANSWER_ONLY);
         assertThat(Objects.requireNonNull(
-                                subject.findResponse(context, responseHeader).contractGetBytecodeResponse())
-                        .bytecode())
+                        subject.findResponse(context, responseHeader).contractGetBytecodeResponse())
+                .bytecode())
                 .isEqualTo(Bytes.EMPTY);
     }
 
@@ -365,7 +369,7 @@ class ContractGetBytecodeHandlerTest {
         given(contractStore.getContractById(contractID)).willReturn(contract);
         given(contract.smartContract()).willReturn(true);
         given(context.createStore(ContractStateStore.class)).willReturn(stateStore);
-        final var expectedResult = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
+        final var expectedResult = Bytes.wrap(new byte[]{1, 2, 3, 4, 5});
         final var bytecode = Bytecode.newBuilder().code(expectedResult).build();
         given(stateStore.getBytecode(any())).willReturn(bytecode);
 
@@ -373,10 +377,10 @@ class ContractGetBytecodeHandlerTest {
         var response = subject.findResponse(context, responseHeader);
 
         assertThat(Objects.requireNonNull(response.contractGetBytecodeResponse())
-                        .header())
+                .header())
                 .isEqualTo(responseHeader);
         assertThat(Objects.requireNonNull(response.contractGetBytecodeResponse())
-                        .bytecode())
+                .bytecode())
                 .isEqualTo(expectedResult);
     }
 
@@ -400,6 +404,7 @@ class ContractGetBytecodeHandlerTest {
     @Test
     void computeFeesTokenIdAsContractId() {
         givenTokenIdAsContractId();
+        given(entityIdFactory.newAccountId(contractID.contractNumOrElse(0L))).willReturn(accountId);
         QueryHeader defaultHeader =
                 QueryHeader.newBuilder().responseType(ANSWER_ONLY).build();
         given(contractGetBytecodeQuery.headerOrElse(QueryHeader.DEFAULT)).willReturn(defaultHeader);
@@ -411,6 +416,7 @@ class ContractGetBytecodeHandlerTest {
     @Test
     void findResponseTokenIdAsContractId() {
         givenTokenIdAsContractId();
+        given(entityIdFactory.newAccountId(contractID.contractNumOrElse(0L))).willReturn(accountId);
         given(responseHeader.nodeTransactionPrecheckCode()).willReturn(OK);
         given(responseHeader.responseType()).willReturn(ANSWER_ONLY);
         Bytes bytecode = Objects.requireNonNull(
@@ -442,6 +448,7 @@ class ContractGetBytecodeHandlerTest {
     @Test
     void computeFeesScheduleIdAsContractId() {
         givenScheduleIdAsContractId();
+        given(entityIdFactory.newAccountId(contractID.contractNumOrElse(0L))).willReturn(accountId);
         QueryHeader defaultHeader =
                 QueryHeader.newBuilder().responseType(ANSWER_ONLY).build();
         given(contractGetBytecodeQuery.headerOrElse(QueryHeader.DEFAULT)).willReturn(defaultHeader);
@@ -453,6 +460,7 @@ class ContractGetBytecodeHandlerTest {
     @Test
     void findResponseScheduleIdAsContractId() {
         givenScheduleIdAsContractId();
+        given(entityIdFactory.newAccountId(contractID.contractNumOrElse(0L))).willReturn(accountId);
         given(responseHeader.nodeTransactionPrecheckCode()).willReturn(OK);
         given(responseHeader.responseType()).willReturn(ANSWER_ONLY);
         Bytes bytecode = Objects.requireNonNull(
