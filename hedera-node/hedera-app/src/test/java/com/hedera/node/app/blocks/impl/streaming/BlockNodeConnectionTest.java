@@ -13,11 +13,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.block.Acknowledgement;
-import com.hedera.hapi.block.BlockAcknowledgement;
-import com.hedera.hapi.block.EndOfStream;
 import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.PublishStreamResponse;
+import com.hedera.hapi.block.PublishStreamResponse.Acknowledgement;
+import com.hedera.hapi.block.PublishStreamResponse.BlockAcknowledgement;
+import com.hedera.hapi.block.PublishStreamResponse.EndOfStream;
 import com.hedera.hapi.block.PublishStreamResponseCode;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
