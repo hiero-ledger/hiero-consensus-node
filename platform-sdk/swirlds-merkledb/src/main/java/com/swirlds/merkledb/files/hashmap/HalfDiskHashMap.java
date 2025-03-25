@@ -613,10 +613,12 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                             MERKLE_DB.getMarker(),
                             "Bucket index integrity check " + bucketIndex + " != " + bucket.getBucketIndex());
                     /*
-                      This is a workaround for issue #18250, which caused possible corruption in snapshots.
-                      If we read a bucket from the file and the bucket index is different from the expected one,
-                      we clear the bucket (as it contains garbage anyway) and set the correct index.
-                     */
+                       This is a workaround for the issue https://github.com/hiero-ledger/hiero-consensus-node/pull/18250,
+                       which caused possible corruption in snapshots.
+                       If the snapshot is corrupted, the code may read a bucket from the file, and the bucket index
+                       may be different from the expected one. In this case, we clear the bucket (as it contains garbage
+                       anyway) and set the correct index.
+                    */
                     bucket.clear();
                     bucket.setBucketIndex(bucketIndex);
                 }
