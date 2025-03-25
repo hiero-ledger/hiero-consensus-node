@@ -17,6 +17,7 @@ import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.internal.network.BlockNodeConfig;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -88,6 +89,9 @@ class BlockNodeConnectionManagerTest {
 
     @Test
     void testScheduleReconnect() throws InterruptedException {
+        // Configure mock connection to return a non-null node config
+        when(mockConnection.getNodeConfig()).thenReturn(BlockNodeConfig.DEFAULT);
+
         blockNodeConnectionManager.scheduleReconnect(mockConnection);
 
         verifyNoInteractions(mockConnection); // there should be no immediate attempt to establish a stream
