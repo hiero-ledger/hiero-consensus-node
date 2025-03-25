@@ -57,9 +57,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
-                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT));
+                cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS), uploadInitCode(CONTRACT), contractCreate(CONTRACT));
     }
 
     @HapiTest
