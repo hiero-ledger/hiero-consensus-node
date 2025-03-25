@@ -3,6 +3,7 @@ package com.swirlds.platform.test.fixtures.consensus.framework;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
@@ -176,7 +177,7 @@ public class ConsensusTestOrchestrator {
         for (final ConsensusTestNode node : nodes) {
             node.getEventEmitter()
                     .getGraphGenerator()
-                    .getSource(getAddressBook().getNodeId(nodeIndex))
+                    .getSourceByIndex(nodeIndex)
                     .setNewEventWeight(eventWeight);
         }
     }
@@ -196,7 +197,7 @@ public class ConsensusTestOrchestrator {
         return nodes;
     }
 
-    public AddressBook getAddressBook() {
-        return nodes.get(0).getEventEmitter().getGraphGenerator().getAddressBook();
+    public Roster getRoster() {
+        return nodes.get(0).getEventEmitter().getGraphGenerator().getRoster();
     }
 }
