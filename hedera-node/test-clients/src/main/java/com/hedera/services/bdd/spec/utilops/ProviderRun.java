@@ -50,11 +50,11 @@ public class ProviderRun extends UtilOp {
     private boolean loggingOff = false;
 
     private Optional<BiConsumer<EnumMap<ResponseCodeEnum, AtomicInteger>, EnumMap<ResponseCodeEnum, AtomicInteger>>>
-            statusAsserter;
+            statusCountAsserter = Optional.empty();
 
     public ProviderRun assertStatusCounts(
             BiConsumer<EnumMap<ResponseCodeEnum, AtomicInteger>, EnumMap<ResponseCodeEnum, AtomicInteger>> asserter) {
-        statusAsserter = Optional.of(asserter);
+        statusCountAsserter = Optional.of(asserter);
         return this;
     }
 
@@ -206,7 +206,7 @@ public class ProviderRun extends UtilOp {
         log.info("Final breakdown of *provided* ops: {}", finalCounts);
         log.info("Final breakdown of *resolved* statuses: {}", spec.finalizedStatusCounts());
 
-        statusAsserter.ifPresent(enumMapEnumMapBiConsumer -> enumMapEnumMapBiConsumer.accept(
+        statusCountAsserter.ifPresent(statusCountsBiConsumer -> statusCountsBiConsumer.accept(
                 (EnumMap<ResponseCodeEnum, AtomicInteger>) spec.precheckStatusCounts(),
                 (EnumMap<ResponseCodeEnum, AtomicInteger>) spec.finalizedStatusCounts()));
 

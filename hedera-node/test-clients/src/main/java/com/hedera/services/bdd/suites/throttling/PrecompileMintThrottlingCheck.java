@@ -46,12 +46,14 @@ import org.junit.jupiter.api.Tag;
 @Tag(TOKEN)
 public class PrecompileMintThrottlingCheck extends HapiSuite {
 
+    private static final Logger log = LogManager.getLogger(PrecompileMintThrottlingCheck.class);
+
     private static final Logger LOG = LogManager.getLogger(PrecompileMintThrottlingCheck.class);
     private final AtomicLong duration = new AtomicLong(10);
     private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
+    // Since the throttle is set to 50 ops per second, we will set the maxOpsPerSec to 51 to test the throttle
     private final AtomicInteger maxOpsPerSec = new AtomicInteger(51);
-    private static final int EXPECTED_MAX_MINTS_PER_SEC = 50;
-    private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.15;
+    private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.05;
     private static final String NON_FUNGIBLE_TOKEN = "NON_FUNGIBLE_TOKEN";
     public static final int GAS_TO_OFFER = 1_000_000;
 
@@ -82,8 +84,18 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
                             final var successCount = statusCountMap.get(SUCCESS).get();
                             final var revertCount =
                                     statusCountMap.get(CONTRACT_REVERT_EXECUTED).get();
+
+                            // calculate the allowed tolerance
                             final var throttleTolerance =
                                     (successCount + revertCount) * ALLOWED_THROTTLE_NOISE_TOLERANCE;
+
+                            // print results
+                            log.info("\n------------------------------\n");
+                            log.info("Throttle Tolerance: {} ops", throttleTolerance);
+                            log.info(String.format(
+                                    "Throttled: %d out of %d ops.\n", revertCount, successCount + revertCount));
+
+                            // assert throttling
                             assertTrue(
                                     throttleTolerance > revertCount && revertCount > 0,
                                     "Throttled more than allowed tolerance!");
