@@ -179,8 +179,10 @@ public class SystemTransactions {
         this.networkInfo = networkInfo;
         this.dispatchProcessor = dispatchProcessor;
         this.configProvider = requireNonNull(configProvider);
-        final var config = configProvider.getConfiguration();
-        this.streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
+        this.streamMode = configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .streamMode();
         this.idFactory = appContext.idFactory();
         this.blockRecordManager = requireNonNull(blockRecordManager);
         this.blockStreamManager = requireNonNull(blockStreamManager);
