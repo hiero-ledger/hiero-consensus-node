@@ -8,11 +8,9 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.platform.state.PlatformStateAccessor;
-import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.function.Function;
 import org.hiero.consensus.model.crypto.Hash;
 
 /**
@@ -20,19 +18,14 @@ import org.hiero.consensus.model.crypto.Hash;
  */
 public class SnapshotPlatformStateAccessor implements PlatformStateAccessor {
     private final PlatformState state;
-    private final Function<SemanticVersion, SoftwareVersion> versionFactory;
 
     /**
      * Constructs a new accessor for the given state.
      *
      * @param state the state to access
-     * @param versionFactory a factory for creating software versions
      */
-    public SnapshotPlatformStateAccessor(
-            @NonNull final PlatformState state,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
+    public SnapshotPlatformStateAccessor(@NonNull final PlatformState state) {
         this.state = requireNonNull(state);
-        this.versionFactory = requireNonNull(versionFactory);
     }
 
     /**

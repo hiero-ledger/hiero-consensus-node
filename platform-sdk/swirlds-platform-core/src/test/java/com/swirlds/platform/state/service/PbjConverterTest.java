@@ -19,7 +19,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import java.time.Instant;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.BeforeEach;
@@ -354,6 +353,6 @@ class PbjConverterTest {
     }
 
     private static SemanticVersion randomSoftwareVersion() {
-        return new BasicSoftwareVersion(nextInt(1, 100)).getPbjSemanticVersion();
+        return SemanticVersion.newBuilder().major(nextInt(1, 100)).build();
     }
 }

@@ -15,7 +15,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.AddressBookConfig;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.merkle.singleton.StringLeaf;
@@ -71,7 +70,7 @@ class AddressBookTestingToolStateTest {
         state.setChild(RUNNING_SUM_INDEX, new StringLeaf("0"));
         platform = mock(Platform.class);
         initTrigger = InitTrigger.GENESIS;
-        softwareVersion = new BasicSoftwareVersion(1).getPbjSemanticVersion();
+        softwareVersion = SemanticVersion.newBuilder().major(1).build();
         platformContext = mock(PlatformContext.class);
         configuration = mock(Configuration.class);
         addressBookConfig = mock(AddressBookConfig.class);
