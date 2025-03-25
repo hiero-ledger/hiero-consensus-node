@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runWithProvider;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -39,7 +40,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -49,7 +49,7 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
     private static final Logger LOG = LogManager.getLogger(PrecompileMintThrottlingCheck.class);
     private final AtomicLong duration = new AtomicLong(10);
     private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
-    private final AtomicInteger maxOpsPerSec = new AtomicInteger(50);
+    private final AtomicInteger maxOpsPerSec = new AtomicInteger(51);
     private static final int EXPECTED_MAX_MINTS_PER_SEC = 50;
     private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.15;
     private static final String NON_FUNGIBLE_TOKEN = "NON_FUNGIBLE_TOKEN";
@@ -69,31 +69,25 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
             overrides = {"contracts.throttle.throttleByGas"},
             throttles = "testSystemFiles/mainnet-throttles.json")
     final Stream<DynamicTest> precompileNftMintsAreLimitedByConsThrottle() {
+        // final var statusCountMap = new AtomicReference<EnumMap<ResponseCodeEnum, AtomicInteger>>();
         return hapiTest(
                 overriding("contracts.throttle.throttleByGas", "false"),
                 runWithProvider(precompileMintsFactory())
                         .lasting(duration::get, unit::get)
-                        .maxOpsPerSec(maxOpsPerSec::get),
-                getTokenInfo(NON_FUNGIBLE_TOKEN)
-                        .hasTotalSupplySatisfying(supply -> {
-                            final var allowedMaxSupply = (int) (unit.get().toSeconds(duration.get())
-                                    * EXPECTED_MAX_MINTS_PER_SEC
-                                    * (1.0 + ALLOWED_THROTTLE_NOISE_TOLERANCE));
-                            final var allowedMinSupply = (int) (unit.get().toSeconds(duration.get())
-                                    * EXPECTED_MAX_MINTS_PER_SEC
-                                    * (1.0 - ALLOWED_THROTTLE_NOISE_TOLERANCE));
-                            Assertions.assertTrue(
-                                    supply <= allowedMaxSupply,
-                                    String.format(
-                                            "Expected max supply to be less than %d, but was %d",
-                                            allowedMaxSupply, supply));
-                            Assertions.assertTrue(
-                                    supply >= allowedMinSupply,
-                                    String.format(
-                                            "Expected min supply to be at least %d, but was %d",
-                                            allowedMinSupply, supply));
-                        })
-                        .logged());
+                        .maxOpsPerSec(maxOpsPerSec::get)
+                        .assertStatusCounts((precheckStatusCountMap, statusCountMap) -> {
+                            // to exclude any external interference (e.g. limited CI resources or network issues)
+                            // we will take into account only the successful and reverted transactions
+                            // to test the throttle
+                            final var successCount = statusCountMap.get(SUCCESS).get();
+                            final var revertCount =
+                                    statusCountMap.get(CONTRACT_REVERT_EXECUTED).get();
+                            final var throttleTolerance =
+                                    (successCount + revertCount) * ALLOWED_THROTTLE_NOISE_TOLERANCE;
+                            assertTrue(
+                                    throttleTolerance > revertCount && revertCount > 0,
+                                    "Throttled more than allowed tolerance!");
+                        }));
     }
 
     private Function<HapiSpec, OpProvider> precompileMintsFactory() {
