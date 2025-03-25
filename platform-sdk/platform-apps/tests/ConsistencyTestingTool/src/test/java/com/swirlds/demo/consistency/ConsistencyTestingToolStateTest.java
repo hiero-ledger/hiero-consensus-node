@@ -15,7 +15,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import java.nio.file.Path;
@@ -65,7 +64,7 @@ public class ConsistencyTestingToolStateTest {
     void setUp() {
         platform = mock(Platform.class);
         initTrigger = InitTrigger.GENESIS;
-        softwareVersion = new BasicSoftwareVersion(1).getPbjSemanticVersion();
+        softwareVersion = SemanticVersion.newBuilder().major(1).build();
         platformContext = mock(PlatformContext.class);
         configuration = mock(Configuration.class);
         consistencyTestingToolConfig = mock(ConsistencyTestingToolConfig.class);

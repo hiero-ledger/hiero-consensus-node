@@ -58,7 +58,6 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.address.AddressBook;
@@ -256,7 +255,7 @@ public class Browser {
                     merkleCryptography);
             // Each platform needs a different temporary state on disk.
             MerkleDb.resetDefaultInstancePath();
-            PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
+            PlatformStateFacade platformStateFacade = new PlatformStateFacade();
             // Create the initial state for the platform
             ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
             final HashedReservedSignedState reservedState = getInitialState(
