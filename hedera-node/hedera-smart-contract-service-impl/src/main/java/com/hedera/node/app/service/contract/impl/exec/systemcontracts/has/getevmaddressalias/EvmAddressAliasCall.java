@@ -46,8 +46,9 @@ public class EvmAddressAliasCall extends AbstractCall {
             return gasOnly(fullResultsFor(INVALID_ACCOUNT_ID, ZERO_ADDRESS), INVALID_ACCOUNT_ID, true);
         }
 
-        final var accountNum = numberOfLongZero(explicitAddress);
-        final var account = enhancement.nativeOperations().getAccount(accountNum);
+        final var accountID =
+                enhancement.nativeOperations().entityIdFactory().newAccountId(numberOfLongZero(explicitAddress));
+        final var account = enhancement.nativeOperations().getAccount(accountID);
         // If the account is null or does not have an account id then return bail
         if (account == null) {
             return gasOnly(fullResultsFor(INVALID_ACCOUNT_ID, ZERO_ADDRESS), INVALID_ACCOUNT_ID, true);
