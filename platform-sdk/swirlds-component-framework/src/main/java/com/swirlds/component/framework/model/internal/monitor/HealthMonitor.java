@@ -2,6 +2,8 @@
 package com.swirlds.component.framework.model.internal.monitor;
 
 import static com.swirlds.common.utility.CompareTo.isGreaterThan;
+import static com.swirlds.common.utility.CompareTo.isGreaterThanOrEqualTo;
+import static java.util.Objects.isNull;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
@@ -22,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class HealthMonitor {
 
+    public static final Duration HEALTHY_REPORT_THRESHOLD = Duration.ofSeconds(1);
     /**
      * A list of task schedulers without unlimited capacities.
      */
@@ -52,6 +55,11 @@ public class HealthMonitor {
      * The longest duration that any single scheduler has been concurrently unhealthy.
      */
     private final AtomicReference<Duration> longestUnhealthyDuration = new AtomicReference<>(Duration.ZERO);
+
+    /**
+     * Marks the time of the last transition to a healthy state
+     */
+    private Instant healthyTransitionTime = null;
 
     /**
      * Constructor.
@@ -104,6 +112,7 @@ public class HealthMonitor {
 
                 final Duration unhealthyDuration = Duration.between(lastHealthyTimes.get(i), now);
                 logger.reportUnhealthyScheduler(scheduler, unhealthyDuration);
+
                 if (isGreaterThan(unhealthyDuration, longestUnhealthyDuration)) {
                     longestUnhealthyDuration = unhealthyDuration;
                 }
@@ -111,13 +120,25 @@ public class HealthMonitor {
         }
 
         try {
-            if (longestUnhealthyDuration.equals(previouslyReportedDuration)) {
-                // Only report when there is a change in health status
-                return null;
-            } else {
+
+            if (!longestUnhealthyDuration.equals(previouslyReportedDuration)) {
                 this.longestUnhealthyDuration.set(longestUnhealthyDuration);
                 metrics.reportUnhealthyDuration(longestUnhealthyDuration);
+                if (longestUnhealthyDuration.isZero()) {
+                    healthyTransitionTime = now; // Start tracking when transitions to healthy
+                }
                 return longestUnhealthyDuration;
+            } else {
+                // if there is no change in health status,
+                // report only if the system has been healthy for period
+                if (longestUnhealthyDuration.isZero()
+                        && (isNull(healthyTransitionTime)
+                                || isGreaterThanOrEqualTo(
+                                        Duration.between(healthyTransitionTime, now), HEALTHY_REPORT_THRESHOLD))) {
+                    healthyTransitionTime = now; // reset the transition time
+                    return longestUnhealthyDuration;
+                }
+                return null;
             }
         } finally {
             previouslyReportedDuration = longestUnhealthyDuration;
