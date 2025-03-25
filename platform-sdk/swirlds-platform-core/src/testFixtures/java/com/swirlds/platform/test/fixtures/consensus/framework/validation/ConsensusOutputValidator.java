@@ -9,7 +9,7 @@ import java.util.Set;
  * This is a specific validator for consensus output related tests. It allows defining custom validations related to
  * {@link ConsensusOutput}
  *
- * Each custom validation should be initialized in the constructor and added to the list of validations.
+ * Each custom validation should be initialized in the constructor and added to the set of validations.
  * A separate constructor is provided to allow custom set of validations to be added.
  */
 public class ConsensusOutputValidator {

@@ -14,6 +14,9 @@ import org.hiero.consensus.model.crypto.Hashable;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 @SuppressWarnings("unused") // issue tracked #6998
+/**
+ * Validator that checks if the consensus mechanism does not return events more than once, either as stale or consensus.
+ */
 public final class OutputLackOfLostEventsValidation implements ConsensusOutputValidation {
     private static final ConsensusConfig CONFIG =
             new TestConfigBuilder().getOrCreateConfig().getConfigData(ConsensusConfig.class);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.turtle.runner;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.constructable.ClassConstructorPair;
@@ -171,10 +171,9 @@ public class Turtle {
             final List<ConsensusRound> consensusRoundsForOtherNode =
                     otherNode.getConsensusRoundsHolder().getCollectedRounds();
 
-            assertEquals(
-                    consensusRoundsForNode1.size(),
-                    consensusRoundsForOtherNode.size(),
-                    String.format(
+            assertThat(consensusRoundsForNode1)
+                    .hasSameSizeAs(consensusRoundsForOtherNode)
+                    .withFailMessage(String.format(
                             "The number of consensus rounds is not the same."
                                     + "output1 has %d rounds, output2 has %d rounds",
                             consensusRoundsForNode1.size(), consensusRoundsForOtherNode.size()));

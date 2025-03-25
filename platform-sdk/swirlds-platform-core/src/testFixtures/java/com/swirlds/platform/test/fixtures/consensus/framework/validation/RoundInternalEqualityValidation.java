@@ -10,27 +10,36 @@ import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
+/**
+ * A validator that ensures that the internal state of two rounds from different nodes are equal.
+ */
 public class RoundInternalEqualityValidation implements ConsensusRoundValidation {
 
     public ConsensusRoundsNodeOrigin getNodeOrigin() {
         return ConsensusRoundsNodeOrigin.DIFFERENT;
     }
 
+    /**
+     * Validates that the internal state of two rounds from different nodes are equal.
+     *
+     * @param round1 a given node's round be validated
+     * @param round2 the corresponding round from another node to be validated
+     */
     @Override
     public void validate(@NonNull final ConsensusRound round1, @NonNull final ConsensusRound round2) {
         final long firstRoundNumber = round1.getRoundNum();
         final long secondRoundNumber = round2.getRoundNum();
         assertThat(round1.getRoundNum())
                 .isEqualTo(round2.getRoundNum())
-                .withFailMessage(() -> String.format(
+                .withFailMessage(String.format(
                         "round diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
         assertThat(round1.getEventCount())
                 .isEqualTo(round2.getEventCount())
-                .withFailMessage(() -> String.format(
+                .withFailMessage(String.format(
                         "event number diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
         assertThat(round1.getSnapshot())
                 .isEqualTo(round2.getSnapshot())
-                .withFailMessage(() -> String.format(
+                .withFailMessage(String.format(
                         "snapshot diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
         final Iterator<PlatformEvent> evIt1 = round1.getConsensusEvents().iterator();
         final Iterator<PlatformEvent> evIt2 = round2.getConsensusEvents().iterator();

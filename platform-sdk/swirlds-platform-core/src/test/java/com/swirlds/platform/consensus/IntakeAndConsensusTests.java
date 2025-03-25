@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -18,7 +18,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.event.EventConstants;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class IntakeAndConsensusTests {
@@ -126,18 +125,17 @@ class IntakeAndConsensusTests {
             node1.addEvent(event.getBaseEvent());
             node2.addEvent(event.getBaseEvent());
         }
-        Assertions.assertTrue(
-                node1.getConsensusRounds().getLast().getRoundNum() > consRoundBeforeLastBatch,
-                "consensus did not advance after the partition rejoined");
+        assertThat(node1.getConsensusRounds().getLast().getRoundNum())
+                .isGreaterThan(consRoundBeforeLastBatch)
+                .withFailMessage("consensus did not advance after the partition rejoined");
         assertConsensusEvents(node1, node2);
     }
 
     private static void assertConsensusEvents(final TestIntake node1, final TestIntake node2) {
         final RoundInternalEqualityValidation roundInternalEqualityValidation = new RoundInternalEqualityValidation();
-        assertEquals(
-                node1.getConsensusRounds().size(),
-                node2.getConsensusRounds().size(),
-                String.format(
+        assertThat(node1.getConsensusRounds())
+                .hasSameSizeAs(node2.getConsensusRounds())
+                .withFailMessage(String.format(
                         "The number of consensus rounds is not the same."
                                 + "output1 has %d rounds, output2 has %d rounds",
                         node1.getConsensusRounds().size(),

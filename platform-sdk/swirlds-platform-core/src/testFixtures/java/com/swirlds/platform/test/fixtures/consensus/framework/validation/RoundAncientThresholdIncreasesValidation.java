@@ -8,6 +8,9 @@ import com.swirlds.platform.test.fixtures.consensus.framework.validation.Consens
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
+/**
+ * A validator that ensures that the ancient threshold increases between rounds from the same node.
+ */
 public class RoundAncientThresholdIncreasesValidation implements ConsensusRoundValidation {
 
     public ConsensusRoundsNodeOrigin getNodeOrigin() {
@@ -28,10 +31,12 @@ public class RoundAncientThresholdIncreasesValidation implements ConsensusRoundV
                 round2.getSnapshot().minimumJudgeInfoList().getLast();
         assertThat(round1.getRoundNum())
                 .isEqualTo(thresholdInfoForFirstRound.round())
-                .withFailMessage("the last threshold should be for the current round");
+                .withFailMessage(String.format(
+                        "the last threshold should be equal for the current round %d", round1.getRoundNum()));
         assertThat(round2.getRoundNum())
                 .isEqualTo(thresholdInfoForSecondRound.round())
-                .withFailMessage("the last threshold should be for the current round");
+                .withFailMessage(String.format(
+                        "the last threshold should be equal for the current round %d", round2.getRoundNum()));
         assertThat(thresholdInfoForFirstRound.minimumJudgeAncientThreshold())
                 .isLessThanOrEqualTo(thresholdInfoForSecondRound.minimumJudgeAncientThreshold())
                 .withFailMessage("the ancient threshold should never decrease");

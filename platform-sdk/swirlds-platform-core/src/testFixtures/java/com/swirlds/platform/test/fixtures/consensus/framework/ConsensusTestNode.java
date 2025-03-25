@@ -99,9 +99,9 @@ public class ConsensusTestNode {
                 Objects.requireNonNull(getOutput().getConsensusRounds().peekLast())
                         .getSnapshot());
 
-        assertThat(consensusTestNode.intake.getConsensusRounds().size())
+        assertThat(consensusTestNode.intake.getConsensusRounds())
                 .isEqualTo(0)
-                .withFailMessage(() -> "we should not have reached consensus yet");
+                .withFailMessage("we should not have reached consensus yet");
 
         return consensusTestNode;
     }
