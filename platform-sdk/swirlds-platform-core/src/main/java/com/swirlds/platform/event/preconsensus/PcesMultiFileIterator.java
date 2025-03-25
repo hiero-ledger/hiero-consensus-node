@@ -2,13 +2,13 @@
 package com.swirlds.platform.event.preconsensus;
 
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Iterates over events from a sequence of preconsensus event files.

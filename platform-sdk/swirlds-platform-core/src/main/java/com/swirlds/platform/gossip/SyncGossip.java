@@ -2,14 +2,13 @@
 package com.swirlds.platform.gossip;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_UNDEFINED;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_UNDEFINED;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.state.Startable;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.threading.manager.ThreadManager;
@@ -22,10 +21,8 @@ import com.swirlds.platform.Utilities;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.config.ThreadConfig;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
@@ -36,7 +33,6 @@ import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionTracker;
 import com.swirlds.platform.network.NetworkMetrics;
-import com.swirlds.platform.network.NetworkPeerIdentifier;
 import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.NegotiationProtocols;
@@ -66,7 +62,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
@@ -84,6 +79,10 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Boilerplate code for gossip.
@@ -185,7 +184,6 @@ public class SyncGossip implements ConnectionTracker, Gossip {
         }
 
         topology = new StaticTopology(peers, selfId);
-        final NetworkPeerIdentifier peerIdentifier = new NetworkPeerIdentifier(platformContext, peers);
         final SocketFactory socketFactory =
                 NetworkUtils.createSocketFactory(selfId, peers, keysAndCerts, platformContext.getConfiguration());
         // create an instance that can create new outbound connections
@@ -193,12 +191,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
                 new OutboundConnectionCreator(platformContext, selfId, this, socketFactory, peers);
         connectionManagers = new StaticConnectionManagers(topology, connectionCreator);
         final InboundConnectionHandler inboundConnectionHandler = new InboundConnectionHandler(
-                platformContext,
-                this,
-                peerIdentifier,
-                selfId,
-                connectionManagers::newConnection,
-                platformContext.getTime());
+                platformContext, this, peers, selfId, connectionManagers::newConnection, platformContext.getTime());
         // allow other members to create connections to me
         final RosterEntry rosterEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         // Assume all ServiceEndpoints use the same port and use the port from the first endpoint.
@@ -220,7 +213,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
 
         fallenBehindManager = new FallenBehindManagerImpl(
                 selfId,
-                topology,
+                peers.size(),
                 statusActionSubmitter,
                 () -> getReconnectController().start(),
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class));
@@ -232,10 +225,10 @@ public class SyncGossip implements ConnectionTracker, Gossip {
 
         reconnectThrottle = new ReconnectThrottle(reconnectConfig, platformContext.getTime());
 
-        networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfId, peers);
+        networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfId);
         platformContext.getMetrics().addUpdater(networkMetrics::update);
 
-        reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics(), peers);
+        reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics());
 
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
 

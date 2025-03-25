@@ -3,7 +3,6 @@ package com.swirlds.platform.system.status.logic;
 
 import com.swirlds.common.utility.DurationUtils;
 import com.swirlds.platform.system.status.IllegalPlatformStatusException;
-import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
 import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
@@ -18,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#ACTIVE} status.

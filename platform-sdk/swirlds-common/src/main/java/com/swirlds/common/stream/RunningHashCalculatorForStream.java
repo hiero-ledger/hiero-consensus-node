@@ -4,14 +4,14 @@ package com.swirlds.common.stream;
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.RunningHashable;
-import com.swirlds.common.crypto.SerializableHashable;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.stream.internal.AbstractLinkedObjectStream;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.RunningHashable;
+import org.hiero.consensus.model.crypto.SerializableHashable;
 
 /**
  * Accepts a SerializableRunningHashable object each time, calculates and sets its runningHash
@@ -25,7 +25,7 @@ public class RunningHashCalculatorForStream<T extends RunningHashable & Serializ
     /** use this for all logging, as controlled by the optional data/log4j2.xml file */
     private static final Logger logger = LogManager.getLogger(RunningHashCalculatorForStream.class);
     /** Used for hashing */
-    private static final Cryptography cryptography = CryptographyFactory.create();
+    private static final Cryptography cryptography = CryptographyProvider.getInstance();
     /** current running Hash */
     private Hash runningHash;
 

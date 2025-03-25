@@ -19,6 +19,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressStringWithShardAndRealm;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
@@ -74,7 +75,8 @@ import org.junit.jupiter.api.Tag;
 @DisplayName("updateTokenExpiryInfo")
 public class TokenExpiryInfoSuite {
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
-    private static final Address MISSING_LONG_ZERO_ADDRESS = asHeadlongAddress(Long.toHexString(Integer.MAX_VALUE));
+    private static final Address MISSING_LONG_ZERO_ADDRESS =
+            asHeadlongAddress(toAddressStringWithShardAndRealm(Long.toHexString(Integer.MAX_VALUE)));
     private static final String TOKEN_EXPIRY_CONTRACT = "TokenExpiryContract";
     private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
     private static final String UPDATED_AUTO_RENEW_ACCOUNT = "updatedAutoRenewAccount";

@@ -78,6 +78,8 @@ import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -94,14 +96,20 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
 
     private final CryptoCreateValidator cryptoCreateValidator;
 
+    @Nullable
+    private final AtomicBoolean systemEntitiesCreatedFlag;
+
     /**
      * Constructs a {@link CryptoCreateHandler} with the given {@link CryptoCreateValidator} and {@link StakingValidator}.
      * @param cryptoCreateValidator the validator for the crypto create transaction
      */
     @Inject
-    public CryptoCreateHandler(@NonNull final CryptoCreateValidator cryptoCreateValidator) {
+    public CryptoCreateHandler(
+            @NonNull final CryptoCreateValidator cryptoCreateValidator,
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.cryptoCreateValidator =
                 requireNonNull(cryptoCreateValidator, "The supplied argument 'cryptoCreateValidator' must not be null");
+        this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
     }
 
     @Override
@@ -138,7 +146,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         // transactionID is null. This code is very particular about which error code to throw in various cases.
         // FUTURE: Clean up the error codes to be consistent.
         final var key = op.key();
-        final var isInternal = !txn.hasTransactionID();
+        final var isInternal =
+                !txn.hasTransactionID() || (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get());
         final var keyIsEmpty = isEmpty(key);
         if (!isInternal && keyIsEmpty) {
             if (key == null) {
@@ -228,13 +237,16 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
 
         // FUTURE: Use the config and check if accounts can be created. Currently, this check is being done in
         // `finishCryptoCreate` before `commit`
+        final boolean stillCreatingSystemEntities =
+                systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get();
 
         // Validate fields in the transaction body that involves checking with dynamic properties or state
-        validateSemantics(context, accountStore, op);
+        validateSemantics(context, accountStore, op, stillCreatingSystemEntities);
 
         // Now that we have fully validated the transaction inputs, it is time to create an account!
-        // First, charge the payer for whatever initial balance there is.
-        if (op.initialBalance() > 0) {
+        // First, charge the payer for whatever initial balance there is, unless this dispatch is specifically
+        // to create system entities at genesis.
+        if (op.initialBalance() > 0 && !stillCreatingSystemEntities) {
             final var payer =
                     getIfUsable(context.payer(), accountStore, context.expiryValidator(), INVALID_PAYER_ACCOUNT_ID);
             final long newPayerBalance = payer.tinybarBalance() - op.initialBalance();
@@ -285,14 +297,17 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
     /**
      * Validate the fields in the transaction body that involves checking with dynamic
      * properties or state. This check is done as part of the handle workflow.
+     *
      * @param context handle context
      * @param accountStore account store
      * @param op crypto create transaction body
+     * @param stillCreatingSystemEntities whether system entities are still being created
      */
     private void validateSemantics(
             @NonNull final HandleContext context,
             @NonNull final ReadableAccountStore accountStore,
-            @NonNull final CryptoCreateTransactionBody op) {
+            @NonNull final CryptoCreateTransactionBody op,
+            final boolean stillCreatingSystemEntities) {
         final var cryptoCreateWithAliasConfig =
                 context.configuration().getConfigData(CryptoCreateWithAliasConfig.class);
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
@@ -352,7 +367,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         cryptoCreateValidator.validateKey(
                 op.keyOrThrow(), // cannot be null by this point
                 context.attributeValidator(),
-                context.savepointStack().getBaseBuilder(StreamBuilder.class).isInternalDispatch());
+                context.savepointStack().getBaseBuilder(StreamBuilder.class).isInternalDispatch()
+                        || stillCreatingSystemEntities);
 
         // Validate the staking information included in this account creation.
         if (op.hasStakedAccountId() || op.hasStakedNodeId()) {

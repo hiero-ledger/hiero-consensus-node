@@ -14,11 +14,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.FREEZE_TIMEOUT;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.node.app.history.impl.ProofControllerImpl;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -34,12 +34,15 @@ import com.hedera.services.bdd.junit.support.validators.block.StateChangesValida
 import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordParityValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
+import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,7 +53,7 @@ import org.junit.jupiter.api.Assertions;
  * {@link HapiSpec}. Note it suffices to validate the streams produced by a single node in
  * the network since at minimum log validation will fail in case of an ISS.
  */
-public class StreamValidationOp extends UtilOp {
+public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final Logger log = LogManager.getLogger(StreamValidationOp.class);
 
     private static final long MAX_BLOCK_TIME_MS = 2000L;
@@ -73,7 +76,15 @@ public class StreamValidationOp extends UtilOp {
             BlockNumberSequenceValidator.FACTORY,
             BlockItemNonceValidator.FACTORY);
 
-    public static void main(String[] args) {}
+    private final int historyProofsToWaitFor;
+
+    @Nullable
+    private final Duration historyProofTimeout;
+
+    public StreamValidationOp(final int historyProofsToWaitFor, @Nullable final Duration historyProofTimeout) {
+        this.historyProofsToWaitFor = historyProofsToWaitFor;
+        this.historyProofTimeout = historyProofTimeout;
+    }
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
@@ -106,6 +117,21 @@ public class StreamValidationOp extends UtilOp {
         // If there are no block streams to validate, we are done
         if (spec.startupProperties().getStreamMode("blockStream.streamMode") == RECORDS) {
             return false;
+        }
+        if (historyProofsToWaitFor > 0) {
+            requireNonNull(historyProofTimeout);
+            log.info("Waiting up to {} for {} history proofs", historyProofTimeout, historyProofsToWaitFor);
+            spec.getNetworkNodes()
+                    .forEach(node -> node.minLogsFuture(ProofControllerImpl.PROOF_COMPLETE_MSG, historyProofsToWaitFor)
+                            .orTimeout(historyProofTimeout.getSeconds(), TimeUnit.SECONDS)
+                            .join());
+            // If we waited for more than one history proof, do a freeze
+            // upgrade to test adoption of whatever candidate roster
+            // triggered production of the last history proof (the first
+            // one was the "proof" of the genesis address book)
+            if (historyProofsToWaitFor > 1) {
+                allRunFor(spec, upgradeToNextConfigVersion());
+            }
         }
         // Freeze the network
         allRunFor(

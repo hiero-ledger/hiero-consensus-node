@@ -5,8 +5,8 @@ import static java.lang.System.arraycopy;
 
 import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.AccountID;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * Provides utility methods for network admin operations.

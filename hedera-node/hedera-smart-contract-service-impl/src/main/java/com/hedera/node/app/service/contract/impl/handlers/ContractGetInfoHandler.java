@@ -19,7 +19,7 @@ import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.contract.ContractGetInfoResponse;
-import com.hedera.hapi.node.contract.ContractInfo;
+import com.hedera.hapi.node.contract.ContractGetInfoResponse.ContractInfo;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;

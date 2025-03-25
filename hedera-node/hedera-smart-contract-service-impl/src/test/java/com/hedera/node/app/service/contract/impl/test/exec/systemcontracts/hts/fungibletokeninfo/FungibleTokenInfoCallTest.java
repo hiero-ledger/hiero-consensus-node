@@ -4,8 +4,8 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_ACCOUNT_ID;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.fungibletokeninfo.FungibleTokenInfoTranslator.FUNGIBLE_TOKEN_INFO;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.fungibletokeninfo.FungibleTokenInfoTranslator.FUNGIBLE_TOKEN_INFO_V2;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.fungibletokeninfo.address_0x167.FungibleTokenInfoTranslator.FUNGIBLE_TOKEN_INFO;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.fungibletokeninfo.address_0x16c.FungibleTokenInfoTranslator.FUNGIBLE_TOKEN_INFO_16C;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_FIXED_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_FRACTIONAL_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_KEYLIST_V2;
@@ -13,7 +13,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTE_DEFAULT_KEYLIST;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTE_KEYLIST;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_EVERYTHING_TOKEN;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_EVERYTHING_TOKEN_V2;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_EVERYTHING_TOKEN_16C;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
@@ -99,15 +99,15 @@ class FungibleTokenInfoCallTest extends CallTestBase {
                 gasCalculator,
                 mockEnhancement(),
                 false,
-                FUNGIBLE_EVERYTHING_TOKEN_V2,
+                FUNGIBLE_EVERYTHING_TOKEN_16C,
                 config,
-                FUNGIBLE_TOKEN_INFO_V2.function());
+                FUNGIBLE_TOKEN_INFO_16C.function());
 
         final var result = subject.execute().fullResult().result();
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(
-                Bytes.wrap(FUNGIBLE_TOKEN_INFO_V2
+                Bytes.wrap(FUNGIBLE_TOKEN_INFO_16C
                         .getOutputs()
                         .encode(Tuple.of(
                                 SUCCESS.protoOrdinal(),
@@ -202,7 +202,7 @@ class FungibleTokenInfoCallTest extends CallTestBase {
         when(ledgerConfig.id()).thenReturn(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01"));
 
         final var subject = new FungibleTokenInfoCall(
-                gasCalculator, mockEnhancement(), true, null, config, FUNGIBLE_TOKEN_INFO_V2.function());
+                gasCalculator, mockEnhancement(), true, null, config, FUNGIBLE_TOKEN_INFO_16C.function());
 
         final var result = subject.execute().fullResult().result();
 

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.utility;
 
+import org.hiero.consensus.model.crypto.Hashable;
+
 /**
  * <p>
  * Describes an object that contains a key.
@@ -12,7 +14,7 @@ package com.swirlds.common.merkle.utility;
  * </p>
  *
  * <p>
- * If a Keyed object implements {@link com.swirlds.common.crypto.Hashable Hashable}
+ * If a Keyed object implements {@link Hashable Hashable}
  * then the key is expected to be hashed.
  * </p>
  *

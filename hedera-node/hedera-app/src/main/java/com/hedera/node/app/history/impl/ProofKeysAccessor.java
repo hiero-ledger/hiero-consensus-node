@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
-import com.hedera.node.app.tss.TssKeyPair;
+import com.hedera.node.app.history.impl.ProofKeysAccessorImpl.SchnorrKeyPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -23,5 +23,5 @@ public interface ProofKeysAccessor {
      * @param constructionId the active construction ID
      * @return the Schnorr key pair
      */
-    TssKeyPair getOrCreateSchnorrKeyPair(long constructionId);
+    SchnorrKeyPair getOrCreateSchnorrKeyPair(long constructionId);
 }

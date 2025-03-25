@@ -85,6 +85,13 @@ public record PreHandleResult(
     }
 
     /**
+     * Returns the transaction info for this result, or throws an exception if it is not available.
+     */
+    public @NonNull TransactionInfo txnInfoOrThrow() {
+        return requireNonNull(txInfo);
+    }
+
+    /**
      * Returns the key verifications for this result; or an empty map if none could be computed.
      *
      * @return the key verifications for this result; or an empty map if none could be computed.

@@ -9,13 +9,14 @@ import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchem
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.merkle.singleton.WritableSingletonStateImpl;
 import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,27 +42,23 @@ class WritablePlatformStateStoreTest {
 
         when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
                 .thenReturn(new WritableSingletonStateImpl<>(PLATFORM_STATE_KEY, platformSingleton));
-        store = new WritablePlatformStateStore(writableStates, (version) -> new BasicSoftwareVersion(version.major()));
+        store = new WritablePlatformStateStore(writableStates);
     }
 
     @Test
     void verifySetAllFrom() {
         final var platformState = randomPlatformState(randotron);
         store.setAllFrom(platformState);
-        assertEquals(
-                platformState.getCreationSoftwareVersion().getPbjSemanticVersion(),
-                store.getCreationSoftwareVersion().getPbjSemanticVersion());
+        assertEquals(platformState.getCreationSoftwareVersion(), store.getCreationSoftwareVersion());
         assertEquals(platformState.getSnapshot().round(), store.getRound());
         assertEquals(platformState.getLegacyRunningEventHash(), store.getLegacyRunningEventHash());
         assertEquals(
-                PbjConverter.fromPbjTimestamp(platformState.getSnapshot().consensusTimestamp()),
+                CommonUtils.fromPbjTimestamp(platformState.getSnapshot().consensusTimestamp()),
                 store.getConsensusTimestamp());
         assertEquals(platformState.getRoundsNonAncient(), store.getRoundsNonAncient());
         assertEquals(platformState.getSnapshot(), store.getSnapshot());
         assertEquals(platformState.getFreezeTime(), store.getFreezeTime());
-        assertEquals(
-                platformState.getFirstVersionInBirthRoundMode().getPbjSemanticVersion(),
-                store.getFirstVersionInBirthRoundMode().getPbjSemanticVersion());
+        assertEquals(platformState.getFirstVersionInBirthRoundMode(), store.getFirstVersionInBirthRoundMode());
         assertEquals(platformState.getLastRoundBeforeBirthRoundMode(), store.getLastRoundBeforeBirthRoundMode());
         assertEquals(
                 platformState.getLowestJudgeGenerationBeforeBirthRoundMode(),
@@ -71,10 +68,9 @@ class WritablePlatformStateStoreTest {
     @Test
     void verifyCreationSoftwareVersion() {
         final var version = nextInt(1, 100);
-        store.setCreationSoftwareVersion(new BasicSoftwareVersion(version));
-        assertEquals(
-                version,
-                store.getCreationSoftwareVersion().getPbjSemanticVersion().major());
+        store.setCreationSoftwareVersion(
+                SemanticVersion.newBuilder().major(version).build());
+        assertEquals(version, store.getCreationSoftwareVersion().major());
     }
 
     @Test
@@ -129,10 +125,9 @@ class WritablePlatformStateStoreTest {
     @Test
     void verifyFirstVersionInBirthRoundMode() {
         final var version = nextInt(1, 100);
-        store.setFirstVersionInBirthRoundMode(new BasicSoftwareVersion(version));
-        assertEquals(
-                version,
-                store.getFirstVersionInBirthRoundMode().getPbjSemanticVersion().major());
+        store.setFirstVersionInBirthRoundMode(
+                SemanticVersion.newBuilder().major(version).build());
+        assertEquals(version, store.getFirstVersionInBirthRoundMode().major());
     }
 
     @Test

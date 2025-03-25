@@ -9,7 +9,6 @@ import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
@@ -45,6 +44,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.DigestType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.provider.Arguments;
@@ -251,6 +251,7 @@ public class MerkleTestBase extends StateTestBase {
             registry.registerConstructables("com.swirlds.virtualmap");
             registry.registerConstructables("com.swirlds.common.merkle");
             registry.registerConstructables("com.swirlds.common");
+            registry.registerConstructables("org.hiero.consensus.model");
             registry.registerConstructables("com.swirlds.merkle");
             registry.registerConstructables("com.swirlds.merkle.tree");
             ConstructableRegistry.getInstance()
@@ -284,14 +285,7 @@ public class MerkleTestBase extends StateTestBase {
                 new OnDiskKeySerializer<>(keySerializerClassId, keyClassId, keyCodec);
         final ValueSerializer<OnDiskValue<String>> valueSerializer =
                 new OnDiskValueSerializer<>(valueSerializerClassId, valueClassId, valueCodec);
-        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        final MerkleDbTableConfig merkleDbTableConfig = new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
-        merkleDbTableConfig.hashesRamToDiskThreshold(0);
-        merkleDbTableConfig.maxNumberOfKeys(100);
+        final MerkleDbTableConfig merkleDbTableConfig = new MerkleDbTableConfig((short) 1, DigestType.SHA_384, 100, 0);
         final var builder = new MerkleDbDataSourceBuilder(virtualDbPath, merkleDbTableConfig, CONFIGURATION);
         return new VirtualMap<>(label, keySerializer, valueSerializer, builder, CONFIGURATION);
     }

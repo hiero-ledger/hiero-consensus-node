@@ -1733,4 +1733,14 @@ enum ResponseCodeEnum {
      * The batch key is not valid
      */
     INVALID_BATCH_KEY = 394;
+    
+    /**
+     * The provided schedule expiry time is not configurable.
+     */
+    SCHEDULE_EXPIRY_NOT_CONFIGURABLE = 395;
+
+    /**
+     * The network just started at genesis and is creating system entities.
+     */
+    CREATING_SYSTEM_ENTITIES = 396;
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.constructable.constructables.scannable;
 
-import com.swirlds.common.constructable.RuntimeConstructable;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
 
 public class ConstructableExample implements RuntimeConstructable {
     // Note: CLASS_ID should be final, this is not final because of unit tests

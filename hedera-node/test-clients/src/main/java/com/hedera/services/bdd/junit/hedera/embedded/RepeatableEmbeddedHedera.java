@@ -18,12 +18,8 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionResponse;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.events.ConsensusEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -32,6 +28,10 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * An embedded Hedera node that handles transactions synchronously on ingest and thus
@@ -112,13 +112,13 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
                     new FakeEvent(nodeId, time.now(), semanticVersion, createAppPayloadWrapper(payload));
         }
         if (response.getNodeTransactionPrecheckCode() == OK) {
-            handleNextRound();
+            handleNextRoundIfPresent();
             // If handling this transaction scheduled node transactions, handle them now
             while (!pendingNodeSubmissions.isEmpty()) {
                 platform.lastCreatedEvent = null;
                 pendingNodeSubmissions.poll().run();
                 if (platform.lastCreatedEvent != null) {
-                    handleNextRound();
+                    handleNextRoundIfPresent();
                 }
             }
         }
@@ -156,16 +156,27 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         this.roundDuration = requireNonNull(roundDuration);
     }
 
-    /**
-     * Executes the transaction in the last-created event within its own round.
-     */
-    private void handleNextRound() {
-        hedera.onPreHandle(platform.lastCreatedEvent, state, preHandleStateSignatureCallback);
-        final var round = platform.nextConsensusRound();
-        // Handle each transaction in own round
+    @Override
+    protected void handleRoundWith(@NonNull final byte[] serializedTxn) {
+        final var round = platform.roundWith(serializedTxn);
+        hedera.onPreHandle(round.iterator().next(), state, preHandleStateSignatureCallback);
         hedera.handleWorkflow().handleRound(state, round, handleStateSignatureCallback);
         hedera.onSealConsensusRound(round, state);
         notifyStateHashed(round.getRoundNum());
+    }
+
+    /**
+     * Executes the transaction in the last-created event within its own round.
+     */
+    public void handleNextRoundIfPresent() {
+        if (platform.lastCreatedEvent != null) {
+            hedera.onPreHandle(platform.lastCreatedEvent, state, preHandleStateSignatureCallback);
+            final var round = platform.nextConsensusRound();
+            // Handle each transaction in own round
+            hedera.handleWorkflow().handleRound(state, round, handleStateSignatureCallback);
+            hedera.onSealConsensusRound(round, state);
+            notifyStateHashed(round.getRoundNum());
+        }
     }
 
     private class SynchronousFakePlatform extends AbstractFakePlatform implements Platform {
@@ -188,6 +199,28 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         @Override
         public void start() {
             // No-op
+        }
+
+        /**
+         * Creates a new round with the given transaction.
+         * @param serializedTxn the serialized transaction
+         * @return the new round
+         */
+        private Round roundWith(@NonNull final byte[] serializedTxn) {
+            time.tick(roundDuration);
+            final var firstRoundTime = time.now();
+            return new FakeRound(
+                    roundNo.getAndIncrement(),
+                    requireNonNull(roster),
+                    List.of(new FakeConsensusEvent(
+                            new FakeEvent(
+                                    defaultNodeId,
+                                    firstRoundTime,
+                                    version.getPbjSemanticVersion(),
+                                    createAppPayloadWrapper(serializedTxn)),
+                            consensusOrder.getAndIncrement(),
+                            firstRoundTime,
+                            version.getPbjSemanticVersion())));
         }
 
         private Round nextConsensusRound() {

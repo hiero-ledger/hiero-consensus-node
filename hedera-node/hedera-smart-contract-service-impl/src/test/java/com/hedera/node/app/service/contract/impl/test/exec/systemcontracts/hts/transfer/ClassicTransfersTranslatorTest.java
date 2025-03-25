@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.transfer;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -13,37 +11,23 @@ import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
-import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.swirlds.common.utility.CommonUtils;
+import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import java.lang.reflect.Field;
 import java.util.List;
-import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-class ClassicTransfersTranslatorTest extends CallTestBase {
+class ClassicTransfersTranslatorTest extends CallAttemptTestBase {
 
     private static final String ABI_ID_TRANSFER_TOKEN = "eca36917";
     private static final String ABI_ID_CRYPTO_TRANSFER_V2 = "0e71804f";
-
-    @Mock
-    private AddressIdConverter addressIdConverter;
-
-    @Mock
-    private VerificationStrategies verificationStrategies;
 
     @Mock
     private ClassicTransfersDecoder classicTransfersDecoder;
@@ -53,8 +37,6 @@ class ClassicTransfersTranslatorTest extends CallTestBase {
 
     @Mock
     private ContractMetrics contractMetrics;
-
-    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
     private ClassicTransfersTranslator subject;
 
@@ -77,7 +59,7 @@ class ClassicTransfersTranslatorTest extends CallTestBase {
 
         subject =
                 new ClassicTransfersTranslator(classicTransfersDecoder, systemContractMethodRegistry, contractMetrics);
-        final var call = subject.callFrom(givenV2SubjectWithV2Enabled(ABI_ID_TRANSFER_TOKEN));
+        final var call = subject.callFrom(createHtsCallAttempt(ABI_ID_TRANSFER_TOKEN, callTranslators));
         Field senderIdField = ClassicTransfersCall.class.getDeclaredField("senderId");
         senderIdField.setAccessible(true);
         AccountID senderID = (AccountID) senderIdField.get(call);
@@ -94,29 +76,10 @@ class ClassicTransfersTranslatorTest extends CallTestBase {
 
         subject =
                 new ClassicTransfersTranslator(classicTransfersDecoder, systemContractMethodRegistry, contractMetrics);
-        final var call = subject.callFrom(givenV2SubjectWithV2Enabled(ABI_ID_CRYPTO_TRANSFER_V2));
+        final var call = subject.callFrom(createHtsCallAttempt(ABI_ID_CRYPTO_TRANSFER_V2, callTranslators));
         Field senderIdField = ClassicTransfersCall.class.getDeclaredField("senderId");
         senderIdField.setAccessible(true);
         AccountID senderID = (AccountID) senderIdField.get(call);
         assertEquals(B_NEW_ACCOUNT_ID, senderID);
-    }
-
-    private HtsCallAttempt givenV2SubjectWithV2Enabled(final String functionSelector) {
-        final var input = Bytes.wrap(CommonUtils.unhex(functionSelector));
-
-        return new HtsCallAttempt(
-                HTS_167_CONTRACT_ID,
-                input,
-                EIP_1014_ADDRESS,
-                NON_SYSTEM_LONG_ZERO_ADDRESS,
-                true,
-                mockEnhancement(),
-                DEFAULT_CONFIG,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                callTranslators,
-                systemContractMethodRegistry,
-                false);
     }
 }

@@ -28,11 +28,12 @@ import static com.swirlds.platform.util.BootstrapUtils.setupBrowserWindow;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyFactory;
+import com.swirlds.common.crypto.Cryptography;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -56,7 +57,7 @@ import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
-import com.swirlds.platform.system.BasicSoftwareVersion;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.address.AddressBook;
@@ -73,6 +74,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the
@@ -172,7 +174,7 @@ public class Browser {
         final List<NodeId> configNodesToRun =
                 bootstrapConfiguration.getConfigData(BasicConfig.class).nodesToRun();
         final Set<NodeId> cliNodesToRun = commandLineArgs.localNodesToStart();
-        final var validNodeIds = appAddressBook.getNodeIdSet();
+        final Set<NodeId> validNodeIds = appAddressBook.getNodeIdSet();
         final List<NodeId> nodesToRun =
                 getNodesToRun(cliNodesToRun, configNodesToRun, () -> validNodeIds, validNodeIds::contains);
         logger.info(STARTUP.getMarker(), "The following nodes {} are set to run locally", nodesToRun);
@@ -222,14 +224,14 @@ public class Browser {
             setupGlobalMetrics(configuration);
             guiMetrics = getMetricsProvider().createPlatformMetrics(nodeId);
 
-            final var recycleBin = RecycleBin.create(
+            final RecycleBin recycleBin = RecycleBin.create(
                     guiMetrics,
                     configuration,
                     getStaticThreadManager(),
                     Time.getCurrent(),
                     FileSystemManager.create(configuration),
                     nodeId);
-            final var cryptography = CryptographyFactory.create();
+            final Cryptography cryptography = CryptographyProvider.getInstance();
             final KeysAndCerts keysAndCerts = initNodeSecurity(
                             appDefinition.getConfigAddressBook(), configuration, Set.copyOf(nodesToRun))
                     .get(nodeId);
@@ -238,13 +240,13 @@ public class Browser {
             cryptography.digestSync(appDefinition.getConfigAddressBook());
 
             // Set the MerkleCryptography instance for this node
-            final var merkleCryptography = MerkleCryptographyFactory.create(configuration);
+            final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
 
             // Register with the ConstructableRegistry classes which need configuration.
             BootstrapUtils.setupConstructableRegistryWithConfiguration(configuration);
 
             // Create platform context
-            final var platformContext = PlatformContext.create(
+            final PlatformContext platformContext = PlatformContext.create(
                     configuration,
                     Time.getCurrent(),
                     guiMetrics,
@@ -253,12 +255,12 @@ public class Browser {
                     merkleCryptography);
             // Each platform needs a different temporary state on disk.
             MerkleDb.resetDefaultInstancePath();
-            PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
+            PlatformStateFacade platformStateFacade = new PlatformStateFacade();
             // Create the initial state for the platform
             ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
             final HashedReservedSignedState reservedState = getInitialState(
                     recycleBin,
-                    appMain.getSoftwareVersion(),
+                    appMain.getSoftwareVersion().getPbjSemanticVersion(),
                     appMain::newStateRoot,
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
@@ -266,7 +268,7 @@ public class Browser {
                     appDefinition.getConfigAddressBook(),
                     platformStateFacade,
                     platformContext);
-            final var initialState = reservedState.state();
+            final ReservedSignedState initialState = reservedState.state();
 
             // Initialize the address book
             final AddressBook addressBook = initializeAddressBook(
