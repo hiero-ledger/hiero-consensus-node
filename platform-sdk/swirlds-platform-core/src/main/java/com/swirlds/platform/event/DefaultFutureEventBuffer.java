@@ -69,7 +69,7 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
     @Override
     @Nullable
     public List<PlatformEvent> addEvent(@NonNull final PlatformEvent event) {
-        if(disableFutureEventBuffer) {
+        if (disableFutureEventBuffer) {
             return List.of(event);
         } else if (eventWindow.isAncient(event)) {
             // we can safely ignore ancient events

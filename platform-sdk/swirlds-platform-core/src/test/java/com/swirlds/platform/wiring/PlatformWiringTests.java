@@ -73,8 +73,7 @@ class PlatformWiringTests {
                                 .autoDiscoverExtensions()
                                 .withValue("platformWiring.inlinePces", "true")
                                 .build())
-                        .build()
-        );
+                        .build());
     }
 
     @ParameterizedTest
