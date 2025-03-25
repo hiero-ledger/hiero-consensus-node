@@ -13,7 +13,6 @@ import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleMetrics;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.PlatformStateAccessor;
@@ -72,7 +71,7 @@ public interface StandaloneModule {
     @Provides
     @Singleton
     static PlatformStateAccessor providePlatformState() {
-        return new SnapshotPlatformStateAccessor(PlatformState.DEFAULT, ServicesSoftwareVersion::new);
+        return new SnapshotPlatformStateAccessor(PlatformState.DEFAULT);
     }
 
     @Provides

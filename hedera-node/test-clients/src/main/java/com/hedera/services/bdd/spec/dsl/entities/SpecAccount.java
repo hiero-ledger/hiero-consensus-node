@@ -28,7 +28,6 @@ import com.hedera.services.bdd.spec.dsl.operations.transactions.DeleteAccountOpe
 import com.hedera.services.bdd.spec.dsl.operations.transactions.DissociateTokensOperation;
 import com.hedera.services.bdd.spec.dsl.operations.transactions.TransferTokensOperation;
 import com.hedera.services.bdd.spec.dsl.utils.KeyMetadata;
-import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoCreate;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -39,8 +38,6 @@ import java.util.List;
  */
 public class SpecAccount extends AbstractSpecEntity<HapiCryptoCreate, Account>
         implements OwningEntity, EvmAddressableEntity {
-    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
-    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
     private static final long UNSPECIFIED_CENT_BALANCE = -1;
 
     private final Account.Builder builder = Account.newBuilder();
@@ -345,6 +342,8 @@ public class SpecAccount extends AbstractSpecEntity<HapiCryptoCreate, Account>
                 creation.model()
                         .copyBuilder()
                         .accountId(AccountID.newBuilder()
+                                .shardNum(Long.parseLong(SHARD))
+                                .realmNum(Long.parseLong(REALM))
                                 .accountNum(creation.op().numOfCreatedAccount())
                                 .build())
                         .key(toPbj(creation.op().getKey()))

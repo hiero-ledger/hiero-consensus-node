@@ -34,7 +34,8 @@ class HssCallAttemptTest extends CallAttemptTestBase {
 
     @Test
     void returnNullScheduleIfScheduleNotFound() {
-        given(nativeOperations.getSchedule(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
+        given(nativeOperations.getSchedule(
+                        entityIdFactory.newScheduleId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS))))
                 .willReturn(null);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input = TestHelpers.bytesForRedirectScheduleTxn(new byte[4], NON_SYSTEM_LONG_ZERO_ADDRESS);

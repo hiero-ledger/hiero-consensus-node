@@ -23,6 +23,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class SyntheticIds {
+    private static final Address ZERO_ADDRESS = Address.wrap("0x0000000000000000000000000000000000000000");
     private static final AccountID DEBIT_NON_CANONICAL_REFERENCE_ID =
             AccountID.newBuilder().accountNum(0L).build();
     private static final AccountID CREDIT_NON_CANONICAL_REFERENCE_ID =
@@ -72,13 +73,23 @@ public class SyntheticIds {
         final var accountNum = accountNumberForEvmReference(address, nativeOperations);
         if (accountNum == MISSING_ENTITY_NUMBER) {
             final var explicit = explicitFromHeadlong(address);
+
+            // References to missing addresses are synthesized as ids of the zero address
+            if (address.equals(ZERO_ADDRESS)) {
+                return isCredit
+                        ? nativeOperations.entityIdFactory().newAccountIdWithAlias(Bytes.wrap(explicit))
+                        : AccountID.newBuilder().accountNum(0L).build();
+            }
+
             if (isLongZero(nativeOperations.entityIdFactory(), address)) {
                 // References to missing long-zero addresses are synthesized as aliases for
                 // credits and numeric ids for debits
-                return isCredit ? aliasIdWith(explicit) : numericIdWith(numberOfLongZero(explicit));
+                return isCredit
+                        ? nativeOperations.entityIdFactory().newAccountIdWithAlias(Bytes.wrap(explicit))
+                        : nativeOperations.entityIdFactory().newAccountId(numberOfLongZero(explicit));
             } else {
                 // References to missing EVM addresses are always synthesized as alias ids
-                return aliasIdWith(explicit);
+                return nativeOperations.entityIdFactory().newAccountIdWithAlias(Bytes.wrap(explicit));
             }
         } else if (accountNum == NON_CANONICAL_REFERENCE_NUMBER) {
             // Non-canonical references result are synthesized as ids of the zero address,
@@ -86,15 +97,7 @@ public class SyntheticIds {
             return isCredit ? CREDIT_NON_CANONICAL_REFERENCE_ID : DEBIT_NON_CANONICAL_REFERENCE_ID;
         } else {
             // Canonical references are translated to numeric ids
-            return numericIdWith(accountNum);
+            return nativeOperations.entityIdFactory().newAccountId(accountNum);
         }
-    }
-
-    private static AccountID numericIdWith(final long number) {
-        return AccountID.newBuilder().accountNum(number).build();
-    }
-
-    private static AccountID aliasIdWith(final byte[] alias) {
-        return AccountID.newBuilder().alias(Bytes.wrap(alias)).build();
     }
 }
