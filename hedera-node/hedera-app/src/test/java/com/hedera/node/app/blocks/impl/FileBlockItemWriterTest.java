@@ -233,4 +233,19 @@ class FileBlockItemWriterTest {
         assertThatThrownBy(fileBlockItemWriter::closeBlock, "Cannot close a FileBlockItemWriter that is already closed")
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void testWriteBlockHeaderItemThrowsUnsupportedException() {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
+        when(fileSystem.getPath(anyString())).thenReturn(tempDir);
+        FileBlockItemWriter fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+        final var blockHeaderBytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
+
+        assertThatThrownBy(
+                        () -> fileBlockItemWriter.writeBlockHeaderItem(blockHeaderBytes),
+                        "writeBlockHeaderItem is not supported")
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
 }

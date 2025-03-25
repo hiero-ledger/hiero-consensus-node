@@ -28,6 +28,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
@@ -251,6 +252,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
@@ -340,6 +342,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         lenient().when(round.getRoundNum()).thenReturn(ROUND_NO);
@@ -381,6 +384,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         final AtomicReference<BlockHeader> writtenHeader = new AtomicReference<>();
         givenEndOfRoundSetup(writtenHeader);
@@ -427,6 +431,33 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
+    void streamBlockHeaderSeparatelyEnabled() {
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                true,
+                aWriter);
+        final AtomicReference<BlockHeader> writtenHeader = new AtomicReference<>();
+        givenEndOfRoundSetup(writtenHeader);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+
+        // Initialize the last (N-1) block hash
+        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        assertFalse(subject.hasLedgerId());
+
+        // Start the round that will be block N
+        subject.startRound(round, state);
+        subject.setRoundFirstTransactionTime(CONSENSUS_NOW);
+
+        verify(aWriter, timeout(1000)).openBlock(N_BLOCK_NO);
+        verify(aWriter, timeout(1000)).writeBlockHeaderItem(any());
+    }
+
+    @Test
     void doesNotEndBlockWithMultipleRoundPerBlockIfNotModZero() {
         givenSubjectWith(
                 2,
@@ -434,6 +465,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         given(round.getRoundNum()).willReturn(ROUND_NO);
@@ -478,6 +510,7 @@ class BlockStreamManagerImplTest {
                 2, // Use time-based blocks with 2 second period
                 blockStreamInfoWith(resultHashes, CREATION_VERSION),
                 platformStateWithFreezeTime(CONSENSUS_NOW),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         given(round.getRoundNum()).willReturn(ROUND_NO);
@@ -564,6 +597,7 @@ class BlockStreamManagerImplTest {
                 0,
                 blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter,
                 bWriter);
         givenEndOfRoundSetup();
@@ -645,6 +679,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
@@ -694,6 +729,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         given(round.getRoundNum()).willReturn(ROUND_NO);
@@ -722,6 +758,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(Instant.ofEpochSecond(1001)),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
@@ -761,6 +798,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
@@ -798,14 +836,20 @@ class BlockStreamManagerImplTest {
             final int blockPeriod,
             @NonNull final BlockStreamInfo blockStreamInfo,
             @NonNull final PlatformState platformState,
+            final boolean streamBlockHeaderSeparately,
             @NonNull final BlockItemWriter... writers) {
         final AtomicInteger nextWriter = new AtomicInteger(0);
-        final var config = HederaTestConfigBuilder.create()
+        final var configBuilder = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.roundsPerBlock", roundsPerBlock)
-                .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+                .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS));
+
+        if (streamBlockHeaderSeparately) {
+            configBuilder.withValue("blockStream.streamBlockHeaderSeparately", true);
+        }
+
+        given(configProvider.getConfiguration())
+                .willReturn(new VersionedConfigImpl(configBuilder.getOrCreateConfig(), 1L));
         subject = new BlockStreamManagerImpl(
                 blockHashSigner,
                 () -> writers[nextWriter.getAndIncrement()],
