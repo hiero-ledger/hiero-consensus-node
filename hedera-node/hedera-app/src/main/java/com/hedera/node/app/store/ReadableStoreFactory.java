@@ -178,9 +178,6 @@ public class ReadableStoreFactory {
                 throw new IllegalArgumentException("No instance " + storeInterface
                         + " is available"); // This needs to be ensured while stores are registered
             }
-            if (store instanceof ReadablePlatformStateStore readablePlatformStateStore) {
-                readablePlatformStateStore.setVersionFactory(versionFactory);
-            }
             return storeInterface.cast(store);
         }
         throw new IllegalArgumentException("No store of class " + storeInterface + " is available");

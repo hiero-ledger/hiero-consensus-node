@@ -12,8 +12,6 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -33,7 +31,8 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class TestingEventBuilder {
     private static final Instant DEFAULT_TIMESTAMP = Instant.ofEpochMilli(1588771316678L);
-    private static final SoftwareVersion DEFAULT_SOFTWARE_VERSION = new BasicSoftwareVersion(1);
+    private static final SemanticVersion DEFAULT_SOFTWARE_VERSION =
+            SemanticVersion.newBuilder().major(1).build();
     private static final NodeId DEFAULT_CREATOR_ID = NodeId.of(0);
     private static final int DEFAULT_APP_TRANSACTION_COUNT = 2;
     private static final int DEFAULT_SYSTEM_TRANSACTION_COUNT = 0;
@@ -138,7 +137,7 @@ public class TestingEventBuilder {
      * <p>
      * If not set, defaults to {@link #DEFAULT_SOFTWARE_VERSION}.
      */
-    private SoftwareVersion softwareVersion;
+    private SemanticVersion softwareVersion;
 
     /**
      * The consensus timestamp of the event.
@@ -190,7 +189,8 @@ public class TestingEventBuilder {
      * @return this instance
      */
     public @NonNull TestingEventBuilder setSoftwareVersion(@Nullable final SemanticVersion softwareVersion) {
-        this.softwareVersion = new BasicSoftwareVersion(softwareVersion.major());
+        this.softwareVersion =
+                SemanticVersion.newBuilder().major(softwareVersion.major()).build();
         return this;
     }
 
@@ -556,7 +556,7 @@ public class TestingEventBuilder {
         }
 
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                softwareVersion.getPbjSemanticVersion(),
+                softwareVersion,
                 creatorId,
                 selfParentDescriptor,
                 otherParentDescriptors,

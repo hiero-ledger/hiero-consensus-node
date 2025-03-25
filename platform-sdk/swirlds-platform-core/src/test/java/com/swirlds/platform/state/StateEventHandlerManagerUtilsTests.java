@@ -7,8 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.platform.metrics.StateMetrics;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.state.State;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,8 +26,8 @@ public class StateEventHandlerManagerUtilsTests {
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
         state.getRoot().reserve();
         final StateMetrics stats = mock(StateMetrics.class);
-        final State result =
-                SwirldStateManagerUtils.fastCopy(state, stats, new BasicSoftwareVersion(1), TEST_PLATFORM_STATE_FACADE);
+        final State result = SwirldStateManagerUtils.fastCopy(
+                state, stats, SemanticVersion.newBuilder().major(1).build(), TEST_PLATFORM_STATE_FACADE);
 
         assertFalse(result.isImmutable(), "The copy state should be mutable.");
         assertEquals(
