@@ -4,8 +4,6 @@ package com.hedera.node.app.state;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Hashable;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
@@ -15,6 +13,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongSupplier;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.Hashable;
 
 /**
  * A {@link State} that wraps another {@link State} and provides a {@link #commit()} method that

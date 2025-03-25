@@ -120,7 +120,9 @@ public class IsAuthorizedRawCall extends AbstractCall {
         // Gotta have an account that the given address is an alias for
         final long accountNum = accountNumberForEvmReference(address, nativeOperations());
         if (!isValidAccount(accountNum, signatureType)) return bail.apply(INVALID_ACCOUNT_ID);
-        final var account = requireNonNull(enhancement.nativeOperations().getAccount(accountNum));
+        final var account = requireNonNull(enhancement
+                .nativeOperations()
+                .getAccount(enhancement.nativeOperations().entityIdFactory().newAccountId(accountNum)));
 
         // If ED, then require a key on the account
         final Optional<Key> key;

@@ -6,13 +6,13 @@ import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.gossip.FallenBehindManager;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A class that manages information about who we need to sync with, and whether we need to reconnect
@@ -76,25 +76,12 @@ public class SyncManagerImpl implements FallenBehindManager {
         fallenBehindManager.resetFallenBehind();
     }
 
-    @Override
-    public List<NodeId> getNeededForFallenBehind() {
-        return fallenBehindManager.getNeededForFallenBehind();
-    }
-
     /**
      * {@inheritDoc}
      */
     @Override
     public boolean hasFallenBehind() {
         return fallenBehindManager.hasFallenBehind();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public List<NodeId> getNeighborsForReconnect() {
-        return fallenBehindManager.getNeighborsForReconnect();
     }
 
     @Override
@@ -105,5 +92,13 @@ public class SyncManagerImpl implements FallenBehindManager {
     @Override
     public int numReportedFallenBehind() {
         return fallenBehindManager.numReportedFallenBehind();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void addRemovePeers(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed) {
+        fallenBehindManager.addRemovePeers(added, removed);
     }
 }

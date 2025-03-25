@@ -7,6 +7,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.fungibletokeninfo.address_0x167.FungibleTokenInfoTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.address_0x167.NftTokenInfoTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.address_0x167.TokenInfoTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokenkey.address_0x167.TokenKeyTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokentype.address_0x167.TokenTypeTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateKeysTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167.UpdateTranslator;
@@ -79,6 +80,14 @@ public interface Hts0x167TranslatorsModule {
     @IntoSet
     @Named("HtsTranslators")
     static CallTranslator<HtsCallAttempt> provideTokenInfoTranslator(@NonNull final TokenInfoTranslator translator) {
+        return translator;
+    }
+
+    @Provides
+    @Singleton
+    @IntoSet
+    @Named("HtsTranslators")
+    static CallTranslator<HtsCallAttempt> provideTokenKeyTranslator(@NonNull final TokenKeyTranslator translator) {
         return translator;
     }
 }

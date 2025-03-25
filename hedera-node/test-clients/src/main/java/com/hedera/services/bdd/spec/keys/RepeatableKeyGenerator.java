@@ -4,18 +4,18 @@ package com.hedera.services.bdd.spec.keys;
 import static com.hedera.services.bdd.spec.keys.DefaultKeyGen.protoEcdsaKeyWith;
 import static com.hedera.services.bdd.spec.keys.DefaultKeyGen.protoEd25519KeyWith;
 import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromEcdsaFile.ecdsaFrom;
-import static com.swirlds.common.utility.CommonUtils.hex;
-import static com.swirlds.common.utility.CommonUtils.unhex;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.consensus.model.utility.CommonUtils.unhex;
 
 import com.hedera.services.bdd.spec.keys.deterministic.Ed25519Factory;
 import com.hederahashgraph.api.proto.java.Key;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.security.PrivateKey;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * A {@link KeyGenerator} that generates repeatable keys for testing purposes.

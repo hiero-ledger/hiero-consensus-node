@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.sync.protocol;
 
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
 import java.util.Set;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * A utility class for checking if a platform status permits syncing

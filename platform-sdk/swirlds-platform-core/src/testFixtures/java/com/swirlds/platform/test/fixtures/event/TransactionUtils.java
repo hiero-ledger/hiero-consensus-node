@@ -3,8 +3,8 @@ package com.swirlds.platform.test.fixtures.event;
 
 import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
 
-import com.swirlds.platform.system.transaction.TransactionWrapper;
 import java.util.random.RandomGenerator;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 public class TransactionUtils {
 

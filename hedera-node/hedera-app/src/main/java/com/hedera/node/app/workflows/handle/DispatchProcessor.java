@@ -11,7 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
-import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
@@ -131,11 +131,11 @@ public class DispatchProcessor {
         try {
             dispatchUsageManager.screenForCapacity(dispatch);
             dispatcher.dispatchHandle(dispatch.handleContext());
-            dispatch.recordBuilder().status(SUCCESS);
+            dispatch.streamBuilder().status(SUCCESS);
             handleSystemUpdates(dispatch);
         } catch (HandleException e) {
             // In case of a ContractCall when it reverts, the gas charged should not be rolled back
-            rollback(e.shouldRollbackStack(), e.getStatus(), dispatch.stack(), dispatch.recordBuilder());
+            rollback(e.shouldRollbackStack(), e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
             if (e.shouldRollbackStack()) {
                 chargePayer(dispatch, validation, false);
                 e.maybeReplayFees(dispatch);
@@ -168,7 +168,7 @@ public class DispatchProcessor {
                 dispatch.stack(), dispatch.txnInfo().txBody());
 
         // In case we just changed the exchange rates via 0.0.112 update, reset them now
-        dispatch.recordBuilder()
+        dispatch.streamBuilder()
                 .exchangeRate(exchangeRateManager.exchangeRates())
                 .status(fileUpdateResult);
 
@@ -192,7 +192,7 @@ public class DispatchProcessor {
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
             @NonNull final ResponseCodeEnum status) {
-        rollback(true, status, dispatch.stack(), dispatch.recordBuilder());
+        rollback(true, status, dispatch.stack(), dispatch.streamBuilder());
         chargePayer(dispatch, validation, true);
         dispatchUsageManager.trackFeePayments(dispatch);
     }
@@ -204,9 +204,9 @@ public class DispatchProcessor {
      * @param validation the validation of the charging scenario
      */
     private void chargeCreator(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
-        dispatch.recordBuilder().status(validation.errorStatusOrThrow());
+        dispatch.streamBuilder().status(validation.errorStatusOrThrow());
         // If the transaction is a batch inner transaction, we don't charge the creator
-        if (dispatch.category() == BATCH) {
+        if (dispatch.category() == BATCH_INNER) {
             return;
         }
         dispatch.feeAccumulator()
@@ -271,16 +271,16 @@ public class DispatchProcessor {
      */
     private boolean alreadyFailed(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         if (validation.maybeErrorStatus() != null) {
-            dispatch.recordBuilder().status(validation.errorStatusOrThrow());
+            dispatch.streamBuilder().status(validation.errorStatusOrThrow());
             return true;
         }
         final var authorizationFailure = maybeAuthorizationFailure(dispatch);
         if (authorizationFailure != null) {
-            dispatch.recordBuilder().status(authorizationFailure);
+            dispatch.streamBuilder().status(authorizationFailure);
             return true;
         }
         if (failsSignatureVerification(dispatch)) {
-            dispatch.recordBuilder().status(INVALID_SIGNATURE);
+            dispatch.streamBuilder().status(INVALID_SIGNATURE);
             return true;
         }
         return false;

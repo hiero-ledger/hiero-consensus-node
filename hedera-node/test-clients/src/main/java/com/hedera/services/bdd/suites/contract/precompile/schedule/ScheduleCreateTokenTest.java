@@ -17,7 +17,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -32,9 +31,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 
-@OrderedInIsolation
 @HapiTestLifecycle
 public class ScheduleCreateTokenTest {
 
@@ -70,7 +67,6 @@ public class ScheduleCreateTokenTest {
     }
 
     @HapiTest
-    @Order(0)
     @DisplayName("Can successfully schedule a create fungible token operation")
     public Stream<DynamicTest> scheduledCreateToken() {
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -80,17 +76,13 @@ public class ScheduleCreateTokenTest {
                     contract.call("scheduleCreateFT", autoRenew, treasury)
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = asScheduleId(
-                    spec.setup().defaultShard().getShardNum(),
-                    spec.setup().defaultRealm().getRealmNum(),
-                    scheduleAddress.get());
+            final var scheduleID = asScheduleId(scheduleAddress.get());
             spec.registry().saveScheduleId("scheduledCreateFT", scheduleID);
             assertScheduleAndSign(spec, "scheduledCreateFT");
         }));
     }
 
     @HapiTest
-    @Order(1)
     @DisplayName("Can successfully schedule a create fungible token operation with designated payer")
     public Stream<DynamicTest> scheduledCreateTokenWithDesignatedPayer() {
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -100,17 +92,13 @@ public class ScheduleCreateTokenTest {
                     contract.call("scheduleCreateFTWithDesignatedPayer", autoRenew, treasury, designatedPayer)
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = asScheduleId(
-                    spec.setup().defaultShard().getShardNum(),
-                    spec.setup().defaultRealm().getRealmNum(),
-                    scheduleAddress.get());
+            final var scheduleID = asScheduleId(scheduleAddress.get());
             spec.registry().saveScheduleId("scheduledCreateFTDesignatedPayer", scheduleID);
             assertScheduleAndSign(spec, "scheduledCreateFTDesignatedPayer");
         }));
     }
 
     @HapiTest
-    @Order(2)
     @DisplayName("Can successfully schedule a create non fungible token operation")
     public Stream<DynamicTest> scheduledCreateNonFungibleToken() {
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -120,17 +108,13 @@ public class ScheduleCreateTokenTest {
                     contract.call("scheduleCreateNFT", autoRenew, treasury)
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = asScheduleId(
-                    spec.setup().defaultShard().getShardNum(),
-                    spec.setup().defaultRealm().getRealmNum(),
-                    scheduleAddress.get());
+            final var scheduleID = asScheduleId(scheduleAddress.get());
             spec.registry().saveScheduleId("scheduledCreateNFT", scheduleID);
             assertScheduleAndSign(spec, "scheduledCreateNFT");
         }));
     }
 
     @HapiTest
-    @Order(3)
     @DisplayName("Can successfully schedule a create non fungible token operation with designated payer")
     public Stream<DynamicTest> scheduledCreateNonFungibleTokenWithDesignatedPayer() {
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -140,17 +124,13 @@ public class ScheduleCreateTokenTest {
                     contract.call("scheduleCreateNFTWithDesignatedPayer", autoRenew, treasury, designatedPayer)
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = asScheduleId(
-                    spec.setup().defaultShard().getShardNum(),
-                    spec.setup().defaultRealm().getRealmNum(),
-                    scheduleAddress.get());
+            final var scheduleID = asScheduleId(scheduleAddress.get());
             spec.registry().saveScheduleId("scheduledCreateNFTDesignatedPayer", scheduleID);
             assertScheduleAndSign(spec, "scheduledCreateNFTDesignatedPayer");
         }));
     }
 
     @HapiTest
-    @Order(4)
     @DisplayName("Can successfully schedule an update token operation to set treasury and auto renew account")
     public Stream<DynamicTest> scheduledUpdateToken(@FungibleToken(initialSupply = 1000) SpecFungibleToken token) {
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -168,17 +148,13 @@ public class ScheduleCreateTokenTest {
                                     "")
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = asScheduleId(
-                    spec.setup().defaultShard().getShardNum(),
-                    spec.setup().defaultRealm().getRealmNum(),
-                    scheduleAddress.get());
+            final var scheduleID = asScheduleId(scheduleAddress.get());
             spec.registry().saveScheduleId("scheduledUpdateToken", scheduleID);
             assertScheduleAndSign(spec, "scheduledUpdateToken");
         }));
     }
 
     @HapiTest
-    @Order(5)
     @DisplayName(
             "Can successfully schedule an update token operation to set treasury and auto renew account with a designated payer")
     public Stream<DynamicTest> scheduledUpdateTokenWithDesignatedPayer(
@@ -199,17 +175,13 @@ public class ScheduleCreateTokenTest {
                                     designatedPayer)
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = asScheduleId(
-                    spec.setup().defaultShard().getShardNum(),
-                    spec.setup().defaultRealm().getRealmNum(),
-                    scheduleAddress.get());
+            final var scheduleID = asScheduleId(scheduleAddress.get());
             spec.registry().saveScheduleId("scheduledUpdateToken", scheduleID);
             assertScheduleAndSign(spec, "scheduledUpdateToken");
         }));
     }
 
     @HapiTest
-    @Order(6)
     @DisplayName("Can successfully schedule a create fungible token operation and sign with EOA via proxy contract")
     public Stream<DynamicTest> scheduledCreateTokenSignWithEOA() {
         return hapiTest(withOpContext((spec, opLog) -> {
@@ -219,10 +191,7 @@ public class ScheduleCreateTokenTest {
                     contract.call("scheduleCreateFT", autoRenew2, treasury2)
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
-            final var scheduleID = asScheduleId(
-                    spec.setup().defaultShard().getShardNum(),
-                    spec.setup().defaultRealm().getRealmNum(),
-                    scheduleAddress.get());
+            final var scheduleID = asScheduleId(scheduleAddress.get());
             final var scheduleNum = spec.setup().defaultShard().getShardNum() + "."
                     + spec.setup().defaultRealm().getRealmNum() + "."
                     + scheduleID.getScheduleNum();

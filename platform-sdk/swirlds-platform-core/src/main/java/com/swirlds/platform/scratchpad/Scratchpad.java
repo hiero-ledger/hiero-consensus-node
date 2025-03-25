@@ -2,14 +2,14 @@
 package com.swirlds.platform.scratchpad;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.scratchpad.internal.StandardScratchpad;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A utility for "taking notes" that are preserved across restart boundaries.

@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.standalone;
 
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
+import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 import static com.hedera.node.app.workflows.standalone.impl.NoopVerificationStrategies.NOOP_VERIFICATION_STRATEGIES;
 import static java.util.Objects.requireNonNull;
 
@@ -23,6 +24,7 @@ import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -37,6 +39,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
@@ -57,6 +60,8 @@ public enum TransactionExecutors {
      */
     @Deprecated(since = "0.61")
     public static final String MAX_SIGNED_TXN_SIZE_PROPERTY = "executor.maxSignedTxnSize";
+
+    public static final String DISABLE_THROTTLES_PROPERTY = "executor.disableThrottles";
 
     /**
      * A strategy to bind and retrieve {@link OperationTracer} scoped to a thread.
@@ -246,7 +251,11 @@ public enum TransactionExecutors {
         final var configProvider = new ConfigProviderImpl(false, null, properties);
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();
 
-        var defaultNodeInfo = new NodeInfoImpl(0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY);
+        var defaultNodeInfo =
+                new NodeInfoImpl(0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of());
+        final var disableThrottles = Optional.ofNullable(properties.get(DISABLE_THROTTLES_PROPERTY))
+                .map(Boolean::parseBoolean)
+                .orElse(false);
 
         final var appContext = new AppContextImpl(
                 InstantSource.system(),
@@ -262,7 +271,11 @@ public enum TransactionExecutors {
                         configProvider::getConfiguration,
                         () -> state,
                         () -> componentRef.get().throttleServiceManager().activeThrottleDefinitionsOrThrow(),
-                        ThrottleAccumulator::new,
+                        (configSupplier, capacitySplitSource, throttleType, versionFactory) -> disableThrottles
+                                ? new ThrottleAccumulator(
+                                        configSupplier, capacitySplitSource, NOOP_THROTTLE, versionFactory)
+                                : new ThrottleAccumulator(
+                                        configSupplier, capacitySplitSource, throttleType, versionFactory),
                         softwareVersionFactory),
                 () -> componentRef.get().appFeeCharging(),
                 entityIdFactory);
@@ -270,13 +283,18 @@ public enum TransactionExecutors {
                 appContext, NO_OP_METRICS, NOOP_VERIFICATION_STRATEGIES, tracerBinding, customOps);
         final var fileService = new FileServiceImpl();
         final var scheduleService = new ScheduleServiceImpl(appContext);
-        final var hintsService =
-                new HintsServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl());
+        final var hintsService = new HintsServiceImpl(
+                NO_OP_METRICS,
+                ForkJoinPool.commonPool(),
+                appContext,
+                new HintsLibraryImpl(),
+                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
         final var historyService = new HistoryServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig);
         final var component = DaggerExecutorComponent.builder()
                 .appContext(appContext)
                 .configProviderImpl(configProvider)
+                .disableThrottles(disableThrottles)
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileService)
                 .scheduleService(scheduleService)

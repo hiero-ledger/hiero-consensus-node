@@ -11,7 +11,6 @@ import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.CryptographyException;
 import com.swirlds.common.crypto.config.CryptoConfig;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
@@ -75,6 +74,7 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A collection of various static crypto methods
@@ -642,7 +642,8 @@ public final class CryptoStatic {
      * @return a trust store containing the public keys of all the members
      * @throws KeyStoreException if there is no provider that supports {@link CryptoConstants#KEYSTORE_TYPE}
      */
-    public static @NonNull KeyStore createPublicKeyStore(@NonNull final List<PeerInfo> peers) throws KeyStoreException {
+    public static @NonNull KeyStore createPublicKeyStore(@NonNull final Collection<PeerInfo> peers)
+            throws KeyStoreException {
         Objects.requireNonNull(peers);
         final KeyStore store = CryptoStatic.createEmptyTrustStore();
         for (final PeerInfo peer : peers) {

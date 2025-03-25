@@ -10,7 +10,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -24,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A testing app for guaranteeing proper handling of transactions after a restart
@@ -113,8 +113,7 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
     @Override
     @NonNull
     public ConsensusStateEventHandler<ConsistencyTestingToolState> newConsensusStateEvenHandler() {
-        return new ConsistencyTestingToolConsensusStateEventHandler(
-                new PlatformStateFacade((v) -> new BasicSoftwareVersion(v.major())));
+        return new ConsistencyTestingToolConsensusStateEventHandler(new PlatformStateFacade());
     }
 
     /**

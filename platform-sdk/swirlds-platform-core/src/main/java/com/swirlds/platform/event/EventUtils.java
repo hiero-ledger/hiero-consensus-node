@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event;
 
-import static com.swirlds.platform.consensus.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Utility methods for events.
@@ -43,23 +42,6 @@ public final class EventUtils {
     }
 
     /**
-     * Returns the timestamp of the transaction with given index in this event
-     *
-     * @param event            the event to get the transaction time from
-     * @param transactionIndex index of the transaction in this event
-     * @return timestamp of the given index transaction
-     */
-    public static @NonNull Instant getTransactionTime(@NonNull final PlatformEvent event, final int transactionIndex) {
-        if (event.getConsensusTimestamp() == null) {
-            throw new IllegalArgumentException("Event is not a consensus event");
-        }
-        if (transactionIndex >= event.getTransactionCount()) {
-            throw new IllegalArgumentException("Event does not have a transaction with index: " + transactionIndex);
-        }
-        return event.getConsensusTimestamp().plusNanos(transactionIndex * MIN_TRANS_TIMESTAMP_INCR_NANOS);
-    }
-
-    /**
      * Returns the timestamp of the last transaction in this event. If this event has no transaction, then the timestamp
      * of the event will be returned
      *
@@ -75,6 +57,6 @@ public final class EventUtils {
         if (event.getTransactionCount() <= 1) {
             return event.getConsensusTimestamp();
         }
-        return getTransactionTime(event, event.getTransactionCount() - 1);
+        return event.getTransactionTime(event.getTransactionCount() - 1);
     }
 }

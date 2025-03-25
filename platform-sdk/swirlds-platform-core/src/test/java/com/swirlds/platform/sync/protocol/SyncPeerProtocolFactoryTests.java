@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.sync.protocol;
 
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
-import static com.swirlds.platform.system.status.PlatformStatus.BEHIND;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.BEHIND;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -13,7 +13,6 @@ import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.platform.gossip.IntakeEventCounter;
@@ -30,8 +29,8 @@ import com.swirlds.platform.network.protocol.SyncProtocol;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.List;
 import org.hiero.consensus.gossip.FallenBehindManager;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -85,8 +84,6 @@ class SyncPeerProtocolFactoryTests {
 
         // node is not fallen behind
         Mockito.when(fallenBehindManager.hasFallenBehind()).thenReturn(false);
-        // only peer with ID 1 is needed for fallen behind
-        Mockito.when(fallenBehindManager.getNeededForFallenBehind()).thenReturn(List.of(NodeId.of(1L)));
     }
 
     @Test
