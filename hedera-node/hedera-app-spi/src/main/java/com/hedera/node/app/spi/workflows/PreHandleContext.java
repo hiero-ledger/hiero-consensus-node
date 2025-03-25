@@ -10,6 +10,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
@@ -269,4 +270,9 @@ public interface PreHandleContext extends TransactionKeys {
     @NonNull
     TransactionKeys allKeysForTransaction(@NonNull TransactionBody body, @NonNull AccountID payerId)
             throws PreCheckException;
+
+    /**
+     * Returns the {@link NodeInfo} of the creator of the transaction.
+     */
+    NodeInfo creatorInfo();
 }

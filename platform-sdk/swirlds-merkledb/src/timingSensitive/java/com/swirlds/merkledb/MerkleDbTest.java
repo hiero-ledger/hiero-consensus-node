@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -20,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.UUID;
+import org.hiero.consensus.model.crypto.DigestType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;

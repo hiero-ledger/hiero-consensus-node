@@ -2,7 +2,7 @@
 package com.swirlds.common.utility;
 
 import static com.swirlds.common.utility.ByteUtils.byteArrayToLong;
-import static com.swirlds.common.utility.CommonUtils.getNormalisedStringBytes;
+import static org.hiero.consensus.model.utility.CommonUtils.getNormalisedStringBytes;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 

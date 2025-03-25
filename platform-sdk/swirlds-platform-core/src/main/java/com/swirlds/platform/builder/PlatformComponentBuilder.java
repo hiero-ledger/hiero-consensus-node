@@ -76,7 +76,6 @@ import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.system.status.DefaultStatusStateMachine;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.util.MetricsDocUtils;
@@ -85,6 +84,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that
@@ -482,7 +482,7 @@ public class PlatformComponentBuilder {
                     data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
-                    blocks.appVersion(),
+                    blocks.appVersion().getPbjSemanticVersion(),
                     blocks.transactionPoolNexus());
 
             eventCreationManager = new DefaultEventCreationManager(
@@ -1210,7 +1210,7 @@ public class PlatformComponentBuilder {
                     blocks.platformContext(),
                     blocks.swirldStateManager(),
                     blocks.statusActionSubmitterReference().get(),
-                    blocks.appVersion(),
+                    blocks.appVersion().getPbjSemanticVersion(),
                     blocks.platformStateFacade());
         }
         return transactionHandler;

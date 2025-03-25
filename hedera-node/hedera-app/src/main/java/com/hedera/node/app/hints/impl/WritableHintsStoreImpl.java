@@ -158,7 +158,7 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     @Override
-    public void setCRSState(@NonNull final CRSState crsState) {
+    public void setCrsState(@NonNull final CRSState crsState) {
         this.crsState.put(crsState);
     }
 
@@ -170,7 +170,7 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
                 .nextContributingNodeId(nextNodeIdFromRoster.isPresent() ? nextNodeIdFromRoster.getAsLong() : null)
                 .contributionEndTime(asTimestamp(nextContributionTimeEnd))
                 .build();
-        setCRSState(newCrsState);
+        setCrsState(newCrsState);
     }
 
     @Override

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.stats.signing.algorithms;
 
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
 
 import com.swirlds.common.crypto.SignatureType;
 import java.io.IOException;

@@ -10,7 +10,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.merkledb.MerkleDb;
@@ -18,6 +17,7 @@ import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

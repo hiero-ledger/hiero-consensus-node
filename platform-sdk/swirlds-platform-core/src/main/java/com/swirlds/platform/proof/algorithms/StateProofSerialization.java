@@ -2,14 +2,12 @@
 package com.swirlds.platform.proof.algorithms;
 
 import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.extendable.ExtendableInputStream;
 import com.swirlds.common.io.extendable.ExtendableOutputStream;
 import com.swirlds.common.io.extendable.extensions.MaxSizeStreamExtension;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleLeaf;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.proof.tree.StateProofInternalNode;
 import com.swirlds.platform.proof.tree.StateProofNode;
 import com.swirlds.platform.proof.tree.StateProofPayload;
@@ -19,6 +17,10 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Serialization and deserialization logic for state proofs.
@@ -91,8 +93,9 @@ public final class StateProofSerialization {
         // This stream will throw an IO exception if asked to read more than MAX_STATE_PROOF_TREE_SIZE bytes.
         // This check is not needed at serialization time for the sake of safety. But if this check fails, then
         // we can expect it to fail at deserialization time as well, so we might as well fail fast.
-        final SerializableDataOutputStream limitedStream = new SerializableDataOutputStream(new ExtendableOutputStream(
-                out, new MaxSizeStreamExtension(StateProofConstants.MAX_STATE_PROOF_TREE_SIZE, false)));
+        final SerializableDataOutputStream limitedStream =
+                new SerializableDataOutputStreamImpl(new ExtendableOutputStream(
+                        out, new MaxSizeStreamExtension(StateProofConstants.MAX_STATE_PROOF_TREE_SIZE, false)));
 
         // Walk the tree in BFS order.
         final Queue<StateProofNode> queue = new LinkedList<>();
@@ -158,7 +161,7 @@ public final class StateProofSerialization {
             throws IOException {
 
         // This stream will throw an IO exception if asked to read more than MAX_STATE_PROOF_TREE_SIZE bytes.
-        final SerializableDataInputStream limitedStream = new SerializableDataInputStream(new ExtendableInputStream(
+        final SerializableDataInputStream limitedStream = new SerializableDataInputStreamImpl(new ExtendableInputStream(
                 in, new MaxSizeStreamExtension(StateProofConstants.MAX_STATE_PROOF_TREE_SIZE, false)));
 
         // Tree was written in BFS order. Read it back and reconstruct it.

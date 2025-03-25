@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -16,6 +15,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * This object is responsible for restricting the frequency of reconnects (in the role of the sender).

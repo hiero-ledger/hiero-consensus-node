@@ -3,7 +3,6 @@ package com.hedera.node.app;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.node.app.annotations.MaxSignedTxnSize;
 import com.hedera.node.app.authorization.AuthorizerInjectionModule;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -63,9 +62,11 @@ import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import dagger.BindsInstance;
 import dagger.Component;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
 import java.time.InstantSource;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.inject.Provider;
@@ -110,6 +111,9 @@ public interface HederaInjectionComponent {
 
     AppFeeCharging appFeeCharging();
 
+    @Nullable
+    AtomicBoolean systemEntitiesCreationFlag();
+
     PreHandleWorkflow preHandleWorkflow();
 
     HandleWorkflow handleWorkflow();
@@ -141,6 +145,8 @@ public interface HederaInjectionComponent {
     SubmissionManager submissionManager();
 
     AsyncFatalIssListener fatalIssListener();
+
+    CurrentPlatformStatus currentPlatformStatus();
 
     @Component.Builder
     interface Builder {
@@ -176,9 +182,6 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder self(NodeInfo self);
-
-        @BindsInstance
-        Builder maxSignedTxnSize(@MaxSignedTxnSize int maxSignedTxnSize);
 
         @BindsInstance
         Builder currentPlatformStatus(CurrentPlatformStatus currentPlatformStatus);

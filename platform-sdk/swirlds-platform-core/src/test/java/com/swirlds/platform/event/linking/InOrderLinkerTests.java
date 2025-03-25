@@ -2,25 +2,25 @@
 package com.swirlds.platform.event.linking;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_FIRST;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Random;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;

@@ -17,4 +17,15 @@ contract NumericContract16c {
         require(responseCode == SUCCESS_CODE);
     }
 
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                    Static HTS functions                    */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+    function getTokenKey(address token, uint keyType) public view {
+        (bool success, bytes memory result) = address(0x16c).staticcall(abi.encodeWithSignature("getTokenKey(address,uint256)", token, keyType));
+
+        if (success == false) {
+            revert();
+        }
+    }
+
 }

@@ -2,11 +2,11 @@
 package com.hedera.node.app.blocks;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.DigestType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import org.hiero.consensus.model.crypto.DigestType;
 
 /**
  * Defines a streaming hash computation for a perfect binary Merkle tree of {@link Bytes} leaves; where the leaves

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * To implement a swirld, create a class that implements SwirldMain. Its constructor should have no parameters, and its
@@ -35,7 +36,7 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
      *
      * <p>
      * Any changes necessary to initialize {@link State} should be made in
-     * {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SoftwareVersion)}
+     * {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SemanticVersion)}
      * </p>
      *
      * @param platform the Platform that instantiated this SwirldMain

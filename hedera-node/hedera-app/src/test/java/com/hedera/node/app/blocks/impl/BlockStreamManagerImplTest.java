@@ -28,7 +28,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
@@ -48,17 +47,13 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
-import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -77,6 +72,9 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.hashgraph.Round;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -178,7 +176,7 @@ class BlockStreamManagerImplTest {
                         BlockStreamInfo.newBuilder()
                                 .creationSoftwareVersion(
                                         SemanticVersion.newBuilder().major(1).build())
-                                .lastIntervalProcessTime(new Timestamp(1234567, 890))
+                                .lastHandleTime(new Timestamp(1234567, 890))
                                 .build(),
                         CREATION_VERSION));
     }
@@ -190,7 +188,7 @@ class BlockStreamManagerImplTest {
                 BlockStreamManagerImpl.classifyPendingWork(
                         BlockStreamInfo.newBuilder()
                                 .creationSoftwareVersion(CREATION_VERSION)
-                                .lastIntervalProcessTime(new Timestamp(1234567, 890))
+                                .lastHandleTime(new Timestamp(1234567, 890))
                                 .build(),
                         CREATION_VERSION));
     }
@@ -204,6 +202,7 @@ class BlockStreamManagerImplTest {
                                 .postUpgradeWorkDone(true)
                                 .creationSoftwareVersion(CREATION_VERSION)
                                 .lastIntervalProcessTime(new Timestamp(1234567, 890))
+                                .lastHandleTime(new Timestamp(1234567, 890))
                                 .build(),
                         CREATION_VERSION));
     }
@@ -282,7 +281,7 @@ class BlockStreamManagerImplTest {
         // Write some items to the block
         subject.writeItem(FAKE_EVENT_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
-        subject.setRoundFirstUserTransactionTime(CONSENSUS_NOW);
+        subject.setRoundFirstTransactionTime(CONSENSUS_NOW);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
 
@@ -319,7 +318,7 @@ class BlockStreamManagerImplTest {
                 true,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
-                BlockRecordService.EPOCH);
+                CONSENSUS_THEN);
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
@@ -467,7 +466,7 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         // Assert the internal state of the subject has changed as expected and the writer has been closed
-        verify(blockHashSigner, times(2)).isReady();
+        verify(blockHashSigner).isReady();
         verifyNoMoreInteractions(blockHashSigner);
     }
 
@@ -502,7 +501,7 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_EVENT_TRANSACTION);
         assertEquals(Bytes.fromHex("aa".repeat(48)), subject.prngSeed());
         subject.writeItem(FAKE_TRANSACTION_RESULT);
-        subject.setRoundFirstUserTransactionTime(CONSENSUS_NOW);
+        subject.setRoundFirstTransactionTime(CONSENSUS_NOW);
         assertEquals(Bytes.fromHex("bb".repeat(48)), subject.prngSeed());
         subject.writeItem(FAKE_STATE_CHANGES);
         for (int i = 0; i < 8; i++) {
@@ -542,7 +541,7 @@ class BlockStreamManagerImplTest {
                 false,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
-                BlockRecordService.EPOCH);
+                CONSENSUS_THEN);
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
@@ -875,6 +874,7 @@ class BlockStreamManagerImplTest {
                 .trailingBlockHashes(appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256))
                 .trailingOutputHashes(resultHashes)
                 .lastIntervalProcessTime(CONSENSUS_THEN)
+                .lastHandleTime(CONSENSUS_THEN)
                 .blockTime(asTimestamp(CONSENSUS_NOW.minusSeconds(5))) // Add block time to track last block creation
                 .build();
     }

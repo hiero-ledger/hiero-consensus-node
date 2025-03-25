@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.protocol;
 
-import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_UNDEFINED;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_UNDEFINED;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.gossip.modular.GossipController;
 import com.swirlds.platform.gossip.modular.SyncGossipSharedProtocolState;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
 import com.swirlds.platform.reconnect.ReconnectController;
 import com.swirlds.platform.reconnect.ReconnectHelper;
@@ -27,15 +25,15 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.hiero.consensus.gossip.FallenBehindManager;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Implementation of a factory for reconnect protocol
@@ -72,7 +70,7 @@ public class ReconnectProtocol implements Protocol {
             @NonNull final ReconnectController reconnectController,
             @NonNull final SignedStateValidator validator,
             @NonNull final FallenBehindManager fallenBehindManager,
-            final Supplier<PlatformStatus> platformStatusSupplier,
+            @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
@@ -97,7 +95,6 @@ public class ReconnectProtocol implements Protocol {
      * @param threadManager         the thread manager
      * @param latestCompleteState   holds the latest signed state that has enough signatures to be verifiable
      * @param roster                the current roster
-     * @param peers                 the current list of peers
      * @param loadReconnectState    a method that should be called when a state from reconnect is obtained
      * @param clearAllPipelinesForReconnect this method should be called to clear all pipelines prior to a reconnect
      * @param swirldStateManager    manages the mutable state
@@ -111,7 +108,6 @@ public class ReconnectProtocol implements Protocol {
             @NonNull final ThreadManager threadManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final Roster roster,
-            @NonNull final List<PeerInfo> peers,
             @NonNull final Consumer<SignedState> loadReconnectState,
             @NonNull final Runnable clearAllPipelinesForReconnect,
             @NonNull final SwirldStateManager swirldStateManager,
@@ -124,7 +120,7 @@ public class ReconnectProtocol implements Protocol {
 
         final ReconnectThrottle reconnectThrottle = new ReconnectThrottle(reconnectConfig, platformContext.getTime());
 
-        final ReconnectMetrics reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics(), peers);
+        final ReconnectMetrics reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics());
 
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
 

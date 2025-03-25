@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.datasource;
 
-import com.swirlds.common.io.SelfSerializable;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 /**
  * Manages {@link VirtualDataSource} instances. An instance of a data source builder is provided

@@ -27,7 +27,6 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -42,6 +41,7 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
     public static final String DEFAULT_ID_SENTINEL = "<DEFAULT_ID>";

@@ -8,7 +8,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.formatting.TextTable;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -22,6 +21,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.text.ParseException;
 import java.util.Objects;
 import java.util.regex.Pattern;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A utility class for AddressBook functionality.
@@ -236,7 +236,8 @@ public class AddressBookUtils {
             @NonNull final PlatformContext platformContext,
             @NonNull final ConsensusStateEventHandler<?> consensusStateEventHandler,
             @NonNull final PlatformStateFacade platformStateFacade) {
-        final boolean softwareUpgrade = detectSoftwareUpgrade(version, initialState.get(), platformStateFacade);
+        final boolean softwareUpgrade =
+                detectSoftwareUpgrade(version.getPbjSemanticVersion(), initialState.get(), platformStateFacade);
         // Initialize the address book from the configuration and platform saved state.
         final AddressBookInitializer addressBookInitializer = new AddressBookInitializer(
                 selfId,
@@ -271,10 +272,14 @@ public class AddressBookUtils {
                 }
             }
 
-            RosterUtils.setActiveRoster(
-                    state,
-                    RosterRetriever.buildRoster(addressBookInitializer.getCurrentAddressBook()),
-                    platformStateFacade.roundOf(state));
+            // The active roster is already initialized when creating a genesis state, so only set it here
+            // if it's not for the genesis state (round 0)
+            if (initialState.get().getRound() > 0) {
+                RosterUtils.setActiveRoster(
+                        state,
+                        RosterRetriever.buildRoster(addressBookInitializer.getCurrentAddressBook()),
+                        platformStateFacade.roundOf(state));
+            }
         }
 
         // At this point the initial state must have the current address book set.  If not, something is wrong.
@@ -288,21 +293,21 @@ public class AddressBookUtils {
 
     /**
      * Format a "consensusEventStreamName" using the "memo" field from the self-Address.
-     *
+     * <p>
      * !!! IMPORTANT !!!: It's imperative to retain the logic that is based on the current content of the "memo" field,
-     * even if the code is updated to source the content of "memo" from another place. The "consensusEventStreamName" is used
-     * as a directory name to save some files on disk, and the directory name should remain unchanged for now.
+     * even if the code is updated to source the content of "memo" from another place. The "consensusEventStreamName" is
+     * used as a directory name to save some files on disk, and the directory name should remain unchanged for now.
      * <p>
-     * Per @lpetrovic05 : "As far as I know, CES isn't really used for anything.
-     * It is however, uploaded to google storage, so maybe the name change might affect the uploader."
+     * Per @lpetrovic05 : "As far as I know, CES isn't really used for anything. It is however, uploaded to google
+     * storage, so maybe the name change might affect the uploader."
      * <p>
-     * This logic could and should eventually change to use the nodeId only (see the else{} branch below.)
-     * However, this change needs to be coordinated with DevOps and NodeOps to ensure the data continues to be uploaded.
-     * Replacing the directory and starting with an empty one may or may not affect the DefaultConsensusEventStream
-     * which will need to be tested when this change takes place.
+     * This logic could and should eventually change to use the nodeId only (see the else{} branch below.) However, this
+     * change needs to be coordinated with DevOps and NodeOps to ensure the data continues to be uploaded. Replacing the
+     * directory and starting with an empty one may or may not affect the DefaultConsensusEventStream which will need to
+     * be tested when this change takes place.
      *
      * @param addressBook an AddressBook
-     * @param selfId a NodeId for self
+     * @param selfId      a NodeId for self
      * @return consensusEventStreamName
      */
     @NonNull

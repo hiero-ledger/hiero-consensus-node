@@ -175,7 +175,7 @@ public class ChildDispatchFactory {
         // results from the override pre-handle result
         final var preHandleResult = overridePreHandleResult != null
                 ? overridePreHandleResult
-                : preHandleChild(options.body(), options.payerId(), config, readableStoreFactory);
+                : preHandleChild(options.body(), options.payerId(), config, readableStoreFactory, creatorInfo);
         final var childVerifier = overridePreHandleResult != null
                 ? new DefaultKeyVerifier(
                         0, config.getConfigData(HederaConfig.class), overridePreHandleResult.getVerificationResults())
@@ -324,22 +324,30 @@ public class ChildDispatchFactory {
      * Dispatches the pre-handle checks for the child transaction. This runs pureChecks and then dispatches pre-handle
      * for child transaction.
      *
-     * @param txBody               the transaction body
-     * @param syntheticPayerId     the synthetic payer id
-     * @param config               the configuration
+     * @param txBody the transaction body
+     * @param syntheticPayerId the synthetic payer id
+     * @param config the configuration
      * @param readableStoreFactory the readable store factory
+     * @param creatorInfo the creator info
      * @return the pre-handle result
      */
     private PreHandleResult preHandleChild(
             @NonNull final TransactionBody txBody,
             @NonNull final AccountID syntheticPayerId,
             @NonNull final Configuration config,
-            @NonNull final ReadableStoreFactory readableStoreFactory) {
+            @NonNull final ReadableStoreFactory readableStoreFactory,
+            @NonNull final NodeInfo creatorInfo) {
         try {
             final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             final var preHandleContext = new PreHandleContextImpl(
-                    readableStoreFactory, txBody, syntheticPayerId, config, dispatcher, transactionChecker);
+                    readableStoreFactory,
+                    txBody,
+                    syntheticPayerId,
+                    config,
+                    dispatcher,
+                    transactionChecker,
+                    creatorInfo);
             dispatcher.dispatchPreHandle(preHandleContext);
             return new PreHandleResult(
                     null,

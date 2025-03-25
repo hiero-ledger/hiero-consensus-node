@@ -12,6 +12,9 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
 import static com.hedera.services.bdd.spec.HapiPropertySource.literalIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -94,8 +97,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_RE
 import static com.hederahashgraph.api.proto.java.TokenSupplyType.FINITE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
-import static com.swirlds.common.utility.CommonUtils.hex;
-import static com.swirlds.common.utility.CommonUtils.unhex;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.consensus.model.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -120,7 +123,6 @@ import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransferList;
-import com.swirlds.common.utility.CommonUtils;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
@@ -132,6 +134,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -169,8 +172,8 @@ public class Create2OperationSuite {
                 contractCreate(contract).payingWith(GENESIS).via(CREATION).exposingNumTo(outerCreatorNum::set),
                 contractCall(contract, "startChain", msg).gas(4_000_000).via(noisyTxn),
                 sourcing(() -> {
-                    final var idOfFirstThreeLogs = "0.0." + (outerCreatorNum.get() + 1);
-                    final var idOfLastTwoLogs = "0.0." + (outerCreatorNum.get() + 2);
+                    final var idOfFirstThreeLogs = SHARD_AND_REALM + (outerCreatorNum.get() + 1);
+                    final var idOfLastTwoLogs = SHARD_AND_REALM + (outerCreatorNum.get() + 2);
                     return getTxnRecord(noisyTxn)
                             .andAllChildRecords()
                             .hasPriority(recordWith()
@@ -334,7 +337,7 @@ public class Create2OperationSuite {
                         .autoRenewSecs(customAutoRenew)
                         .autoRenewAccountId(autoRenewAccountID)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(SHARD, REALM, num))),
                 getContractInfo(contract)
                         .has(contractWith().autoRenewAccountId(autoRenewAccountID))
                         .logged(),
@@ -378,9 +381,11 @@ public class Create2OperationSuite {
                 withOpContext((spec, opLog) -> {
                     final var parentId = spec.registry().getContractId(contract);
                     final var childId = ContractID.newBuilder()
+                            .setShardNum(SHARD)
+                            .setRealmNum(REALM)
                             .setContractNum(parentId.getContractNum() + 2L)
                             .build();
-                    mirrorLiteralId.set("0.0." + childId.getContractNum());
+                    mirrorLiteralId.set(SHARD_AND_REALM + childId.getContractNum());
                     expectedMirrorAddress.set(hex(asSolidityAddress(childId)));
                 }),
                 sourcing(() -> getContractBytecode(mirrorLiteralId.get()).exposingBytecodeTo(bytecodeFromMirror::set)),
@@ -459,7 +464,7 @@ public class Create2OperationSuite {
                         .exposingContractId(childId::set)
                         .has(contractWith().balance(2 * ONE_HBAR))),
                 sourcing(() -> contractCallWithFunctionAbi(asLiteralHexed(childAddress.get()), vacateAddressAbi)),
-                sourcing(() -> getContractInfo("0.0." + childId.get().getContractNum())
+                sourcing(() -> getContractInfo(SHARD_AND_REALM + childId.get().getContractNum())
                         .has(contractWith().isDeleted())));
     }
 

@@ -9,6 +9,7 @@ import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -26,7 +27,11 @@ public class FakeHintsService implements HintsService {
 
     public FakeHintsService(@NonNull final AppContext appContext, @NonNull final Configuration bootstrapConfig) {
         delegate = new HintsServiceImpl(
-                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, new HintsLibraryImpl(), bootstrapConfig);
+                new NoOpMetrics(),
+                pendingHintsSubmissions::offer,
+                appContext,
+                new HintsLibraryImpl(),
+                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
     }
 
     @Override

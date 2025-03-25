@@ -4,7 +4,6 @@ package com.swirlds.platform.gui;
 import static com.swirlds.platform.gui.GuiUtils.winRect;
 
 import com.swirlds.common.Console;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.gui.internal.SwirldMenu;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.system.Platform;
@@ -14,6 +13,7 @@ import java.awt.GraphicsEnvironment;
 import java.awt.Rectangle;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Utilities for creating GUI elements.
