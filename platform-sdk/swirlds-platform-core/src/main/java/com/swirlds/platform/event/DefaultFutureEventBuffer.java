@@ -38,13 +38,16 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
 
     private final AtomicLong bufferedEventCount = new AtomicLong(0);
 
+    private final AncientMode ancientMode;
+
     /**
      * Constructor.
      *
      * @param platformContext the platform context
      */
     public DefaultFutureEventBuffer(@NonNull final PlatformContext platformContext) {
-        final AncientMode ancientMode = platformContext
+        Objects.requireNonNull(platformContext);
+        ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
@@ -68,7 +71,7 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
         if (eventWindow.isAncient(event)) {
             // we can safely ignore ancient events
             return null;
-        } else if (event.getBirthRound() <= eventWindow.getPendingConsensusRound()) {
+        } else if (event.getAncientIndicator(ancientMode) <= eventWindow.getAncientThreshold()) {
             // this is not a future event, no need to buffer it
             return List.of(event);
         }
@@ -90,7 +93,7 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
         // We want to release all events with birth rounds less than or equal to the pending consensus round.
         // In order to do that, we tell the sequence map to shift its window to the oldest round that we want
         // to keep within the buffer.
-        final long oldestRoundToBuffer = eventWindow.getPendingConsensusRound() + 1;
+        final long oldestRoundToBuffer = eventWindow.getAncientThreshold() + 1;
 
         final List<PlatformEvent> events = new ArrayList<>();
         futureEvents.shiftWindow(oldestRoundToBuffer, (round, roundEvents) -> {

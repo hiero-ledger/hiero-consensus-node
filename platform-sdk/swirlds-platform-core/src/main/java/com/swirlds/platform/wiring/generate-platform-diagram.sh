@@ -32,7 +32,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'StatusStateMachine:PlatformStatus:🚦' \
     -s 'HealthMonitor:health info:🏥' \
     -g 'Orphan Buffer:OrphanBuffer,OrphanBufferSplitter' \
-    -g 'Event Intake:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter,FutureEventBuffer' \
+    -g 'Event Intake:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter,FutureEventBuffer,futureEventSplitter' \
     -g 'Consensus Engine:ConsensusEngine,ConsensusEngineSplitter,EventWindowManager,getCesEvents' \
     -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumGenerationOnDisk,toStateWrittenToDiskAction,toNotification' \
     -g 'State File Management:State Snapshot Manager,📀,💾' \

@@ -104,8 +104,6 @@ public class PlatformWiring {
     private final PlatformContext platformContext;
     private final PlatformSchedulersConfig config;
 
-    private final AncientMode ancientMode;
-
     private final ComponentWiring<EventHasher, PlatformEvent> eventHasherWiring;
     private final ComponentWiring<InternalEventValidator, PlatformEvent> internalEventValidatorWiring;
     private final ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring;
@@ -118,7 +116,7 @@ public class PlatformWiring {
     private final ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring;
     private final PcesReplayerWiring pcesReplayerWiring;
     private final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring;
-    private final ComponentWiring<FutureEventBuffer, PlatformEvent> futureEventBufferWiring;
+    private final ComponentWiring<FutureEventBuffer, List<PlatformEvent>> futureEventBufferWiring;
     private final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             applicationTransactionPrehandlerWiring;
     private final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring;
@@ -173,7 +171,7 @@ public class PlatformWiring {
 
         config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
 
-        ancientMode = platformContext
+        final AncientMode ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
@@ -391,33 +389,18 @@ public class PlatformWiring {
 
         splitOrphanBufferOutput.solderTo(pcesInlineWriterWiring.getInputWire(InlinePcesWriter::writeEvent));
 
-        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-            pcesInlineWriterWiring
-                    .getOutputWire()
-                    .solderTo(futureEventBufferWiring.getInputWire(FutureEventBuffer::addEvent));
+        pcesInlineWriterWiring
+                .getOutputWire()
+                .solderTo(futureEventBufferWiring.getInputWire(FutureEventBuffer::addEvent));
 
-            futureEventBufferWiring
-                    .getOutputWire()
-                    .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
-            futureEventBufferWiring.getOutputWire().solderTo(gossipWiring.getEventInput(), INJECT);
-            futureEventBufferWiring
-                    .getOutputWire()
-                    .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
-        } else {
-            // make sure that an event is persisted before being sent to consensus, this avoids the situation where we
-            // reach consensus with events that might be lost due to a crash
-            pcesInlineWriterWiring
-                    .getOutputWire()
-                    .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
-            // make sure events are persisted before being gossipped, this prevents accidental branching in the case
-            // where an event is created, gossipped, and then the node crashes before the event is persisted.
-            // after restart, a node will not be aware of this event, so it can create a branch
-            pcesInlineWriterWiring.getOutputWire().solderTo(gossipWiring.getEventInput(), INJECT);
-            // avoid using events as parents before they are persisted
-            pcesInlineWriterWiring
-                    .getOutputWire()
-                    .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
-        }
+        final OutputWire<PlatformEvent> futureEventBufferSplitter =
+                futureEventBufferWiring.getOutputWire().buildSplitter("futureEventSplitter", "events");
+        futureEventBufferSplitter.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
+        futureEventBufferSplitter.solderTo(
+                eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
+
+        pcesInlineWriterWiring.getOutputWire().solderTo(gossipWiring.getEventInput(), INJECT);
+
         model.getHealthMonitorWire()
                 .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::reportUnhealthyDuration));
 

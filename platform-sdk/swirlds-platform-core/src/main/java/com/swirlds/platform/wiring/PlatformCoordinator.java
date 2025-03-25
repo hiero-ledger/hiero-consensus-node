@@ -65,7 +65,7 @@ public class PlatformCoordinator {
     private final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring;
     private final ComponentWiring<BranchReporter, Void> branchReporterWiring;
     private final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring;
-    private final ComponentWiring<FutureEventBuffer, PlatformEvent> futureEventBufferWiring;
+    private final ComponentWiring<FutureEventBuffer, List<PlatformEvent>> futureEventBufferWiring;
 
     /**
      * Constructor
@@ -116,7 +116,7 @@ public class PlatformCoordinator {
             @NonNull final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
             @NonNull final ComponentWiring<BranchReporter, Void> branchReporterWiring,
             @Nullable final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring,
-            @NonNull final ComponentWiring<FutureEventBuffer, PlatformEvent> futureEventBufferWiring) {
+            @NonNull final ComponentWiring<FutureEventBuffer, List<PlatformEvent>> futureEventBufferWiring) {
 
         this.flushTheEventHasher = Objects.requireNonNull(flushTheEventHasher);
         this.internalEventValidatorWiring = Objects.requireNonNull(internalEventValidatorWiring);
