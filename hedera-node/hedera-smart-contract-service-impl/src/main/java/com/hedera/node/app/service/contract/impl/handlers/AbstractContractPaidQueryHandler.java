@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.handlers;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.token.Account;
@@ -42,11 +43,34 @@ public abstract class AbstractContractPaidQueryHandler<T> extends PaidQueryHandl
         return contractIdGetter.apply(getOperation(context));
     }
 
-    protected @Nullable Account contractFrom(
-            @NonNull final QueryContext context, @NonNull final ContractID contractId) {
-        final var accountsStore = context.createStore(ReadableAccountStore.class);
-        final var contract = accountsStore.getContractById(contractId);
-        return (contract == null || !contract.smartContract()) ? null : contract;
+    /**
+     * Looking in the ReadableAccountStore for ContractID or AccountID for Account object
+     * <p>
+     * NOTE: ContractID and AccountID are the same thing, really, and contracts are accounts.
+     *
+     * @param context    Context of a single query. Contains all query specific information.
+     * @param contractId the contract id
+     * @return the account
+     */
+    protected @Nullable Account accountFrom(@NonNull final QueryContext context, @NonNull final ContractID contractId) {
+        final var store = context.createStore(ReadableAccountStore.class);
+        // looking by ContractID first, because in 'normal' behavior it should be more frequent
+        var account = store.getContractById(contractId);
+        // TODO Glib: Do we need this logic?
+        if (account == null) {
+            // TODO Glib: ContractID=1.1.1 converted to AccountID=0.0.1 here. Is it ok?
+
+            //            final var accountId =
+            //                    entityIdFactory.newAccountId(ConversionUtils.contractIDToNum(entityIdFactory,
+            // contractId));
+            final var accountId = AccountID.newBuilder()
+                    .shardNum(contractId.shardNum())
+                    .realmNum(contractId.realmNum())
+                    .accountNum(ConversionUtils.contractIDToNum(entityIdFactory, contractId))
+                    .build();
+            account = store.getAccountById(accountId);
+        }
+        return account;
     }
 
     protected @Nullable Token tokenFrom(@NonNull final QueryContext context, @NonNull final ContractID contractId) {

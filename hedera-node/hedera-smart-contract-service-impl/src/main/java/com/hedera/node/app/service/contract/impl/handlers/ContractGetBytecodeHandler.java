@@ -70,7 +70,8 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
         final Schedule schedule;
         if ((contractId = getContractId(context)) == null) {
             throw new PreCheckException(INVALID_CONTRACT_ID);
-        } else if ((contract = contractFrom(context, contractId)) != null) {
+            // TODO Glib: add a shard/realm check from contractId matches with entityIdFactory?
+        } else if ((contract = accountFrom(context, contractId)) != null) {
             if (contract.deleted()) {
                 throw new PreCheckException(CONTRACT_DELETED);
             }
@@ -136,17 +137,21 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
         final Schedule schedule;
         if ((contractId = getContractId(context)) == null) {
             return null;
-        } else if ((contract = contractFrom(context, contractId)) != null) {
+        } else if ((contract = accountFrom(context, contractId)) != null) {
             if (contract.deleted()) {
                 return null;
-            } else {
+            } else if (contract.smartContract()) {
                 return bytecodeFrom(context, contractId);
+            } else {
+                return RedirectBytecodeUtils.accountProxyBytecodePjb(
+                        ConversionUtils.contractIDToBesuAddress(entityIdFactory, contractId));
             }
         } else if ((token = tokenFrom(context, contractId)) != null) {
             if (token.deleted()) {
                 return null;
             } else {
-                return RedirectBytecodeUtils.tokenProxyBytecodePjb(ConversionUtils.contractIDToBesuAddress(entityIdFactory, contractId));
+                return RedirectBytecodeUtils.tokenProxyBytecodePjb(
+                        ConversionUtils.contractIDToBesuAddress(entityIdFactory, contractId));
             }
         } else if ((schedule = scheduleFrom(context, contractId)) != null) {
             if (schedule.deleted()) {

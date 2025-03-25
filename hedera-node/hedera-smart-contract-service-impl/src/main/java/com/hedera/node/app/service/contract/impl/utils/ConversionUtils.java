@@ -925,11 +925,13 @@ public class ConversionUtils {
 
     /**
      * Given a {@link ContractID} return the corresponding Long entity id
-     * The id can be tokenId, scheduleId, etc. Depends on what user is sending in the 'contractID' field
+     * The id can be tokenId, scheduleId, etc. Depends on what user is sending in the 'contractID' field.
+     * <p>
+     * Returns 0 if contractId in a non-long zero evm address
      *
      * @param entityIdFactory the entity id factory
      * @param contractId the contract id
-     * @return the equivalent entity id
+     * @return the equivalent entity id (0 if contractId in a non-long zero evm address)
      */
     public static @NonNull Long contractIDToNum(
             @NonNull final EntityIdFactory entityIdFactory, final ContractID contractId) {

@@ -33,11 +33,13 @@ import com.hedera.node.app.service.contract.impl.utils.RedirectBytecodeUtils;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.io.File;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -118,21 +120,37 @@ public class ContractGetBytecodeSuite {
                 .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_CONTRACT_ID));
     }
 
+    private CustomSpecAssert getContractBytecodeRedirectBytecodeCheck(
+            String contract, String key, Function<Address, Bytes> redirectBytecodeFunction) {
+        return withOpContext((spec, opLog) -> {
+            final var getBytecode = getContractBytecode(contract).saveResultTo(key);
+            allRunFor(spec, getBytecode);
+            final var actualBytecode = spec.registry().getBytes(key);
+            ContractID contractId = TxnUtils.asContractId(contract, spec);
+            final byte[] expectedBytecode = redirectBytecodeFunction
+                    .apply(Address.wrap(Bytes.wrap(ConversionUtils.asEvmAddress(
+                            contractId.getShardNum(), contractId.getRealmNum(), contractId.getContractNum()))))
+                    .toArray();
+            Assertions.assertArrayEquals(expectedBytecode, actualBytecode);
+        });
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> getByteCodeWorksForNonContractAccount() {
+        final var account = "nonContractAccount";
+        final var key = "accountByteCode";
+        return hapiTest(
+                cryptoCreate(account).balance(ONE_HUNDRED_HBARS).asCallableContract(),
+                getContractBytecodeRedirectBytecodeCheck(account, key, RedirectBytecodeUtils::accountProxyBytecodeFor));
+    }
+
     @HapiTest
     final Stream<DynamicTest> getByteCodeWorksForToken() {
         final var token = "fungibleToken";
         final var key = "tokenByteCode";
-        return hapiTest(tokenCreate(token).asCallableContract(), withOpContext((spec, opLog) -> {
-            final var getBytecode = getContractBytecode(token).saveResultTo(key);
-            allRunFor(spec, getBytecode);
-            final var actualBytecode = spec.registry().getBytes(key);
-            ContractID contractId = TxnUtils.asContractId(token, spec);
-            final byte[] expectedBytecode = RedirectBytecodeUtils.tokenProxyBytecodeFor(
-                            Address.wrap(Bytes.wrap(ConversionUtils.asEvmAddress(
-                                    contractId.getShardNum(), contractId.getRealmNum(), contractId.getContractNum()))))
-                    .toArray();
-            Assertions.assertArrayEquals(expectedBytecode, actualBytecode);
-        }));
+        return hapiTest(
+                tokenCreate(token).asCallableContract(),
+                getContractBytecodeRedirectBytecodeCheck(token, key, RedirectBytecodeUtils::tokenProxyBytecodeFor));
     }
 
     @HapiTest
@@ -143,18 +161,7 @@ public class ContractGetBytecodeSuite {
                 cryptoCreate("sender"),
                 scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo("sender", GENESIS, 1)))
                         .asCallableSchedule(),
-                withOpContext((spec, opLog) -> {
-                    final var getBytecode = getContractBytecode(schedule).saveResultTo(key);
-                    allRunFor(spec, getBytecode);
-                    final var actualBytecode = spec.registry().getBytes(key);
-                    ContractID contractId = TxnUtils.asContractId(schedule, spec);
-                    final byte[] expectedBytecode = RedirectBytecodeUtils.scheduleProxyBytecodeFor(
-                                    Address.wrap(Bytes.wrap(ConversionUtils.asEvmAddress(
-                                            contractId.getShardNum(),
-                                            contractId.getRealmNum(),
-                                            contractId.getContractNum()))))
-                            .toArray();
-                    Assertions.assertArrayEquals(expectedBytecode, actualBytecode);
-                }));
+                getContractBytecodeRedirectBytecodeCheck(
+                        schedule, key, RedirectBytecodeUtils::scheduleProxyBytecodeFor));
     }
 }
