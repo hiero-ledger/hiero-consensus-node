@@ -27,13 +27,13 @@ module com.hedera.node.app {
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
+    requires transitive org.hiero.consensus.model;
     requires transitive dagger;
     requires transitive io.grpc.stub;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;
     requires transitive org.hyperledger.besu.datatypes;
     requires transitive org.hyperledger.besu.evm;
-    requires transitive org.hiero.consensus.model;
     requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.service.addressbook;
     requires com.hedera.node.app.service.consensus;

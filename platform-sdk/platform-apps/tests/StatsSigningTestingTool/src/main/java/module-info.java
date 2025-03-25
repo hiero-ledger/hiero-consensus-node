@@ -10,9 +10,9 @@ module com.swirlds.demo.stats.signing {
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
     requires com.swirlds.state.impl;
+    requires org.hiero.consensus.model;
     requires lazysodium.java;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.provider;
-    requires org.hiero.consensus.model;
     requires static com.github.spotbugs.annotations;
 }

@@ -15,8 +15,8 @@ module com.swirlds.demo.migration {
     requires com.swirlds.state.api;
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
+    requires org.hiero.consensus.model;
     requires java.logging;
     requires org.apache.logging.log4j;
-    requires org.hiero.consensus.model;
     requires static com.github.spotbugs.annotations;
 }

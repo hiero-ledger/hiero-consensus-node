@@ -14,11 +14,11 @@ module com.hedera.node.app.service.file.impl {
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
     requires com.swirlds.common;
+    requires org.hiero.consensus.model;
     requires com.fasterxml.jackson.databind;
     requires com.google.protobuf;
     requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
-    requires org.hiero.consensus.model;
     requires static transitive com.github.spotbugs.annotations;
 
     exports com.hedera.node.app.service.file.impl.handlers;

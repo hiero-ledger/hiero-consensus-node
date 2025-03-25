@@ -42,12 +42,12 @@ module com.swirlds.demo.platform {
     requires com.swirlds.state.api;
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
+    requires org.hiero.consensus.model;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires com.google.protobuf;
     requires java.management;
     requires org.apache.logging.log4j;
-    requires org.hiero.consensus.model;
     requires static com.github.spotbugs.annotations;
 }
