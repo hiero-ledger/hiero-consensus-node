@@ -844,6 +844,11 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
+    /**
+     * The hedera functionality is passed to the submissionStrategy and based on that it's decided
+     * to which gRPC endpoint the transaction will be sent. By overriding this property we are able to test
+     * what will happen if we send a call to the wrong endpoint.
+     */
     public T withOverriddenHederaFunctionality(@NonNull final HederaFunctionality hederaFunctionality) {
         this.overriddenHederaFunctionality = hederaFunctionality;
         return self();
