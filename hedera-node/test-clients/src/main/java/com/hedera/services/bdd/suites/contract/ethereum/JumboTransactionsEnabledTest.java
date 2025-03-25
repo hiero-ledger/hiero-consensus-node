@@ -47,13 +47,13 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class JumboTransactionsEnabledTest implements LifecycleTest {
 
-    private static String CONTRACT = "CalldataSize";
-    private static String FUNCTION = "callme";
+    private static final String CONTRACT = "CalldataSize";
+    private static final String FUNCTION = "callme";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 uploadInitCode(CONTRACT),
                 contractCreate(CONTRACT));
     }
@@ -64,12 +64,17 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     public Stream<DynamicTest> jumboTransactionDisabled() {
 
         final var jumboPayload = new byte[10 * 1024];
-        return hapiTest(ethereumCall(CONTRACT, FUNCTION, jumboPayload)
-                .markAsJumboTxn()
-                .type(EthTxData.EthTransactionType.EIP1559)
-                .gasLimit(1_000_000L)
-                // gRPC request terminated immediately
-                .orUnavailableStatus());
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
+                ethereumCall(CONTRACT, FUNCTION, jumboPayload)
+                        .markAsJumboTxn()
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .gasLimit(1_000_000L)
+                        // gRPC request terminated immediately
+                        .orUnavailableStatus());
     }
 
     @HapiTest
@@ -83,6 +88,8 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 // so we can't toggle it via overriding(). Instead, we need to upgrade to the config version.
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
 
                 // send jumbo payload to non jumbo endpoint
                 contractCall(CONTRACT, FUNCTION, jumboPayload)
@@ -95,6 +102,8 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .markAsJumboTxn()
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .gasLimit(1_000_000L)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
                         // gRPC request terminated immediately
                         .orUnavailableStatus(),
 
@@ -103,6 +112,8 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .markAsJumboTxn()
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .gasLimit(1_000_000L)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
                         // Ethereum call should pass
                         // (TRANSACTION_OVERSIZE will be returned on ingest until we merge the ingest checks)
                         .hasPrecheckFrom(OK, TRANSACTION_OVERSIZE));
@@ -114,8 +125,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @DisplayName("Jumbo transaction gets bytes throttled at ingest")
     @LeakyHapiTest(overrides = {"jumboTransactions.isEnabled", "jumboTransactions.maxBytesPerSec"})
     public Stream<DynamicTest> jumboTransactionGetsThrottledAtIngest() {
-        final var contract = "CalldataSize";
-        final var function = "callme";
         final var size = 126 * 1024;
         final var bytesPerSec = 140 * 1024;
         final var payload = new byte[size];
@@ -126,18 +135,15 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         "jumboTransactions.maxBytesPerSec",
                         String.valueOf(bytesPerSec)),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                uploadInitCode(contract),
-                contractCreate(contract),
-                jumboEthCall(contract, function, payload).noLogging(),
+                jumboEthCall(payload).noLogging(),
                 sleepFor(1_000),
-                jumboEthCall(contract, function, payload).noLogging(),
-                jumboEthCall(contract, function, payload).noLogging().hasPrecheck(BUSY));
+                jumboEthCall(payload).noLogging(),
+                jumboEthCall(payload).noLogging().hasPrecheck(BUSY));
     }
 
-    private static HapiEthereumCall jumboEthCall(String contract, String function, byte[] payload) {
-        return ethereumCall(contract, function, payload)
+    private static HapiEthereumCall jumboEthCall(byte[] payload) {
+        return ethereumCall(CONTRACT, FUNCTION, payload)
                 .markAsJumboTxn()
                 .type(EthTxData.EthTransactionType.EIP1559)
                 .signingWith(SECP_256K1_SOURCE_KEY)
