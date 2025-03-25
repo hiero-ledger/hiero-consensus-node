@@ -70,7 +70,6 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
         final Schedule schedule;
         if ((contractId = getContractId(context)) == null) {
             throw new PreCheckException(INVALID_CONTRACT_ID);
-            // TODO Glib: add a shard/realm check from contractId matches with entityIdFactory?
         } else if ((contract = accountFrom(context, contractId)) != null) {
             if (contract.deleted()) {
                 throw new PreCheckException(CONTRACT_DELETED);

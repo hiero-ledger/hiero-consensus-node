@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.handlers;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.token.Account;
@@ -56,18 +55,9 @@ public abstract class AbstractContractPaidQueryHandler<T> extends PaidQueryHandl
         final var store = context.createStore(ReadableAccountStore.class);
         // looking by ContractID first, because in 'normal' behavior it should be more frequent
         var account = store.getContractById(contractId);
-        // TODO Glib: Do we need this logic?
         if (account == null) {
-            // TODO Glib: ContractID=1.1.1 converted to AccountID=0.0.1 here. Is it ok?
-
-            //            final var accountId =
-            //                    entityIdFactory.newAccountId(ConversionUtils.contractIDToNum(entityIdFactory,
-            // contractId));
-            final var accountId = AccountID.newBuilder()
-                    .shardNum(contractId.shardNum())
-                    .realmNum(contractId.realmNum())
-                    .accountNum(ConversionUtils.contractIDToNum(entityIdFactory, contractId))
-                    .build();
+            final var accountId =
+                    entityIdFactory.newAccountId(ConversionUtils.contractIDToNum(entityIdFactory, contractId));
             account = store.getAccountById(accountId);
         }
         return account;
