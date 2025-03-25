@@ -389,16 +389,27 @@ public class PlatformWiring {
 
         splitOrphanBufferOutput.solderTo(pcesInlineWriterWiring.getInputWire(InlinePcesWriter::writeEvent));
 
+        // make sure that an event is persisted before being sent to consensus, this avoids the situation where we
+        // reach consensus with events that might be lost due to a crash
         pcesInlineWriterWiring
                 .getOutputWire()
                 .solderTo(futureEventBufferWiring.getInputWire(FutureEventBuffer::addEvent));
 
         final OutputWire<PlatformEvent> futureEventBufferSplitter =
                 futureEventBufferWiring.getOutputWire().buildSplitter("futureEventSplitter", "events");
+
+        // consensus and event creation are gated by the future event buffer if event.useBirthRoundAncientThreshold is
+        // true.
+        // this ensures that only events that are not too far in the future are processed.
         futureEventBufferSplitter.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
+
+        // avoid using events as parents before they are persisted
         futureEventBufferSplitter.solderTo(
                 eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
 
+        // make sure events are persisted before being gossipped, this prevents accidental branching in the case
+        // where an event is created, gossipped, and then the node crashes before the event is persisted.
+        // after restart, a node will not be aware of this event, so it can create a branch
         pcesInlineWriterWiring.getOutputWire().solderTo(gossipWiring.getEventInput(), INJECT);
 
         model.getHealthMonitorWire()

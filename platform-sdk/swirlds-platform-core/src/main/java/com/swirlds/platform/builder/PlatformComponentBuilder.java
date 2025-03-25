@@ -1264,4 +1264,20 @@ public class PlatformComponentBuilder {
         }
         return futureEventBuffer;
     }
+
+    /**
+     * Provide a future event buffer in place of the platform's default future event buffer.
+     *
+     * @param futureEventBuffer the future event buffer to use
+     * @return this builder
+     */
+    @NonNull
+    public PlatformComponentBuilder withFutureEventBuffer(@NonNull final FutureEventBuffer futureEventBuffer) {
+        throwIfAlreadyUsed();
+        if (this.futureEventBuffer != null) {
+            throw new IllegalStateException("Future event buffer has already been set");
+        }
+        this.futureEventBuffer = Objects.requireNonNull(futureEventBuffer);
+        return this;
+    }
 }
