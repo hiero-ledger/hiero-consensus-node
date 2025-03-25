@@ -629,7 +629,10 @@ public class ThrottleAccumulator {
                 configuration.getConfigData(LazyCreationConfig.class).enabled();
         final boolean isJumboTransactionsEnabled =
                 configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
-        if (isJumboTransactionsEnabled && shouldThrottleBasedOnUsedBytes(manager, bytesUsage, now)) {
+        final var maxRegularTxnSize =
+                configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
+        final var excessBytes = bytesUsage > maxRegularTxnSize ? bytesUsage - maxRegularTxnSize : 0;
+        if (isJumboTransactionsEnabled && shouldThrottleBasedExcessBytes(manager, excessBytes, now)) {
             return true;
         }
         if (isAutoCreationEnabled && isLazyCreationEnabled) {
@@ -805,7 +808,7 @@ public class ThrottleAccumulator {
                 : shouldThrottleImplicitCreations(implicitCreationsCount, now);
     }
 
-    private boolean shouldThrottleBasedOnUsedBytes(
+    private boolean shouldThrottleBasedExcessBytes(
             @NonNull final ThrottleReqsManager manager, final long bytesUsed, @NonNull final Instant now) {
         // If the bucket doesn't allow the thx enforce the throttle
         if (!bytesThrottle.allow(now, bytesUsed)) {
