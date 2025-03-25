@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams.assertions;
 
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.stream.proto.ContractActionType;
@@ -109,14 +111,17 @@ public class ValidContractIdsAssertion implements RecordStreamAssertion {
     }
 
     private boolean isValidId(long shard, long realm, long num) {
-        return shard == 0L && realm == 0L && num >= 1 && num < Integer.MAX_VALUE;
+        return shard == SHARD && realm == REALM && num >= 1 && num < Integer.MAX_VALUE;
     }
 
     private boolean isValidRecipient(long shard, long realm, long num) {
-        return shard == 0L && realm == 0L && num >= 0 && num < Integer.MAX_VALUE;
+        return shard == SHARD && realm == REALM && num >= 0 && num < Integer.MAX_VALUE;
     }
 
     private boolean isValidOrFailedBytecodeCreationId(long shard, long realm, long num) {
-        return shard == 0L && realm == 0L && num >= 0 && num < Integer.MAX_VALUE;
+        if (shard == 0 && realm == 0 && num == 0) {
+            return true;
+        }
+        return shard == SHARD && realm == REALM && num >= 0 && num < Integer.MAX_VALUE;
     }
 }
