@@ -342,7 +342,9 @@ class OrphanBufferTests {
         final PlatformEvent otherParent =
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
 
-        // Create an event that is non-ancient but whose parents are all ancient
+        // Create an event that is non-ancient but whose parents are all ancient.
+        // The parent generations must be overridden in order to set the generation of
+        // this event to a non-ancient value, whereas the birthround can be set outright.
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setSelfParent(selfParent)
                 .setOtherParent(otherParent)
@@ -380,6 +382,7 @@ class OrphanBufferTests {
         final AncientMode ancientMode =
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
 
+        // Pick some values to use. These are arbitrary.
         final long minimumGenerationNonAncient = 100;
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
@@ -397,7 +400,9 @@ class OrphanBufferTests {
         final PlatformEvent node1AncientEvent =
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
 
-        // A non-ancient event with all ancient parents
+        // A non-ancient event with all ancient parents.
+        // The parent generations must be overridden in order to set the generation of
+        // this event to a non-ancient value, whereas the birthround can be set outright.
         final PlatformEvent node1NonAncientEvent = new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(1))
                 .setOtherParent(node0AncientEvent)
@@ -469,6 +474,7 @@ class OrphanBufferTests {
         final AncientMode ancientMode =
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
 
+        // Pick some values to use. These are arbitrary.
         final long minimumGenerationNonAncient = 100;
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;

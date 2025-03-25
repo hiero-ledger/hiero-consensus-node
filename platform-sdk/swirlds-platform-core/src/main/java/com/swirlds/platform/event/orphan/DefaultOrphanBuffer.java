@@ -80,7 +80,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
         platformContext
                 .getMetrics()
                 .getOrCreate(new FunctionGauge.Config<>(
-                                PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
+                        PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
                         .withDescription("number of orphaned events currently in the orphan buffer")
                         .withUnit("events"));
 
@@ -131,9 +131,10 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     }
 
     /**
-     * Calculates and sets the nGen value for this event. The event must not be an orphan at time of invocation.
+     * Calculates and sets the nGen value for this event. The event must not be an orphan. The value is the max of all
+     * non-ancient parent nGen values + 1, or {@link EventConstants#FIRST_GENERATION} if no such parents exist.
      *
-     * @param event the event to populate nGen for
+     * @param event the non-orphan event to populate nGen for
      */
     private void setNGen(final PlatformEvent event) {
         long maxParentNGen = EventConstants.GENERATION_UNDEFINED;
