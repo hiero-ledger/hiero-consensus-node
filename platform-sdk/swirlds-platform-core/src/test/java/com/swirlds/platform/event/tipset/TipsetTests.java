@@ -6,10 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.event.creation.tipset.Tipset;
 import com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder.WeightDistributionStrategy;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -96,8 +96,7 @@ class TipsetTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
-                .withAverageWeight(1)
-                .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator(WeightGenerators.BALANCED)
                 .build();
 
         final NodeId selfId =

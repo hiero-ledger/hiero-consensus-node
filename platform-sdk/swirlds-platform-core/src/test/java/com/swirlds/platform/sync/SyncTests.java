@@ -802,7 +802,8 @@ public class SyncTests {
                         : EventConstants.GENERATION_UNDEFINED);
 
         final int creatorIndexToExpire = 0;
-        final NodeId creatorIdToExpire = executor.getAddressBook().getNodeId(creatorIndexToExpire);
+        final NodeId creatorIdToExpire = NodeId.of(
+                executor.getRoster().rosterEntries().get(creatorIndexToExpire).nodeId());
 
         // node 0 should not create any events after CommonEvents
         executor.setFactoryConfig((factory) -> factory.getSourceFactory()
@@ -957,7 +958,8 @@ public class SyncTests {
         final SyncTestExecutor executor = new SyncTestExecutor(params);
         final AtomicLong indicatorToExpire = new AtomicLong(0);
 
-        final NodeId creatorId = executor.getAddressBook().getNodeId(0);
+        final NodeId creatorId =
+                NodeId.of(executor.getRoster().rosterEntries().get(0).nodeId());
 
         // Set the indicator to expire such that half the listener's graph, and therefore some events that need
         // to be sent to the caller, will be expired. Since we are hacking birth rounds to be the same as generations,

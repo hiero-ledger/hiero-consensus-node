@@ -1138,10 +1138,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 configProvider,
                 () -> requireNonNull(genesisNetworkSupplier).get());
         final var blockHashSigner = blockHashSignerFactory.apply(hintsService, historyService, configProvider);
-        final int maxSignedTxnSize = configProvider
-                .getConfiguration()
-                .getConfigData(HederaConfig.class)
-                .transactionMaxBytes();
         // Fully qualified so as to not confuse javadoc
         daggerApp = DaggerHederaInjectionComponent.builder()
                 .configProviderImpl(configProvider)
@@ -1153,7 +1149,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .softwareVersion(version.getPbjSemanticVersion())
                 .self(networkInfo.selfNodeInfo())
                 .platform(platform)
-                .maxSignedTxnSize(maxSignedTxnSize)
                 .currentPlatformStatus(new CurrentPlatformStatusImpl(platform))
                 .servicesRegistry(servicesRegistry)
                 .instantSource(appContext.instantSource())
