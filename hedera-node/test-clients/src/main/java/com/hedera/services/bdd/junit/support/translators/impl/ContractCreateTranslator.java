@@ -56,6 +56,8 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                     stateChange.mapUpdateOrThrow().keyOrThrow().accountIdKeyOrThrow();
                             if (accountId.accountNumOrThrow() == createdNum) {
                                 receiptBuilder.contractID(ContractID.newBuilder()
+                                        .shardNum(accountId.shardNum())
+                                        .realmNum(accountId.realmNum())
                                         .contractNum(createdNum)
                                         .build());
                                 iter.remove();

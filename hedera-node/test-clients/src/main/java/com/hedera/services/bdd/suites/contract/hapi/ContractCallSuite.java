@@ -9,6 +9,9 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -284,13 +287,16 @@ public class ContractCallSuite {
     final Stream<DynamicTest> lowLevelEcrecCallBehavior() {
         final var TEST_CONTRACT = "TestContract";
         final var somebody = "somebody";
-        final var account = "0.0.1";
+        final var account = SHARD_AND_REALM + "1";
         return hapiTest(
                 uploadInitCode(TEST_CONTRACT),
                 contractCreate(
                                 TEST_CONTRACT,
-                                idAsHeadlongAddress(
-                                        AccountID.newBuilder().setAccountNum(2).build()),
+                                idAsHeadlongAddress(AccountID.newBuilder()
+                                        .setShardNum(SHARD)
+                                        .setRealmNum(REALM)
+                                        .setAccountNum(2)
+                                        .build()),
                                 BigInteger.ONE)
                         .balance(ONE_HBAR),
                 cryptoCreate(somebody),
@@ -692,12 +698,12 @@ public class ContractCallSuite {
                 // support
                 contractCreate(addressBook)
                         .gas(1_000_000L)
-                        .exposingNumTo(num -> addressBookMirror.set(asHexedSolidityAddress(0, 0, num)))
+                        .exposingNumTo(num -> addressBookMirror.set(asHexedSolidityAddress(SHARD, REALM, num)))
                         .payingWith(DEFAULT_CONTRACT_SENDER)
                         .refusingEthConversion(),
                 contractCreate(jurisdictions)
                         .gas(1_000_000L)
-                        .exposingNumTo(num -> jurisdictionMirror.set(asHexedSolidityAddress(0, 0, num)))
+                        .exposingNumTo(num -> jurisdictionMirror.set(asHexedSolidityAddress(SHARD, REALM, num)))
                         .withExplicitParams(() -> EXPLICIT_JURISDICTION_CONS_PARAMS)
                         .payingWith(DEFAULT_CONTRACT_SENDER)
                         .refusingEthConversion(),

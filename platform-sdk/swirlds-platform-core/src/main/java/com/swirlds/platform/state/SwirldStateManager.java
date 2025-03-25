@@ -4,6 +4,7 @@ package com.swirlds.platform.state;
 import static com.swirlds.platform.state.SwirldStateManagerUtils.fastCopy;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
@@ -11,7 +12,6 @@ import com.swirlds.platform.FreezePeriodChecker;
 import com.swirlds.platform.metrics.StateMetrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.uptime.UptimeTracker;
 import com.swirlds.state.State;
@@ -58,7 +58,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
     /**
      * The current software version.
      */
-    private final SoftwareVersion softwareVersion;
+    private final SemanticVersion softwareVersion;
 
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
 
@@ -79,7 +79,7 @@ public class SwirldStateManager implements FreezePeriodChecker {
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
-            @NonNull final SoftwareVersion softwareVersion,
+            @NonNull final SemanticVersion softwareVersion,
             @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
             @NonNull final PlatformStateFacade platformStateFacade) {
 

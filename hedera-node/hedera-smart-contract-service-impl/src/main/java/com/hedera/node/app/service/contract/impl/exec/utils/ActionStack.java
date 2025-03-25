@@ -9,9 +9,9 @@ import static com.hedera.hapi.streams.codec.ContractActionProtoCodec.RECIPIENT_U
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.hederaIdNumOfContractIn;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.hederaIdNumOfOriginatorIn;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -141,7 +141,7 @@ public class ActionStack {
             @NonNull final ContractActionType type,
             @NonNull final Validation validation) {
         internalFinalize(validation, frame, action -> action.copyBuilder()
-                .recipientContract(asNumberedContractId(entityIdFactory(frame), frame.getContractAddress()))
+                .recipientContract(entityIdFactory(frame).newContractId(numberOfLongZero(frame.getContractAddress())))
                 .callType(type)
                 .build());
     }

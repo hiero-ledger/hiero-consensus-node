@@ -137,7 +137,6 @@ class IngestComponentTest {
                 .initTrigger(InitTrigger.GENESIS)
                 .platform(platform)
                 .self(selfNodeInfo)
-                .maxSignedTxnSize(1024)
                 .currentPlatformStatus(() -> PlatformStatus.ACTIVE)
                 .servicesRegistry(mock(ServicesRegistry.class))
                 .instantSource(InstantSource.system())
