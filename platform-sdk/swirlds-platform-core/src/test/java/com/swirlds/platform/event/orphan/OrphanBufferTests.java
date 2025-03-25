@@ -2,10 +2,7 @@
 package com.swirlds.platform.event.orphan;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import org.hiero.consensus.model.event.Event;
-import org.hiero.consensus.model.event.EventConstants;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -31,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -208,9 +206,9 @@ class OrphanBufferTests {
 
         final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
         doAnswer(invocation -> {
-            eventsExitedIntakePipeline.incrementAndGet();
-            return null;
-        })
+                    eventsExitedIntakePipeline.incrementAndGet();
+                    return null;
+                })
                 .when(intakeEventCounter)
                 .eventExitedIntakePipeline(any());
         final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
@@ -315,7 +313,9 @@ class OrphanBufferTests {
 
         final List<PlatformEvent> unorphanedEvents = orphanBuffer.handleEvent(genesisEvent);
         assertEquals(1, unorphanedEvents.size(), "One event was added, and one event should be returned.");
-        assertEquals(EventConstants.FIRST_GENERATION, unorphanedEvents.getFirst().getNGen(),
+        assertEquals(
+                EventConstants.FIRST_GENERATION,
+                unorphanedEvents.getFirst().getNGen(),
                 "nGen for genesis events should be the first generation possible.");
     }
 
@@ -337,8 +337,10 @@ class OrphanBufferTests {
                 ancientMode);
 
         // Create two ancient events to serve as parents
-        final PlatformEvent selfParent = new TestingEventBuilder(random).setCreatorId(NodeId.of(0)).build();
-        final PlatformEvent otherParent = new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
+        final PlatformEvent selfParent =
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(0)).build();
+        final PlatformEvent otherParent =
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
 
         // Create an event that is non-ancient but whose parents are all ancient
         final PlatformEvent event = new TestingEventBuilder(random)
@@ -364,7 +366,9 @@ class OrphanBufferTests {
         unorphanedEvents.addAll(orphanBuffer.handleEvent(event));
 
         assertEquals(1, unorphanedEvents.size(), "One event should be returned by the orphan buffer.");
-        assertEquals(EventConstants.FIRST_GENERATION, unorphanedEvents.getFirst().getNGen(),
+        assertEquals(
+                EventConstants.FIRST_GENERATION,
+                unorphanedEvents.getFirst().getNGen(),
                 "nGen for events with unknown ancient parents should be the first generation possible.");
     }
 
@@ -386,21 +390,22 @@ class OrphanBufferTests {
                 ancientMode);
 
         // Genesis event, ancient
-        final PlatformEvent node0AncientEvent = new TestingEventBuilder(random).setCreatorId(NodeId.of(0)).build();
+        final PlatformEvent node0AncientEvent =
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(0)).build();
 
         // Genesis event, ancient
-        final PlatformEvent node1AncientEvent = new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
+        final PlatformEvent node1AncientEvent =
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
 
         // A non-ancient event with all ancient parents
-        final PlatformEvent node1NonAncientEvent =
-                new TestingEventBuilder(random)
-                        .setCreatorId(NodeId.of(1))
-                        .setOtherParent(node0AncientEvent)
-                        .setSelfParent(node1AncientEvent)
-                        .setBirthRound(minimumBirthRoundNonAncient)
-                        .overrideOtherParentGeneration(minimumGenerationNonAncient - 1)
-                        .overrideSelfParentGeneration(minimumGenerationNonAncient - 1)
-                        .build();
+        final PlatformEvent node1NonAncientEvent = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(1))
+                .setOtherParent(node0AncientEvent)
+                .setSelfParent(node1AncientEvent)
+                .setBirthRound(minimumBirthRoundNonAncient)
+                .overrideOtherParentGeneration(minimumGenerationNonAncient - 1)
+                .overrideSelfParentGeneration(minimumGenerationNonAncient - 1)
+                .build();
 
         // An event that is non-ancient with a barely ancient self-parent and a barely non-ancient other-parent
         final PlatformEvent node0NonAncientEvent = new TestingEventBuilder(random)
@@ -424,25 +429,35 @@ class OrphanBufferTests {
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node0AncientEvent));
         assertTrue(unorphanedEvents.isEmpty(), "Ancient events should not be returned by the orphan buffer");
-        assertEquals(EventConstants.GENERATION_UNDEFINED, node0AncientEvent.getNGen(),
+        assertEquals(
+                EventConstants.GENERATION_UNDEFINED,
+                node0AncientEvent.getNGen(),
                 "Ancient events should not be assigned an nGen value");
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node1AncientEvent));
         assertTrue(unorphanedEvents.isEmpty(), "Ancient events should not be returned by the orphan buffer");
-        assertEquals(EventConstants.GENERATION_UNDEFINED, node1AncientEvent.getNGen(),
+        assertEquals(
+                EventConstants.GENERATION_UNDEFINED,
+                node1AncientEvent.getNGen(),
                 "Ancient events should not be assigned an nGen value");
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node1NonAncientEvent));
-        assertEquals(1, unorphanedEvents.size(),
-                "Events with only ancient parents should be returned by the orphan buffer");
-        assertEquals(EventConstants.FIRST_GENERATION, node1NonAncientEvent.getNGen(),
+        assertEquals(
+                1, unorphanedEvents.size(), "Events with only ancient parents should be returned by the orphan buffer");
+        assertEquals(
+                EventConstants.FIRST_GENERATION,
+                node1NonAncientEvent.getNGen(),
                 "Events with only ancient parents should have the first possible nGen value");
         unorphanedEvents.clear();
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node0NonAncientEvent));
-        assertEquals(1, unorphanedEvents.size(),
+        assertEquals(
+                1,
+                unorphanedEvents.size(),
                 "Events whose parents are all either ancient or already passed through should be returned by the orphan buffer");
-        assertEquals(EventConstants.FIRST_GENERATION + 1, node0NonAncientEvent.getNGen(),
+        assertEquals(
+                EventConstants.FIRST_GENERATION + 1,
+                node0NonAncientEvent.getNGen(),
                 "Events should have an nGen value 1 higher than all non ancient parents.");
     }
 
@@ -464,19 +479,20 @@ class OrphanBufferTests {
                 ancientMode);
 
         // Genesis events, ancient
-        final PlatformEvent node0AncientEvent = new TestingEventBuilder(random).setCreatorId(NodeId.of(0)).build();
-        final PlatformEvent node1AncientEvent = new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
+        final PlatformEvent node0AncientEvent =
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(0)).build();
+        final PlatformEvent node1AncientEvent =
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
 
         // Non-ancient events with different generation values
-        final PlatformEvent node1NonAncientEvent =
-                new TestingEventBuilder(random)
-                        .setCreatorId(NodeId.of(1))
-                        .setOtherParent(node0AncientEvent)
-                        .setSelfParent(node1AncientEvent)
-                        .setBirthRound(minimumBirthRoundNonAncient)
-                        .overrideOtherParentGeneration(minimumGenerationNonAncient - 1)
-                        .overrideSelfParentGeneration(minimumGenerationNonAncient - 1)
-                        .build();
+        final PlatformEvent node1NonAncientEvent = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(1))
+                .setOtherParent(node0AncientEvent)
+                .setSelfParent(node1AncientEvent)
+                .setBirthRound(minimumBirthRoundNonAncient)
+                .overrideOtherParentGeneration(minimumGenerationNonAncient - 1)
+                .overrideSelfParentGeneration(minimumGenerationNonAncient - 1)
+                .build();
         final PlatformEvent node0NonAncientEvent = new TestingEventBuilder(random)
                 .setSelfParent(node0AncientEvent)
                 .setOtherParent(node1NonAncientEvent)
@@ -489,7 +505,6 @@ class OrphanBufferTests {
                 .setOtherParent(node1NonAncientEvent)
                 .setBirthRound(minimumBirthRoundNonAncient)
                 .build();
-
 
         final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
                 TestPlatformContextBuilder.create()
@@ -504,32 +519,46 @@ class OrphanBufferTests {
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node0AncientEvent));
         assertTrue(unorphanedEvents.isEmpty(), "Ancient events should not be returned by the orphan buffer");
-        assertEquals(EventConstants.GENERATION_UNDEFINED, node0AncientEvent.getNGen(),
+        assertEquals(
+                EventConstants.GENERATION_UNDEFINED,
+                node0AncientEvent.getNGen(),
                 "Ancient events should not be assigned an nGen value");
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node1AncientEvent));
         assertTrue(unorphanedEvents.isEmpty(), "Ancient events should not be returned by the orphan buffer");
-        assertEquals(EventConstants.GENERATION_UNDEFINED, node1AncientEvent.getNGen(),
+        assertEquals(
+                EventConstants.GENERATION_UNDEFINED,
+                node1AncientEvent.getNGen(),
                 "Ancient events should not be assigned an nGen value");
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node1NonAncientEvent));
-        assertEquals(1, unorphanedEvents.size(),
-                "Events with only ancient parents should be returned by the orphan buffer");
-        assertEquals(EventConstants.FIRST_GENERATION, node1NonAncientEvent.getNGen(),
+        assertEquals(
+                1, unorphanedEvents.size(), "Events with only ancient parents should be returned by the orphan buffer");
+        assertEquals(
+                EventConstants.FIRST_GENERATION,
+                node1NonAncientEvent.getNGen(),
                 "Events with only ancient parents should have the first possible nGen value");
         unorphanedEvents.clear();
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node0NonAncientEvent));
-        assertEquals(1, unorphanedEvents.size(),
+        assertEquals(
+                1,
+                unorphanedEvents.size(),
                 "Events whose parents are all either ancient or already passed through should be returned by the orphan buffer");
-        assertEquals(EventConstants.FIRST_GENERATION + 1, node0NonAncientEvent.getNGen(),
+        assertEquals(
+                EventConstants.FIRST_GENERATION + 1,
+                node0NonAncientEvent.getNGen(),
                 "Events should have an nGen value 1 higher than all non ancient parents.");
         unorphanedEvents.clear();
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node0NonAncientEvent2));
-        assertEquals(1, unorphanedEvents.size(),
+        assertEquals(
+                1,
+                unorphanedEvents.size(),
                 "Events whose parents are all either ancient or already passed through should be returned by the orphan buffer");
-        assertEquals(EventConstants.FIRST_GENERATION + 2, node0NonAncientEvent2.getNGen(),
+        assertEquals(
+                EventConstants.FIRST_GENERATION + 2,
+                node0NonAncientEvent2.getNGen(),
                 "Events should have an nGen value 1 higher than all non ancient parents.");
     }
 }

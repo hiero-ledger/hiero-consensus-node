@@ -9,8 +9,6 @@ import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.sequence.map.SequenceMap;
 import com.swirlds.platform.sequence.map.StandardSequenceMap;
-import com.swirlds.platform.sequence.set.SequenceSet;
-import com.swirlds.platform.sequence.set.StandardSequenceSet;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -82,7 +80,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
         platformContext
                 .getMetrics()
                 .getOrCreate(new FunctionGauge.Config<>(
-                        PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
+                                PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
                         .withDescription("number of orphaned events currently in the orphan buffer")
                         .withUnit("events"));
 
@@ -141,7 +139,8 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
         long maxParentNGen = EventConstants.GENERATION_UNDEFINED;
         for (final EventDescriptorWrapper parent : event.getAllParents()) {
             if (eventsWithParents.containsKey(parent)) {
-                maxParentNGen = Math.max(maxParentNGen, eventsWithParents.get(parent).getNGen());
+                maxParentNGen =
+                        Math.max(maxParentNGen, eventsWithParents.get(parent).getNGen());
             }
         }
         final long nGen = maxParentNGen == EventConstants.GENERATION_UNDEFINED
