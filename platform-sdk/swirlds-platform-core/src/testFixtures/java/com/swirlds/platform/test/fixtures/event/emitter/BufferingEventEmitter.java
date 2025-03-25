@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.emitter;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
@@ -64,10 +65,10 @@ public abstract class BufferingEventEmitter extends AbstractEventEmitter {
     }
 
     protected void clearEvents() {
-        final AddressBook addressBook = getGraphGenerator().getAddressBook();
+        final Roster roster = getGraphGenerator().getRoster();
         events = new HashMap<>(getGraphGenerator().getNumberOfSources());
         for (int index = 0; index < getGraphGenerator().getNumberOfSources(); index++) {
-            events.put(addressBook.getNodeId(index), new LinkedList<>());
+            events.put(RosterUtils.getNodeId(roster, index), new LinkedList<>());
         }
         bufferedEvents = 0;
     }
