@@ -38,6 +38,9 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
 
     private final AtomicLong bufferedEventCount = new AtomicLong(0);
 
+    /**
+     * Set to {@code true} if the platform uses generation threshold to determine ancient events.
+     */
     private final boolean disableFutureEventBuffer;
 
     /**
