@@ -98,7 +98,7 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
                             // assert throttling
                             assertTrue(
                                     throttleTolerance > revertCount && revertCount > 0,
-                                    "Throttled more than allowed tolerance!");
+                                    "Throttled must be more then 0 and less than the allowed tolerance!");
                         }));
     }
 
