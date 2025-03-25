@@ -3,13 +3,13 @@ package com.swirlds.common.stream;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.RunningHashable;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
 import com.swirlds.common.threading.framework.QueueThread;
 import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.RunningHashable;
 
 /**
  * An object stream that takes all of its items and puts them into another object stream in an asynchronous thread.

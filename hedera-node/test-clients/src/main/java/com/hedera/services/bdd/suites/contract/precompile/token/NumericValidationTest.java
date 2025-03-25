@@ -70,15 +70,15 @@ public class NumericValidationTest {
 
     private static final String NEGATIVE_ONE = "FFFFFFFFFFFFFFFF";
     private static final String MAX_LONG_PLUS_1 = "010000000000000000";
-    private static final BigInteger NEGATIVE_ONE_BIG_INT =
+    public static final BigInteger NEGATIVE_ONE_BIG_INT =
             new BigInteger(1, Bytes.fromHex(NEGATIVE_ONE).toByteArray());
-    private static final BigInteger MAX_LONG_PLUS_1_BIG_INT =
+    public static final BigInteger MAX_LONG_PLUS_1_BIG_INT =
             new BigInteger(1, Bytes.fromHex(MAX_LONG_PLUS_1).toByteArray());
 
-    private record BigIntegerTestCase(BigInteger amount, ResponseCodeEnum status) {}
+    public record BigIntegerTestCase(BigInteger amount, ResponseCodeEnum status) {}
 
     // Big integer test cases for zero, negative, and greater than Long.MAX_VALUE amounts with expected failed status
-    private final List<BigIntegerTestCase> zeroNegativeAndGreaterThanLong = List.of(
+    public static final List<BigIntegerTestCase> zeroNegativeAndGreaterThanLong = List.of(
             new BigIntegerTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
             new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
             new BigIntegerTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED));

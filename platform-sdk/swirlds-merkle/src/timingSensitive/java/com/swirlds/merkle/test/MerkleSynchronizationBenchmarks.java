@@ -41,7 +41,9 @@ public class MerkleSynchronizationBenchmarks {
 
     @BeforeEach
     void registerClasses() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero.consensus");
     }
 
     /**

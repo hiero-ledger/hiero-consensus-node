@@ -3,7 +3,6 @@ package com.hedera.services.bdd.spec.keys;
 
 import com.google.protobuf.ByteString;
 import com.hederahashgraph.api.proto.java.Key;
-import com.swirlds.common.utility.CommonUtils;
 import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -13,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class OverlappingKeyGenerator implements KeyGenerator {
     private static final Logger log = LogManager.getLogger(OverlappingKeyGenerator.class);

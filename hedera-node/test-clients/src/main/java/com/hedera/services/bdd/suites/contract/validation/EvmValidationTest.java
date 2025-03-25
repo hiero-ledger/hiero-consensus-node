@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressStringWithShardAndRealm;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_BYTECODE_EMPTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
@@ -64,14 +65,14 @@ public class EvmValidationTest {
             @HapiTest
             @DisplayName("when transferring value to long zero address 00000000000000000000000000000000001117d0 ")
             public Stream<DynamicTest> lazyCreateToLongZeroFails() {
-                final var LONG_ZERO_ADDRESS = "00000000000000000000000000000000001117d0";
+                final var LONG_ZERO_ADDRESS = toAddressStringWithShardAndRealm("1117d0");
                 return callContractWithValue(LONG_ZERO_ADDRESS, CONTRACT_REVERT_EXECUTED);
             }
 
             @HapiTest
             @DisplayName("when transferring value to long zero burn address 000000000000000000000000000000000000dEaD ")
             public Stream<DynamicTest> lazyCreateToLongZeroBurnAddressFails() {
-                final var LONG_ZERO_BURN_ADDRESS = "000000000000000000000000000000000000dEaD";
+                final var LONG_ZERO_BURN_ADDRESS = toAddressStringWithShardAndRealm("dEaD");
                 return callContractWithValue(LONG_ZERO_BURN_ADDRESS, CONTRACT_REVERT_EXECUTED);
             }
 

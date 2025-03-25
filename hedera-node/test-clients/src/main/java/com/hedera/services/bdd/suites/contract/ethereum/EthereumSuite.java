@@ -87,7 +87,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHERE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
-import static com.swirlds.common.utility.CommonUtils.unhex;
+import static org.hiero.consensus.model.utility.CommonUtils.unhex;
 import static org.hyperledger.besu.datatypes.Address.contractAddress;
 import static org.hyperledger.besu.datatypes.Address.fromHexString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -113,7 +113,6 @@ import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransferList;
-import com.swirlds.common.utility.CommonUtils;
 import java.io.File;
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -123,6 +122,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -452,33 +452,38 @@ public class EthereumSuite {
                         .entityMemo(MEMO)
                         .payingWith(GENESIS)
                         .signedBy(SECP_256K1_SOURCE_KEY, GENESIS),
-                ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .payingWith(RELAYER)
-                        .nonce(0)
-                        .balance(INITIAL_BALANCE)
-                        .gasPrice(10L)
-                        .maxGasAllowance(ONE_HUNDRED_HBARS)
-                        .exposingNumTo(num -> contractID.set(asHexedSolidityAddress(0, 0, num)))
-                        .gasLimit(1_000_000L)
-                        .hasKnownStatus(SUCCESS),
-                getContractInfo(PAY_RECEIVABLE_CONTRACT).has(contractWith().defaultAdminKey()),
-                ethereumCall(PAY_RECEIVABLE_CONTRACT, "getBalance")
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .payingWith(RELAYER)
-                        .nonce(1L)
-                        .gasPrice(10L)
-                        .gasLimit(1_000_000L)
-                        .hasKnownStatus(SUCCESS),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).logged(),
-                sourcing(() -> getContractInfo(contractID.get())
-                        .has(contractWith()
-                                .defaultAdminKey()
-                                .autoRenew(AUTO_RENEW_PERIOD)
-                                .balance(INITIAL_BALANCE)
-                                .memo(MEMO))));
+                withOpContext((spec, opLog) -> {
+                    ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .signingWith(SECP_256K1_SOURCE_KEY)
+                            .payingWith(RELAYER)
+                            .nonce(0)
+                            .balance(INITIAL_BALANCE)
+                            .gasPrice(10L)
+                            .maxGasAllowance(ONE_HUNDRED_HBARS)
+                            .exposingNumTo(num -> contractID.set(asHexedSolidityAddress(
+                                    (int) spec.setup().defaultShard().getShardNum(),
+                                    spec.setup().defaultRealm().getRealmNum(),
+                                    num)))
+                            .gasLimit(1_000_000L)
+                            .hasKnownStatus(SUCCESS);
+                    getContractInfo(PAY_RECEIVABLE_CONTRACT).has(contractWith().defaultAdminKey());
+                    ethereumCall(PAY_RECEIVABLE_CONTRACT, "getBalance")
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .signingWith(SECP_256K1_SOURCE_KEY)
+                            .payingWith(RELAYER)
+                            .nonce(1L)
+                            .gasPrice(10L)
+                            .gasLimit(1_000_000L)
+                            .hasKnownStatus(SUCCESS);
+                    getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).logged();
+                    sourcing(() -> getContractInfo(contractID.get())
+                            .has(contractWith()
+                                    .defaultAdminKey()
+                                    .autoRenew(AUTO_RENEW_PERIOD)
+                                    .balance(INITIAL_BALANCE)
+                                    .memo(MEMO)));
+                }));
     }
 
     @HapiTest
@@ -1120,8 +1125,6 @@ public class EthereumSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .exposingResultTo(result -> {
                                     opLog.info("Explicit create result" + " is {}", result[0]);
-                                    final var res = (Address) result[0];
-                                    createdTokenNum.set(res.value().longValueExact());
                                 }))),
                 getTxnRecord(firstTxn).andAllChildRecords().logged(),
                 childRecordsCheck(
@@ -1188,8 +1191,6 @@ public class EthereumSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .exposingResultTo(result -> {
                                     opLog.info("Explicit create result is {}", result[0]);
-                                    final var res = (Address) result[0];
-                                    createdTokenNum.set(res.value().longValueExact());
                                 }))),
                 getTxnRecord(firstTxn).andAllChildRecords().logged(),
                 childRecordsCheck(

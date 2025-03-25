@@ -8,7 +8,6 @@ import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
 import com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils;
-import com.swirlds.common.utility.CommonUtils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,6 +18,7 @@ import java.security.interfaces.ECPrivateKey;
 import java.util.concurrent.Callable;
 import javax.crypto.ShortBufferException;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
+import org.hiero.consensus.model.utility.CommonUtils;
 import picocli.CommandLine;
 
 @CommandLine.Command(

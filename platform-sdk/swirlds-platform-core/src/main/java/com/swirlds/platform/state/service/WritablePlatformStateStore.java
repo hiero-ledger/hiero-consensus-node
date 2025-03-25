@@ -2,18 +2,16 @@
 package com.swirlds.platform.state.service;
 
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
-import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.utility.CommonUtils.toPbjTimestamp;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -21,7 +19,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.function.Consumer;
-import java.util.function.Function;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Extends the read-only platform state store to provide write access to the platform state.
@@ -29,20 +27,6 @@ import java.util.function.Function;
 public class WritablePlatformStateStore extends ReadablePlatformStateStore implements PlatformStateModifier {
     private final WritableStates writableStates;
     private final WritableSingletonState<PlatformState> state;
-
-    /**
-     * Constructor that supports getting full {@link SoftwareVersion} information from the platform state. Must
-     * be used from within {@link State}.
-     * @param writableStates the writable states
-     * @param versionFactory a factory to create the current {@link SoftwareVersion} from a {@link SemanticVersion}
-     */
-    public WritablePlatformStateStore(
-            @NonNull final WritableStates writableStates,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        super(writableStates, versionFactory);
-        this.writableStates = writableStates;
-        this.state = writableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY);
-    }
 
     /**
      * Constructor that does not support getting full {@link SoftwareVersion} information from the platform state,

@@ -7,6 +7,7 @@ import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.model.state.StateSavingResult;
 
 /**
  * This class is responsible for managing the signed state writing pipeline.

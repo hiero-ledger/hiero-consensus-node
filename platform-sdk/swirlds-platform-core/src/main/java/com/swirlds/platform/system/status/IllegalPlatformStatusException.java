@@ -3,6 +3,7 @@ package com.swirlds.platform.system.status;
 
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * An exception thrown when an illegal {@link PlatformStatusAction} is received
