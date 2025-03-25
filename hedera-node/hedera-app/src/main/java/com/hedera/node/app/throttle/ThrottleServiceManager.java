@@ -161,15 +161,12 @@ public class ThrottleServiceManager {
             }
         }
 
-        final var bytesThrottle = backendThrottle.bytesLimitThrottle();
-        final var bytesThrottleSnapshot = bytesThrottle.usageSnapshot();
         final var gasThrottle = backendThrottle.gasLimitThrottle();
         final var gasThrottleSnapshot = gasThrottle.usageSnapshot();
 
         final WritableSingletonState<ThrottleUsageSnapshots> throttleSnapshots =
                 serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_KEY);
-        throttleSnapshots.put(
-                new ThrottleUsageSnapshots(hapiThrottleSnapshots, gasThrottleSnapshot, bytesThrottleSnapshot));
+        throttleSnapshots.put(new ThrottleUsageSnapshots(hapiThrottleSnapshots, gasThrottleSnapshot));
     }
 
     private void saveCongestionLevelStartsTo(@NonNull final WritableStates serviceStates) {
@@ -195,7 +192,6 @@ public class ThrottleServiceManager {
 
     private void applyBytesConfig() {
         ingestThrottle.applyBytesConfig();
-        backendThrottle.applyBytesConfig();
     }
 
     private void syncFromCongestionLevelStarts(@NonNull final ReadableStates serviceStates) {
@@ -221,9 +217,6 @@ public class ThrottleServiceManager {
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
         }
-        if (usageSnapshots.hasBytesThrottle()) {
-            backendThrottle.bytesLimitThrottle().resetUsageTo(usageSnapshots.bytesThrottleOrThrow());
-        }
     }
 
     public void resetThrottlesUnconditionally(@NonNull final ReadableStates serviceStates) {
@@ -233,9 +226,6 @@ public class ThrottleServiceManager {
         resetUnconditionally(backendThrottle.allActiveThrottles(), usageSnapshots.tpsThrottles());
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
-        }
-        if (usageSnapshots.hasBytesThrottle()) {
-            backendThrottle.bytesLimitThrottle().resetUsageTo(usageSnapshots.bytesThrottleOrThrow());
         }
     }
 

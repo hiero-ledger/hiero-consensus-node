@@ -39,11 +39,6 @@ message ThrottleUsageSnapshots {
      * A single snapshot for the gas throttle.
      */
     ThrottleUsageSnapshot gas_throttle = 2;
-
-    /**
-     * A single snapshot for the bytes throttle.
-     */
-    ThrottleUsageSnapshot bytes_throttle = 3;
 }
 
 /**

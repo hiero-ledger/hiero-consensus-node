@@ -76,7 +76,6 @@ public class AppThrottleFactory implements Throttle.Factory {
                 tpsThrottles.get(i).resetUsageTo(tpsUsageSnapshots.get(i));
             }
             throttleAccumulator.gasLimitThrottle().resetUsageTo(initialUsageSnapshots.gasThrottleOrThrow());
-            throttleAccumulator.bytesLimitThrottle().resetUsageTo(initialUsageSnapshots.bytesThrottleOrThrow());
         }
         // Throttle.allow() has the opposite polarity of ThrottleAccumulator.checkAndEnforceThrottle()
         return new Throttle() {
@@ -106,8 +105,7 @@ public class AppThrottleFactory implements Throttle.Factory {
                         throttleAccumulator.allActiveThrottles().stream()
                                 .map(DeterministicThrottle::usageSnapshot)
                                 .toList(),
-                        throttleAccumulator.gasLimitThrottle().usageSnapshot(),
-                        throttleAccumulator.bytesLimitThrottle().usageSnapshot());
+                        throttleAccumulator.gasLimitThrottle().usageSnapshot());
             }
         };
     }

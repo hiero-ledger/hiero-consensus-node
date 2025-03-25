@@ -38,9 +38,7 @@ class ThrottleServiceManagerTest {
     private static final Bytes MOCK_ENCODED_THROTTLE_DEFS = Bytes.wrap("NOPE");
     private static final ThrottleDefinitions MOCK_THROTTLE_DEFS = ThrottleDefinitions.DEFAULT;
     private static final ThrottleUsageSnapshots MOCK_THROTTLE_USAGE_SNAPSHOTS = new ThrottleUsageSnapshots(
-            List.of(new ThrottleUsageSnapshot(123L, EPOCH)),
-            new ThrottleUsageSnapshot(456L, EPOCH),
-            new ThrottleUsageSnapshot(789L, EPOCH));
+            List.of(new ThrottleUsageSnapshot(123L, EPOCH)), new ThrottleUsageSnapshot(456L, EPOCH));
     private static final CongestionLevelStarts MOCK_CONGESTION_LEVEL_STARTS =
             new CongestionLevelStarts(List.of(new Timestamp(1L, 2), EPOCH), List.of(new Timestamp(3L, 4), EPOCH));
     private static final ThrottleUsageSnapshot MOCK_USAGE_SNAPSHOT =
@@ -118,14 +116,12 @@ class ThrottleServiceManagerTest {
         inOrder.verify(ingestThrottle).applyGasConfig();
         inOrder.verify(backendThrottle).applyGasConfig();
         inOrder.verify(ingestThrottle).applyBytesConfig();
-        inOrder.verify(backendThrottle).applyBytesConfig();
         inOrder.verify(ingestThrottle).rebuildFor(MOCK_THROTTLE_DEFS);
         inOrder.verify(backendThrottle).rebuildFor(MOCK_THROTTLE_DEFS);
         inOrder.verify(congestionMultipliers).resetExpectations();
         inOrder.verify(cryptoTransferThrottle)
                 .resetUsageTo(MOCK_THROTTLE_USAGE_SNAPSHOTS.tpsThrottles().getFirst());
         inOrder.verify(gasThrottle).resetUsageTo(MOCK_THROTTLE_USAGE_SNAPSHOTS.gasThrottleOrThrow());
-        inOrder.verify(bytesThrottle).resetUsageTo(MOCK_THROTTLE_USAGE_SNAPSHOTS.bytesThrottleOrThrow());
         inOrder.verify(congestionMultipliers)
                 .resetUtilizationScaledThrottleMultiplierStarts(asNullTerminatedInstants(
                         MOCK_CONGESTION_LEVEL_STARTS.genericLevelStarts().getFirst()));
@@ -139,7 +135,6 @@ class ThrottleServiceManagerTest {
         givenWritableThrottleState();
         givenThrottleMocks();
         given(gasThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
-        given(bytesThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
         given(congestionMultipliers.entityUtilizationCongestionStarts())
                 .willReturn(asNullTerminatedInstants(
                         MOCK_CONGESTION_LEVEL_STARTS.genericLevelStarts().getFirst()));
@@ -150,8 +145,7 @@ class ThrottleServiceManagerTest {
         subject.saveThrottleSnapshotsAndCongestionLevelStartsTo(state);
 
         verify(writableThrottleSnapshots)
-                .put(new ThrottleUsageSnapshots(
-                        List.of(MOCK_USAGE_SNAPSHOT), MOCK_USAGE_SNAPSHOT, MOCK_USAGE_SNAPSHOT));
+                .put(new ThrottleUsageSnapshots(List.of(MOCK_USAGE_SNAPSHOT), MOCK_USAGE_SNAPSHOT));
         verify(writableLevelStarts).put(MOCK_CONGESTION_LEVEL_STARTS);
     }
 
@@ -190,7 +184,6 @@ class ThrottleServiceManagerTest {
         given(backendThrottle.allActiveThrottles()).willReturn(List.of(cryptoTransferThrottle));
         given(cryptoTransferThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
         given(backendThrottle.gasLimitThrottle()).willReturn(gasThrottle);
-        given(backendThrottle.bytesLimitThrottle()).willReturn(bytesThrottle);
     }
 
     private void givenMockThrottleDefs() {

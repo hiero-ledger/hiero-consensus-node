@@ -1025,6 +1025,7 @@ class ThrottleAccumulatorTest {
         given(autoCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
         given(lazyCreationConfig.enabled()).willReturn(false);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
 
         // when
         subject.rebuildFor(defs);
@@ -1076,6 +1077,7 @@ class ThrottleAccumulatorTest {
         given(autoCreationConfig.enabled()).willReturn(true);
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
         given(lazyCreationConfig.enabled()).willReturn(false);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
 
         // when
         subject.rebuildFor(defs);
@@ -1127,6 +1129,7 @@ class ThrottleAccumulatorTest {
         given(autoCreationConfig.enabled()).willReturn(true);
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
         given(lazyCreationConfig.enabled()).willReturn(true);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
 
         // when
         subject.rebuildFor(defs);

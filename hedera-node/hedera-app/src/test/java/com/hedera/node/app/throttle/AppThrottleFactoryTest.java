@@ -61,7 +61,6 @@ class AppThrottleFactoryTest {
             List.of(
                     new ThrottleUsageSnapshot(1L, new Timestamp(234567, 8)),
                     new ThrottleUsageSnapshot(2L, new Timestamp(345678, 9))),
-            new ThrottleUsageSnapshot(3L, new Timestamp(456789, 0)),
             ThrottleUsageSnapshot.DEFAULT);
 
     @Mock
@@ -121,7 +120,6 @@ class AppThrottleFactoryTest {
         verify(firstThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getFirst());
         verify(lastThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getLast());
         verify(gasThrottle).resetUsageTo(FAKE_SNAPSHOTS.gasThrottleOrThrow());
-        verify(bytesThrottle).resetUsageTo(FAKE_SNAPSHOTS.bytesThrottleOrThrow());
 
         given(throttleAccumulator.checkAndEnforceThrottle(TXN_INFO, CONSENSUS_NOW, state))
                 .willReturn(true);
@@ -133,7 +131,6 @@ class AppThrottleFactoryTest {
         given(lastThrottle.usageSnapshot())
                 .willReturn(FAKE_SNAPSHOTS.tpsThrottles().getLast());
         given(gasThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.gasThrottleOrThrow());
-        given(bytesThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.bytesThrottleOrThrow());
         assertEquals(FAKE_SNAPSHOTS, throttle.usageSnapshots());
     }
 }

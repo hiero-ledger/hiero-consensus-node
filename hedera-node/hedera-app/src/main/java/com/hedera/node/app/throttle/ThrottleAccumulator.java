@@ -541,7 +541,6 @@ public class ThrottleAccumulator {
     private void resetLastAllowedUse() {
         activeThrottles.forEach(DeterministicThrottle::resetLastAllowedUse);
         gasThrottle.resetLastAllowedUse();
-        bytesThrottle.resetLastAllowedUse();
     }
 
     /**
@@ -811,7 +810,7 @@ public class ThrottleAccumulator {
     private boolean shouldThrottleBasedExcessBytes(
             @NonNull final ThrottleReqsManager manager, final long bytesUsed, @NonNull final Instant now) {
         // If the bucket doesn't allow the thx enforce the throttle
-        if (!bytesThrottle.allow(now, bytesUsed)) {
+        if (bytesThrottle != null && !bytesThrottle.allow(now, bytesUsed)) {
             bytesThrottle.reclaimLastAllowedUse();
             return true;
         }
