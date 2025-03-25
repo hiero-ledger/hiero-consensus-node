@@ -38,7 +38,7 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
 
     private final AtomicLong bufferedEventCount = new AtomicLong(0);
 
-    private final AncientMode ancientMode;
+    private final boolean disableFutureEventBuffer;
 
     /**
      * Constructor.
@@ -46,11 +46,12 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
      * @param platformContext the platform context
      */
     public DefaultFutureEventBuffer(@NonNull final PlatformContext platformContext) {
-        Objects.requireNonNull(platformContext);
-        ancientMode = platformContext
+        final AncientMode ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
+
+        disableFutureEventBuffer = ancientMode == AncientMode.GENERATION_THRESHOLD;
 
         eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
 
@@ -68,10 +69,12 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
     @Override
     @Nullable
     public List<PlatformEvent> addEvent(@NonNull final PlatformEvent event) {
-        if (eventWindow.isAncient(event)) {
+        if(disableFutureEventBuffer) {
+            return List.of(event);
+        } else if (eventWindow.isAncient(event)) {
             // we can safely ignore ancient events
             return null;
-        } else if (event.getAncientIndicator(ancientMode) <= eventWindow.getAncientThreshold()) {
+        } else if (event.getBirthRound() <= eventWindow.getPendingConsensusRound()) {
             // this is not a future event, no need to buffer it
             return List.of(event);
         }
@@ -93,7 +96,7 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
         // We want to release all events with birth rounds less than or equal to the pending consensus round.
         // In order to do that, we tell the sequence map to shift its window to the oldest round that we want
         // to keep within the buffer.
-        final long oldestRoundToBuffer = eventWindow.getAncientThreshold() + 1;
+        final long oldestRoundToBuffer = eventWindow.getPendingConsensusRound() + 1;
 
         final List<PlatformEvent> events = new ArrayList<>();
         futureEvents.shiftWindow(oldestRoundToBuffer, (round, roundEvents) -> {
