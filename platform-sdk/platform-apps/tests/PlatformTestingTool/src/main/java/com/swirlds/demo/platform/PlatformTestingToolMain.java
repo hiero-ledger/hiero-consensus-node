@@ -309,8 +309,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     public PlatformTestingToolMain() {
         // the config needs to be loaded before the init() method
         config = PlatformConfig.getDefault();
-        consensusStateEventHandler = new PlatformTestingToolConsensusStateEventHandler(
-                new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major())));
+        consensusStateEventHandler = new PlatformTestingToolConsensusStateEventHandler(new PlatformStateFacade());
     }
 
     /**

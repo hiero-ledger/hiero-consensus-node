@@ -27,7 +27,9 @@ import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
+import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -367,6 +369,9 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
                                 b.setStakedNodeId(stakedNodeId.get());
                             }
                             b.setDeclineReward(isDeclinedReward);
+
+                            b.setRealmID(RealmID.newBuilder().setShardNum(shard).setRealmNum(realm));
+                            b.setShardID(ShardID.newBuilder().setShardNum(shard));
                         });
         return b -> b.setContractCreateInstance(opBody);
     }

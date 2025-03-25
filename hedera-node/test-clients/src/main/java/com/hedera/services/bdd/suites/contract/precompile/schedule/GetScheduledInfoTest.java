@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressStringWithShardAndRealm;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFeeInheritingRoyaltyCollector;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
@@ -69,14 +70,16 @@ public class GetScheduledInfoTest {
     @HapiTest
     @DisplayName("Cannot get scheduled info for non-existent fungible create schedule")
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentFungibleCreateSchedule() {
-        return hapiTest(contract.call("getFungibleCreateTokenInfo", asHeadlongAddress("0x1234"))
-                .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND)));
+        return hapiTest(
+                contract.call("getFungibleCreateTokenInfo", asHeadlongAddress(toAddressStringWithShardAndRealm("1234")))
+                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND)));
     }
 
     @HapiTest
     @DisplayName("Cannot get scheduled info for non-existent NFT create schedule")
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentNonFungibleCreateSchedule() {
-        return hapiTest(contract.call("getNonFungibleCreateTokenInfo", asHeadlongAddress("0x1234"))
+        return hapiTest(contract.call(
+                        "getNonFungibleCreateTokenInfo", asHeadlongAddress(toAddressStringWithShardAndRealm("1234")))
                 .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND)));
     }
 
