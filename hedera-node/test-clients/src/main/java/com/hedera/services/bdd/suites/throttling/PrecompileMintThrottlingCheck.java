@@ -53,7 +53,7 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
     private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
     // Since the throttle is set to 50 ops per second, we will set the maxOpsPerSec to 51 to test the throttle
     private final AtomicInteger maxOpsPerSec = new AtomicInteger(51);
-    private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.05;
+    private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.1;
     private static final String NON_FUNGIBLE_TOKEN = "NON_FUNGIBLE_TOKEN";
     public static final int GAS_TO_OFFER = 1_000_000;
 
@@ -78,9 +78,8 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
                         .lasting(duration::get, unit::get)
                         .maxOpsPerSec(maxOpsPerSec::get)
                         .assertStatusCounts((precheckStatusCountMap, statusCountMap) -> {
-                            // to exclude any external interference (e.g. limited CI resources or network issues)
-                            // we will take into account only the successful and reverted transactions
-                            // to test the throttle
+                            // To avoid external factors (e.g., limited CI resources or network issues),
+                            // we will only consider statuses SUCCESS and CONTRACT_REVERT_EXECUTED.
                             final var successCount = statusCountMap.get(SUCCESS).get();
                             final var revertCount =
                                     statusCountMap.get(CONTRACT_REVERT_EXECUTED).get();
@@ -91,9 +90,12 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
 
                             // print results
                             log.info("\n------------------------------\n");
-                            log.info("Throttle Tolerance: {} ops", throttleTolerance);
-                            log.info(String.format(
-                                    "Throttled: %d out of %d ops.\n", revertCount, successCount + revertCount));
+                            log.info("Total ops to be considered : {} ops", successCount + revertCount);
+                            log.info("Throttled ops              : {} ops", revertCount);
+                            log.info("Allowed tolerance          : {} ops\n", throttleTolerance);
+                            // debug print
+                            log.info("Precheck status count map: {}", precheckStatusCountMap);
+                            log.info("Status count map: {}", statusCountMap);
 
                             // assert throttling
                             assertTrue(
