@@ -13,5 +13,6 @@ module com.swirlds.demo.stats.signing {
     requires lazysodium.java;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.provider;
+    requires org.hiero.consensus.model;
     requires static com.github.spotbugs.annotations;
 }

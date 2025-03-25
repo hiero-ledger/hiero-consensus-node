@@ -10,4 +10,5 @@ testModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.mockito")
+    requires("org.hiero.consensus.model")
 }

@@ -19,4 +19,5 @@ module com.hedera.node.app.service.token {
     requires com.swirlds.common;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
+    requires org.hiero.consensus.model;
 }

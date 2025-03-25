@@ -10,5 +10,6 @@ module com.swirlds.demo.crypto {
     requires com.swirlds.state.impl;
     requires java.desktop;
     requires org.apache.logging.log4j;
+    requires org.hiero.consensus.model;
     requires static com.github.spotbugs.annotations;
 }

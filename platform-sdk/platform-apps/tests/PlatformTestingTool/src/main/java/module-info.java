@@ -48,5 +48,6 @@ module com.swirlds.demo.platform {
     requires com.google.protobuf;
     requires java.management;
     requires org.apache.logging.log4j;
+    requires org.hiero.consensus.model;
     requires static com.github.spotbugs.annotations;
 }

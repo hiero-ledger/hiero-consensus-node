@@ -38,5 +38,6 @@ module com.hedera.node.app.hapi.utils {
     requires org.apache.logging.log4j;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
+    requires org.hiero.consensus.model;
     requires static transitive com.github.spotbugs.annotations;
 }
