@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.consensus;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
@@ -12,6 +11,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
  * Test utility for generating consensus events

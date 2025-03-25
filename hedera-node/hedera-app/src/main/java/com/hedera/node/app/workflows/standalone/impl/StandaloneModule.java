@@ -13,7 +13,6 @@ import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleMetrics;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.PlatformStateAccessor;
@@ -25,13 +24,22 @@ import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 import javax.inject.Singleton;
 
 @Module
 public interface StandaloneModule {
+    @Provides
+    @Nullable
+    @Singleton
+    static AtomicBoolean provideMaybeSystemEntitiesCreatedFlag() {
+        return null;
+    }
+
     @Binds
     @Singleton
     NetworkInfo bindNetworkInfo(@NonNull StandaloneNetworkInfo simulatedNetworkInfo);
@@ -63,7 +71,7 @@ public interface StandaloneModule {
     @Provides
     @Singleton
     static PlatformStateAccessor providePlatformState() {
-        return new SnapshotPlatformStateAccessor(PlatformState.DEFAULT, ServicesSoftwareVersion::new);
+        return new SnapshotPlatformStateAccessor(PlatformState.DEFAULT);
     }
 
     @Provides

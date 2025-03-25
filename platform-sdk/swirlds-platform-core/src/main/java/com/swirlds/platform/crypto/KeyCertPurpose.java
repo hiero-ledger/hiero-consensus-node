@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.crypto;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.roster.RosterUtils;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Denotes which of the three purposes a key or certificate serves

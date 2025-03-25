@@ -4,8 +4,8 @@ package com.swirlds.common.threading.framework.config;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.TypedStoppableThread;
 import com.swirlds.common.threading.framework.internal.AbstractStoppableThreadConfiguration;
-import com.swirlds.common.threading.interrupt.InterruptableRunnable;
 import com.swirlds.common.threading.manager.ThreadManager;
+import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
 
 /**
  * An object responsible for configuring and constructing {@link StoppableThread}s.

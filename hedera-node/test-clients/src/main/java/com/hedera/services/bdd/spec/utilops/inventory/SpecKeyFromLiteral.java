@@ -6,10 +6,10 @@ import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromMnemonic
 import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
-import com.swirlds.common.utility.CommonUtils;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class SpecKeyFromLiteral extends UtilOp {
     private static final Logger log = LogManager.getLogger(SpecKeyFromLiteral.class);

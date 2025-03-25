@@ -21,7 +21,6 @@ import com.hedera.node.config.data.NettyConfig;
 import com.hedera.node.config.types.Profile;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -103,18 +102,6 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
     private Server nodeOperatorServer;
 
     /**
-     * gRPC marshaller responsible for converting standard message byte arrays
-     * into and from {@link BufferedData}s.
-     */
-    private final DataBufferMarshaller dataBufferMarshaller;
-
-    /**
-     * gRPC marshaller dedicated to converting large (jumbo) transaction byte arrays
-     * into and from  {@link BufferedData}s.
-     */
-    private final DataBufferMarshaller jumboDataBufferMarshaller;
-
-    /**
      * Create a new instance.
      *
      * @param configProvider The config provider, so we can figure out ports and other information.
@@ -137,19 +124,6 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         requireNonNull(userQueryWorkflow);
         requireNonNull(operatorQueryWorkflow);
         requireNonNull(metrics);
-
-        final int maxMessageSize = configProvider
-                .getConfiguration()
-                .getConfigData(HederaConfig.class)
-                .transactionMaxBytes();
-        final int maxJumboSize = configProvider
-                .getConfiguration()
-                .getConfigData(JumboTransactionsConfig.class)
-                .maxTxnSize();
-        final var bufferThreadLocal = ThreadLocal.withInitial(() -> BufferedData.allocate(maxMessageSize + 1));
-        final var jumboBufferThreadLocal = ThreadLocal.withInitial(() -> BufferedData.allocate(maxJumboSize + 1));
-        dataBufferMarshaller = new DataBufferMarshaller(maxMessageSize, bufferThreadLocal);
-        jumboDataBufferMarshaller = new DataBufferMarshaller(maxJumboSize, jumboBufferThreadLocal);
 
         final Supplier<Stream<RpcServiceDefinition>> rpcServiceDefinitions =
                 () -> servicesRegistry.registrations().stream()
@@ -435,16 +409,32 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             @NonNull final QueryWorkflow queryWorkflow,
             @NonNull final Metrics metrics) {
 
+        final var maxTxnSize = configProvider
+                .getConfiguration()
+                .getConfigData(HederaConfig.class)
+                .transactionMaxBytes();
+        final var isJumboEnabled = configProvider
+                .getConfiguration()
+                .getConfigData(JumboTransactionsConfig.class)
+                .isEnabled();
+        final var jumboMaxTxnSize = isJumboEnabled
+                ? configProvider
+                        .getConfiguration()
+                        .getConfigData(JumboTransactionsConfig.class)
+                        .maxTxnSize()
+                : maxTxnSize;
+
+        // set buffer capacity to be big enough to hold the largest transaction
+        final var bufferCapacity = isJumboEnabled ? jumboMaxTxnSize + 1 : maxTxnSize + 1;
+        // set capacity and max transaction size for both normal and jumbo transactions
+        final var dataBufferMarshaller = new DataBufferMarshaller(bufferCapacity, maxTxnSize);
+        final var jumboBufferMarshaller = new DataBufferMarshaller(bufferCapacity, jumboMaxTxnSize);
         return rpcServiceDefinitions
                 .get()
                 .map(d -> {
                     // create builder
                     final var builder = new GrpcServiceBuilder(
-                            d.basePath(),
-                            ingestWorkflow,
-                            queryWorkflow,
-                            dataBufferMarshaller,
-                            jumboDataBufferMarshaller);
+                            d.basePath(), ingestWorkflow, queryWorkflow, dataBufferMarshaller, jumboBufferMarshaller);
                     // add methods to builder
                     d.methods().stream().filter(methodFilter).forEach(m -> {
                         if (Transaction.class.equals(m.requestType())) {

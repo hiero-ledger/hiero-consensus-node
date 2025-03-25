@@ -4,9 +4,9 @@ package com.swirlds.common.jackson;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
-import com.swirlds.common.crypto.Hash;
 import java.io.IOException;
 import org.bouncycastle.util.encoders.Hex;
+import org.hiero.consensus.model.crypto.Hash;
 
 public class HashDeserializer extends StdDeserializer<Hash> {
 

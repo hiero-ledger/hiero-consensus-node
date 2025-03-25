@@ -12,19 +12,17 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.function.Consumer;
-import java.util.function.Function;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.hashgraph.Round;
 
 /**
  * This class is an entry point for the platform state. Though the class itself is stateless, given an instance of {@link State},
@@ -33,18 +31,7 @@ import java.util.function.Function;
  */
 public class PlatformStateFacade {
 
-    public static final PlatformStateFacade DEFAULT_PLATFORM_STATE_FACADE =
-            new PlatformStateFacade(v -> SoftwareVersion.NO_VERSION);
-
-    private final Function<SemanticVersion, SoftwareVersion> versionFactory;
-
-    /**
-     * Create a new instance of {@link PlatformStateFacade}.
-     * @param versionFactory a factory to create the current {@link SoftwareVersion} from a {@link SemanticVersion}
-     */
-    public PlatformStateFacade(Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        this.versionFactory = versionFactory;
-    }
+    public static final PlatformStateFacade DEFAULT_PLATFORM_STATE_FACADE = new PlatformStateFacade();
 
     /**
      * Given a {@link State}, returns the creation version of the platform state if it exists.
@@ -287,8 +274,8 @@ public class PlatformStateFacade {
      *
      * @param creationVersion the creation version
      */
-    public void setCreationSoftwareVersionTo(@NonNull final State state, @NonNull SoftwareVersion creationVersion) {
-        getWritablePlatformStateOf(state).setCreationSoftwareVersion(creationVersion.getPbjSemanticVersion());
+    public void setCreationSoftwareVersionTo(@NonNull final State state, @NonNull SemanticVersion creationVersion) {
+        getWritablePlatformStateOf(state).setCreationSoftwareVersion(creationVersion);
     }
 
     /**
@@ -304,12 +291,12 @@ public class PlatformStateFacade {
     private PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {
         final ReadableStates readableStates = state.getReadableStates(NAME);
         if (readableStates.isEmpty()) {
-            return new SnapshotPlatformStateAccessor(UNINITIALIZED_PLATFORM_STATE, versionFactory);
+            return new SnapshotPlatformStateAccessor(UNINITIALIZED_PLATFORM_STATE);
         }
-        return new ReadablePlatformStateStore(readableStates, versionFactory);
+        return new ReadablePlatformStateStore(readableStates);
     }
 
     private WritablePlatformStateStore writablePlatformStateStore(@NonNull final State state) {
-        return new WritablePlatformStateStore(state.getWritableStates(NAME), versionFactory);
+        return new WritablePlatformStateStore(state.getWritableStates(NAME));
     }
 }

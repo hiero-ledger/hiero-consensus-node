@@ -167,7 +167,8 @@ final class GrpcServiceBuilder {
     public ServerServiceDefinition build(@NonNull final Metrics metrics, ConfigProvider configProvider) {
         final var jumboTxnConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
         final var jumboTxnIsEnabled = jumboTxnConfig.isEnabled();
-        final var maxMessageSize = configProvider
+        final var jumboTxnMaxSize = jumboTxnConfig.maxTxnSize();
+        final var messageMaxSize = configProvider
                 .getConfiguration()
                 .getConfigData(HederaConfig.class)
                 .transactionMaxBytes();
@@ -175,18 +176,21 @@ final class GrpcServiceBuilder {
         final var builder = ServerServiceDefinition.builder(serviceName);
         txMethodNames.forEach(methodName -> {
             logger.debug("Registering gRPC transaction method {}.{}", serviceName, methodName);
+            TransactionMethod method;
+
             if (jumboTxnIsEnabled && jumboTxnConfig.grpcMethodNames().contains(methodName)) {
-                final var method = new TransactionMethod(
-                        serviceName, methodName, ingestWorkflow, metrics, jumboTxnConfig.maxTxnSize());
+                // add jumbo transaction methods
+                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, jumboTxnMaxSize);
                 addMethod(builder, serviceName, methodName, method, jumboMarshaller);
-                return;
+            } else {
+                // add regular transaction methods
+                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, messageMaxSize);
+                addMethod(builder, serviceName, methodName, method, marshaller);
             }
-            final var method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, maxMessageSize);
-            addMethod(builder, serviceName, methodName, method, marshaller);
         });
         queryMethodNames.forEach(methodName -> {
             logger.debug("Registering gRPC query method {}.{}", serviceName, methodName);
-            final var method = new QueryMethod(serviceName, methodName, queryWorkflow, metrics, maxMessageSize);
+            final var method = new QueryMethod(serviceName, methodName, queryWorkflow, metrics, messageMaxSize);
             addMethod(builder, serviceName, methodName, method, marshaller);
         });
         return builder.build();

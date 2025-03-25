@@ -12,9 +12,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.CommonUtils;
-import com.swirlds.common.utility.StackTrace;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.api.source.ConfigSource;
@@ -39,7 +37,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.swirldapp.AppLoaderException;
 import com.swirlds.platform.swirldapp.SwirldAppLoader;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.state.State;
@@ -67,6 +64,8 @@ import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.utility.StackTrace;
 
 /**
  * Utility methods that are helpful when starting up a JVM.
@@ -215,7 +214,7 @@ public final class BootstrapUtils {
      * @return true if there is a software upgrade, false otherwise
      */
     public static boolean detectSoftwareUpgrade(
-            @NonNull final SoftwareVersion appVersion,
+            @NonNull final SemanticVersion appVersion,
             @Nullable final SignedState loadedSignedState,
             @NonNull final PlatformStateFacade platformStateFacade) {
         requireNonNull(appVersion, "The app version must not be null.");
@@ -229,8 +228,7 @@ public final class BootstrapUtils {
         }
         final int versionComparison = loadedSoftwareVersion == null
                 ? 1
-                : HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(
-                        appVersion.getPbjSemanticVersion(), loadedSoftwareVersion);
+                : HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(appVersion, loadedSoftwareVersion);
         final boolean softwareUpgrade;
         if (versionComparison < 0) {
             throw new IllegalStateException(

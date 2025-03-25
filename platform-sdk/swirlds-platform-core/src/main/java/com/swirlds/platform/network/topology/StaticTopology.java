@@ -2,12 +2,12 @@
 package com.swirlds.platform.network.topology;
 
 import com.google.common.collect.ImmutableSet;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.network.PeerInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A fully connected topology that never changes.

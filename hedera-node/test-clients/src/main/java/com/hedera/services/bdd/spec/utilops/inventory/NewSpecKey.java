@@ -3,8 +3,8 @@ package com.hedera.services.bdd.spec.utilops.inventory;
 
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType;
 import static com.hedera.services.bdd.spec.keys.deterministic.Bip0039.randomMnemonic;
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;

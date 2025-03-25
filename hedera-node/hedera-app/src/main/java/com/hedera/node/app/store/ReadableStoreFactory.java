@@ -4,6 +4,9 @@ package com.hedera.node.app.store;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.ReadableHintsStore;
+import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
@@ -128,10 +131,14 @@ public class ReadableStoreFactory {
                 ReadableEntityIdStore.class,
                 new StoreEntry(
                         EntityIdService.NAME, (states, entityCounters) -> new ReadableEntityIdStoreImpl(states)));
+        // Hints service
+        newMap.put(
+                ReadableHintsStore.class,
+                new StoreEntry(HintsService.NAME, (states, entityCounters) -> new ReadableHintsStoreImpl(states)));
+        // History service
         newMap.put(
                 ReadableHistoryStore.class,
-                new StoreEntry(
-                        HistoryService.NAME, (states, entityCounters) -> new ReadableHistoryStoreImpl(states) {}));
+                new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new ReadableHistoryStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 
@@ -170,9 +177,6 @@ public class ReadableStoreFactory {
             if (!storeInterface.isInstance(store)) {
                 throw new IllegalArgumentException("No instance " + storeInterface
                         + " is available"); // This needs to be ensured while stores are registered
-            }
-            if (store instanceof ReadablePlatformStateStore readablePlatformStateStore) {
-                readablePlatformStateStore.setVersionFactory(versionFactory);
             }
             return storeInterface.cast(store);
         }

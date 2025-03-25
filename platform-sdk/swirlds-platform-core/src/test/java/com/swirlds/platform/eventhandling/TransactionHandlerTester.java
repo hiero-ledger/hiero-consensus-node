@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -19,8 +18,6 @@ import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateValueAccumulator;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
@@ -28,6 +25,8 @@ import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.
@@ -73,7 +72,7 @@ public class TransactionHandlerTester {
                 RosterRetriever.buildRoster(addressBook),
                 NodeId.FIRST_NODE_ID,
                 statusActionSubmitter,
-                new BasicSoftwareVersion(1),
+                SemanticVersion.newBuilder().major(1).build(),
                 consensusStateEventHandler,
                 platformStateFacade);
         swirldStateManager.setInitialState(consensusState);

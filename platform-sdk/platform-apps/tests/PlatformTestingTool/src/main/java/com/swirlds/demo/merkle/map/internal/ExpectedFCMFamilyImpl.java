@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.merkle.map.internal;
 
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.EntityType.Crypto;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.EntityType.FCQ;
@@ -12,9 +11,9 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Cre
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Delete;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Expire;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Rebuild;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
 
 import com.google.protobuf.InvalidProtocolBufferException;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.set.RandomAccessHashSet;
 import com.swirlds.demo.merkle.map.FCMConfig;
@@ -51,6 +50,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Implementation of {#link ExpectedFCMFamily} that keeps track of keys available in either of the FCMs from

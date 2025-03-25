@@ -47,7 +47,7 @@ public interface HintsController {
      * @param hintsStore            the hints store
      * @param isActive              if the platform is active
      */
-    void advanceCRSWork(@NonNull Instant now, @NonNull WritableHintsStore hintsStore, boolean isActive);
+    void advanceCrsWork(@NonNull Instant now, @NonNull WritableHintsStore hintsStore, boolean isActive);
 
     /**
      * Returns the expected party id for the given node id, if available.
