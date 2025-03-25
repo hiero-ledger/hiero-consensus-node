@@ -19,13 +19,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
- * Takes as input an unordered stream of {@link PlatformEvent}s and emits a stream
- * of {@link PlatformEvent}s in topological order.
+ * Takes as input an unordered stream of {@link PlatformEvent}s and emits a stream of {@link PlatformEvent}s in
+ * topological order.
  */
 public class DefaultOrphanBuffer implements OrphanBuffer {
     /**
@@ -55,10 +56,10 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     private final IntakeEventCounter intakeEventCounter;
 
     /**
-     * A set containing descriptors of all non-ancient events that have found their parents (or whose parents have
+     * A map of descriptors to events for all non-ancient events that have found their parents (or whose parents have
      * become ancient).
      */
-    private final SequenceSet<EventDescriptorWrapper> eventsWithParents;
+    private final SequenceMap<EventDescriptorWrapper, PlatformEvent> eventsWithParents;
 
     /**
      * A map where the key is the descriptor of a missing parent, and the value is a list of orphans that are missing
@@ -81,7 +82,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
         platformContext
                 .getMetrics()
                 .getOrCreate(new FunctionGauge.Config<>(
-                                PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
+                        PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
                         .withDescription("number of orphaned events currently in the orphan buffer")
                         .withUnit("events"));
 
@@ -93,12 +94,12 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
         if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
             missingParentMap = new StandardSequenceMap<>(
                     0, INITIAL_CAPACITY, true, ed -> ed.eventDescriptor().birthRound());
-            eventsWithParents = new StandardSequenceSet<>(
+            eventsWithParents = new StandardSequenceMap<>(
                     0, INITIAL_CAPACITY, true, ed -> ed.eventDescriptor().birthRound());
         } else {
             missingParentMap = new StandardSequenceMap<>(
                     0, INITIAL_CAPACITY, true, ed -> ed.eventDescriptor().generation());
-            eventsWithParents = new StandardSequenceSet<>(
+            eventsWithParents = new StandardSequenceMap<>(
                     0, INITIAL_CAPACITY, true, ed -> ed.eventDescriptor().generation());
         }
     }
@@ -119,6 +120,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
 
         final List<EventDescriptorWrapper> missingParents = getMissingParents(event);
         if (missingParents.isEmpty()) {
+            setNGen(event);
             return eventIsNotAnOrphan(event);
         } else {
             final OrphanedEvent orphanedEvent = new OrphanedEvent(event, missingParents);
@@ -128,6 +130,24 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
 
             return List.of();
         }
+    }
+
+    /**
+     * Calculates and sets the nGen value for this event. The event must not be an orphan at time of invocation.
+     *
+     * @param event the event to populate nGen for
+     */
+    private void setNGen(final PlatformEvent event) {
+        long maxParentNGen = EventConstants.GENERATION_UNDEFINED;
+        for (final EventDescriptorWrapper parent : event.getAllParents()) {
+            if (eventsWithParents.containsKey(parent)) {
+                maxParentNGen = Math.max(maxParentNGen, eventsWithParents.get(parent).getNGen());
+            }
+        }
+        final long nGen = maxParentNGen == EventConstants.GENERATION_UNDEFINED
+                ? EventConstants.FIRST_GENERATION
+                : maxParentNGen + 1;
+        event.setNGen(nGen);
     }
 
     /**
@@ -191,7 +211,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
         final List<EventDescriptorWrapper> missingParents = new ArrayList<>();
 
         for (final EventDescriptorWrapper parent : event.getAllParents()) {
-            if (!eventsWithParents.contains(parent) && !eventWindow.isAncient(parent)) {
+            if (!eventsWithParents.containsKey(parent) && !eventWindow.isAncient(parent)) {
                 missingParents.add(parent);
             }
         }
@@ -230,7 +250,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
             }
 
             unorphanedEvents.add(nonOrphan);
-            eventsWithParents.add(nonOrphanDescriptor);
+            eventsWithParents.put(nonOrphanDescriptor, nonOrphan);
 
             // since this event is no longer an orphan, we need to recheck all of its children to see if any might
             // not be orphans anymore
