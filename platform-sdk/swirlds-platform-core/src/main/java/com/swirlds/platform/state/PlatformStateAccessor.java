@@ -3,11 +3,11 @@ package com.swirlds.platform.state;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.event.AncientMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * This interface represents the platform state and provide access to the state's properties.

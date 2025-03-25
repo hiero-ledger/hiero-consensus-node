@@ -21,7 +21,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
@@ -50,6 +49,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

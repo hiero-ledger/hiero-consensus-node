@@ -11,9 +11,9 @@ import com.swirlds.common.formatting.HorizontalAlignment;
 import com.swirlds.common.formatting.TextHistogram;
 import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.formatting.UnitFormatter;
-import com.swirlds.platform.system.events.CesEvent;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * Useful information about an event stream

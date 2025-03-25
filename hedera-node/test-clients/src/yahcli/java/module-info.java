@@ -5,7 +5,7 @@ module com.hedera.node.test.clients.yahcli {
     requires com.hedera.node.app;
     requires com.hedera.node.hapi;
     requires com.hedera.node.test.clients;
-    requires com.swirlds.common;
+    requires org.hiero.consensus.model;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
     requires com.google.protobuf;

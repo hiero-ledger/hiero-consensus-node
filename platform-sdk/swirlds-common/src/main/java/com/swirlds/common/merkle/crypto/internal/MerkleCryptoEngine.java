@@ -4,7 +4,6 @@ package com.swirlds.common.merkle.crypto.internal;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyException;
 import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
@@ -16,6 +15,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
+import org.hiero.consensus.model.crypto.Hash;
 
 public class MerkleCryptoEngine implements MerkleCryptography {
     /**

@@ -22,7 +22,6 @@ import com.swirlds.common.Console;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.utility.AutoCloseableWrapper;
@@ -36,6 +35,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.Random;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * This demonstrates a cryptocurrency and a stock market. There are 10 stocks, and each member repeatedly generates an

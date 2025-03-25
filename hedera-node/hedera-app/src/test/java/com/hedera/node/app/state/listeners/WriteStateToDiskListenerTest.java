@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.listeners;
 
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.version.ServicesSoftwareVersion;
@@ -52,9 +54,12 @@ class WriteStateToDiskListenerTest {
     }
 
     @Test
-    void archivesStartupNetworkFilesOnceFileWritten() {
+    void archivesStartupNetworkFilesOnceFileWrittenIfRoundNotZero() {
+        given(notification.getRoundNumber()).willReturn(0L, 1L);
+
+        subject.notify(notification);
         subject.notify(notification);
 
-        verify(startupNetworks).archiveStartupNetworks();
+        verify(startupNetworks, times(1)).archiveStartupNetworks();
     }
 }

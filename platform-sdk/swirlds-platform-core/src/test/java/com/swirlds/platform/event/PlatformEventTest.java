@@ -12,6 +12,7 @@ import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import com.swirlds.platform.test.fixtures.utils.EqualsVerifier;
 import java.io.IOException;
 import java.util.Random;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

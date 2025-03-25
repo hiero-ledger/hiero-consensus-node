@@ -76,13 +76,13 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.system.status.PlatformStatus;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -197,7 +197,8 @@ class IngestCheckerTest extends AppTestBase {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                ServicesSoftwareVersion::new);
+                ServicesSoftwareVersion::new,
+                null);
     }
 
     @Nested
@@ -264,7 +265,8 @@ class IngestCheckerTest extends AppTestBase {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                ServicesSoftwareVersion::new);
+                ServicesSoftwareVersion::new,
+                null);
 
         // Then the checker should throw a PreCheckException
         assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))

@@ -4,7 +4,6 @@ package com.swirlds.platform.test.fixtures.addressbook;
 import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.crypto.PublicStores;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
@@ -14,6 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A utility for generating a random roster.

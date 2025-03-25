@@ -2,15 +2,13 @@
 package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
+import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
+import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.eventhandling.EventConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -21,6 +19,8 @@ import java.time.Instant;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * <p>

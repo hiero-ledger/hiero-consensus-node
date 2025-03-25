@@ -2,21 +2,20 @@
 package com.swirlds.platform.system.events;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_FIRST;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.hashing.DefaultEventHasher;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
 class BirthRoundMigrationShimTests {
@@ -56,7 +55,7 @@ class BirthRoundMigrationShimTests {
                 TestPlatformContextBuilder.create().build();
 
         final SemanticVersion firstVersionInBirthRoundMode =
-                new BasicSoftwareVersion(random.nextInt(10, 100)).getPbjSemanticVersion();
+                SemanticVersion.newBuilder().major(random.nextInt(10, 100)).build();
         final long lastRoundBeforeBirthRoundMode = random.nextLong(100, 1_000);
         final long lowestJudgeGenerationBeforeBirthRoundMode = random.nextLong(100, 1_000);
 
@@ -100,7 +99,7 @@ class BirthRoundMigrationShimTests {
                 TestPlatformContextBuilder.create().build();
 
         final SemanticVersion firstVersionInBirthRoundMode =
-                new BasicSoftwareVersion(random.nextInt(10, 100)).getPbjSemanticVersion();
+                SemanticVersion.newBuilder().major(random.nextInt(10, 100)).build();
         final long lastRoundBeforeBirthRoundMode = random.nextLong(100, 1_000);
         final long lowestJudgeGenerationBeforeBirthRoundMode = random.nextLong(100, 1_000);
 
@@ -145,7 +144,7 @@ class BirthRoundMigrationShimTests {
                 TestPlatformContextBuilder.create().build();
 
         final SemanticVersion firstVersionInBirthRoundMode =
-                new BasicSoftwareVersion(random.nextInt(10, 100)).getPbjSemanticVersion();
+                SemanticVersion.newBuilder().major(random.nextInt(10, 100)).build();
         final long lastRoundBeforeBirthRoundMode = random.nextLong(100, 1_000);
         final long lowestJudgeGenerationBeforeBirthRoundMode = random.nextLong(100, 1_000);
 
