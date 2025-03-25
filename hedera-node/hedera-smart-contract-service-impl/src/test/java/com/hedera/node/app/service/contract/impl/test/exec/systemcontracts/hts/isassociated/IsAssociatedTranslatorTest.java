@@ -7,11 +7,12 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBL
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
@@ -39,7 +40,7 @@ class IsAssociatedTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesWithCorrectSelectorAndTokenRedirectReturnsTrue() {
-        given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(any(TokenID.class))).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         mockAttempt = createHtsCallAttemptForRedirect(IS_ASSOCIATED, subject);
         assertThat(subject.identifyMethod(mockAttempt)).isPresent();
@@ -47,7 +48,7 @@ class IsAssociatedTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesWithIncorrectSelectorReturnsFalse() {
-        given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(any(TokenID.class))).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         mockAttempt = createHtsCallAttemptForRedirect(BURN_TOKEN_V2, subject);
         assertThat(subject.identifyMethod(mockAttempt)).isEmpty();
