@@ -9,6 +9,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -19,6 +20,7 @@ public class AncientAgeBirthRoundTest implements LifecycleTest {
 
     @HapiTest
     @DisplayName("Upgrade to use birth rounds")
+    @Disabled("This test is required to run in isolation, but it is not clear how to do this with the HAPI framework")
     final Stream<DynamicTest> upgradeToUseBirthRounds() {
         /*
         Note: This test should be run in subprocess mode. This is done by executing it with the 'testSubprocess' task:
