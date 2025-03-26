@@ -33,6 +33,11 @@ throughout.
   - [DON'T start by copying a test that uses `withOpContext()`](#dont-start-by-copying-a-test-that-uses-withopcontext)
 - [Rare techniques](#rare-techniques)
   - [Predicting an entity number](#predicting-an-entity-number)
+- [Working with Block Node Simulators](#working-with-block-node-simulators)
+  - [Prerequisites](#prerequisites)
+  - [Using BlockNodeSimulatorVerbs](#using-blocknodesimulatorverbs)
+  - [Available Operations](#available-operations)
+  - [Important Notes](#important-notes)
 
 ## Patterns
 
@@ -296,3 +301,125 @@ withOpContext((spec, opLog) -> {
 
 See `SelfDestructSuite` for examples, e.g., `selfDestructedContractIsDeletedInSameTx` and helper
 method `getNthNextContractInfoFrom`.
+
+## Working with Block Node Simulators
+
+When testing interactions with block nodes, you can use the `BlockNodeSimulatorVerbs` class to control simulated block nodes in your tests. This allows you to test how consensus nodes handle different response codes, connection drops, and other edge cases from block nodes.
+
+### Prerequisites
+
+To use block node simulator operations in your tests, you must:
+
+1. Run your tests with the block node simulator enabled by setting the system property `hapi.spec.blocknode.mode=SIM`
+2. Use a `SubProcessNetwork` (not an embedded network)
+
+You can use the predefined Gradle task `testSubprocessWithBlockNodeSimulator` to run tests with the block node simulator enabled:
+
+```bash
+./gradlew testSubprocessWithBlockNodeSimulator --tests "com.hedera.services.bdd.suites.YourTestSuite"
+```
+
+### Using BlockNodeSimulatorVerbs
+
+The `BlockNodeSimulatorVerbs` class provides a fluent API for interacting with block node simulators. Here's how to use it in your tests:
+
+```java
+import static com.hedera.services.bdd.spec.utilops.BlockNodeSimulatorVerbs.blockNodeSimulator;
+import static com.hedera.services.bdd.spec.utilops.BlockNodeSimulatorVerbs.allBlockNodeSimulators;
+import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
+import java.util.concurrent.atomic.AtomicLong;
+
+@HapiTest
+public Stream<DynamicTest> testBlockNodeSimulator() {
+    AtomicLong lastVerifiedBlock = new AtomicLong(0);
+
+    return hapiTest(
+        // Get the last verified block number from simulator 0
+        blockNodeSimulator(0).getLastVerifiedBlockExposing(lastVerifiedBlock),
+
+        // Send an EndOfStream response with INTERNAL error code
+        blockNodeSimulator(0).sendEndOfStreamWithBlock(
+            PublishStreamResponseCode.INTERNAL, lastVerifiedBlock.get() + 1),
+
+        // Simulate a connection drop by shutting down simulator 0
+        blockNodeSimulator(0).shutDownImmediately(),
+
+        // Wait for the consensus node to detect the connection drop
+        sleepFor(5000),
+
+        // Restart the simulator
+        blockNodeSimulator(0).restartImmediately(),
+
+        // Assert that a specific block has been received
+        blockNodeSimulator(0).assertBlockReceived(lastVerifiedBlock.get() + 5)
+    );
+}
+```
+
+### Available Operations
+
+The `BlockNodeSimulatorVerbs` class provides the following operations:
+
+#### 1. Response Code Control
+
+Control how block nodes respond to consensus nodes:
+
+```java
+// Send an immediate EndOfStream response with a specific response code
+blockNodeSimulator(0).sendEndOfStreamImmediately(PublishStreamResponseCode.INTERNAL);
+
+// Send an EndOfStream response with a specific block number
+blockNodeSimulator(0).sendEndOfStreamWithBlock(PublishStreamResponseCode.INTERNAL, 100);
+
+// Send a SkipBlock response for a specific block
+blockNodeSimulator(0).sendSkipBlockImmediately(100);
+
+// Send a ResendBlock response for a specific block
+blockNodeSimulator(0).sendResendBlockImmediately(100);
+```
+
+#### 2. Connection Management
+
+Simulate connection issues between consensus nodes and block nodes:
+
+```java
+// Shut down a specific simulator
+blockNodeSimulator(0).shutDownImmediately();
+
+// Shut down all simulators
+allBlockNodeSimulators().shutDownAll();
+
+// Restart a specific simulator
+blockNodeSimulator(0).restartImmediately();
+
+// Restart all previously shut down simulators
+allBlockNodeSimulators().restartAll();
+```
+
+#### 3. Block Verification
+
+Verify block processing and retrieve block information:
+
+```java
+// Assert that a specific block has been received
+blockNodeSimulator(0).assertBlockReceived(100);
+
+// Get the last verified block number and store it in an AtomicLong
+AtomicLong blockNum = new AtomicLong(0);
+blockNodeSimulator(0).getLastVerifiedBlockExposing(blockNum);
+
+// Get the last verified block number and use it in a consumer
+blockNodeSimulator(0).getLastVerifiedBlockExposing(lastBlock -> {
+    System.out.println("Last verified block: " + lastBlock);
+});
+```
+
+### Important Notes
+
+1. Block node simulator operations will throw an `IllegalStateException` if the block node mode is not set to `SIM` in the `SubProcessNetwork`.
+
+2. Each consensus node (0-3) has a corresponding block node simulator with the same index unless the many-to-one topology is enabled.
+
+You can configure the simulator to use a many-to-one topology (where multiple consensus nodes connect to a single block node) by setting the system property `hapi.spec.blocknode.simulator.manyToOne=true`.
+
+For more examples, see the `BlockNodeSimulatorSuite` class in the test-clients codebase.

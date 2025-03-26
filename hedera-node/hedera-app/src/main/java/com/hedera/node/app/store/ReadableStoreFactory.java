@@ -3,7 +3,6 @@ package com.hedera.node.app.store;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
@@ -56,7 +55,6 @@ import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.ReadableRosterStore;
 import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -65,7 +63,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 /**
  * Factory for all readable stores. It creates new readable stores based on the {@link State}.
@@ -143,17 +140,14 @@ public class ReadableStoreFactory {
     }
 
     private final State state;
-    private final Function<SemanticVersion, SoftwareVersion> versionFactory;
 
     /**
      * Constructor of {@code ReadableStoreFactory}
      *
      * @param state the {@link State} to use
      */
-    public ReadableStoreFactory(
-            @NonNull final State state, @NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
+    public ReadableStoreFactory(@NonNull final State state) {
         this.state = requireNonNull(state, "The supplied argument 'state' cannot be null!");
-        this.versionFactory = requireNonNull(versionFactory, "The supplied argument 'versionFactory' cannot be null!");
     }
 
     /**
