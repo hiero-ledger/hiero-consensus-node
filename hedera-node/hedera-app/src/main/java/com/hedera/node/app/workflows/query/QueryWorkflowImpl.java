@@ -240,7 +240,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                         queryChecker.validateAccountBalances(accountStore, transactionInfo, payer, queryFees, txFees);
 
                         // 3.vi Submit payment to platform
-                        submissionManager.submit(txBody, transactionInfo.serializedTransaction());
+                        submissionManager.submit(txBody, paymentBytes);
                     }
                 } else {
                     if (RESTRICTED_FUNCTIONALITIES.contains(function)) {

@@ -181,9 +181,15 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                     .getConfiguration()
                     .getConfigData(HederaConfig.class)
                     .nodeTransactionMaxBytes();
-            txInfo = previousResult == null
-                    ? transactionChecker.parseAndCheck(applicationTxBytes, maxBytes)
-                    : previousResult.txInfo();
+            if (previousResult == null) {
+                if (InnerTransaction.YES.equals(innerTransaction)) {
+                    txInfo = transactionChecker.parseSignedAndCheck(applicationTxBytes, maxBytes);
+                } else {
+                    txInfo = transactionChecker.parseAndCheck(applicationTxBytes, maxBytes);
+                }
+            } else {
+                txInfo = previousResult.txInfo();
+            }
             if (txInfo == null) {
                 // In particular, a null transaction info means we already know the transaction's final failure status
                 return previousResult;
