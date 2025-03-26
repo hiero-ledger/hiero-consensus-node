@@ -10,7 +10,6 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import com.hederahashgraph.api.proto.java.Key;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -26,6 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.spec.ECPrivateKeySpec;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class SpecKeyFromEcdsaFile extends UtilOp {
     private static final Logger log = LogManager.getLogger(SpecKeyFromEcdsaFile.class);

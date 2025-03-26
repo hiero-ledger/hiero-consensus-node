@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
@@ -13,6 +12,8 @@ import com.swirlds.platform.test.fixtures.gui.TestGuiSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.node.NodeId;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
 public class ConsensusTestOrchestrator {
@@ -164,7 +165,7 @@ public class ConsensusTestOrchestrator {
         for (final ConsensusTestNode node : nodes) {
             node.getEventEmitter()
                     .getGraphGenerator()
-                    .getSource(getAddressBook().getNodeId(nodeIndex))
+                    .getSourceByIndex(nodeIndex)
                     .setNewEventWeight(eventWeight);
         }
     }
@@ -184,7 +185,7 @@ public class ConsensusTestOrchestrator {
         return nodes;
     }
 
-    public AddressBook getAddressBook() {
-        return nodes.get(0).getEventEmitter().getGraphGenerator().getAddressBook();
+    public Roster getRoster() {
+        return nodes.get(0).getEventEmitter().getGraphGenerator().getRoster();
     }
 }

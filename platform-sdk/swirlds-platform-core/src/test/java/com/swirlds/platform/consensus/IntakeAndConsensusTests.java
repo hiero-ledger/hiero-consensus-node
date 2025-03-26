@@ -6,7 +6,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidation;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
@@ -16,6 +15,7 @@ import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.event.EventConstants;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -57,8 +57,8 @@ class IntakeAndConsensusTests {
                 .limit(numNodes)
                 .toList();
         final StandardGraphGenerator generator = new StandardGraphGenerator(platformContext, seed, eventSources);
-        final TestIntake node1 = new TestIntake(platformContext, generator.getAddressBook());
-        final TestIntake node2 = new TestIntake(platformContext, generator.getAddressBook());
+        final TestIntake node1 = new TestIntake(platformContext, generator.getRoster());
+        final TestIntake node2 = new TestIntake(platformContext, generator.getRoster());
 
         // first we generate events regularly, until we have some ancient rounds
         final int firstBatchSize = 5000;

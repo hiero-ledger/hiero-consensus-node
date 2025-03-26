@@ -40,7 +40,7 @@ public class GetScheduledNonFungibleTokenCreateCall extends AbstractCall {
     @NonNull
     @Override
     public PricedResult execute(MessageFrame frame) {
-        final var schedule = nativeOperations().getSchedule(scheduleID.scheduleNum());
+        final var schedule = nativeOperations().getSchedule(scheduleID);
         // Validate that given schedule exists
         if (schedule == null) {
             return gasOnly(revertResult(RECORD_NOT_FOUND, gasCalculator.viewGasRequirement()), RECORD_NOT_FOUND, true);

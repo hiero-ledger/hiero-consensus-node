@@ -7,7 +7,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.annotations.MaxSignedTxnSize;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
@@ -17,11 +16,10 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.platform.system.transaction.Transaction;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -30,6 +28,9 @@ import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * This class is used to warm up the cache. It is called at the beginning of a round with the current state
@@ -42,23 +43,23 @@ public class CacheWarmer {
     private final TransactionChecker checker;
     private final TransactionDispatcher dispatcher;
     private final Executor executor;
-    private final int maxSignedTxnSize;
+    private final HederaConfig hederaConfig;
 
     @NonNull
     private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     @Inject
     public CacheWarmer(
-            @MaxSignedTxnSize final int maxSignedTxnSize,
             @NonNull final TransactionChecker checker,
             @NonNull final TransactionDispatcher dispatcher,
             @NonNull @Named("CacheWarmer") final Executor executor,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
+            @NonNull final ConfigProvider configProvider) {
         this.checker = requireNonNull(checker);
         this.dispatcher = requireNonNull(dispatcher);
         this.executor = requireNonNull(executor);
         this.softwareVersionFactory = softwareVersionFactory;
-        this.maxSignedTxnSize = maxSignedTxnSize;
+        this.hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
     }
 
     /**
@@ -69,7 +70,7 @@ public class CacheWarmer {
      */
     public void warm(@NonNull final State state, @NonNull final Round round) {
         executor.execute(() -> {
-            final ReadableStoreFactory storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+            final ReadableStoreFactory storeFactory = new ReadableStoreFactory(state);
             final ReadableAccountStore accountStore = storeFactory.getStore(ReadableAccountStore.class);
             for (final ConsensusEvent event : round) {
                 event.forEachTransaction(platformTransaction -> executor.execute(() -> {
@@ -103,7 +104,8 @@ public class CacheWarmer {
             final Bytes buffer = platformTransaction.getApplicationTransaction();
             // There is no cache warming to do for oversize TSS transactions, so it's fine
             // to fail with TRANSACTION_OVERSIZE here in any case
-            return checker.parseAndCheck(buffer, maxSignedTxnSize).txBody();
+            final var transactionMaxBytes = hederaConfig.transactionMaxBytes();
+            return checker.parseAndCheck(buffer, transactionMaxBytes).txBody();
         } catch (PreCheckException ex) {
             return null;
         }

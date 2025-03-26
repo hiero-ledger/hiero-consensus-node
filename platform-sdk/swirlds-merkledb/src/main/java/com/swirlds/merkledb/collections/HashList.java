@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import com.swirlds.common.crypto.Hash;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * A simple random access list of {@link Hash}es. It acts like a very simple long to {@link Hash} map.

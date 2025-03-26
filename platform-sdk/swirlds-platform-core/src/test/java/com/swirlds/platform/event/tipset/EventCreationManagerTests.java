@@ -17,10 +17,10 @@ import com.swirlds.platform.event.creation.DefaultEventCreationManager;
 import com.swirlds.platform.event.creation.EventCreationManager;
 import com.swirlds.platform.event.creation.EventCreator;
 import com.swirlds.platform.pool.TransactionPoolNexus;
-import com.swirlds.platform.system.events.UnsignedEvent;
-import com.swirlds.platform.system.status.PlatformStatus;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.consensus.model.event.UnsignedEvent;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

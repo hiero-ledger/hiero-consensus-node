@@ -10,7 +10,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
-import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.CallAttemptHelpers.prepareHtsAttemptWithSelectorAndCustomConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
@@ -20,18 +19,12 @@ import static org.mockito.Mockito.lenient;
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperations;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updatetokencustomfees.UpdateTokenCustomFeesDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updatetokencustomfees.UpdateTokenCustomFeesTranslator;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
-import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
+import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.TokensConfig;
@@ -39,24 +32,18 @@ import com.swirlds.config.api.Configuration;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-class UpdateTokenCustomFeesTranslatorTest extends CallTestBase {
+class UpdateTokenCustomFeesTranslatorTest extends CallAttemptTestBase {
 
     @Mock
     private HtsCallAttempt attempt;
 
     @Mock
-    private AddressIdConverter addressIdConverter;
-
-    @Mock
     private VerificationStrategy verificationStrategy;
 
     @Mock
-    Configuration configuration;
+    private Configuration configuration;
 
     @Mock
     private ContractsConfig contractsConfig;
@@ -65,44 +52,21 @@ class UpdateTokenCustomFeesTranslatorTest extends CallTestBase {
     private TokensConfig tokensConfig;
 
     @Mock
-    private HederaWorldUpdater.Enhancement enhancement;
-
-    @Mock
-    private VerificationStrategies verificationStrategies;
-
-    @Mock
     private ContractMetrics contractMetrics;
-
-    @Mock
-    private ProxyWorldUpdater proxyWorldUpdater;
-
-    @Mock
-    private SystemContractOperations systemOperations;
-
-    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
-
-    private final UpdateTokenCustomFeesDecoder decoder = new UpdateTokenCustomFeesDecoder();
 
     private UpdateTokenCustomFeesTranslator subject;
 
     @BeforeEach
     void setUp() {
-        subject = new UpdateTokenCustomFeesTranslator(decoder, systemContractMethodRegistry, contractMetrics);
+        subject = new UpdateTokenCustomFeesTranslator(
+                new UpdateTokenCustomFeesDecoder(), systemContractMethodRegistry, contractMetrics);
     }
 
     @Test
     void matchesIsTrueWhenSelectorForFungibleIsCorrect() {
         // given:
         setConfiguration(true);
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                UPDATE_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
+        attempt = createHtsCallAttempt(UPDATE_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -110,15 +74,8 @@ class UpdateTokenCustomFeesTranslatorTest extends CallTestBase {
     void matchesIsTrueWhenSelectorForNFTIsCorrect() {
         // given:
         setConfiguration(true);
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                UPDATE_NON_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
+        // when:
+        attempt = createHtsCallAttempt(UPDATE_NON_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();
     }
 
@@ -134,15 +91,8 @@ class UpdateTokenCustomFeesTranslatorTest extends CallTestBase {
     void matchesIsFalseWhenSelectorsAreIncorrect() {
         // given:
         setConfiguration(true);
-        attempt = prepareHtsAttemptWithSelectorAndCustomConfig(
-                BURN_TOKEN_V2,
-                subject,
-                enhancement,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                systemContractMethodRegistry,
-                configuration);
+        // when:
+        attempt = createHtsCallAttempt(BURN_TOKEN_V2, configuration, subject);
         assertThat(subject.identifyMethod(attempt)).isEmpty();
     }
 

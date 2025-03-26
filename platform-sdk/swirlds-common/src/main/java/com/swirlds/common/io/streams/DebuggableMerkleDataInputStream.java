@@ -2,7 +2,6 @@
 package com.swirlds.common.io.streams;
 
 import com.swirlds.base.function.CheckedFunction;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.streams.internal.SerializationOperation;
 import com.swirlds.common.io.streams.internal.SerializationStack;
 import com.swirlds.common.merkle.MerkleNode;
@@ -20,6 +19,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 /**
  * A stream that performs the same role as a {@link MerkleDataInputStream} but with extra debug functionality. This

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.connection;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
 import com.swirlds.platform.network.Connection;
 import java.net.SocketException;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * An implementation of {@link Connection} that is used to avoid returning null if there is no connection. This

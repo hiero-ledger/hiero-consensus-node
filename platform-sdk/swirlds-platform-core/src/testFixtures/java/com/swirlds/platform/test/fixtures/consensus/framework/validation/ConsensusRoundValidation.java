@@ -6,14 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 public class ConsensusRoundValidation {
     public static void validateConsensusRounds(final ConsensusOutput output1, final ConsensusOutput output2) {

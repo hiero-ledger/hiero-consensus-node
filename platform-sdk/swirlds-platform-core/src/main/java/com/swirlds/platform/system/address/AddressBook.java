@@ -2,12 +2,6 @@
 package com.swirlds.platform.system.address;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Hashable;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.system.address.internal.AddressBookIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -21,11 +15,18 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The Address of every known member of the swirld. The getters are public and the setters aren't, so it is read-only
  * for apps. When enableEventStreaming is set to be true, the memo field is required and should be unique.
  */
+@Deprecated(forRemoval = true) // the removal of this class is ongoing
 public class AddressBook implements Iterable<Address>, SelfSerializable, Hashable {
 
     /**

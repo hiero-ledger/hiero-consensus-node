@@ -2,12 +2,12 @@
 package com.swirlds.virtualmap.serialize;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.virtualmap.VirtualKey;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * An interface to serialize keys used in virtual maps. Virtual keys are serializable in themselves,

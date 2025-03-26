@@ -12,7 +12,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_REFERENC
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
@@ -28,7 +29,6 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
-@OrderedInIsolation
 @HapiTestLifecycle
 public class HRCTokenRejectTest {
 
@@ -41,6 +41,7 @@ public class HRCTokenRejectTest {
     }
 
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("HRC rejectTokenFT works")
     public Stream<DynamicTest> hrcFungibleWorks(@FungibleToken(initialSupply = 1000) SpecFungibleToken token) {
         return hapiTest(
@@ -54,6 +55,7 @@ public class HRCTokenRejectTest {
     }
 
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("HRC rejectTokenNFTs works")
     public Stream<DynamicTest> hrcNftWorks(@NonFungibleToken(numPreMints = 1) SpecNonFungibleToken nft) {
         return hapiTest(
@@ -67,6 +69,7 @@ public class HRCTokenRejectTest {
     }
 
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("HRC rejectTokenNFTs works for max allowed serials")
     public Stream<DynamicTest> hrcNftWorksForMultipleSerials(
             @NonFungibleToken(numPreMints = 10) SpecNonFungibleToken nft) {
@@ -83,6 +86,7 @@ public class HRCTokenRejectTest {
     }
 
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("HRC rejectTokenNFTs fails if account has no nft balance")
     public Stream<DynamicTest> hrcNftFailsIfAccountHasNoBalance(
             @NonFungibleToken(numPreMints = 1) SpecNonFungibleToken nft) {
@@ -95,6 +99,7 @@ public class HRCTokenRejectTest {
     }
 
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("HRC rejectTokenFT fails if account has no token balance")
     public Stream<DynamicTest> hrcFungibleFailsIfAccountHasNoBalance(@FungibleToken SpecFungibleToken token) {
         return hapiTest(
@@ -106,6 +111,7 @@ public class HRCTokenRejectTest {
     }
 
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("HRC rejectTokenNFTs fails if serials exceed limit")
     public Stream<DynamicTest> hrcNftFailsForMultipleSerials(
             @NonFungibleToken(numPreMints = 11) SpecNonFungibleToken nft) {

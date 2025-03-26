@@ -2,18 +2,16 @@
 package com.swirlds.platform.state.service;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.utility.CommonUtils.toPbjTimestamp;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Instant;
 import java.util.Optional;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * This class handles conversion from PBJ objects related to the platform state to the corresponding Java objects, and vice versa.
@@ -116,19 +114,6 @@ public final class PbjConverter {
         }
 
         return builder.build();
-    }
-
-    @Nullable
-    public static Timestamp toPbjTimestamp(@Nullable final Instant instant) {
-        if (instant == null) {
-            return null;
-        }
-        return new Timestamp(instant.getEpochSecond(), instant.getNano());
-    }
-
-    @Nullable
-    public static Instant fromPbjTimestamp(@Nullable final Timestamp timestamp) {
-        return timestamp == null ? null : Instant.ofEpochSecond(timestamp.seconds(), timestamp.nanos());
     }
 
     private PbjConverter() {

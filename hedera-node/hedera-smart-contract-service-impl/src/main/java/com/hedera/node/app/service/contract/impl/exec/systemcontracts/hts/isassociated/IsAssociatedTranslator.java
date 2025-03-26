@@ -41,7 +41,7 @@ public class IsAssociatedTranslator extends AbstractCallTranslator<HtsCallAttemp
     @Override
     public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
         requireNonNull(attempt);
-        if (!attempt.isTokenRedirect()) return Optional.empty();
+        if (!attempt.isRedirect()) return Optional.empty();
         return attempt.isMethod(IS_ASSOCIATED);
     }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.info;
 
-import static com.hedera.hapi.util.HapiUtils.parseAccount;
+import static com.hedera.hapi.util.HapiUtils.parseAccountFromLegacy;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.roster.RosterRetriever.buildRoster;
 import static java.util.Objects.requireNonNull;
@@ -13,13 +13,14 @@ import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
@@ -42,6 +43,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A {@link StartupNetworks} implementation that loads {@link Network} information from a
@@ -83,8 +85,9 @@ public class DiskStartupNetworks implements StartupNetworks {
     @Override
     public Network genesisNetworkOrThrow(@NonNull final Configuration platformConfig) {
         requireNonNull(platformConfig);
-        return loadNetwork(AssetUse.GENESIS, configProvider.getConfiguration(), GENESIS_NETWORK_JSON)
-                .or(() -> networkFromConfigTxt(platformConfig))
+        final var config = configProvider.getConfiguration();
+        return loadNetwork(AssetUse.GENESIS, config, GENESIS_NETWORK_JSON)
+                .or(() -> networkFromConfigTxt(platformConfig, config))
                 .orElseThrow(() -> new IllegalStateException("Genesis network not found"));
     }
 
@@ -103,7 +106,7 @@ public class DiskStartupNetworks implements StartupNetworks {
             return scopedNetwork;
         }
         return platformConfig.getConfigData(AddressBookConfig.class).forceUseOfConfigAddressBook()
-                ? networkFromConfigTxt(platformConfig)
+                ? networkFromConfigTxt(platformConfig, config)
                 : Optional.empty();
     }
 
@@ -160,8 +163,9 @@ public class DiskStartupNetworks implements StartupNetworks {
     @Override
     public Network migrationNetworkOrThrow(@NonNull final Configuration platformConfig) {
         requireNonNull(platformConfig);
-        return loadNetwork(AssetUse.MIGRATION, configProvider.getConfiguration(), OVERRIDE_NETWORK_JSON)
-                .or(() -> networkFromConfigTxt(platformConfig))
+        final var config = configProvider.getConfiguration();
+        return loadNetwork(AssetUse.MIGRATION, config, OVERRIDE_NETWORK_JSON)
+                .or(() -> networkFromConfigTxt(platformConfig, config))
                 .orElseThrow(() -> new IllegalStateException("Transplant network not found"));
     }
 
@@ -212,17 +216,22 @@ public class DiskStartupNetworks implements StartupNetworks {
      * Converts a {@link AddressBook} to a {@link Network}. The resulting network will have no TSS
      * keys of any kind.
      *
-     * @param addressBook the address book to convert
+     * @param addressBook   the address book to convert
+     * @param configuration the configuration
      * @return the converted network
      */
-    public static @NonNull Network fromLegacyAddressBook(@NonNull final AddressBook addressBook) {
+    public static @NonNull Network fromLegacyAddressBook(
+            @NonNull final AddressBook addressBook, @NonNull final VersionedConfiguration configuration) {
         final var roster = buildRoster(addressBook);
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         return Network.newBuilder()
                 .nodeMetadata(roster.rosterEntries().stream()
                         .map(rosterEntry -> {
                             final var nodeId = rosterEntry.nodeId();
-                            final var nodeAccountId = parseAccount(
-                                    addressBook.getAddress(NodeId.of(nodeId)).getMemo());
+                            final var nodeAccountId = parseAccountFromLegacy(
+                                    addressBook.getAddress(NodeId.of(nodeId)).getMemo(),
+                                    hederaConfig.shard(),
+                                    hederaConfig.realm());
                             // Currently the ReadableFreezeUpgradeActions.writeConfigLineAndPem()
                             // assumes that the gossip endpoints in the Node objects are in the order
                             // (Internal, External)...even though Roster format is the reverse :/
@@ -295,7 +304,8 @@ public class DiskStartupNetworks implements StartupNetworks {
      * @return the loaded genesis network, if it was found and successfully loaded
      */
     @Deprecated(forRemoval = true)
-    private Optional<Network> networkFromConfigTxt(@NonNull final Configuration platformConfig) {
+    private Optional<Network> networkFromConfigTxt(
+            @NonNull final Configuration platformConfig, @NonNull final VersionedConfiguration appConfig) {
         try {
             log.info("No genesis-network.json detected, falling back to config.txt and initNodeSecurity()");
             final AddressBook legacyBook;
@@ -307,7 +317,7 @@ public class DiskStartupNetworks implements StartupNetworks {
             } catch (Exception e) {
                 throw new IllegalStateException("Error generating keys and certs", e);
             }
-            final var network = fromLegacyAddressBook(legacyBook);
+            final var network = fromLegacyAddressBook(legacyBook, appConfig);
             return Optional.of(network);
         } catch (Exception e) {
             log.warn("Fallback loading genesis network from config.txt also failed", e);

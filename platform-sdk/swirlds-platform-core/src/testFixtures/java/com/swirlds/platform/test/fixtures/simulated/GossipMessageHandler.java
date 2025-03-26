@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.simulated;
 
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * An interface for test classes that handle gossiped messages
