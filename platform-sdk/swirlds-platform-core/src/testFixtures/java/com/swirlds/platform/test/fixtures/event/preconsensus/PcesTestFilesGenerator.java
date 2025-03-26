@@ -125,7 +125,7 @@ public final class PcesTestFilesGenerator {
         long lowerBound = getLongFromRange(LOWERBOUND_RANGE);
         long upperBound = lowerBound + rng.nextInt(2, maxDelta);
 
-        final var nonExistentValue = lowerBound - 1;
+        final long nonExistentValue = lowerBound - 1;
         final long halfIndex = count / 2;
 
         final int startIndex = rng.nextInt(2, count - 2);
@@ -134,18 +134,18 @@ public final class PcesTestFilesGenerator {
         // discontinuity will be placed
         final int discontinuityIndex = rng.nextInt(startIndex, count);
 
-        var timestamp = Instant.now();
-        final var startingRound = startingRoundRange != null ? getLongFromRange(startingRoundRange) : 0;
+        Instant timestamp = Instant.now();
+        final long startingRound = startingRoundRange != null ? getLongFromRange(startingRoundRange) : 0;
         // In case we set a discontinuity, lastUnbrokenOrigin will be replaced
-        var lastUnbrokenOrigin = startingRound;
+        long lastUnbrokenOrigin = startingRound;
 
-        final var filesBeforeDiscontinuity = new ArrayList<PcesFile>();
-        final var filesAfterDiscontinuity = new ArrayList<PcesFile>();
-        final var files = new ArrayList<PcesFile>();
+        final List<PcesFile> filesBeforeDiscontinuity = new ArrayList<>();
+        final List<PcesFile> filesAfterDiscontinuity = new ArrayList<>();
+        final List<PcesFile> files = new ArrayList<>();
 
         for (int index = 0; index < count; index++) {
             final long sequenceNumber = firstSequenceNumber + index;
-            final var isPreDiscontinuity = index < discontinuityIndex;
+            final boolean isPreDiscontinuity = index < discontinuityIndex;
 
             // if set to intentionally introduce a discontinuity
             if (discontinue && index == discontinuityIndex) {

@@ -85,7 +85,7 @@ class PcesFileManagerTests {
     @MethodSource("ancientModes")
     @DisplayName("Incremental Pruning By Ancient Boundary Test")
     void incrementalPruningByAncientBoundaryTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final var result = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
                 .build()
                 .generate();
 
@@ -93,9 +93,10 @@ class PcesFileManagerTests {
         // to purge this file or any of the ones after it.
         final int middleFileIndex = fileCount / 2;
 
-        final PcesFile firstFile = result.files().getFirst();
-        final PcesFile middleFile = result.files().get(middleFileIndex);
-        final PcesFile lastFile = result.files().getLast();
+        final List<PcesFile> files = pcesFilesGeneratorResult.files();
+        final PcesFile firstFile = files.getFirst();
+        final PcesFile middleFile = files.get(middleFileIndex);
+        final PcesFile lastFile = files.getLast();
 
         // Set the far in the future, we want all files to be GC eligible by temporal reckoning.
         final FakeTime time = new FakeTime(lastFile.getTimestamp().plus(Duration.ofHours(1)), Duration.ZERO);
@@ -105,7 +106,7 @@ class PcesFileManagerTests {
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode);
         final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, NodeId.of(0), 0);
 
-        assertIteratorEquality(result.files().iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
+        assertIteratorEquality(files.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
 
         // Increase the pruned ancient threshold a little at a time,
         // until the middle file is almost GC eligible but not quite.
@@ -123,8 +124,8 @@ class PcesFileManagerTests {
             final PcesFile firstUnPrunedFile = freshFileTracker.getFirstFile();
 
             int firstUnPrunedIndex = -1;
-            for (int index = 0; index < result.files().size(); index++) {
-                if (result.files().get(index).equals(firstUnPrunedFile)) {
+            for (int index = 0; index < files.size(); index++) {
+                if (files.get(index).equals(firstUnPrunedFile)) {
                     firstUnPrunedIndex = index;
                     break;
                 }
@@ -138,14 +139,14 @@ class PcesFileManagerTests {
 
             // Check the file right before the first un-pruned file.
             if (firstUnPrunedIndex > 0) {
-                final PcesFile lastPrunedFile = result.files().get(firstUnPrunedIndex - 1);
+                final PcesFile lastPrunedFile = files.get(firstUnPrunedIndex - 1);
                 assertTrue(lastPrunedFile.getUpperBound() < ancientThreshold);
             }
 
             // Check all remaining files to make sure we didn't accidentally delete something from the end
             final List<PcesFile> expectedFiles = new ArrayList<>();
             for (int index = firstUnPrunedIndex; index < fileCount; index++) {
-                expectedFiles.add(result.files().get(index));
+                expectedFiles.add(files.get(index));
             }
 
             // iterate over all files in the fresh file tracker to make sure they match expected
@@ -163,8 +164,8 @@ class PcesFileManagerTests {
         final PcesFile firstUnPrunedFile = freshFileTracker.getFirstFile();
 
         int firstUnPrunedIndex = -1;
-        for (int index = 0; index < result.files().size(); index++) {
-            if (result.files().get(index).equals(firstUnPrunedFile)) {
+        for (int index = 0; index < files.size(); index++) {
+            if (files.get(index).equals(firstUnPrunedFile)) {
                 firstUnPrunedIndex = index;
                 break;
             }
@@ -177,10 +178,10 @@ class PcesFileManagerTests {
     @MethodSource("ancientModes")
     @DisplayName("Incremental Pruning By Timestamp Test")
     void incrementalPruningByTimestampTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final var result = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
                 .build()
                 .generate();
-        final var files = result.files();
+        final var files = pcesFilesGeneratorResult.files();
 
         // Choose a file in the middle. The goal is to incrementally purge all files before this file, but not
         // to purge this file or any of the ones after it.
