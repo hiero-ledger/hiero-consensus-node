@@ -3,6 +3,7 @@ package com.swirlds.platform.test.fixtures.sync;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.RandomUtils;
@@ -15,8 +16,7 @@ import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterFactory;
 import com.swirlds.platform.test.fixtures.event.emitter.ShuffledEventEmitter;
@@ -60,14 +60,14 @@ public class SyncTestExecutor {
     private final AncientMode ancientMode;
 
     /**
-     * A randomly generated address book from the number of nodes in the parameters of the test.
+     * A randomly generated roster from the number of nodes in the parameters of the test.
      */
-    private AddressBook addressBook;
+    private Roster roster;
 
     public SyncTestExecutor(final SyncTestParams params) {
         this.params = params;
         this.ancientMode = params.getAncientMode();
-        this.addressBook = RandomAddressBookBuilder.create(Randotron.create())
+        this.roster = RandomRosterBuilder.create(Randotron.create())
                 .withSize(params.getNumNetworkNodes())
                 .build();
 
@@ -113,14 +113,9 @@ public class SyncTestExecutor {
         connectionFactory = ConnectionFactory::createLocalConnections;
     }
 
-    /**
-     * Returns the address book.
-     *
-     * @return the address book
-     */
     @NonNull
-    public AddressBook getAddressBook() {
-        return addressBook;
+    public Roster getRoster() {
+        return roster;
     }
 
     /**
@@ -162,7 +157,7 @@ public class SyncTestExecutor {
                         .getOrCreateConfig())
                 .build();
 
-        final EventEmitterFactory factory = new EventEmitterFactory(platformContext, random, addressBook);
+        final EventEmitterFactory factory = new EventEmitterFactory(platformContext, random, roster);
 
         factoryConfig.accept(factory);
 

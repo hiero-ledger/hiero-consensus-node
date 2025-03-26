@@ -34,7 +34,7 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * Corresponds to {@link DataInputStream#available()}.
+     * {@inheritDoc}
      */
     @Override
     public int available() throws IOException {
@@ -42,7 +42,7 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * Closes the stream.
+     * {@inheritDoc}
      */
     @Override
     public void close() throws IOException {
@@ -50,7 +50,7 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * Corresponds to {@link DataInputStream#read()}.
+     * {@inheritDoc}
      */
     @Override
     public int read() throws IOException {
@@ -58,7 +58,7 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * Corresponds to {@link DataInputStream#read(byte[], int, int)}.
+     * {@inheritDoc}
      */
     @Override
     public int read(final byte[] b, final int off, final int len) throws IOException {
@@ -66,7 +66,7 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * Corresponds to {@link DataInputStream#skip(long)}.
+     * {@inheritDoc}
      */
     @Override
     public long skip(final long n) throws IOException {
@@ -74,7 +74,7 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * Corresponds to {@link DataInputStream#readAllBytes()}.
+     * {@inheritDoc}
      */
     @Override
     public byte[] readAllBytes() throws IOException {
@@ -82,7 +82,7 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * Corresponds to {@link DataInputStream#readNBytes(int)}.
+     * {@inheritDoc}
      */
     @Override
     public byte[] readNBytes(final int len) throws IOException {
@@ -90,7 +90,7 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * Corresponds to {@link DataInputStream#readNBytes(byte[], int, int)}.
+     * {@inheritDoc}
      */
     @Override
     public int readNBytes(final byte[] b, final int off, final int len) throws IOException {
@@ -98,89 +98,137 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * Corresponds to {@link DataInputStream#skipNBytes(long)}.
+     * {@inheritDoc}
      */
     @Override
     public void skipNBytes(final long n) throws IOException {
         baseStream.skipNBytes(n);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void readFully(final byte[] b) throws IOException {
         baseStream.readFully(b);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void readFully(final byte[] b, final int off, final int len) throws IOException {
         baseStream.readFully(b, off, len);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public int skipBytes(final int n) throws IOException {
         return baseStream.skipBytes(n);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean readBoolean() throws IOException {
         return baseStream.readBoolean();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public byte readByte() throws IOException {
         return baseStream.readByte();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public int readUnsignedByte() throws IOException {
         return baseStream.readUnsignedByte();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public short readShort() throws IOException {
         return baseStream.readShort();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public int readUnsignedShort() throws IOException {
         return baseStream.readUnsignedShort();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public char readChar() throws IOException {
         return baseStream.readChar();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public int readInt() throws IOException {
         return baseStream.readInt();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public long readLong() throws IOException {
         return baseStream.readLong();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public float readFloat() throws IOException {
         return baseStream.readFloat();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public double readDouble() throws IOException {
         return baseStream.readDouble();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String readUTF() throws IOException {
         return baseStream.readUTF();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Deprecated
     public String readLine() throws IOException {
         return baseStream.readLine();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public byte[] readByteArray(final int maxLength, final boolean readChecksum) throws IOException {
@@ -204,12 +252,18 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         return bytes;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public byte[] readByteArray(final int maxLength) throws IOException {
         return readByteArray(maxLength, DEFAULT_CHECKSUM);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public int[] readIntArray(final int maxLength) throws IOException {
@@ -226,6 +280,9 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         return data;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public List<Integer> readIntList(final int maxLength) throws IOException {
@@ -242,6 +299,9 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         return data;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public long[] readLongArray(final int maxLength) throws IOException {
@@ -258,6 +318,9 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         return data;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public List<Long> readLongList(final int maxLength) throws IOException {
@@ -274,6 +337,9 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         return data;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public List<Boolean> readBooleanList(final int maxLength) throws IOException {
@@ -290,6 +356,9 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         return data;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public float[] readFloatArray(final int maxLength) throws IOException {
@@ -307,6 +376,9 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         return data;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public List<Float> readFloatList(final int maxLength) throws IOException {
@@ -323,6 +395,9 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         return data;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public double[] readDoubleArray(final int maxLength) throws IOException {
@@ -339,6 +414,9 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         return data;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public List<Double> readDoubleList(final int maxLength) throws IOException {
@@ -355,6 +433,9 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         return data;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public String[] readStringArray(final int maxLength, final int maxStringLength) throws IOException {
@@ -371,6 +452,9 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         return data;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public List<String> readStringList(final int maxLength, final int maxStringLength) throws IOException {
@@ -387,6 +471,9 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         return data;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public Instant readInstant() throws IOException {
@@ -402,6 +489,9 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         return Instant.ofEpochSecond(epochSecond, nanos);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nullable
     public String readNormalisedString(final int maxLength) throws IOException {
