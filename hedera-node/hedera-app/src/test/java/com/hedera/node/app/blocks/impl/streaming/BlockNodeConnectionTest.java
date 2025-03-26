@@ -56,7 +56,7 @@ class BlockNodeConnectionTest {
     private StreamObserver<PublishStreamRequest> requestObserver;
 
     @BeforeEach
-    public void setUp() {
+    void setUp() {
         blockNodeConnection = new BlockNodeConnection(nodeConfig, grpcServiceClient, blockNodeConnectionManager);
     }
 
@@ -64,7 +64,6 @@ class BlockNodeConnectionTest {
     void testNewBlockNodeConnection() {
         assertEquals(nodeConfig, blockNodeConnection.getNodeConfig());
         assertFalse(blockNodeConnection.isActive());
-        assertThat(logCaptor.infoLogs()).contains("BlockNodeConnection INITIALIZED");
     }
 
     @Test
@@ -201,7 +200,7 @@ class BlockNodeConnectionTest {
                 .matches(
                         logs -> logs.getFirst()
                                 .startsWith(
-                                        "Error in block node stream localhost:12345: Status{code=ABORTED, description=null, cause=null} io.grpc.StatusRuntimeException: ABORTED"));
+                                        "Error in block node stream localhost:12345: Status{code=ABORTED, description=null, cause=null} ABORTED"));
         assertFalse(blockNodeConnection.isActive());
         verify(blockNodeConnectionManager, times(1)).handleConnectionError(nodeConfig);
         verify(blockNodeConnectionManager, times(1)).scheduleReconnect(blockNodeConnection);

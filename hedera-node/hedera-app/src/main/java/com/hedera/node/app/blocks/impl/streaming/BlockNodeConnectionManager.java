@@ -19,7 +19,6 @@ import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
 import io.helidon.webclient.grpc.GrpcServiceClient;
 import io.helidon.webclient.grpc.GrpcServiceDescriptor;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -116,7 +115,7 @@ public class BlockNodeConnectionManager {
                 activeConnections.put(node, connection);
             }
             logger.info("Successfully connected to block node {}:{}", node.address(), node.port());
-        } catch (URISyntaxException | RuntimeException e) {
+        } catch (Exception e) {
             logger.error("Failed to connect to block node {}:{}", node.address(), node.port(), e);
         }
     }
@@ -160,13 +159,13 @@ public class BlockNodeConnectionManager {
                     connection.sendRequest(request);
                 }
                 logger.info(
-                        "Successfully streamed block {} to {}:{}",
+                        "Sent block {} to stream observer for Block Node {}:{}",
                         blockNumber,
                         connectionNodeConfig.address(),
                         connectionNodeConfig.port());
             } catch (Exception e) {
                 logger.error(
-                        "Failed to stream block {} to {}:{}",
+                        "Failed to send block {} to stream observer for Block Node {}:{}",
                         blockNumber,
                         connectionNodeConfig.address(),
                         connectionNodeConfig.port(),
@@ -302,7 +301,8 @@ public class BlockNodeConnectionManager {
     }
 
     /**
-     * @return the gRPC endpoint for publish block stream
+     * Returns the gRPC endpoint for the block stream service.
+     * @return the gRPC endpoint
      */
     public String getGrpcEndPoint() {
         return GRPC_END_POINT;

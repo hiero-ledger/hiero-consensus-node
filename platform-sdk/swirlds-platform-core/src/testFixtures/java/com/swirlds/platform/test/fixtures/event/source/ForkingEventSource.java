@@ -33,20 +33,15 @@ public class ForkingEventSource extends AbstractEventSource {
     private int currentBranch;
 
     public ForkingEventSource() {
-        this(true, DEFAULT_TRANSACTION_GENERATOR, DEFAULT_WEIGHT);
+        this(true, DEFAULT_TRANSACTION_GENERATOR);
     }
 
     public ForkingEventSource(final boolean useFakeHashes) {
-        this(useFakeHashes, DEFAULT_TRANSACTION_GENERATOR, DEFAULT_WEIGHT);
+        this(useFakeHashes, DEFAULT_TRANSACTION_GENERATOR);
     }
 
-    public ForkingEventSource(final long weight) {
-        this(true, DEFAULT_TRANSACTION_GENERATOR, weight);
-    }
-
-    public ForkingEventSource(
-            final boolean useFakeHashes, final TransactionGenerator transactionGenerator, final long weight) {
-        super(useFakeHashes, transactionGenerator, weight);
+    public ForkingEventSource(final boolean useFakeHashes, final TransactionGenerator transactionGenerator) {
+        super(useFakeHashes, transactionGenerator);
         maximumBranchCount = 3;
         forkProbability = 0.01;
         setMaximumBranchCount(maximumBranchCount);

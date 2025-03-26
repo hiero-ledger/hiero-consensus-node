@@ -226,7 +226,8 @@ class BlockNodeConnectionManagerTest {
 
         assertThat(logCaptor.infoLogs())
                 .contains(
-                        "Streaming block 1 to 1 active connections", "Successfully streamed block 1 to localhost:8080");
+                        "Streaming block 1 to 1 active connections",
+                        "Sent block 1 to stream observer for Block Node localhost:8080");
     }
 
     @AfterAll

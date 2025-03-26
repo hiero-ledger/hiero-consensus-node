@@ -12,67 +12,38 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.helidon.webclient.grpc.GrpcServiceClient;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Represents a single connection to a block node. Each connection is responsible for connecting to configured block nodes.
+ * Represents a single connection to a block node. Each connection is responsible for connecting to configured block nodes
  */
-public class BlockNodeConnection {
+public class BlockNodeConnection implements StreamObserver<PublishStreamResponse> {
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     private final BlockNodeConfig node;
     private final GrpcServiceClient grpcServiceClient;
-    private final BlockNodeConnectionManager blockNodeConnectionManager;
+    private final BlockNodeConnectionManager manager;
     private StreamObserver<PublishStreamRequest> requestObserver;
+
+    private final Object isActiveLock = new Object();
     private volatile boolean isActive = false;
 
-    /**
-     * Construct a new BlockNodeConnection.
-     *
-     * @param nodeConfig the configuration for the block node
-     * @param grpcServiceClient the gRPC service client
-     * @param blockNodeConnectionManager the connection manager for block node connections
-     */
     public BlockNodeConnection(
-            @NonNull final BlockNodeConfig nodeConfig,
-            @NonNull final GrpcServiceClient grpcServiceClient,
-            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
-        this.node = requireNonNull(nodeConfig, "nodeConfig must not be null");
-        this.grpcServiceClient = requireNonNull(grpcServiceClient, "grpcServiceClient must not be null");
-        this.blockNodeConnectionManager =
-                requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
-        logger.info("BlockNodeConnection INITIALIZED");
+            BlockNodeConfig nodeConfig, GrpcServiceClient grpcServiceClient, BlockNodeConnectionManager manager) {
+        this.node = nodeConfig;
+        this.grpcServiceClient = grpcServiceClient;
+        this.manager = manager;
     }
 
     public Void establishStream() {
-        requestObserver = grpcServiceClient.bidi(
-                blockNodeConnectionManager.getGrpcEndPoint(), new StreamObserver<PublishStreamResponse>() {
-                    @Override
-                    public void onNext(PublishStreamResponse response) {
-                        if (response.hasAcknowledgement()) {
-                            handleAcknowledgement(response.acknowledgement());
-                        } else if (response.hasEndStream()) {
-                            handleEndOfStream(response.endStream());
-                        }
-                    }
-
-                    @Override
-                    public void onError(Throwable t) {
-                        Status status = Status.fromThrowable(t);
-                        logger.error("Error in block node stream {}:{}: {}", node.address(), node.port(), status, t);
-                        handleStreamFailure();
-                        scheduleReconnect();
-                    }
-
-                    @Override
-                    public void onCompleted() {
-                        logger.info("Stream completed for block node {}:{}", node.address(), node.port());
-                        handleStreamFailure();
-                    }
-                });
-
-        isActive = true;
+        synchronized (isActiveLock) {
+            requestObserver = grpcServiceClient.bidi(manager.getGrpcEndPoint(), this);
+            isActive = true;
+        }
         return null;
     }
 
@@ -83,8 +54,10 @@ public class BlockNodeConnection {
     }
 
     private void handleStreamFailure() {
-        isActive = false;
-        removeFromActiveConnections(node);
+        synchronized (isActiveLock) {
+            isActive = false;
+            removeFromActiveConnections(node);
+        }
     }
 
     private void handleEndOfStream(EndOfStream endOfStream) {
@@ -92,11 +65,7 @@ public class BlockNodeConnection {
     }
 
     private void removeFromActiveConnections(BlockNodeConfig node) {
-        blockNodeConnectionManager.handleConnectionError(node);
-    }
-
-    private void scheduleReconnect() {
-        blockNodeConnectionManager.scheduleReconnect(this);
+        manager.handleConnectionError(node);
     }
 
     /**
@@ -105,19 +74,28 @@ public class BlockNodeConnection {
      * @param request the request to send
      */
     public void sendRequest(@NonNull final PublishStreamRequest request) {
-        if (isActive) {
-            requireNonNull(request);
-            requestObserver.onNext(request);
+        requireNonNull(request);
+        synchronized (isActiveLock) {
+            if (isActive) {
+                requestObserver.onNext(request);
+            }
         }
+    }
+
+    private void scheduleReconnect() {
+        manager.scheduleReconnect(this);
     }
 
     /**
      * If connection is active it closes it, otherwise does nothing.
      */
     public void close() {
-        if (isActive) {
-            isActive = false;
-            requestObserver.onCompleted();
+        synchronized (isActiveLock) {
+            if (isActive) {
+                isActive = false;
+                requestObserver.onCompleted();
+                scheduler.shutdown();
+            }
         }
     }
 
@@ -137,5 +115,41 @@ public class BlockNodeConnection {
      */
     public BlockNodeConfig getNodeConfig() {
         return node;
+    }
+
+    @Override
+    public void onNext(PublishStreamResponse response) {
+        if (response.hasAcknowledgement()) {
+            handleAcknowledgement(response.acknowledgement());
+        } else if (response.hasEndStream()) {
+            handleEndOfStream(response.endStream());
+        } else if (response.hasSkipBlock()) {
+            logger.info(
+                    "Received SkipBlock from Block Node {}:{}  Block #{}",
+                    node.address(),
+                    node.port(),
+                    response.skipBlock().blockNumber());
+        } else if (response.hasResendBlock()) {
+            logger.info(
+                    "Received ResendBlock from Block Node {}:{}  Block #{}",
+                    node.address(),
+                    node.port(),
+                    response.resendBlock().blockNumber());
+        }
+    }
+
+    @Override
+    public void onError(Throwable throwable) {
+        Status status = Status.fromThrowable(throwable);
+        logger.error(
+                "Error in block node stream {}:{}: {} {}", node.address(), node.port(), status, throwable.getMessage());
+        handleStreamFailure();
+        scheduleReconnect();
+    }
+
+    @Override
+    public void onCompleted() {
+        logger.info("Stream completed for block node {}:{}", node.address(), node.port());
+        handleStreamFailure();
     }
 }
