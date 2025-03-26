@@ -647,8 +647,6 @@ public class HandleWorkflow {
                 if (parentTxn.type() == POST_UPGRADE_TRANSACTION) {
                     logger.info("Doing post-upgrade setup @ {}", parentTxn.consensusNow());
                     systemTransactions.doPostUpgradeSetup(dispatch);
-                    // Only for 0.59.0 we need to update the entity ID store entity counts
-                    systemTransactions.initializeEntityCounts(dispatch);
                     if (streamMode != RECORDS) {
                         blockStreamManager.confirmPendingWorkFinished();
                     }
