@@ -4,18 +4,13 @@ package com.hedera.node.app.workflows.prehandle;
 import static com.hedera.node.app.workflows.prehandle.PreHandleWorkflowImpl.isAtomicBatch;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.store.ReadableStoreFactory;
-import com.hedera.node.app.util.ProtobufUtils;
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
-import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -111,28 +106,18 @@ public interface PreHandleWorkflow {
                 log.warn("The number of inner results in the atomic batch transaction does not match the number of "
                         + "inner transactions. Need to re-run pre-handle for all inner transactions.");
             }
-            final List<Bytes> serializedInnerTxn;
-            try {
-                serializedInnerTxn = ProtobufUtils.extractInnerTransactionBytes(
-                        result.txInfo().signedBytes());
-            } catch (IOException | ParseException e) {
-                // This should not happen
-                return PreHandleResult.nodeDueDiligenceFailure(
-                        creatorInfo.accountId(),
-                        ResponseCodeEnum.INVALID_TRANSACTION,
-                        result.txInfo(),
-                        result.configVersion());
-            }
             for (int i = 0; i < innerTxns.size(); i++) {
                 final var innerResult = preHandleTransaction(
                         creatorInfo,
                         storeFactory,
                         accountStore,
-                        serializedInnerTxn.get(i),
+                        innerTxns.get(i),
                         useInnerResults ? maybeReusableResult.innerResults().get(i) : null,
                         ignore -> {},
                         InnerTransaction.YES);
-                result.innerResults().add(innerResult);
+                if (result.innerResults() != null) {
+                    result.innerResults().add(innerResult);
+                }
             }
         }
         return result;
