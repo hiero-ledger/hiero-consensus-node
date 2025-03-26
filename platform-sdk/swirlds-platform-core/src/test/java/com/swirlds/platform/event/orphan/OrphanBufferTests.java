@@ -18,12 +18,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.hiero.consensus.model.crypto.Hash;
@@ -180,7 +182,7 @@ class OrphanBufferTests {
 
     @BeforeEach
     void setup() {
-        random = getRandomPrintSeed();
+        random = getRandomPrintSeed(-7196060357555096504L);
 
         final List<PlatformEvent> parentCandidates = new ArrayList<>();
         final Map<NodeId, PlatformEvent> tips = new HashMap<>();
@@ -227,7 +229,8 @@ class OrphanBufferTests {
         final float averageGenerationAdvancement = (float) maxGeneration / TEST_EVENT_COUNT;
 
         // events that have been emitted from the orphan buffer
-        final Collection<Hash> emittedEvents = new HashSet<>();
+        final Collection<Hash> emittedEventHashes = new HashSet<>();
+        final List<PlatformEvent> emittedEvents = new ArrayList<>();
 
         for (final PlatformEvent intakeEvent : intakeEvents) {
             final List<PlatformEvent> unorphanedEvents = new ArrayList<>();
@@ -252,15 +255,54 @@ class OrphanBufferTests {
             unorphanedEvents.addAll(orphanBuffer.setEventWindow(eventWindow));
 
             for (final PlatformEvent unorphanedEvent : unorphanedEvents) {
-                assertValidParents(unorphanedEvent, eventWindow, emittedEvents);
-                emittedEvents.add(unorphanedEvent.getHash());
+                assertValidParents(unorphanedEvent, eventWindow, emittedEventHashes);
+                emittedEventHashes.add(unorphanedEvent.getHash());
             }
+            emittedEvents.addAll(unorphanedEvents);
         }
 
         // either events exit the pipeline in the orphan buffer and are never emitted, or they are emitted and exit
         // the pipeline at a later stage
-        assertEquals(TEST_EVENT_COUNT, eventsExitedIntakePipeline.get() + emittedEvents.size());
+        assertEquals(TEST_EVENT_COUNT, eventsExitedIntakePipeline.get() + emittedEventHashes.size());
         assertEquals(0, orphanBuffer.getCurrentOrphanCount());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("Test that events are assigned nGen values that result in a valid topological ordering")
+    void topologicalOrderByNGen(final boolean useBirthRoundForAncient) {
+        final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
+                TestPlatformContextBuilder.create()
+                        .withConfiguration(new TestConfigBuilder()
+                                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, useBirthRoundForAncient)
+                                .getOrCreateConfig())
+                        .build(),
+                intakeEventCounter);
+
+        final List<PlatformEvent> emittedEvents = new ArrayList<>();
+        for (final PlatformEvent intakeEvent : intakeEvents) {
+            emittedEvents.addAll(orphanBuffer.handleEvent(intakeEvent));
+        }
+
+        // Verify that when nGen is assigned such that children always have higher values than parents but sorting
+        // by ngen, then checking that parents are always before children
+        emittedEvents.sort(Comparator.comparingLong(PlatformEvent::getNGen));
+
+        final Set<Hash> parentHashes = new HashSet<>();
+        for (final PlatformEvent event : emittedEvents) {
+            if (event.getAllParents().isEmpty()) {
+                parentHashes.add(event.getHash());
+            } else {
+                for (final EventDescriptorWrapper parentDescriptor : event.getAllParents()) {
+                    assertTrue(
+                            parentHashes.contains(parentDescriptor.hash()),
+                            "Parent event " + parentDescriptor.hash()
+                                    + " was not before the child, indicating that child "
+                                    + event.getHash() + " does not have a higher nGen value.");
+                }
+            }
+        }
     }
 
     @Test

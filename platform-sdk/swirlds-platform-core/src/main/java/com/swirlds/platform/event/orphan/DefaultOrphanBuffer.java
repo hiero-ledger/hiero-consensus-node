@@ -118,7 +118,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
 
         final List<EventDescriptorWrapper> missingParents = getMissingParents(event);
         if (missingParents.isEmpty()) {
-            setNGen(event);
+            calculateAndSetNGen(event);
             return eventIsNotAnOrphan(event);
         } else {
             final OrphanedEvent orphanedEvent = new OrphanedEvent(event, missingParents);
@@ -136,12 +136,12 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
      *
      * @param event the non-orphan event to populate nGen for
      */
-    private void setNGen(final PlatformEvent event) {
+    private void calculateAndSetNGen(final PlatformEvent event) {
         long maxParentNGen = EventConstants.GENERATION_UNDEFINED;
-        for (final EventDescriptorWrapper parent : event.getAllParents()) {
-            if (eventsWithParents.containsKey(parent)) {
-                maxParentNGen =
-                        Math.max(maxParentNGen, eventsWithParents.get(parent).getNGen());
+        for (final EventDescriptorWrapper parentDesc : event.getAllParents()) {
+            final PlatformEvent parent = eventsWithParents.get(parentDesc);
+            if (parent != null) {
+                maxParentNGen = Math.max(maxParentNGen, parent.getNGen());
             }
         }
         final long nGen = maxParentNGen == EventConstants.GENERATION_UNDEFINED
