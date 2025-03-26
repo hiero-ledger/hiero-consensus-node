@@ -70,7 +70,7 @@ public class CacheWarmer {
      */
     public void warm(@NonNull final State state, @NonNull final Round round) {
         executor.execute(() -> {
-            final ReadableStoreFactory storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+            final ReadableStoreFactory storeFactory = new ReadableStoreFactory(state);
             final ReadableAccountStore accountStore = storeFactory.getStore(ReadableAccountStore.class);
             for (final ConsensusEvent event : round) {
                 event.forEachTransaction(platformTransaction -> executor.execute(() -> {
