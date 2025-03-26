@@ -77,7 +77,6 @@ public class ContractCallLocalHandler extends AbstractContractPaidQueryHandler<C
         return Response.newBuilder().contractCallLocal(response).build();
     }
 
-    // TODO Glib: What function I can execute for account or schedule?
     @Override
     public void validate(@NonNull final QueryContext context) throws PreCheckException {
         requireNonNull(context);
@@ -93,7 +92,6 @@ public class ContractCallLocalHandler extends AbstractContractPaidQueryHandler<C
         final ContractID contractId;
         if ((contractId = getContractId(context)) == null) {
             throw new PreCheckException(INVALID_CONTRACT_ID);
-            // TODO Glib: should we add EVM address length check here?
         } else if (contractAccountFrom(context, contractId) == null && tokenFrom(context, contractId) == null) {
             throw new PreCheckException(INVALID_CONTRACT_ID);
         }

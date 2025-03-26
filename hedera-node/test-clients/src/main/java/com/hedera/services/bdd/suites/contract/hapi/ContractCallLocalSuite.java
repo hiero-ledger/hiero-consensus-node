@@ -223,19 +223,6 @@ public class ContractCallLocalSuite {
                 contractCallLocal(CONTRACT, "create").nodePayment(1_234_567).hasAnswerOnlyPrecheck(OK));
     }
 
-    //TODO finish
-    @HapiTest
-    final Stream<DynamicTest> successOnDeletedContract1() {
-        final var functionAbi = getABIFor(FUNCTION, "getIndirect", "CreateTrivial");
-        return hapiTest(
-                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                // since we have CONTRACT_ID key
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).refusingEthConversion(),
-                contractDelete(CONTRACT),
-                contractCallLocalWithFunctionAbi(CONTRACT, functionAbi).nodePayment(1_234_567).hasAnswerOnlyPrecheck(OK));
-    }
-
     @HapiTest
     final Stream<DynamicTest> invalidContractID() {
         final var invalidContract = HapiSpecSetup.getDefaultInstance().invalidContractName();

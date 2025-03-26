@@ -65,6 +65,9 @@ class ContractGetInfoHandlerTest {
     private ReadableAccountStore accountStore;
 
     @Mock
+    private ContractID contractID;
+
+    @Mock
     private ReadableTokenStore tokenStore;
 
     @Mock
@@ -136,11 +139,22 @@ class ContractGetInfoHandlerTest {
     }
 
     @Test
+    void validateShouldThrowWhenContractIdNotFound() {
+        when(context.query()).thenReturn(query);
+        when(query.contractGetInfoOrThrow()).thenReturn(contractGetInfoQuery);
+
+        assertThatThrownBy(() -> handler.validate(context))
+                .isInstanceOf(PreCheckException.class)
+                .hasMessageContaining(INVALID_CONTRACT_ID.toString());
+    }
+
+    @Test
     void validateShouldThrowWhenContractNotFound() {
         when(context.query()).thenReturn(query);
         when(query.contractGetInfoOrThrow()).thenReturn(contractGetInfoQuery);
-        when(accountStore.getContractById(any())).thenReturn(null);
-        when(context.createStore(ReadableAccountStore.class)).thenReturn(accountStore);
+        given(contractGetInfoQuery.contractIDOrElse(ContractID.DEFAULT)).willReturn(contractID);
+        given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(accountStore.getContractById(contractID)).willReturn(null);
 
         assertThatThrownBy(() -> handler.validate(context))
                 .isInstanceOf(PreCheckException.class)

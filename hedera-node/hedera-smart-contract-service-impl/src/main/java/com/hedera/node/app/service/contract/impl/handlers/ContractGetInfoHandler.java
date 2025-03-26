@@ -9,7 +9,6 @@ import static com.hedera.node.app.service.token.api.AccountSummariesApi.hexedEvm
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.summarizeStakingInfo;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.tokenRelationshipsOf;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -25,13 +24,11 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.fees.usage.contract.ContractGetInfoUsage;
-import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.LedgerConfig;
@@ -39,7 +36,6 @@ import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -114,7 +110,7 @@ public class ContractGetInfoHandler extends AbstractContractPaidQueryHandler<Con
     @Override
     public Fees computeFees(@NonNull final QueryContext context) {
         return context.feeCalculator().legacyCalculate(sigValueObj -> {
-            final var contract = contractFrom(context);
+            final var contract = contractAccountFrom(context, getContractId(context));
             if (contract == null) {
                 return CONSTANT_FEE_DATA;
             } else {
