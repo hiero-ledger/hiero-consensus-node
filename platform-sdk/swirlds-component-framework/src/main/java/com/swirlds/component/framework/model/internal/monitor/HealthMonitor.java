@@ -2,6 +2,8 @@
 package com.swirlds.component.framework.model.internal.monitor;
 
 import static com.swirlds.common.utility.CompareTo.isGreaterThan;
+import static com.swirlds.common.utility.CompareTo.isGreaterThanOrEqualTo;
+import static java.util.Objects.isNull;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
@@ -53,6 +55,15 @@ public class HealthMonitor {
      */
     private final AtomicReference<Duration> longestUnhealthyDuration = new AtomicReference<>(Duration.ZERO);
 
+    public final Duration healthyReportThreshold;
+    /**
+     * Marks the time of the last transition to a healthy state,
+     *  It is used to continue reporting a health sate even if there are no changes in status.
+     *  It gets reset to the current time every {@code healthyReportThreshold},
+     *  if the health monitor continues to register a healthy state.
+     */
+    private Instant lastHealthyTransitionTime = null;
+
     /**
      * Constructor.
      *
@@ -71,6 +82,7 @@ public class HealthMonitor {
 
         this.metrics = new HealthMonitorMetrics(metrics, healthLogThreshold);
         this.schedulers = new ArrayList<>();
+        this.healthyReportThreshold = Duration.ofSeconds(1);
         for (final TaskScheduler<?> scheduler : schedulers) {
             if (scheduler.getCapacity() != TaskSchedulerBuilder.UNLIMITED_CAPACITY) {
                 this.schedulers.add(Objects.requireNonNull(scheduler));
@@ -83,10 +95,18 @@ public class HealthMonitor {
 
     /**
      * Called periodically. Scans the task schedulers for health issues.
-     *
+     * This method determines the maximum duration any single scheduler has been in an unhealthy state.
+     * It reports this duration based on the following rules:
+     * <ul>
+     * <li>Reports the maximum unhealthy duration if it has changed since the last report.</li>
+     * <li>Reports {@code null} if the maximum unhealthy duration has not changed since the last report,
+     * except in the case where the duration is zero (all schedulers healthy).</li>
+     * <li>Reports {@link Duration#ZERO} every {@code healthyReportThreshold} if all schedulers are healthy.</li>
+     * </ul>
      * @param now the current time
-     * @return the amount of time any single scheduler has been concurrently unhealthy. Returns {@link Duration#ZERO} if
-     * all schedulers are healthy, returns null if there is no change in health status.
+     * @return The maximum duration any scheduler has been unhealthy, or {@code Duration.ZERO} if all
+     * schedulers are healthy and the {@code healthyReportThreshold} interval has passed, or {@code null} if the
+     * health status has not changed (and is not a healthy state that needs periodic reporting).
      */
     @Nullable
     public Duration checkSystemHealth(@NonNull final Instant now) {
@@ -104,6 +124,7 @@ public class HealthMonitor {
 
                 final Duration unhealthyDuration = Duration.between(lastHealthyTimes.get(i), now);
                 logger.reportUnhealthyScheduler(scheduler, unhealthyDuration);
+
                 if (isGreaterThan(unhealthyDuration, longestUnhealthyDuration)) {
                     longestUnhealthyDuration = unhealthyDuration;
                 }
@@ -111,13 +132,25 @@ public class HealthMonitor {
         }
 
         try {
-            if (longestUnhealthyDuration.equals(previouslyReportedDuration)) {
-                // Only report when there is a change in health status
-                return null;
-            } else {
+
+            if (!longestUnhealthyDuration.equals(previouslyReportedDuration)) {
                 this.longestUnhealthyDuration.set(longestUnhealthyDuration);
                 metrics.reportUnhealthyDuration(longestUnhealthyDuration);
+                if (longestUnhealthyDuration.isZero()) {
+                    lastHealthyTransitionTime = now; // marks the time of the last transitions to healthy
+                } // when transitioning from healthy to unhealthy healthyTransitionTime remains out-of-date
                 return longestUnhealthyDuration;
+            } else {
+                // if there is no change in health status,
+                // report only if the system has been healthy for period
+                if (longestUnhealthyDuration.isZero() // Everything's Ok Alarm
+                        && (isNull(lastHealthyTransitionTime)
+                                || isGreaterThanOrEqualTo(
+                                        Duration.between(lastHealthyTransitionTime, now), healthyReportThreshold))) {
+                    lastHealthyTransitionTime = now; // reset the healthyTransitionTime
+                    return longestUnhealthyDuration;
+                }
+                return null;
             }
         } finally {
             previouslyReportedDuration = longestUnhealthyDuration;
