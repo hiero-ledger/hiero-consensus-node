@@ -18,8 +18,6 @@ import java.security.interfaces.ECPrivateKey;
 import java.util.concurrent.Callable;
 import javax.crypto.ShortBufferException;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.utility.CommonUtils;
 import picocli.CommandLine;
 
