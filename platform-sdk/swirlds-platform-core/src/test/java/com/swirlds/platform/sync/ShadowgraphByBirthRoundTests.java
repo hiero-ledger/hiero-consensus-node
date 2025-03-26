@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -25,9 +24,7 @@ import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphInsertionException;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterFactory;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.sync.SyncTestUtils;
 import java.util.ArrayList;
@@ -62,7 +59,6 @@ class ShadowgraphByBirthRoundTests {
     private Map<Long, Set<ShadowEvent>> birthRoundToShadows;
     private long maxBirthRound;
     private StandardEventEmitter emitter;
-    private Roster roster;
     private PlatformContext platformContext;
 
     private static Stream<Arguments> graphSizes() {
@@ -83,8 +79,6 @@ class ShadowgraphByBirthRoundTests {
     }
 
     private void initShadowGraph(final Random random, final int numEvents, final int numNodes) {
-        roster = RandomRosterBuilder.create(random).withSize(numNodes).build();
-
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
@@ -92,12 +86,12 @@ class ShadowgraphByBirthRoundTests {
         platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .build();
+        emitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(random.nextLong())
+                .setNumNodes(numNodes)
+                .build();
 
-        final EventEmitterFactory factory =
-                new EventEmitterFactory(platformContext, random, RosterUtils.buildAddressBook(roster));
-        emitter = factory.newStandardEmitter();
-
-        shadowGraph = new Shadowgraph(platformContext, roster.rosterEntries().size(), new NoOpIntakeEventCounter());
+        shadowGraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
         shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(BIRTH_ROUND_THRESHOLD));
 
         for (int i = 0; i < numEvents; i++) {
