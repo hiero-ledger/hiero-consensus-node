@@ -104,8 +104,8 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @DisplayName("Jumbo transaction gets bytes throttled at ingest")
     @LeakyHapiTest(overrides = {"jumboTransactions.isEnabled", "jumboTransactions.maxBytesPerSec"})
     public Stream<DynamicTest> jumboTransactionGetsThrottledAtIngest() {
-        final var size = 127 * 1024;
-        final var bytesPerSec = 130 * 1024;
+        final var size = 128_000;
+        final var bytesPerSec = 130_000;
         final var payload = new byte[size];
         return hapiTest(
                 overridingTwo(
@@ -117,7 +117,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
                 jumboEthCall(payload).noLogging(),
                 sleepFor(1_000),
-                jumboEthCall(payload).noLogging(),
+                jumboEthCall(payload).noLogging().deferStatusResolution(),
                 jumboEthCall(payload).noLogging().hasPrecheck(BUSY));
     }
 
