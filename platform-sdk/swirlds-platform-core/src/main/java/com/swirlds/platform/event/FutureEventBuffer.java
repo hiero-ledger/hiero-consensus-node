@@ -17,9 +17,6 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
  * <p>
  * Output from the future event buffer is guaranteed to preserve topological ordering, as long as the input to the
  * buffer is topologically ordered.
- * <p>
- * This buffer is only enabled when the property {@code event.useBirthRoundAncientThreshold} is set to {@code true}.
- * If the property is set to {@code false}, then the buffer will be disabled and all events gets returned immediately.
  */
 public interface FutureEventBuffer {
     /**
@@ -27,8 +24,7 @@ public interface FutureEventBuffer {
      *
      * @param event the event to add
      * @return a list containing the event if it is not a time traveler, or null if the event is from the future and
-     * needs to be buffered. If the property {@code event.useBirthRoundAncientThreshold} is set to {@code false},
-     * this method returns immediately with the given event, bypassing the buffer.
+     * needs to be buffered.
      */
     @InputWireLabel("preconsensus event")
     @Nullable

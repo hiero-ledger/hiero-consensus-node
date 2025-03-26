@@ -39,11 +39,6 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
     private final AtomicLong bufferedEventCount = new AtomicLong(0);
 
     /**
-     * Set to {@code true} if the platform uses generation threshold to determine ancient events.
-     */
-    private final boolean disableFutureEventBuffer;
-
-    /**
      * Constructor.
      *
      * @param platformContext the platform context
@@ -53,8 +48,6 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
-
-        disableFutureEventBuffer = ancientMode == AncientMode.GENERATION_THRESHOLD;
 
         eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
 
@@ -72,9 +65,7 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
     @Override
     @Nullable
     public List<PlatformEvent> addEvent(@NonNull final PlatformEvent event) {
-        if (disableFutureEventBuffer) {
-            return List.of(event);
-        } else if (eventWindow.isAncient(event)) {
+        if (eventWindow.isAncient(event)) {
             // we can safely ignore ancient events
             return null;
         } else if (event.getBirthRound() <= eventWindow.getPendingConsensusRound()) {
