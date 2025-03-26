@@ -50,6 +50,18 @@ class HealthMonitorTests {
         assertEquals(ZERO, healthMonitor.getUnhealthyDuration());
     }
 
+    @DisplayName("Single Healthy Scheduler")
+    @Test
+    void singleHealthyScheduler() {
+        final AtomicBoolean healthy = new AtomicBoolean(true);
+        final TaskScheduler<?> scheduler = buildMockScheduler(healthy);
+        final List<TaskScheduler<?>> schedulers = List.of(scheduler);
+        final HealthMonitor healthMonitor =
+                new HealthMonitor(new NoOpMetrics(), time, schedulers, Duration.ofSeconds(5), Duration.ofDays(10000));
+
+        assertSystemRemainsHealthy(healthMonitor, time);
+    }
+
     @DisplayName("Single Unhealthy Scheduler")
     @Test
     void singleUnhealthyScheduler() {

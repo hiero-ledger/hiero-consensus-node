@@ -57,9 +57,12 @@ public class HealthMonitor {
     private final AtomicReference<Duration> longestUnhealthyDuration = new AtomicReference<>(Duration.ZERO);
 
     /**
-     * Marks the time of the last transition to a healthy state
+     * Marks the time of the last transition to a healthy state,
+     *  It is used to continue reporting a health sate even if there are no changes in status.
+     *  It gets reset to the current time every {@code HEALTHY_REPORT_THRESHOLD},
+     *  if the health monitor continues to register a healthy state.
      */
-    private Instant healthyTransitionTime = null;
+    private Instant lastHealthyTransitionTime = null;
 
     /**
      * Constructor.
@@ -91,10 +94,18 @@ public class HealthMonitor {
 
     /**
      * Called periodically. Scans the task schedulers for health issues.
-     *
+     * This method determines the maximum duration any single scheduler has been in an unhealthy state.
+     * It reports this duration based on the following rules:
+     * <ul>
+     * <li>Reports the maximum unhealthy duration if it has changed since the last report.</li>
+     * <li>Reports {@code null} if the maximum unhealthy duration has not changed since the last report,
+     * except in the case where the duration is zero (all schedulers healthy).</li>
+     * <li>Reports {@link Duration#ZERO} every {@code HEALTHY_REPORT_THRESHOLD} if all schedulers are healthy.</li>
+     * </ul>
      * @param now the current time
-     * @return the amount of time any single scheduler has been concurrently unhealthy. Returns {@link Duration#ZERO} if
-     * all schedulers are healthy, returns null if there is no change in health status.
+     * @return The maximum duration any scheduler has been unhealthy, or {@code Duration.ZERO} if all
+     * schedulers are healthy and the {@code HEALTHY_REPORT_THRESHOLD} interval has passed, or {@code null} if the
+     * health status has not changed (and is not a healthy state that needs periodic reporting).
      */
     @Nullable
     public Duration checkSystemHealth(@NonNull final Instant now) {
@@ -125,17 +136,17 @@ public class HealthMonitor {
                 this.longestUnhealthyDuration.set(longestUnhealthyDuration);
                 metrics.reportUnhealthyDuration(longestUnhealthyDuration);
                 if (longestUnhealthyDuration.isZero()) {
-                    healthyTransitionTime = now; // Start tracking when transitions to healthy
-                }
+                    lastHealthyTransitionTime = now; // Start tracking when transitions to healthy
+                } // when transitioning from healthy to unhealthy healthyTransitionTime remains out-of-date
                 return longestUnhealthyDuration;
             } else {
                 // if there is no change in health status,
                 // report only if the system has been healthy for period
-                if (longestUnhealthyDuration.isZero()
-                        && (isNull(healthyTransitionTime)
+                if (longestUnhealthyDuration.isZero() //Everything's Ok Alarm
+                        && (isNull(lastHealthyTransitionTime)
                                 || isGreaterThanOrEqualTo(
-                                        Duration.between(healthyTransitionTime, now), HEALTHY_REPORT_THRESHOLD))) {
-                    healthyTransitionTime = now; // reset the transition time
+                                        Duration.between(lastHealthyTransitionTime, now), HEALTHY_REPORT_THRESHOLD))) {
+                    lastHealthyTransitionTime = now; // reset the transition time
                     return longestUnhealthyDuration;
                 }
                 return null;
