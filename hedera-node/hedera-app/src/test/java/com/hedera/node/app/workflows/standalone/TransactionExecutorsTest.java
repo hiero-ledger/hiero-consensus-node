@@ -493,7 +493,7 @@ public class TransactionExecutorsTest {
                         new FreezeServiceImpl(),
                         new ScheduleServiceImpl(appContext),
                         new TokenServiceImpl(appContext),
-                        new UtilServiceImpl(),
+                        new UtilServiceImpl(appContext, (signedTxn, config) -> null),
                         new RecordCacheService(),
                         new BlockRecordService(),
                         new FeeService(),

@@ -62,8 +62,6 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.spec.HapiSpecSetup;
-import com.hedera.services.bdd.spec.HapiSpecSetup.TxnProtoStructure;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
@@ -101,13 +99,9 @@ public class AtomicBatchNegativeTest {
                             .waitForExpiry(false),
                     atomicBatch(
                                     // sign the schedule
-                                    scheduleSign("schedule")
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                            .payingWith(sender)
-                                            .batchKey(batchOperator),
+                                    scheduleSign("schedule").payingWith(sender).batchKey(batchOperator),
                                     // failing transfer
                                     cryptoTransfer(tinyBarsFromTo(sender, receiver, ONE_HUNDRED_HBARS))
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .batchKey(batchOperator))
                             .payingWith(batchOperator)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -129,15 +123,9 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate(sender).key(oldKey).balance(FIVE_HBARS),
                     newKeyNamed(newKey),
                     atomicBatch(
-                                    cryptoUpdate(sender)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                            .key(newKey)
-                                            .batchKey(sender),
-                                    cryptoDelete(sender)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                            .batchKey(sender),
+                                    cryptoUpdate(sender).key(newKey).batchKey(sender),
+                                    cryptoDelete(sender).batchKey(sender),
                                     cryptoTransfer(tinyBarsFromTo(GENESIS, sender, 1))
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .batchKey(sender))
                             .payingWith(sender)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -346,9 +334,7 @@ public class AtomicBatchNegativeTest {
         public Stream<DynamicTest> batchWithInvalidDurationShouldFail() {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
-                    atomicBatch(cryptoCreate("foo")
-                                    .batchKey("batchOperator")
-                                    .withProtoStructure(TxnProtoStructure.NORMALIZED))
+                    atomicBatch(cryptoCreate("foo").batchKey("batchOperator"))
                             .validDurationSecs(-5)
                             .payingWith("batchOperator")
                             .hasPrecheck(INVALID_TRANSACTION_DURATION));
@@ -363,7 +349,6 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
                     usableTxnIdNamed(innerId).payerId("batchOperator"),
                     atomicBatch(cryptoCreate(innerId)
-                                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                     .txnId(innerId)
                                     .validDurationSecs(-1)
                                     .batchKey("batchOperator"))
@@ -387,28 +372,22 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate("receiver"),
 
                     // successful batch duplication
-                    atomicBatch(cryptoCreate("foo")
-                                    .batchKey("batchOperator")
-                                    .withProtoStructure(TxnProtoStructure.NORMALIZED))
+                    atomicBatch(cryptoCreate("foo").batchKey("batchOperator"))
                             .txnId("successfulBatch")
                             .payingWith("batchOperator"),
-                    atomicBatch(cryptoCreate("foo")
-                                    .batchKey("batchOperator")
-                                    .withProtoStructure(TxnProtoStructure.NORMALIZED))
+                    atomicBatch(cryptoCreate("foo").batchKey("batchOperator"))
                             .txnId("successfulBatch")
                             .payingWith("batchOperator")
                             .hasPrecheck(DUPLICATE_TRANSACTION),
 
                     // failing batch duplication
                     atomicBatch(cryptoTransfer(movingHbar(10L).between("sender", "receiver"))
-                                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                     .batchKey("batchOperator")
                                     .signedByPayerAnd("sender"))
                             .txnId("failingBatch")
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     atomicBatch(cryptoTransfer(movingHbar(10L).between("sender", "receiver"))
-                                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                     .batchKey("batchOperator")
                                     .signedByPayerAnd("sender"))
                             .txnId("failingBatch")
@@ -426,17 +405,14 @@ public class AtomicBatchNegativeTest {
                     withOpContext((spec, opLog) -> {
                         var txn = cryptoCreate("foo")
                                 .setNode("0.0.0")
-                                .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                 .txnId("innerId")
                                 .batchKey("batchOperator")
-                                .payingWith("batchOperator")
-                                .signedTxnFor(spec);
-                        var batchOp = atomicBatch()
+                                .payingWith("batchOperator");
+                        var batchOp =
                                 // add same inner transaction twice
-                                .addTransaction(txn)
-                                .addTransaction(txn)
-                                .payingWith("batchOperator")
-                                .hasPrecheck(BATCH_LIST_CONTAINS_DUPLICATES);
+                                atomicBatch(txn, txn)
+                                        .payingWith("batchOperator")
+                                        .hasPrecheck(BATCH_LIST_CONTAINS_DUPLICATES);
                         allRunFor(spec, batchOp);
                     }));
         }
@@ -459,31 +435,24 @@ public class AtomicBatchNegativeTest {
                     // create batch with 6 contract calls
                     atomicBatch(
                                     contractCall(contract, function, payload)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .payingWith(payer)
                                             .batchKey(batchOperator),
                                     contractCall(contract, function, payload)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .payingWith(payer)
                                             .batchKey(batchOperator),
                                     contractCall(contract, function, payload)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .payingWith(payer)
                                             .batchKey(batchOperator),
                                     contractCall(contract, function, payload)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .payingWith(payer)
                                             .batchKey(batchOperator),
                                     contractCall(contract, function, payload)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .payingWith(payer)
                                             .batchKey(batchOperator),
                                     contractCall(contract, function, payload)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .payingWith(payer)
                                             .batchKey(batchOperator),
                                     contractCall(contract, function, payload)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .payingWith(payer)
                                             .batchKey(batchOperator))
                             .hasKnownStatus(INNER_TRANSACTION_FAILED)
@@ -500,18 +469,10 @@ public class AtomicBatchNegativeTest {
                     overriding("consensus.handle.maxFollowingRecords", "3"),
                     cryptoCreate(batchOperator),
                     atomicBatch(
-                                    cryptoCreate("foo")
-                                            .batchKey(batchOperator)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED),
-                                    cryptoCreate("foo")
-                                            .batchKey(batchOperator)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED),
-                                    cryptoCreate("foo")
-                                            .batchKey(batchOperator)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED),
-                                    cryptoCreate("foo")
-                                            .batchKey(batchOperator)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED))
+                                    cryptoCreate("foo").batchKey(batchOperator),
+                                    cryptoCreate("foo").batchKey(batchOperator),
+                                    cryptoCreate("foo").batchKey(batchOperator),
+                                    cryptoCreate("foo").batchKey(batchOperator))
                             .hasKnownStatus(MAX_CHILD_RECORDS_EXCEEDED)
                             .signedByPayerAnd(batchOperator));
         }
@@ -530,7 +491,6 @@ public class AtomicBatchNegativeTest {
                     uploadInitCode(contract),
                     contractCreate(contract),
                     atomicBatch(contractCall(contract, function, payload)
-                                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                     .gas(2000001)
                                     .batchKey(batchOperator))
                             .signedByPayerAnd(batchOperator)
@@ -549,9 +509,7 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate(batchOperator),
                     uploadInitCode(contract),
                     contractCreate(contract),
-                    atomicBatch(contractCall(contract, function, payload)
-                                    .batchKey(batchOperator)
-                                    .withProtoStructure(TxnProtoStructure.NORMALIZED))
+                    atomicBatch(contractCall(contract, function, payload).batchKey(batchOperator))
                             .signedByPayerAnd(batchOperator)
                             .hasPrecheck(TRANSACTION_OVERSIZE)
                             // the submitted transaction exceeds 6144 bytes and will have its
@@ -569,15 +527,9 @@ public class AtomicBatchNegativeTest {
                     overriding("atomicBatch.maxNumberOfTransactions", "2"),
                     cryptoCreate(batchOperator),
                     atomicBatch(
-                                    cryptoCreate("foo")
-                                            .batchKey(batchOperator)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED),
-                                    cryptoCreate("foo")
-                                            .batchKey(batchOperator)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED),
-                                    cryptoCreate("foo")
-                                            .batchKey(batchOperator)
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED))
+                                    cryptoCreate("foo").batchKey(batchOperator),
+                                    cryptoCreate("foo").batchKey(batchOperator),
+                                    cryptoCreate("foo").batchKey(batchOperator))
                             .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED)
                             .signedByPayerAnd(batchOperator));
         }
@@ -594,14 +546,8 @@ public class AtomicBatchNegativeTest {
                     usableTxnIdNamed("innerTxn2"),
                     // batch will fail due to insufficient balance
                     atomicBatch(
-                                    cryptoCreate("foo")
-                                            .txnId("innerTxn1")
-                                            .batchKey("alice")
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED),
-                                    cryptoCreate("foo")
-                                            .txnId("innerTxn1")
-                                            .batchKey("alice")
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED))
+                                    cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"),
+                                    cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"))
                             .txnId("failingBatch")
                             .payingWith("alice")
                             .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
@@ -610,14 +556,8 @@ public class AtomicBatchNegativeTest {
                             .payingWith(GENESIS),
                     // resubmit the batch
                     atomicBatch(
-                                    cryptoCreate("foo")
-                                            .txnId("innerTxn1")
-                                            .batchKey("alice")
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED),
-                                    cryptoCreate("foo")
-                                            .txnId("innerTxn1")
-                                            .batchKey("alice")
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED))
+                                    cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"),
+                                    cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"))
                             .txnId("failingBatch")
                             .payingWith("alice"));
         }
@@ -711,14 +651,12 @@ public class AtomicBatchNegativeTest {
                     atomicBatch(
                                     cryptoTransfer(TokenMovement.moving(1, "ftA")
                                                     .between("Bob", "receiver"))
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .batchKey("Alice")
                                             .payingWith("Bob")
                                             .signedBy("Bob"),
                                     // will fail because receiver is not associated with ftC
                                     cryptoTransfer(TokenMovement.moving(1, "ftC")
                                                     .between("Bob", "receiver"))
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .batchKey("Alice")
                                             .payingWith("Bob")
                                             .signedBy("Bob"))
@@ -742,12 +680,8 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate("Alice").balance(ONE_HBAR),
                     // batch txn
                     atomicBatch(
-                                    tokenCreate("ftA")
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                            .batchKey("Alice")
-                                            .payingWith("Alice"),
+                                    tokenCreate("ftA").batchKey("Alice").payingWith("Alice"),
                                     tokenCreate("ftB")
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .withTxnTransform(txn -> TxnUtils.replaceTxnDuration(txn, -1L))
                                             .batchKey("Alice")
                                             .payingWith("Alice"))
@@ -768,14 +702,8 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate("Bob").balance(ONE_HBAR),
                     // batch txn
                     atomicBatch(
-                                    tokenCreate("ftA")
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                            .batchKey("Alice")
-                                            .payingWith("Bob"),
-                                    tokenCreate("ftB")
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
-                                            .batchKey("Alice")
-                                            .payingWith("Bob"))
+                                    tokenCreate("ftA").batchKey("Alice").payingWith("Bob"),
+                                    tokenCreate("ftB").batchKey("Alice").payingWith("Bob"))
                             .payingWith("Alice")
                             .withTxnTransform(txn -> TxnUtils.replaceTxnDuration(txn, -1L))
                             .hasPrecheck(INVALID_TRANSACTION_DURATION)
@@ -796,10 +724,7 @@ public class AtomicBatchNegativeTest {
         public Stream<DynamicTest> batchContainingNestedBatch() {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
-                    atomicBatch(atomicBatch(cryptoCreate("foo")
-                                            .batchKey("batchOperator")
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED))
-                                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
+                    atomicBatch(atomicBatch(cryptoCreate("foo").batchKey("batchOperator"))
                                     .batchKey("batchOperator"))
                             .signedByPayerAnd("batchOperator")
                             .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
@@ -814,7 +739,6 @@ public class AtomicBatchNegativeTest {
                     atomicBatch(freezeOnly()
                                     .payingWith(GENESIS)
                                     .startingAt(Instant.now().plusSeconds(10))
-                                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                     .batchKey("batchOperator")
                                     .signedByPayerAnd("batchOperator"))
                             .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
@@ -827,13 +751,10 @@ public class AtomicBatchNegativeTest {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
                     atomicBatch(
-                                    cryptoCreate("foo")
-                                            .batchKey("batchOperator")
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED),
+                                    cryptoCreate("foo").batchKey("batchOperator"),
                                     freezeOnly()
                                             .payingWith(GENESIS)
                                             .startingAt(Instant.now().plusSeconds(10))
-                                            .withProtoStructure(TxnProtoStructure.NORMALIZED)
                                             .batchKey("batchOperator")
                                             .signedByPayerAnd("batchOperator"))
                             .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
@@ -858,14 +779,12 @@ public class AtomicBatchNegativeTest {
             final var innerTxn1 = cryptoCreate("foo1")
                     .balance(ONE_HBAR)
                     .batchKey(thresholdKey)
-                    .payingWith(alice)
-                    .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED);
+                    .payingWith(alice);
 
             final var innerTxn2 = cryptoCreate("foo2")
                     .balance(ONE_HBAR)
                     .batchKey(thresholdKey)
-                    .payingWith(alice)
-                    .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED);
+                    .payingWith(alice);
 
             return hapiTest(
                     cryptoCreate(alice),
@@ -891,14 +810,10 @@ public class AtomicBatchNegativeTest {
             final var innerTxn1 = cryptoCreate("foo1")
                     .balance(ONE_HBAR)
                     .batchKey(thresholdKey)
-                    .payingWith(alice)
-                    .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED);
+                    .payingWith(alice);
 
-            final var innerTxn2 = cryptoCreate("foo2")
-                    .balance(ONE_HBAR)
-                    .batchKey(bob)
-                    .payingWith(alice)
-                    .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED);
+            final var innerTxn2 =
+                    cryptoCreate("foo2").balance(ONE_HBAR).batchKey(bob).payingWith(alice);
 
             return hapiTest(
                     cryptoCreate(alice),
@@ -927,12 +842,8 @@ public class AtomicBatchNegativeTest {
                     newKeyNamed(batchKey1),
                     newKeyNamed(batchKey2),
                     atomicBatch(
-                                    cryptoCreate("foo1")
-                                            .batchKey(batchKey1)
-                                            .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED),
-                                    cryptoCreate("foo2")
-                                            .batchKey(batchKey2)
-                                            .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED))
+                                    cryptoCreate("foo1").batchKey(batchKey1),
+                                    cryptoCreate("foo2").batchKey(batchKey2))
                             .payingWith(alice) // Alice pays for the batch
                             .signedBy(batchKey1) // Alice signs with only batchKey1
                             .hasPrecheck(INVALID_SIGNATURE));
@@ -946,13 +857,7 @@ public class AtomicBatchNegativeTest {
 
             return hapiTest(
                     cryptoCreate(alice),
-                    atomicBatch(
-                                    cryptoCreate("foo1")
-                                            .batchKey(alice)
-                                            .withProtoStructure(HapiSpecSetup.TxnProtoStructure.NORMALIZED),
-                                    cryptoCreate("foo2")
-                                            .withProtoStructure(
-                                                    HapiSpecSetup.TxnProtoStructure.NORMALIZED)) // No BatchKey set
+                    atomicBatch(cryptoCreate("foo1").batchKey(alice), cryptoCreate("foo2")) // No BatchKey set
                             .payingWith(alice) // Alice pays for the batch
                             .signedBy(alice) // Alice signs with the valid BatchKey
                             .hasPrecheck(MISSING_BATCH_KEY));

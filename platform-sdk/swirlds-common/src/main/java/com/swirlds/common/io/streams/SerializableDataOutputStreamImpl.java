@@ -73,11 +73,17 @@ public class SerializableDataOutputStreamImpl extends AugmentedDataOutputStream 
         serializeMethod.serialize(this);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeSerializable(SelfSerializable serializable, boolean writeClassId) throws IOException {
         writeSerializable(serializable, writeClassId, serializable);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T extends SelfSerializable> void writeSerializableIterableWithSize(
             Iterator<T> iterator, int size, boolean writeClassId, boolean allSameClass) throws IOException {
@@ -110,6 +116,9 @@ public class SerializableDataOutputStreamImpl extends AugmentedDataOutputStream 
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T extends SelfSerializable> void writeSerializableList(
             List<T> list, boolean writeClassId, boolean allSameClass) throws IOException {
@@ -230,6 +239,9 @@ public class SerializableDataOutputStreamImpl extends AugmentedDataOutputStream 
         this.writeInt(serializable.getVersion());
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T> void writePbjRecord(@NonNull final T record, @NonNull final Codec<T> codec) throws IOException {
         writeInt(codec.measureRecord(record));
