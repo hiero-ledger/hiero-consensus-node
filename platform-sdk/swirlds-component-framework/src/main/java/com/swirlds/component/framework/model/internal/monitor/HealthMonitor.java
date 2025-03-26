@@ -55,7 +55,11 @@ public class HealthMonitor {
      */
     private final AtomicReference<Duration> longestUnhealthyDuration = new AtomicReference<>(Duration.ZERO);
 
+    /**
+     * How long between two consecutive reports when the system is healthy.
+     */
     public final Duration healthyReportThreshold;
+
     /**
      * Marks the time of the last transition to a healthy state,
      *  It is used to continue reporting a health sate even if there are no changes in status.
