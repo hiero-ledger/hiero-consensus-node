@@ -68,17 +68,26 @@ public class SerializableDataInputStreamImpl extends AugmentedDataInputStream {
         return protocolVersion;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T extends SelfSerializable> T readSerializable(@Nullable final Set<Long> permissibleClassIds)
             throws IOException {
         return readSerializable(true, SerializableDataInputStreamImpl::registryConstructor, permissibleClassIds);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T extends SelfSerializable> T readSerializable() throws IOException {
         return readSerializable(null);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T extends SelfSerializable> T readSerializable(
             final boolean readClassId,
@@ -90,6 +99,9 @@ public class SerializableDataInputStreamImpl extends AugmentedDataInputStream {
         return readSerializable(readClassId, id -> serializableConstructor.get(), permissibleClassIds);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T extends SelfSerializable> T readSerializable(
             final boolean readClassId, @NonNull final Supplier<T> serializableConstructor) throws IOException {
@@ -161,6 +173,9 @@ public class SerializableDataInputStreamImpl extends AugmentedDataInputStream {
         return serializable;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T extends SelfSerializable> void readSerializableIterableWithSize(
             final int maxSize, @NonNull final Consumer<T> callback, @Nullable final Set<Long> permissibleClassIds)
@@ -172,6 +187,9 @@ public class SerializableDataInputStreamImpl extends AugmentedDataInputStream {
                 size, true, SerializableDataInputStreamImpl::registryConstructor, callback, permissibleClassIds);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T extends SelfSerializable> void readSerializableIterableWithSize(
             final int maxSize, @NonNull final Consumer<T> callback) throws IOException {
@@ -179,6 +197,9 @@ public class SerializableDataInputStreamImpl extends AugmentedDataInputStream {
         readSerializableIterableWithSize(maxSize, callback, null);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T extends SelfSerializable> void readSerializableIterableWithSize(
             final int maxSize,
@@ -193,6 +214,9 @@ public class SerializableDataInputStreamImpl extends AugmentedDataInputStream {
                 size, readClassId, id -> serializableConstructor.get(), callback, permissibleClassIds);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T extends SelfSerializable> void readSerializableIterableWithSize(
             final int maxSize,
@@ -297,6 +321,9 @@ public class SerializableDataInputStreamImpl extends AugmentedDataInputStream {
         return serializable;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T extends SelfSerializable> List<T> readSerializableList(
             final int maxListSize, @Nullable final Set<Long> permissibleClassIds) throws IOException {
@@ -304,6 +331,9 @@ public class SerializableDataInputStreamImpl extends AugmentedDataInputStream {
                 maxListSize, true, SerializableDataInputStreamImpl::registryConstructor, permissibleClassIds);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T extends SelfSerializable> List<T> readSerializableList(final int maxListSize) throws IOException {
         return readSerializableList(maxListSize, null);
@@ -332,6 +362,9 @@ public class SerializableDataInputStreamImpl extends AugmentedDataInputStream {
         return readSerializableList(maxListSize, readClassId, id -> serializableConstructor.get(), permissibleClassIds);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T extends SelfSerializable> List<T> readSerializableList(
             final int maxListSize, final boolean readClassId, @NonNull final Supplier<T> serializableConstructor)
@@ -471,6 +504,9 @@ public class SerializableDataInputStreamImpl extends AugmentedDataInputStream {
         return rc;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public @NonNull <T> T readPbjRecord(@NonNull final Codec<T> codec) throws IOException {
         final int size = readInt();
