@@ -2,6 +2,7 @@
 package com.swirlds.platform.test.fixtures.event.emitter;
 
 import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import java.util.Random;
 import org.hiero.consensus.model.node.NodeId;
@@ -52,7 +53,7 @@ public class ShuffledEventEmitter extends BufferingEventEmitter {
         int attempts = 0;
         while (true) {
             final int nodeIndex = random.nextInt(getGraphGenerator().getNumberOfSources());
-            final NodeId nodeID = getGraphGenerator().getAddressBook().getNodeId(nodeIndex);
+            final NodeId nodeID = RosterUtils.getNodeId(getGraphGenerator().getRoster(), nodeIndex);
             attemptToGenerateEventFromNode(nodeID);
             if (isReadyToEmitEvent(nodeID)) {
                 eventEmittedFromBuffer();

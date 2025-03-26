@@ -144,14 +144,13 @@ public class StandaloneDispatchFactory {
                 new BoundaryStateChangeListener(storeMetricsService, () -> config),
                 new KVStateChangeListener(),
                 blockStreamConfig.streamMode());
-        final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
+        final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
         final var consensusTransaction = consensusTransactionFor(transactionBody);
         final var creatorInfo = creatorInfoFor(transactionBody);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
                 creatorInfo, consensusTransaction, readableStoreFactory, ignore -> {});
-        final var tokenContext =
-                new TokenContextImpl(config, stack, consensusNow, entityIdStore, softwareVersionFactory);
+        final var tokenContext = new TokenContextImpl(config, stack, consensusNow, entityIdStore);
         final var txnInfo = requireNonNull(preHandleResult.txInfo());
         final var writableStoreFactory =
                 new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);

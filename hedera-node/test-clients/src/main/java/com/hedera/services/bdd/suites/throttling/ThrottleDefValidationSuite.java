@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.THROTTLE_DEFS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OPERATION_REPEATED_IN_BUCKET_GROUPS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.THROTTLE_GROUP_HAS_ZERO_OPS_PER_SEC;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.THROTTLE_GROUP_LCM_OVERFLOW;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -79,5 +80,12 @@ public class ThrottleDefValidationSuite {
     @Order(6)
     final Stream<DynamicTest> ensureDevLimitsRestored() {
         return hapiTest(withOpContext((spec, opLog) -> throttleRestorationOp.restoreContentsIfNeeded(spec)));
+    }
+
+    @HapiTest
+    @Order(7)
+    final Stream<DynamicTest> leastCommonMultipleOverflow() {
+        return hapiTest(
+                overridingThrottlesFails("testSystemFiles/lcm-overflow-throttles.json", THROTTLE_GROUP_LCM_OVERFLOW));
     }
 }
