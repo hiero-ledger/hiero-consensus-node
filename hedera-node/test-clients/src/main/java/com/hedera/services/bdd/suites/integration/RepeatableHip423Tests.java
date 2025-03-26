@@ -620,6 +620,7 @@ public class RepeatableHip423Tests {
                 "consensus.handle.maxPrecedingRecords",
                 "consensus.handle.maxFollowingRecords",
                 "scheduling.consTimeSeparationNanos",
+                "scheduling.reservedSystemTxnNanos",
             })
     final Stream<DynamicTest> executionPurgesScheduleStateAsWhenRunningOutOfConsensusTimes() {
         final var lastSecond = new AtomicLong();
@@ -633,7 +634,8 @@ public class RepeatableHip423Tests {
                 overridingAllOf(Map.of(
                         "consensus.handle.maxPrecedingRecords", "2",
                         "consensus.handle.maxFollowingRecords", "1",
-                        "scheduling.consTimeSeparationNanos", "15")),
+                        "scheduling.consTimeSeparationNanos", "16",
+                        "scheduling.reservedSystemTxnNanos", "1")),
                 // Schedule the four transfers to lucky you
                 sourcing(() -> scheduleCreate("one", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 1L)))
                         .waitForExpiry()

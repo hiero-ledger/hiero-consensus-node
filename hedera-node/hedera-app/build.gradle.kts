@@ -53,6 +53,7 @@ jmhModuleInfo {
     requires("com.hedera.pbj.runtime")
     requires("com.swirlds.common")
     requires("jmh.core")
+    requires("org.hiero.consensus.model")
 }
 
 // Add all the libs dependencies into the jar manifest!

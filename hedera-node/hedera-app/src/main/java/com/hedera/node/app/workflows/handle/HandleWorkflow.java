@@ -473,10 +473,10 @@ public class HandleWorkflow {
             // we must ensure that even if the last scheduled execution time is followed by the maximum
             // number of child transactions, the last child's assigned time will be strictly before the
             // first of the next consensus time's possible preceding children; that is, strictly before
-            // (now + separationNanos) - (maxAfter + maxBefore + 1)
+            // (now + separationNanos - reservedSystemTxnNanos) - (maxAfter + maxBefore + 1)
             final var lastUsableTime = consensusNow.plusNanos(schedulingConfig.consTimeSeparationNanos()
-                    - consensusConfig.handleMaxPrecedingRecords()
-                    - (consensusConfig.handleMaxFollowingRecords() + 1));
+                    - schedulingConfig.reservedSystemTxnNanos()
+                    - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
             // The first possible time for the next execution is strictly after the last execution time
             // consumed for the triggering user transaction; plus the maximum number of preceding children
             var nextTime = boundaryStateChangeListener

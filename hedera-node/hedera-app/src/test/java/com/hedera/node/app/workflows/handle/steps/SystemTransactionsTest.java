@@ -42,6 +42,7 @@ import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -134,6 +135,7 @@ class SystemTransactionsTest {
         given(appContext.idFactory()).willReturn(idFactory);
 
         subject = new SystemTransactions(
+                InitTrigger.GENESIS,
                 parentTxnFactory,
                 fileService,
                 networkInfo,

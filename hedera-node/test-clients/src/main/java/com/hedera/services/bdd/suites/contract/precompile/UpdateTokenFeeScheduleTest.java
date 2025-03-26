@@ -31,6 +31,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSO
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -55,6 +56,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @DisplayName("updateTokenFeeSchedule")
 @HapiTestLifecycle
+@OrderedInIsolation
 public class UpdateTokenFeeScheduleTest {
 
     @Contract(contract = "UpdateTokenFeeSchedules", creationGas = 4_000_000L)
