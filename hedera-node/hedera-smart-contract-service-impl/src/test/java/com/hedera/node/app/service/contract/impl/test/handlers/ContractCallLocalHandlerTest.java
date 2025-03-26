@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_NEGATIVE_GAS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -17,7 +19,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
@@ -35,6 +36,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ContractsConfig;
@@ -43,6 +45,7 @@ import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.InstantSource;
+import java.util.Objects;
 import java.util.function.Function;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
@@ -101,8 +104,7 @@ class ContractCallLocalHandlerTest {
     @Mock
     private GasCalculator gasCalculator;
 
-    @Mock
-    private EntityIdFactory entityIdFactory;
+    private final EntityIdFactory entityIdFactory = new FakeEntityIdFactoryImpl(0, 0);
 
     @Mock
     private ProxyWorldUpdater proxyWorldUpdater;
@@ -146,7 +148,7 @@ class ContractCallLocalHandlerTest {
         // given
         given(context.query()).willReturn(query);
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
-        given(contractCallLocalQuery.contractID()).willReturn(contractID);
+        given(contractCallLocalQuery.contractIDOrElse(ContractID.DEFAULT)).willReturn(contractID);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
         given(context.createStore(ReadableAccountStore.class)).willReturn(store);
         given(store.getContractById(contractID)).willReturn(contract);
@@ -164,7 +166,9 @@ class ContractCallLocalHandlerTest {
         given(contractCallLocalQuery.gas()).willReturn(-1L);
 
         // when:
-        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.validate(context))
+                .isInstanceOf(PreCheckException.class)
+                .hasMessage(CONTRACT_NEGATIVE_GAS.protoName());
     }
 
     @Test
@@ -176,7 +180,9 @@ class ContractCallLocalHandlerTest {
         given(contractCallLocalQuery.gas()).willReturn(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1);
 
         // when:
-        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.validate(context))
+                .isInstanceOf(PreCheckException.class)
+                .hasMessage(MAX_GAS_LIMIT_EXCEEDED.protoName());
     }
 
     @Test
@@ -184,12 +190,14 @@ class ContractCallLocalHandlerTest {
         // given
         given(context.query()).willReturn(query);
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
-        given(contractCallLocalQuery.contractID()).willReturn(null);
+        given(contractCallLocalQuery.contractIDOrElse(ContractID.DEFAULT)).willReturn(null);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
         givenDefaultConfig();
 
         // when:
-        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.validate(context))
+                .isInstanceOf(PreCheckException.class)
+                .hasMessage(INVALID_CONTRACT_ID.protoName());
     }
 
     @Test
@@ -197,12 +205,18 @@ class ContractCallLocalHandlerTest {
         // given
         given(context.query()).willReturn(query);
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
-        given(contractCallLocalQuery.contractID()).willReturn(invalidContract);
+        given(contractCallLocalQuery.contractIDOrElse(ContractID.DEFAULT)).willReturn(invalidContract);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
+        given(context.createStore(ReadableAccountStore.class)).willReturn(store);
+        given(store.getContractById(invalidContract)).willReturn(null);
+        given(context.createStore(ReadableTokenStore.class)).willReturn(tokenStore);
+        given(tokenStore.get(any())).willReturn(null);
         givenDefaultConfig();
 
         // when:
-        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.validate(context))
+                .isInstanceOf(PreCheckException.class)
+                .hasMessage(INVALID_CONTRACT_ID.protoName());
     }
 
     @Test
@@ -210,7 +224,7 @@ class ContractCallLocalHandlerTest {
         // given
         given(context.query()).willReturn(query);
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
-        given(contractCallLocalQuery.contractID()).willReturn(contractID);
+        given(contractCallLocalQuery.contractIDOrElse(ContractID.DEFAULT)).willReturn(contractID);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
         given(context.createStore(ReadableAccountStore.class)).willReturn(store);
         given(store.getContractById(contractID)).willReturn(null);
@@ -219,7 +233,9 @@ class ContractCallLocalHandlerTest {
         givenAllowCallsToNonContractAccountOffConfig();
 
         // when:
-        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.validate(context))
+                .isInstanceOf(PreCheckException.class)
+                .hasMessage(INVALID_CONTRACT_ID.protoName());
     }
 
     @Test
@@ -231,7 +247,9 @@ class ContractCallLocalHandlerTest {
         givenAllowCallsToNonContractAccountOffConfig();
 
         // when:
-        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.validate(context))
+                .isInstanceOf(PreCheckException.class)
+                .hasMessage(MAX_GAS_LIMIT_EXCEEDED.protoName());
     }
 
     @Test
@@ -239,7 +257,7 @@ class ContractCallLocalHandlerTest {
         // given
         given(context.query()).willReturn(query);
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
-        given(contractCallLocalQuery.contractID()).willReturn(contractID);
+        given(contractCallLocalQuery.contractIDOrElse(ContractID.DEFAULT)).willReturn(contractID);
         given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
         given(context.createStore(ReadableAccountStore.class)).willReturn(store);
         given(store.getContractById(contractID)).willReturn(contract);
@@ -266,15 +284,13 @@ class ContractCallLocalHandlerTest {
         // when:
         var response = subject.findResponse(context, responseHeader);
 
-        assertThat(response.contractCallLocal().header()).isEqualTo(responseHeader);
-        assertThat(response.contractCallLocal().functionResult()).isEqualTo(expectedOutcome.result());
+        assertThat(Objects.requireNonNull(response.contractCallLocal()).header()).isEqualTo(responseHeader);
+        assertThat(Objects.requireNonNull(response.contractCallLocal()).functionResult()).isEqualTo(expectedOutcome.result());
     }
 
     @Test
     @SuppressWarnings("unchecked")
     void computesFeesSuccessfully() {
-
-        final var id = ContractID.newBuilder().contractNum(10).build();
         given(context.query()).willReturn(query);
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
         given(context.feeCalculator()).willReturn(feeCalculator);
@@ -283,7 +299,6 @@ class ContractCallLocalHandlerTest {
         // Mock the behavior of legacyCalculate method
         when(feeCalculator.legacyCalculate(any(Function.class))).thenAnswer(invocation -> {
             // Extract the callback passed to the method
-            Function<SigValueObj, FeeData> passedCallback = invocation.getArgument(0);
             return new Fees(10L, 0L, 0L);
         });
 

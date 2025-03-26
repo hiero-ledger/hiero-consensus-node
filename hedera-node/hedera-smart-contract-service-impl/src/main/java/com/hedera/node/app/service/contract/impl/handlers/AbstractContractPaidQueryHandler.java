@@ -63,6 +63,12 @@ public abstract class AbstractContractPaidQueryHandler<T> extends PaidQueryHandl
         return account;
     }
 
+    protected @Nullable Account contractAccountFrom(
+            @NonNull final QueryContext context, @NonNull final ContractID contractId) {
+        final var store = context.createStore(ReadableAccountStore.class);
+        return store.getContractById(contractId);
+    }
+
     protected @Nullable Token tokenFrom(@NonNull final QueryContext context, @NonNull final ContractID contractId) {
         final var tokenID = entityIdFactory.newTokenId(ConversionUtils.contractIDToNum(entityIdFactory, contractId));
         return context.createStore(ReadableTokenStore.class).get(tokenID);
