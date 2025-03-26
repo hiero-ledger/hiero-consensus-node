@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
@@ -78,6 +79,11 @@ public class FakeHintsService implements HintsService {
     @Override
     public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
         delegate.initSigningForNextScheme(hintsStore);
+    }
+
+    @Override
+    public void initCurrentRoster(@NonNull final Roster roster) {
+        delegate.initCurrentRoster(roster);
     }
 
     @Override

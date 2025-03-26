@@ -21,6 +21,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
@@ -65,6 +66,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.TestReporter;
 
 /**
  * Asserts expected behavior of the network when upgrading with DAB enabled.
@@ -112,7 +114,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
 
     @HapiTest
     @Order(0)
-    final Stream<DynamicTest> upgradeWithSameNodesExportsTheOriginalAddressBook() {
+    final Stream<DynamicTest> upgradeWithSameNodesExportsTheOriginalAddressBook(@NonNull final TestReporter reporter) {
         final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
         return hapiTest(
                 recordStreamMustIncludePassFrom(selectedItems(
@@ -120,6 +122,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 // This test verifies staking rewards aren't paid for deleted nodes; so ensure staking is active
                 ensureStakingActivated(),
                 touchBalanceOf(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER, NODE3_STAKER),
+                doAdhoc(() -> reporter.publishEntry("Activated staking")),
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 // Now do the first upgrade
                 getVersionInfo().exposingServicesVersionTo(startVersion::set),

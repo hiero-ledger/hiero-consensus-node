@@ -86,7 +86,6 @@ public class HintsServiceImpl implements HintsService {
             }
             case HANDOFF -> hintsStore.updateForHandoff(activeRosters);
         }
-        currentRoster.set(activeRosters.findRelatedRoster(activeRosters.currentRosterHash()));
     }
 
     @Override
@@ -126,6 +125,12 @@ public class HintsServiceImpl implements HintsService {
     public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
         requireNonNull(hintsStore);
         component.signingContext().setConstruction(requireNonNull(hintsStore.getNextConstruction()));
+    }
+
+    @Override
+    public void initCurrentRoster(@NonNull final Roster roster) {
+        requireNonNull(roster);
+        currentRoster.set(roster);
     }
 
     @Override
