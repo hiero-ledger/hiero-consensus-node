@@ -220,7 +220,7 @@ public class SystemTransactions {
                     i);
         }
         // For a slightly more intuitive stream, now create the system files (which come next numerically)
-        final var nodeStore = new ReadableStoreFactory(state, softwareVersionFactory).getStore(ReadableNodeStore.class);
+        final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
         fileService.createSystemEntities(systemContext, nodeStore);
         // Create the treasury clones
         for (long i : LongStream.rangeClosed(FIRST_POST_SYSTEM_FILE_ENTITY, ledgerConfig.numReservedSystemEntities())

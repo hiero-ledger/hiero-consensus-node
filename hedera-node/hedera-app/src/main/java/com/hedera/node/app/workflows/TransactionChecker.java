@@ -19,7 +19,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static java.util.Objects.requireNonNull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -35,7 +34,6 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.util.ProtobufUtils;
 import com.hedera.node.app.workflows.prehandle.DueDiligenceException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
@@ -49,7 +47,6 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -135,9 +132,58 @@ public class TransactionChecker {
         if (buffer.length() > maxBytes) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
-
-        final var tx = parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
+        final var tx = parse(buffer);
         return check(tx, buffer);
+    }
+
+    /**
+     * Parses and checks a signed transaction encoded as protobuf in the given buffer.
+     *
+     * @param buffer The buffer containing the protobuf bytes of the signed transaction
+     * @return The parsed {@link TransactionInfo}
+     * @throws PreCheckException If parsing fails or any of the checks fail.
+     */
+    @NonNull
+    public TransactionInfo parseSignedAndCheck(@NonNull final Bytes buffer, final int maxBytes)
+            throws PreCheckException {
+        // Fail fast if there are too many transaction bytes
+        if (buffer.length() > maxBytes) {
+            throw new PreCheckException(TRANSACTION_OVERSIZE);
+        }
+        final var signedTx = parseSigned(buffer);
+        return checkSigned(signedTx, buffer);
+    }
+
+    /**
+     * Parse the given {@link Bytes} into a transaction.
+     *
+     * <p>After verifying that the number of bytes comprising the transaction does not exceed the maximum allowed, the
+     * transaction is parsed. A transaction can be checked with {@link #check(Transaction, Bytes)}.
+     *
+     * @param buffer the {@code ByteBuffer} with the serialized transaction
+     * @return an {@link TransactionInfo} with the parsed and checked entities
+     * @throws PreCheckException if the data is not valid
+     * @throws NullPointerException if one of the arguments is {@code null}
+     */
+    @NonNull
+    public Transaction parse(@NonNull final Bytes buffer) throws PreCheckException {
+        return parseStrict(buffer.toReadableSequentialData(), Transaction.PROTOBUF, INVALID_TRANSACTION);
+    }
+
+    /**
+     * Parse the given {@link Bytes} into a signed transaction.
+     *
+     * <p>After verifying that the number of bytes comprising the transaction does not exceed the maximum allowed, the
+     * transaction is parsed. A transaction can be checked with {@link #check(Transaction, Bytes)}.
+     *
+     * @param buffer the {@code ByteBuffer} with the serialized transaction
+     * @return an {@link TransactionInfo} with the parsed and checked entities
+     * @throws PreCheckException if the data is not valid
+     * @throws NullPointerException if one of the arguments is {@code null}
+     */
+    @NonNull
+    public SignedTransaction parseSigned(@NonNull final Bytes buffer) throws PreCheckException {
+        return parseStrict(buffer.toReadableSequentialData(), SignedTransaction.PROTOBUF, INVALID_TRANSACTION);
     }
 
     /**
@@ -176,58 +222,73 @@ public class TransactionChecker {
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @NonNull
-    @VisibleForTesting
-    TransactionInfo check(@NonNull final Transaction tx, @NonNull Bytes serializedTx) throws PreCheckException {
+    public TransactionInfo check(@NonNull final Transaction tx, @Nullable Bytes serializedTx) throws PreCheckException {
         // NOTE: Since we've already parsed the transaction, we assume that the
         // transaction was not too many bytes. This is a safe assumption because
         // the code that receives the transaction bytes and parses/ the transaction
         // also verifies that the transaction is not too large.
         checkTransactionDeprecation(tx);
 
-        final TransactionBody txBody;
         final Bytes bodyBytes;
         final SignatureMap signatureMap;
-        if (tx.hasBody()) {
-            txBody = tx.bodyOrThrow();
-            try {
-                bodyBytes = ProtobufUtils.extractBodyBytes(serializedTx);
-            } catch (IOException | ParseException e) {
-                throw new PreCheckException(INVALID_TRANSACTION);
-            }
-            signatureMap = tx.sigMap();
+        if (tx.signedTransactionBytes().length() > 0) {
+            final var signedTransaction = parseStrict(
+                    tx.signedTransactionBytes().toReadableSequentialData(),
+                    SignedTransaction.PROTOBUF,
+                    INVALID_TRANSACTION);
+            bodyBytes = signedTransaction.bodyBytes();
+            signatureMap = signedTransaction.sigMap();
         } else {
-            if (tx.signedTransactionBytes().length() > 0) {
-                final var signedTransaction = parseStrict(
-                        tx.signedTransactionBytes().toReadableSequentialData(),
-                        SignedTransaction.PROTOBUF,
-                        INVALID_TRANSACTION);
-                bodyBytes = signedTransaction.bodyBytes();
-                signatureMap = signedTransaction.sigMap();
-            } else {
-                bodyBytes = tx.bodyBytes();
-                signatureMap = tx.sigMap();
-            }
-            txBody = parseStrict(
-                    bodyBytes.toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
+            bodyBytes = tx.bodyBytes();
+            signatureMap = tx.sigMap();
         }
         if (signatureMap == null) {
             throw new PreCheckException(INVALID_TRANSACTION_BODY);
         }
-        final HederaFunctionality functionality;
-        try {
-            functionality = HapiUtils.functionOf(txBody);
-        } catch (UnknownHederaFunctionality e) {
-            throw new PreCheckException(INVALID_TRANSACTION_BODY);
-        }
-        if (!txBody.hasTransactionID()) {
-            throw new PreCheckException(INVALID_TRANSACTION_ID);
-        } else {
-            final var txnId = txBody.transactionIDOrThrow();
-            if (!txnId.hasAccountID()) {
-                throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
-            }
-        }
-        return checkParsed(new TransactionInfo(tx, txBody, signatureMap, bodyBytes, functionality, serializedTx));
+        return check(tx, bodyBytes, signatureMap, serializedTx);
+    }
+
+    /**
+     * Check the validity of the provided {@link SignedTransaction}
+     *
+     * <p>The following checks are made:
+     * <ul>
+     *   <li>Check that the {@link SignedTransaction} can be parsed</li>
+     *   <li>Check that the {@link TransactionBody} can be parsed</li>
+     *   <li>Check that the {@code transactionID} is specified</li>
+     *   <li>Check that the {@code transactionID} has an accountID that is plausible, meaning that it may exist.</li>
+     *   <li>Check that the {@code transactionID} does not have the "scheduled" flag set</li>
+     *   <li>Check that the {@code transactionID} does not have a nonce set</li>
+     *   <li>Check that this transaction is still live (i.e. its timestamp is within the last 3 minutes).</li>
+     *   <li>Check that the {@code memo} is not too large</li>
+     *   <li>Check that the {@code transaction fee} is non-zero</li>
+     * </ul>
+     *
+     * <p>In all cases involving parsing, parse <strong>strictly</strong>, meaning, if there are any fields in the
+     * protobuf that we do not understand, then throw a {@link PreCheckException}. This means that we are *NOT*
+     * forward compatible. You cannot send a protobuf encoded object to any of the workflows that is newer than the
+     * version of software that is running.
+     *
+     * <p>As can be seen from the above list, these checks are verifying that the transaction is internally consistent,
+     * rather than comparing with state, OTHER THAN deduplication. The account on the transaction may not actually
+     * exist, or may not have enough balance, or the transaction may not have paid enough to cover the fees, or many
+     * other scenarios. Those will be checked in later stages of the workflow (and in many cases, within the service
+     * modules themselves).</p>
+     *
+     * @param signedTx the {@link SignedTransaction} that needs to be checked
+     * @param serializedTx if set, the serialized transaction bytes to include in the {@link TransactionInfo}
+     * @return an {@link TransactionInfo} with the parsed and checked entities
+     * @throws PreCheckException if the data is not valid
+     * @throws NullPointerException if one of the arguments is {@code null}
+     */
+    @NonNull
+    public TransactionInfo checkSigned(@NonNull final SignedTransaction signedTx, @Nullable Bytes serializedTx)
+            throws PreCheckException {
+        final var tx = Transaction.newBuilder()
+                .bodyBytes(signedTx.bodyBytes())
+                .sigMap(signedTx.sigMap())
+                .build();
+        return check(tx, tx.bodyBytes(), tx.sigMap(), serializedTx);
     }
 
     public TransactionInfo checkParsed(@NonNull final TransactionInfo txInfo) throws PreCheckException {
@@ -250,37 +311,39 @@ public class TransactionChecker {
      * @throws NullPointerException if {@code tx} is {@code null}
      */
     private void checkTransactionDeprecation(@NonNull final Transaction tx) throws PreCheckException {
-        // There are three ways a transaction can be used. Two of these are deprecated:
-        //   1. body & sigMap. SUPPORTED
-        //   2. bodyBytes & sigMap. DEPRECATED, SUPPORTED
-        //   3. signedTransactionBytes. DEPRECATED, SUPPORTED
+        // There are three ways a transaction can be used. Two of these are deprecated. One is not supported:
+        //   1. body & sigs. DEPRECATED, NOT SUPPORTED
+        //   2. sigMap & bodyBytes. DEPRECATED, SUPPORTED
+        //   3. signedTransactionBytes. SUPPORTED
         //
-        // While Transaction.sigs is not supported, we also don't throw an error if it is used as long as sigMap
-        // is also populated. This seems really odd, and ideally we would be able to remove support for sigs entirely.
-        // To do this, we need metrics to see if anyone is using it in any way.
-        if (tx.hasSigs()) {
+        // While #1 above is NOT SUPPORTED, we also don't throw an error if either or both field is used
+        // as long as the transaction ALSO has either #2 or #3 populated. This seems really odd, and ideally
+        // we would be able to remove support for #1 entirely. To do this, we need metrics to see if anyone
+        // is using #1 in any way.
+        if (tx.hasBody() || tx.hasSigs()) {
             superDeprecatedCounter.increment();
         }
 
-        // A transaction can either use signedTransactionBytes, or sigMap and body/bodyBytes.
-        // The usage of signedTransactionBytes and bodyBytes is deprecated.
-        final var hasBody = tx.hasBody();
-        final var hasSigMap = tx.hasSigMap();
-        final var hasDeprecatedSignedTxnBytes = tx.signedTransactionBytes().length() > 0;
+        // A transaction can either use signedTransactionBytes, or sigMap and bodyBytes. Using
+        // sigMap and bodyBytes is deprecated.
+        final var hasSignedTxnBytes = tx.signedTransactionBytes().length() > 0;
+        final var hasDeprecatedSigMap = tx.sigMap() != null;
         final var hasDeprecatedBodyBytes = tx.bodyBytes().length() > 0;
 
-        // Increment the counter if either of `bodyBytes` or `signedTransactionBytes` were used
-        if (hasDeprecatedSignedTxnBytes || hasDeprecatedBodyBytes) {
+        // Increment the counter if either of `bodyBytes` or `sigMap` were used
+        if (hasDeprecatedSigMap || hasDeprecatedBodyBytes) {
             deprecatedCounter.increment();
         }
 
-        // The user either has to use `signedTransactionBytes`, or `body`/`bodyBytes` with `sigMap`, but no other
-        // combination
-        if ((hasBody && hasDeprecatedBodyBytes)
-                || hasDeprecatedSignedTxnBytes && (hasBody || hasSigMap || hasDeprecatedBodyBytes)) {
-            throw new PreCheckException(INVALID_TRANSACTION);
-        }
-        if (!hasBody && !hasDeprecatedBodyBytes && !hasDeprecatedSignedTxnBytes) {
+        // The user either has to use `signedTransactionBytes`, or `bodyBytes` and `sigMap`, but not both.
+        if (hasSignedTxnBytes) {
+            if (hasDeprecatedBodyBytes || hasDeprecatedSigMap) {
+                throw new PreCheckException(INVALID_TRANSACTION);
+            }
+        } else if (!hasDeprecatedBodyBytes) {
+            // If they didn't use `signedTransactionBytes` and they didn't use `bodyBytes` then they didn't send a body
+            // NOTE: If they sent a `sigMap` without a `bodyBytes`, then the `sigMap` will be ignored, just like
+            // `body` and `sigs` are. This isn't really nice but not fatal.
             throw new PreCheckException(INVALID_TRANSACTION_BODY);
         }
     }
@@ -506,6 +569,31 @@ public class TransactionChecker {
         }
     }
 
+    private TransactionInfo check(
+            @NonNull Transaction tx,
+            @NonNull Bytes bodyBytes,
+            @NonNull SignatureMap signatureMap,
+            @Nullable Bytes serializedTx)
+            throws PreCheckException {
+        final var txBody =
+                parseStrict(bodyBytes.toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
+        final HederaFunctionality functionality;
+        try {
+            functionality = HapiUtils.functionOf(txBody);
+        } catch (UnknownHederaFunctionality e) {
+            throw new PreCheckException(INVALID_TRANSACTION_BODY);
+        }
+        if (!txBody.hasTransactionID()) {
+            throw new PreCheckException(INVALID_TRANSACTION_ID);
+        } else {
+            final var txnId = txBody.transactionIDOrThrow();
+            if (!txnId.hasAccountID()) {
+                throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
+            }
+        }
+        return checkParsed(new TransactionInfo(tx, txBody, signatureMap, bodyBytes, functionality, serializedTx));
+    }
+
     /**
      *  We must throw KEY_PREFIX_MISMATCH if the same prefix shows up more than once in the signature map. We
      *  could check for that if we sort the keys by prefix first. Then we can march through them and if we find any
@@ -519,7 +607,7 @@ public class TransactionChecker {
     private void checkPrefixMismatch(@NonNull final List<SignaturePair> sigPairs) throws PreCheckException {
         final var sortedList = sort(sigPairs);
         if (sortedList.size() > 1) {
-            var prev = sortedList.get(0);
+            var prev = sortedList.getFirst();
             var size = sortedList.size();
             for (int i = 1; i < size; i++) {
                 final var curr = sortedList.get(i);
