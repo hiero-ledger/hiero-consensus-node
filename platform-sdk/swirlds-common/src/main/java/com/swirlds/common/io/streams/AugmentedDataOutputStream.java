@@ -21,6 +21,9 @@ public abstract class AugmentedDataOutputStream extends SerializableDataOutputSt
         super(out);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeByteArray(byte[] data, boolean writeChecksum) throws IOException {
         if (data == null) {
@@ -35,11 +38,17 @@ public abstract class AugmentedDataOutputStream extends SerializableDataOutputSt
         this.write(data);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeByteArray(byte[] data) throws IOException {
         writeByteArray(data, DEFAULT_CHECKSUM);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeIntArray(int[] data) throws IOException {
         if (data == null) {
@@ -52,6 +61,9 @@ public abstract class AugmentedDataOutputStream extends SerializableDataOutputSt
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeIntList(List<Integer> data) throws IOException {
         if (data == null) {
@@ -64,6 +76,9 @@ public abstract class AugmentedDataOutputStream extends SerializableDataOutputSt
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeLongArray(long[] data) throws IOException {
         if (data == null) {
@@ -76,6 +91,9 @@ public abstract class AugmentedDataOutputStream extends SerializableDataOutputSt
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeLongList(List<Long> data) throws IOException {
         if (data == null) {
@@ -88,6 +106,9 @@ public abstract class AugmentedDataOutputStream extends SerializableDataOutputSt
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeBooleanList(List<Boolean> data) throws IOException {
         if (data == null) {
@@ -100,6 +121,9 @@ public abstract class AugmentedDataOutputStream extends SerializableDataOutputSt
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeFloatArray(float[] data) throws IOException {
         if (data == null) {
@@ -112,6 +136,9 @@ public abstract class AugmentedDataOutputStream extends SerializableDataOutputSt
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeFloatList(List<Float> data) throws IOException {
         if (data == null) {
@@ -124,6 +151,9 @@ public abstract class AugmentedDataOutputStream extends SerializableDataOutputSt
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeDoubleArray(double[] data) throws IOException {
         if (data == null) {
@@ -136,6 +166,9 @@ public abstract class AugmentedDataOutputStream extends SerializableDataOutputSt
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeDoubleList(List<Double> data) throws IOException {
         if (data == null) {
@@ -148,6 +181,9 @@ public abstract class AugmentedDataOutputStream extends SerializableDataOutputSt
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeStringArray(String[] data) throws IOException {
         if (data == null) {
@@ -160,6 +196,9 @@ public abstract class AugmentedDataOutputStream extends SerializableDataOutputSt
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeStringList(List<String> data) throws IOException {
         if (data == null) {
@@ -172,12 +211,18 @@ public abstract class AugmentedDataOutputStream extends SerializableDataOutputSt
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeNormalisedString(String s) throws IOException {
         byte[] data = CommonUtils.getNormalisedStringBytes(s);
         this.writeByteArray(data);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void writeInstant(Instant instant) throws IOException {
         if (instant == null) {

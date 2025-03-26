@@ -18,7 +18,6 @@ import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateValueAccumulator;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
@@ -73,7 +72,7 @@ public class TransactionHandlerTester {
                 RosterRetriever.buildRoster(addressBook),
                 NodeId.FIRST_NODE_ID,
                 statusActionSubmitter,
-                new BasicSoftwareVersion(1),
+                SemanticVersion.newBuilder().major(1).build(),
                 consensusStateEventHandler,
                 platformStateFacade);
         swirldStateManager.setInitialState(consensusState);

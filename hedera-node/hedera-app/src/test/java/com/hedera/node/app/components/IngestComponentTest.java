@@ -32,6 +32,7 @@ import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.signature.AppSignatureVerifier;
@@ -133,11 +134,11 @@ class IngestComponentTest {
                 .bootstrapConfigProviderImpl(new BootstrapConfigProviderImpl())
                 .fileServiceImpl(new FileServiceImpl())
                 .contractServiceImpl(new ContractServiceImpl(appContext, NO_OP_METRICS))
+                .utilServiceImpl(new UtilServiceImpl(appContext, (signedTxn, config) -> null))
                 .scheduleService(new ScheduleServiceImpl(appContext))
                 .initTrigger(InitTrigger.GENESIS)
                 .platform(platform)
                 .self(selfNodeInfo)
-                .maxSignedTxnSize(1024)
                 .currentPlatformStatus(() -> PlatformStatus.ACTIVE)
                 .servicesRegistry(mock(ServicesRegistry.class))
                 .instantSource(InstantSource.system())
@@ -145,7 +146,7 @@ class IngestComponentTest {
                 .metrics(metrics)
                 .kvStateChangeListener(new KVStateChangeListener())
                 .boundaryStateChangeListener(new BoundaryStateChangeListener(
-                        new StoreMetricsServiceImpl(metrics), () -> configProvider.getConfiguration()))
+                        new StoreMetricsServiceImpl(metrics), configProvider::getConfiguration))
                 .migrationStateChanges(List.of())
                 .hintsService(hintsService)
                 .historyService(historyService)

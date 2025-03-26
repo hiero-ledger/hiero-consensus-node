@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
@@ -17,7 +18,6 @@ import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
@@ -40,7 +40,7 @@ class SwirldsStateManagerTests {
         final SwirldsPlatform platform = mock(SwirldsPlatform.class);
         final Roster roster = RandomRosterBuilder.create(Randotron.create()).build();
         when(platform.getRoster()).thenReturn(roster);
-        PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
+        PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         initialState = newState(platformStateFacade);
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
@@ -50,7 +50,7 @@ class SwirldsStateManagerTests {
                 roster,
                 NodeId.of(0L),
                 mock(StatusActionSubmitter.class),
-                new BasicSoftwareVersion(1),
+                SemanticVersion.newBuilder().major(1).build(),
                 FAKE_CONSENSUS_STATE_EVENT_HANDLER,
                 platformStateFacade);
         swirldStateManager.setInitialState(initialState);
@@ -130,7 +130,8 @@ class SwirldsStateManagerTests {
         final MerkleNodeState state = new TestMerkleStateRoot();
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
 
-        platformStateFacade.setCreationSoftwareVersionTo(state, new BasicSoftwareVersion(nextInt(1, 100)));
+        platformStateFacade.setCreationSoftwareVersionTo(
+                state, SemanticVersion.newBuilder().major(nextInt(1, 100)).build());
 
         assertEquals(0, state.getRoot().getReservationCount(), "A brand new state should have no references.");
         return state;
