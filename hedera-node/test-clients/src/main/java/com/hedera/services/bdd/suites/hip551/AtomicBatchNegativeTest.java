@@ -152,13 +152,11 @@ public class AtomicBatchNegativeTest {
             final var atomicTxn = "atomicTxn";
 
             final var innerTxn1 = cryptoCreate(account1)
-                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
                     .balance(ONE_HBAR)
                     .txnId(innerTxnId1)
                     .batchKey(batchOperator)
                     .payingWith(innerTxnPayer);
             final var innerTxn2 = cryptoCreate(account2)
-                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
                     .balance(ONE_MILLION_HBARS)
                     .txnId(innerTxnId2)
                     .batchKey(batchOperator)
@@ -220,7 +218,6 @@ public class AtomicBatchNegativeTest {
             // - batch key -> for batch operator to sign
             // - payer -> for paying the fee
             final var innerTxn = cryptoCreate("foo")
-                    .withProtoStructure(TxnProtoStructure.OLD)
                     .balance(ONE_HBAR)
                     .txnId(innerTxnId)
                     .batchKey(batchOperator)
@@ -242,7 +239,6 @@ public class AtomicBatchNegativeTest {
             final var innerTxnId = "innerId";
             // crete inner txn with innerTxnPayer, but sign only with DEFAULT_PAYER
             final var innerTxn = cryptoCreate("foo")
-                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
                     .balance(ONE_HBAR)
                     .txnId(innerTxnId)
                     .batchKey(batchOperator)
@@ -266,7 +262,6 @@ public class AtomicBatchNegativeTest {
             final var account1 = "foo1";
 
             final var innerTxn1 = cryptoCreate(account1)
-                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
                     .balance(ONE_HBAR)
                     .txnId(innerTxnId1)
                     .batchKey(batchOperator)
@@ -294,13 +289,11 @@ public class AtomicBatchNegativeTest {
             final var account2 = "foo2";
 
             final var innerTxn1 = cryptoCreate(account1)
-                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
                     .balance(ONE_HBAR)
                     .txnId(innerTxnId1)
                     .batchKey(batchOperator)
                     .payingWith(innerTxnPayer);
             final var innerTxn2 = cryptoCreate(account2)
-                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
                     .balance(ONE_HBAR)
                     .txnId(innerTxnId2)
                     .batchKey(batchOperator)
@@ -571,7 +564,6 @@ public class AtomicBatchNegativeTest {
             final var innerTxnId = "innerId";
             final var basicPayer = "basicPayer";
             final var innerTxn = cryptoCreate("foo1")
-                    .withProtoStructure(TxnProtoStructure.NORMALIZED)
                     .balance(ONE_HBAR)
                     .txnId(innerTxnId)
                     .batchKey(batchPayer)
