@@ -131,15 +131,19 @@ public class ThrottleParser {
      * Validates that scaled bucket capacity calculations, involving LCM and burst periods, don't overflow.
      *
      * @param throttleDefinitions The throttle definitions to validate.
-     * @throws IllegalArgumentException If scaled capacity calculation overflows.
+     * @throws HandleException If scaled capacity calculation overflows.
      */
     private void validateLeastCommonMultipleDoesNotOverflow(ThrottleDefinitions throttleDefinitions) {
-        for (var bucket : throttleDefinitions.throttleBuckets()) {
-            var lcm = leastCommonMultiple(bucket.throttleGroups());
-            final var unscaledCapacity = lcm * NTPS_PER_MTPS * CAPACITY_UNITS_PER_NANO_TXN / 1_000;
-            if (productWouldOverflow(unscaledCapacity, bucket.burstPeriodMs())) {
-                throw new HandleException(THROTTLE_GROUP_LCM_OVERFLOW);
+        try {
+            for (var bucket : throttleDefinitions.throttleBuckets()) {
+                var lcm = leastCommonMultiple(bucket.throttleGroups());
+                final var unscaledCapacity = lcm * NTPS_PER_MTPS * CAPACITY_UNITS_PER_NANO_TXN / 1_000;
+                if (productWouldOverflow(unscaledCapacity, bucket.burstPeriodMs())) {
+                    throw new ArithmeticException();
+                }
             }
+        } catch (ArithmeticException e) {
+            throw new HandleException(THROTTLE_GROUP_LCM_OVERFLOW);
         }
     }
 
