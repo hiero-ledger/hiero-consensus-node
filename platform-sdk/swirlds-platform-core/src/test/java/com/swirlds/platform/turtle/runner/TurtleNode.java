@@ -31,7 +31,6 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.BasicConfig_;
 import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -98,7 +97,6 @@ public class TurtleNode {
                 .withValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0")
                 .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory.toString())
                 .withValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory.toString())
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
 
         setupGlobalMetrics(configuration);

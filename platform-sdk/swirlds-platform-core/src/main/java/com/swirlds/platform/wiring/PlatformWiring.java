@@ -402,8 +402,6 @@ public class PlatformWiring {
         // true.
         // this ensures that only events that are not too far in the future are processed.
         futureEventBufferSplitter.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
-
-        // avoid using events as parents before they are persisted
         futureEventBufferSplitter.solderTo(
                 eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
 
