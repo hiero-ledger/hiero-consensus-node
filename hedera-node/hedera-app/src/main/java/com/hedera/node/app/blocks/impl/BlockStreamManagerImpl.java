@@ -9,6 +9,9 @@ import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
+import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
+import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
+import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadPendingBlocks;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
@@ -47,10 +50,12 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -88,6 +93,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final ForkJoinPool executor;
     private final String diskNetworkExportFile;
     private final DiskNetworkExport diskNetworkExport;
+    private final NetworkInfo networkInfo;
+    private final ConfigProvider configProvider;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final PlatformStateFacade platformStateFacade;
@@ -135,6 +142,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * Represents a block pending completion by the block hash signature needed for its block proof.
      *
      * @param number        the block number
+     * @param contentsPath  the path to the block contents file, if not null
      * @param blockHash     the block hash
      * @param proofBuilder  the block proof builder
      * @param writer        the block item writer
@@ -142,6 +150,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private record PendingBlock(
             long number,
+            @Nullable Path contentsPath,
             @NonNull Bytes blockHash,
             @NonNull BlockProof.Builder proofBuilder,
             @NonNull BlockItemWriter writer,
@@ -173,26 +182,36 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private final Map<Long, CompletableFuture<Bytes>> endRoundStateHashes = new ConcurrentHashMap<>();
 
+    /**
+     * If not null, a future to complete when the block manager's fatal shutdown process is done.
+     */
     @Nullable
     private volatile CompletableFuture<Void> fatalShutdownFuture = null;
+
+    /**
+     * False until any the node has attempted to sign any blocks pending TSS signature still on disk.
+     */
+    private boolean attemptedPendingBlockSigning = false;
 
     @Inject
     public BlockStreamManagerImpl(
             @NonNull final BlockHashSigner blockHashSigner,
             @NonNull final Supplier<BlockItemWriter> writerSupplier,
             @NonNull final ExecutorService executor,
+            @NonNull final NetworkInfo networkInfo,
             @NonNull final ConfigProvider configProvider,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
             @NonNull final PlatformStateFacade platformStateFacade) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
+        this.networkInfo = networkInfo;
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.platformStateFacade = platformStateFacade;
-        requireNonNull(configProvider);
+        this.configProvider = requireNonNull(configProvider);
         final var config = configProvider.getConfiguration();
         this.hintsEnabled = config.getConfigData(TssConfig.class).hintsEnabled();
         this.hapiVersion = hapiVersionFrom(config);
@@ -234,6 +253,29 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             return;
         }
 
+        if (hintsEnabled && !attemptedPendingBlockSigning) {
+            final var path = blockDirFor(configProvider.getConfiguration(), networkInfo.selfNodeInfo());
+            log.info("Attempting to sign any pending blocks still on disk @ {}", path.toAbsolutePath());
+            final var onDiskPendingBlocks = loadPendingBlocks(path);
+            onDiskPendingBlocks.forEach(block -> {
+                final var pendingWriter = writerSupplier.get();
+                block.items().forEach(item -> pendingWriter.writePbjItem(BlockItem.PROTOBUF.toBytes(item)));
+                final var blockHash = block.blockHash();
+                pendingBlocks.add(new PendingBlock(
+                        block.number(),
+                        block.contentsPath(),
+                        blockHash,
+                        block.proofBuilder(),
+                        pendingWriter,
+                        block.siblingHashesIfUseful()));
+                log.info("  - Recovered pending block #{}, gossiping partial signature", block.number());
+                blockHashSigner
+                        .signFuture(blockHash)
+                        .thenAcceptAsync(signature -> finishProofWithSignature(blockHash, signature));
+            });
+            attemptedPendingBlockSigning = true;
+        }
+
         // In case we hash this round, include a future for the end-of-round state hash
         endRoundStateHashes.put(round.getRoundNum(), new CompletableFuture<>());
 
@@ -251,12 +293,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
             pendingWork = classifyPendingWork(blockStreamInfo, version);
-            if (pendingWork == POST_UPGRADE_WORK && hintsEnabled) {
-                // On upgrade, we need to gossip the signatures for the freeze block
-                blockHashSigner
-                        .signFuture(lastBlockHash)
-                        .thenAcceptAsync(signature -> finishProofWithSignature(lastBlockHash, signature));
-            }
             lastHandleTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
             lastIntervalProcessTime = asInstant(blockStreamInfo.lastIntervalProcessTimeOrElse(EPOCH));
             blockHashManager.startBlock(blockStreamInfo, lastBlockHash);
@@ -378,6 +414,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .startOfBlockStateRootHash(blockStartStateHash);
             pendingBlocks.add(new PendingBlock(
                     blockNumber,
+                    null,
                     blockHash,
                     pendingProof,
                     writer,
@@ -500,6 +537,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (block.number() != blockNumber) {
                 siblingHashes.removeFirst();
             }
+            if (block.contentsPath() != null) {
+                cleanUpPendingBlock(block.contentsPath());
+            }
         }
     }
 
@@ -572,8 +612,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var elapsed = Duration.between(blockTimestamp, consensusTimeLastRound);
         return elapsed.compareTo(blockPeriod) >= 0;
     }
-
-    private void reloadPendingBlocks() {}
 
     class BlockStreamManagerTask {
 
