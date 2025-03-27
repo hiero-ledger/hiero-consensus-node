@@ -111,6 +111,7 @@ public final class PcesTestFilesGenerator {
 
     /**
      * Generates PCES test files based on the configured parameters.
+     * The files are written to disk to the configured location.
      *
      * @return A PcesFilesGeneratorResult containing the generated files and related information.
      * @throws IOException If an I/O error occurs.
