@@ -674,7 +674,7 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         // Then block should not be closed
-        verify(aWriter, never()).closeBlock();
+        verify(aWriter, never()).closeCompleteBlock();
 
         // When starting another round at t=3 (after period)
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1003));
@@ -682,7 +682,7 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         // Then block should be closed
-        verify(aWriter).closeBlock();
+        verify(aWriter).closeCompleteBlock();
     }
 
     @Test
@@ -710,7 +710,7 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         // Then block should not be closed
-        verify(aWriter, never()).closeBlock();
+        verify(aWriter, never()).closeCompleteBlock();
     }
 
     @Test
@@ -749,7 +749,7 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         // Then block should be closed due to freeze, even though period not elapsed
-        verify(aWriter).closeBlock();
+        verify(aWriter).closeCompleteBlock();
     }
 
     @Test
@@ -784,13 +784,13 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(1L);
         subject.startRound(round, state);
         subject.endRound(state, 1L);
-        verify(aWriter, never()).closeBlock();
+        verify(aWriter, never()).closeCompleteBlock();
 
         // Second round (mod 2)
         given(round.getRoundNum()).willReturn(2L);
         subject.startRound(round, state);
         subject.endRound(state, 2L);
-        verify(aWriter).closeBlock();
+        verify(aWriter).closeCompleteBlock();
     }
 
     private void givenSubjectWith(

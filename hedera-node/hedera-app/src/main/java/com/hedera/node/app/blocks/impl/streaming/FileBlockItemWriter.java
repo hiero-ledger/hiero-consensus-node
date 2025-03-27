@@ -4,10 +4,12 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.schema.BlockSchema;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -21,6 +23,8 @@ import java.math.BigInteger;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.function.UnaryOperator;
 import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,8 +36,8 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     private static final Logger logger = LogManager.getLogger(FileBlockItemWriter.class);
 
-    /** The file extension for block files. */
-    private static final String RECORD_EXTENSION = "blk";
+    /** The file extension for complete block files. */
+    private static final String COMPLETE_BLOCK_EXTENSION = "blk";
 
     /** The suffix added to RECORD_EXTENSION when they are compressed. */
     private static final String COMPRESSION_ALGORITHM_EXTENSION = ".gz";
@@ -43,6 +47,16 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     /** The node-specific path to the directory where block files are written */
     private final Path nodeScopedBlockDir;
+
+    /**
+     * Converts a base block number file name to the name of a complete block file.
+     */
+    private final UnaryOperator<String> completeFileName;
+
+    /**
+     * Converts a base block number file name to the name of a pending block file.
+     */
+    private final UnaryOperator<String> pendingFileName;
 
     /** The file output stream we are writing to, which writes to the configured block file path */
     private WritableStreamingData writableStreamingData;
@@ -85,15 +99,21 @@ public class FileBlockItemWriter implements BlockItemWriter {
         // Compute directory for block files
         final Path blockDir = fileSystem.getPath(blockStreamConfig.blockFileDir());
         nodeScopedBlockDir = blockDir.resolve("block-" + asAccountString(nodeInfo.accountId()));
+
+        this.completeFileName =
+                name -> name + "." + COMPLETE_BLOCK_EXTENSION + (compressFiles ? COMPRESSION_ALGORITHM_EXTENSION : "");
+        this.pendingFileName = name -> name + ".pnd" + (compressFiles ? COMPRESSION_ALGORITHM_EXTENSION : "");
     }
 
+    public record OnDiskPendingBlock(List<BlockItem> items, PendingProof pendingProof) {}
+
     @Override
-    public void openBlock(long blockNumber) {
+    public void openBlock(final long blockNumber) {
         if (state == State.OPEN) throw new IllegalStateException("Cannot initialize a FileBlockItemWriter twice");
         if (blockNumber < 0) throw new IllegalArgumentException("Block number must be non-negative");
 
         this.blockNumber = blockNumber;
-        final var blockFilePath = getBlockFilePath(blockNumber);
+        final var blockFilePath = pathOf(blockNumber, completeFileName);
         OutputStream out = null;
         try {
             if (!Files.exists(nodeScopedBlockDir)) {
@@ -149,7 +169,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void closeBlock() {
+    public void closeCompleteBlock() {
         if (state.ordinal() < State.OPEN.ordinal()) {
             throw new IllegalStateException("Cannot close a FileBlockItemWriter that is not open");
         } else if (state.ordinal() == State.CLOSED.ordinal()) {
@@ -165,7 +185,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             }
 
             // Write a .mf file to indicate that the block file is complete.
-            final Path markerFile = getBlockFilePath(blockNumber).resolveSibling(longToFileName(blockNumber) + ".mf");
+            final Path markerFile = pathOf(blockNumber, name -> name + ".mf");
             if (Files.exists(markerFile)) {
                 logger.info("Skipping block marker file for {} as it already exists", markerFile);
             } else {
@@ -177,6 +197,36 @@ public class FileBlockItemWriter implements BlockItemWriter {
         }
     }
 
+    @Override
+    public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
+        requireNonNull(pendingProof);
+        if (state == State.OPEN) {
+            try {
+                writableStreamingData.close();
+                writableStreamingData.flush();
+                Files.move(pathOf(blockNumber, completeFileName), pathOf(blockNumber, pendingFileName));
+            } catch (IOException e) {
+                logger.error("Error flushing pending block #{}", blockNumber, e);
+            } finally {
+                state = State.CLOSED;
+            }
+            final var json = PendingProof.JSON.toJSON(pendingProof);
+            try {
+                Files.writeString(pathOf(blockNumber, name -> name + ".pnd.json"), json);
+            } catch (IOException e) {
+                logger.error("Error flushing pending proof metadata #{}", blockNumber, e);
+                if (pathOf(blockNumber, completeFileName).toFile().delete()) {
+                    logger.warn("Cleaned up flushed complete block");
+                }
+                if (pathOf(blockNumber, pendingFileName).toFile().delete()) {
+                    logger.warn("Cleaned up flushed pending block");
+                }
+            }
+        } else {
+            logger.warn("Block #{} flushed in non-OPEN state '{}'", blockNumber, state, new IllegalStateException());
+        }
+    }
+
     /**
      * Get the path for a block file with the block number.
      *
@@ -184,9 +234,8 @@ public class FileBlockItemWriter implements BlockItemWriter {
      * @return Path to a block file for that block number
      */
     @NonNull
-    private Path getBlockFilePath(final long blockNumber) {
-        return nodeScopedBlockDir.resolve(longToFileName(blockNumber) + "." + RECORD_EXTENSION
-                + (compressFiles ? COMPRESSION_ALGORITHM_EXTENSION : ""));
+    private Path pathOf(final long blockNumber, @NonNull final UnaryOperator<String> nameFn) {
+        return nodeScopedBlockDir.resolve(nameFn.apply(longToFileName(blockNumber)));
     }
 
     /**
