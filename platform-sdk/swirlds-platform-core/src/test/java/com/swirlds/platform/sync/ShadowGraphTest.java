@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.sync;
 
-import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
-import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION;
+import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
+import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -12,23 +12,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.shadowgraph.ReservedEventWindow;
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphInsertionException;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterFactory;
+import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.sync.SyncTestUtils;
 import java.time.Instant;
@@ -44,6 +37,10 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -62,7 +59,6 @@ class ShadowgraphTest {
     private Map<Long, Set<ShadowEvent>> genToShadows;
     private long maxGen;
     private StandardEventEmitter emitter;
-    private Roster roster;
 
     private static Stream<Arguments> graphSizes() {
         return Stream.of(
@@ -82,15 +78,14 @@ class ShadowgraphTest {
     }
 
     private void initShadowgraph(final Random random, final int numEvents, final int numNodes) {
-        roster = RandomRosterBuilder.create(random).withSize(numNodes).build();
-
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final EventEmitterFactory factory =
-                new EventEmitterFactory(platformContext, random, RosterUtils.buildAddressBook(roster));
-        emitter = factory.newStandardEmitter();
-        shadowgraph = new Shadowgraph(platformContext, roster.rosterEntries().size(), new NoOpIntakeEventCounter());
+        emitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(random.nextLong())
+                .setNumNodes(numNodes)
+                .build();
+        shadowgraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
         shadowgraph.updateEventWindow(EventWindow.getGenesisEventWindow(GENERATION_THRESHOLD));
 
         for (int i = 0; i < numEvents; i++) {
@@ -702,15 +697,14 @@ class ShadowgraphTest {
         final int numRuns = 10;
 
         final Random random = RandomUtils.getRandomPrintSeed();
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(numNodes).build();
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final EventEmitterFactory factory =
-                new EventEmitterFactory(platformContext, random, RosterUtils.buildAddressBook(roster));
-        emitter = factory.newStandardEmitter();
-        shadowgraph = new Shadowgraph(platformContext, roster.rosterEntries().size(), new NoOpIntakeEventCounter());
+        emitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(random.nextLong())
+                .setNumNodes(numNodes)
+                .build();
+        shadowgraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
         for (int i = 0; i < numEvents; i++) {
             shadowgraph.addEvent(emitter.emitEvent().getBaseEvent());
         }

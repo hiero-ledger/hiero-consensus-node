@@ -17,6 +17,7 @@ import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
@@ -24,6 +25,7 @@ import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -280,10 +282,20 @@ public enum TransactionExecutors {
                 entityIdFactory);
         final var contractService = new ContractServiceImpl(
                 appContext, NO_OP_METRICS, NOOP_VERIFICATION_STRATEGIES, tracerBinding, customOps);
+        final var utilService = new UtilServiceImpl(appContext, (signedTxn, config) -> componentRef
+                .get()
+                .transactionChecker()
+                .parseSignedAndCheck(
+                        signedTxn, config.getConfigData(HederaConfig.class).nodeTransactionMaxBytes())
+                .txBody());
         final var fileService = new FileServiceImpl();
         final var scheduleService = new ScheduleServiceImpl(appContext);
-        final var hintsService =
-                new HintsServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl());
+        final var hintsService = new HintsServiceImpl(
+                NO_OP_METRICS,
+                ForkJoinPool.commonPool(),
+                appContext,
+                new HintsLibraryImpl(),
+                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
         final var historyService = new HistoryServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig);
         final var component = DaggerExecutorComponent.builder()
@@ -294,6 +306,7 @@ public enum TransactionExecutors {
                 .fileServiceImpl(fileService)
                 .scheduleService(scheduleService)
                 .contractServiceImpl(contractService)
+                .utilServiceImpl(utilService)
                 .scheduleServiceImpl(scheduleService)
                 .hintsService(hintsService)
                 .historyService(historyService)

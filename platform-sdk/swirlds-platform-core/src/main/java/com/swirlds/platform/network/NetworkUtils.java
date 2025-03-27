@@ -4,7 +4,6 @@ package com.swirlds.platform.network;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.Utilities;
@@ -26,6 +25,7 @@ import javax.net.ssl.SSLException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import org.hiero.consensus.model.node.NodeId;
 
 public final class NetworkUtils {
     private static final Logger logger = LogManager.getLogger(NetworkUtils.class);

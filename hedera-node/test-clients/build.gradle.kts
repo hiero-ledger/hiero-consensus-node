@@ -83,7 +83,7 @@ val prCheckTags =
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestIss" to "ISS",
         "hapiTestMisc" to
-            "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS)",
+            "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE_SIMULATOR)",
     )
 val prCheckStartPorts =
     mapOf(
@@ -99,17 +99,88 @@ val prCheckStartPorts =
     )
 val prCheckPropOverrides =
     mapOf(
-        "hapiTestAdhoc" to "tss.hintsEnabled=true,blockStream.blockPeriod=3s",
-        "hapiTestCrypto" to "tss.hintsEnabled=true,blockStream.blockPeriod=3s",
+        "hapiTestAdhoc" to
+            "tss.hintsEnabled=true,tss.historyEnabled=false,blockStream.blockPeriod=1s",
+        "hapiTestCrypto" to "tss.hintsEnabled=true,blockStream.blockPeriod=1s",
+        "hapiTestSmartContract" to "tss.historyEnabled=false",
     )
-val prCheckPrepareUpgradeOffsets =
-    mapOf("hapiTestAdhoc" to "PT30S", "hapiTestSmartContract" to "PT30M")
+val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT30S")
 val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "0", "hapiTestSmartContract" to "0")
 // Use to override the default network size for a specific test task
-val prCheckNetSizeOverrides = mapOf("hapiTestToken" to "3")
+val prCheckNetSizeOverrides =
+    mapOf("hapiTestAdhoc" to "2", "hapiTestToken" to "3", "hapiTestSmartContract" to "4")
 
 tasks {
     prCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testSubprocess") } }
+}
+
+tasks.register<Test>("testSubprocessWithBlockNodeSimulator") {
+    testClassesDirs = sourceSets.main.get().output.classesDirs
+    classpath = sourceSets.main.get().runtimeClasspath
+
+    // Choose a different initial port for each test task if running as PR check
+    val initialPort =
+        gradle.startParameter.taskNames
+            .stream()
+            .map { prCheckStartPorts[it] ?: "" }
+            .filter { it.isNotBlank() }
+            .findFirst()
+            .orElse("")
+    systemProperty("hapi.spec.initial.port", initialPort)
+
+    val ciTagExpression =
+        gradle.startParameter.taskNames
+            .stream()
+            .map { prCheckTags[it] ?: "" }
+            .filter { it.isNotBlank() }
+            .toList()
+            .joinToString("|")
+    // Use the same configuration as testSubprocess
+    useJUnitPlatform {
+        includeTags(
+            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
+            // We don't want to run typical stream or log validation for an ISS case
+            else if (ciTagExpression.contains("ISS")) "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
+            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
+        )
+    }
+
+    // Set the block node mode to simulator
+    systemProperty("hapi.spec.blocknode.mode", "SIM")
+
+    // Default to false for manyToOne mode, can be overridden with
+    // -Dhapi.spec.blocknode.simulator.manyToOne=true
+    systemProperty(
+        "hapi.spec.blocknode.simulator.manyToOne",
+        System.getProperty("hapi.spec.blocknode.simulator.manyToOne") ?: "false",
+    )
+
+    // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
+    systemProperty(
+        "hapi.spec.quiet.mode",
+        System.getProperty("hapi.spec.quiet.mode")
+            ?: if (ciTagExpression.isNotBlank()) "true" else "false",
+    )
+    systemProperty("junit.jupiter.execution.parallel.enabled", true)
+    systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
+    // Surprisingly, the Gradle JUnitPlatformTestExecutionListener fails to gather result
+    // correctly if test classes run in parallel (concurrent execution WITHIN a test class
+    // is fine). So we need to force the test classes to run in the same thread. Luckily this
+    // is not a huge limitation, as our test classes generally have enough non-leaky tests to
+    // get a material speed up. See https://github.com/gradle/gradle/issues/6453.
+    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "same_thread")
+    systemProperty(
+        "junit.jupiter.testclass.order.default",
+        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
+    )
+
+    // Limit heap and number of processors
+    maxHeapSize = "8g"
+    jvmArgs("-XX:ActiveProcessorCount=6")
+    maxParallelForks = 1
+
+    // Do not yet run things on the '--module-path'
+    modularity.inferModulePath.set(false)
 }
 
 tasks.register<Test>("testSubprocess") {

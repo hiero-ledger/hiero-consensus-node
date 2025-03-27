@@ -3,11 +3,11 @@ package com.swirlds.platform.test.fixtures.consensus;
 
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -19,11 +19,8 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.hashing.DefaultEventHasher;
 import com.swirlds.platform.event.hashing.EventHasher;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
@@ -31,15 +28,17 @@ import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
-import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.roster.RosterRetriever;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.LinkedList;
 import java.util.List;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Event intake with consensus and shadowgraph, used for testing
@@ -56,9 +55,9 @@ public class TestIntake {
 
     /**
      * @param platformContext the platform context used to configure this intake.
-     * @param addressBook     the address book used by this intake
+     * @param roster     the roster used by this intake
      */
-    public TestIntake(@NonNull final PlatformContext platformContext, @NonNull final AddressBook addressBook) {
+    public TestIntake(@NonNull final PlatformContext platformContext, @NonNull final Roster roster) {
         final NodeId selfId = NodeId.of(0);
         roundsNonAncient = platformContext
                 .getConfiguration()
@@ -85,8 +84,7 @@ public class TestIntake {
         orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, directScheduler("orphanBuffer"));
         orphanBufferWiring.bind(orphanBuffer);
 
-        final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(platformContext, RosterRetriever.buildRoster(addressBook), selfId);
+        final ConsensusEngine consensusEngine = new DefaultConsensusEngine(platformContext, roster, selfId);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, directScheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);

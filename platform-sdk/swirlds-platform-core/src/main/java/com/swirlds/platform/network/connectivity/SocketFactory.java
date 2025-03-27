@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.connectivity;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import com.swirlds.platform.network.PeerInfo;
@@ -15,6 +14,7 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Objects;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Creates, binds and connects server and client sockets

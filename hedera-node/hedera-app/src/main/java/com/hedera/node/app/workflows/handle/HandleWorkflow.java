@@ -18,9 +18,9 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
 import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
@@ -79,12 +79,9 @@ import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -102,6 +99,9 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * The handle workflow that is responsible for handling the next {@link Round} of transactions.
@@ -473,10 +473,10 @@ public class HandleWorkflow {
             // we must ensure that even if the last scheduled execution time is followed by the maximum
             // number of child transactions, the last child's assigned time will be strictly before the
             // first of the next consensus time's possible preceding children; that is, strictly before
-            // (now + separationNanos) - (maxAfter + maxBefore + 1)
+            // (now + separationNanos - reservedSystemTxnNanos) - (maxAfter + maxBefore + 1)
             final var lastUsableTime = consensusNow.plusNanos(schedulingConfig.consTimeSeparationNanos()
-                    - consensusConfig.handleMaxPrecedingRecords()
-                    - (consensusConfig.handleMaxFollowingRecords() + 1));
+                    - schedulingConfig.reservedSystemTxnNanos()
+                    - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
             // The first possible time for the next execution is strictly after the last execution time
             // consumed for the triggering user transaction; plus the maximum number of preceding children
             var nextTime = boundaryStateChangeListener
@@ -488,8 +488,7 @@ public class HandleWorkflow {
             final var iter = scheduleService.executableTxns(
                     executionStart,
                     consensusNow,
-                    StoreFactoryImpl.from(
-                            state, ScheduleService.NAME, config, writableEntityIdStore, softwareVersionFactory));
+                    StoreFactoryImpl.from(state, ScheduleService.NAME, config, writableEntityIdStore));
 
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
             // Configuration sets a maximum number of execution slots per user transaction
@@ -648,8 +647,6 @@ public class HandleWorkflow {
                 if (parentTxn.type() == POST_UPGRADE_TRANSACTION) {
                     logger.info("Doing post-upgrade setup @ {}", parentTxn.consensusNow());
                     systemTransactions.doPostUpgradeSetup(dispatch);
-                    // Only for 0.59.0 we need to update the entity ID store entity counts
-                    systemTransactions.initializeEntityCounts(dispatch);
                     if (streamMode != RECORDS) {
                         blockStreamManager.confirmPendingWorkFinished();
                     }

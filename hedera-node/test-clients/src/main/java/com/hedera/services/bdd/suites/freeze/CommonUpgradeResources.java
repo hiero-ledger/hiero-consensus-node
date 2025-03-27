@@ -37,7 +37,7 @@ public final class CommonUpgradeResources {
     }
 
     public static String upgradeFileId() {
-        return settings.getProperty("upgradeFileId", DEFAULT_UPGRADE_FILE_ID);
+        return DEFAULT_UPGRADE_FILE_ID;
     }
 
     public static String upgradeFilePath() {

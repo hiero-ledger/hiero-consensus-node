@@ -69,8 +69,6 @@ class HistoryProofVoteHandlerTest {
     @Test
     void handleIsNoopWithoutActiveConstruction() {
         givenVoteWith(1L, HistoryProofVote.DEFAULT);
-        given(context.creatorInfo()).willReturn(nodeInfo);
-        given(nodeInfo.nodeId()).willReturn(NODE_ID);
 
         subject.handle(context);
 

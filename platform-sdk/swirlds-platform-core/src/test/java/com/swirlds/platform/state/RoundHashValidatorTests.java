@@ -11,8 +11,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.test.fixtures.GaussianWeightGenerator;
+import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.platform.metrics.IssMetrics;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -34,6 +36,7 @@ import org.mockito.Mockito;
 
 @DisplayName("RoundHashValidator Tests")
 class RoundHashValidatorTests {
+    private static final WeightGenerator WEIGHT_GENERATOR = new GaussianWeightGenerator(100, 50);
 
     static Stream<Arguments> args() {
         return Stream.of(
@@ -82,14 +85,12 @@ class RoundHashValidatorTests {
     }
 
     /**
-     * Generate node hashes without there being a catastrophic ISS.
+     * Generate node hashes that contain an ISS without there being a catastrophic ISS.
      */
     static HashGenerationData generateRegularNodeHashes(final Random random, final Roster roster, final long round) {
 
         // Greater than 1/2 must have the same hash. But all other nodes are free to take whatever other hash
         // they want. Choose that fraction randomly.
-
-        final List<NodeHashInfo> nodes = new LinkedList<>();
 
         final List<NodeId> randomNodeOrder = new LinkedList<>();
         roster.rosterEntries().forEach(node -> randomNodeOrder.add(NodeId.of(node.nodeId())));
@@ -134,6 +135,7 @@ class RoundHashValidatorTests {
 
         // Now, decide what order the hashes should be processed. Make sure that the
         // consensus hash is the first to reach a strong minority.
+        final List<NodeHashInfo> nodes = new LinkedList<>();
         while (nodes.size() < roster.rosterEntries().size()) {
             final double choice = random.nextDouble();
 
@@ -152,6 +154,9 @@ class RoundHashValidatorTests {
                     final NodeId nodeId = otherHashNodes.get(0);
                     final long weight = nodesById.get(nodeId.id()).weight();
 
+                    // TODO - this if statement seems redundant because in the above block,
+                    //  the set of correctHashNodes nodes is guaranteed to be a majority of
+                    //  weight. Come back later and try removing it
                     if (MAJORITY.isSatisfiedBy(otherHashWeight + weight, totalWeight)) {
                         // We don't want to allow the other hash to accumulate >1/2
                         continue;
@@ -251,8 +256,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withAverageWeight(100)
-                .withWeightStandardDeviation(50)
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, expectedStatus, 0);
@@ -298,8 +302,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withAverageWeight(100)
-                .withWeightStandardDeviation(50)
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, expectedStatus, 0);
@@ -343,8 +346,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withAverageWeight(100)
-                .withWeightStandardDeviation(50)
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, expectedStatus, 0);
@@ -394,8 +396,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withAverageWeight(100)
-                .withWeightStandardDeviation(50)
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, HashValidityStatus.VALID, 0);
@@ -427,8 +428,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withAverageWeight(100)
-                .withWeightStandardDeviation(50)
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
         final long totalWeight = RosterUtils.computeTotalWeight(roster);
 
@@ -467,8 +467,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withAverageWeight(100)
-                .withWeightStandardDeviation(50)
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
         final long totalWeight = RosterUtils.computeTotalWeight(roster);
 
@@ -511,8 +510,7 @@ class RoundHashValidatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(Math.max(10, random.nextInt(1000)))
-                .withAverageWeight(100)
-                .withWeightStandardDeviation(50)
+                .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
         final long totalWeight = RosterUtils.computeTotalWeight(roster);
 

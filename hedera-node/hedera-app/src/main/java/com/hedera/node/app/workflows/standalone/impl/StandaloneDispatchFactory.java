@@ -55,8 +55,6 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
-import com.swirlds.platform.system.transaction.TransactionWrapper;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -66,6 +64,8 @@ import java.util.List;
 import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**
  * Constructs a {@link Dispatch} appropriate for a standalone transaction executor that does not want to enforce
@@ -144,14 +144,13 @@ public class StandaloneDispatchFactory {
                 new BoundaryStateChangeListener(storeMetricsService, () -> config),
                 new KVStateChangeListener(),
                 blockStreamConfig.streamMode());
-        final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
+        final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
         final var consensusTransaction = consensusTransactionFor(transactionBody);
         final var creatorInfo = creatorInfoFor(transactionBody);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
                 creatorInfo, consensusTransaction, readableStoreFactory, ignore -> {});
-        final var tokenContext =
-                new TokenContextImpl(config, stack, consensusNow, entityIdStore, softwareVersionFactory);
+        final var tokenContext = new TokenContextImpl(config, stack, consensusNow, entityIdStore);
         final var txnInfo = requireNonNull(preHandleResult.txInfo());
         final var writableStoreFactory =
                 new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);

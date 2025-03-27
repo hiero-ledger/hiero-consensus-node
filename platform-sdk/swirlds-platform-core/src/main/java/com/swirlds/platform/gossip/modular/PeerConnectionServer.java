@@ -4,7 +4,6 @@ package com.swirlds.platform.gossip.modular;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.interrupt.InterruptableRunnable;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.connectivity.InboundConnectionHandler;
@@ -20,6 +19,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
 
 /**
  * Listens on a server socket for incoming connections. All new connections are passed on to the supplied handler.

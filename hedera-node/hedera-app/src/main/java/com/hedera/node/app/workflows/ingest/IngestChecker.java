@@ -18,8 +18,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -52,6 +52,7 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -183,7 +184,7 @@ public final class IngestChecker {
      * Runs all the ingest checks on a {@link Transaction}
      *
      * @param state the {@link State} to use
-     * @param serializedTransaction the {@link Bytes} of the {@link Transaction} to check
+     * @param serializedTransaction the {@link Transaction} to check
      * @param configuration the {@link Configuration} to use
      * @return the {@link TransactionInfo} with the extracted information
      * @throws PreCheckException if a check fails
@@ -197,7 +198,7 @@ public final class IngestChecker {
         final var consensusTime = instantSource.instant();
 
         // 1. Check the syntax
-        final int maxBytes = configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
+        final var maxBytes = maxIngestParseSize(configuration);
         final var txInfo = transactionChecker.parseAndCheck(serializedTransaction, maxBytes);
         final var txBody = txInfo.txBody();
         final var functionality = txInfo.functionality();
@@ -233,7 +234,7 @@ public final class IngestChecker {
         dispatcher.dispatchPureChecks(pureChecksContext);
 
         // 5. Get payer account
-        final var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        final var storeFactory = new ReadableStoreFactory(state);
         final var payer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
         final var payerKey = payer.key();
         // There should, absolutely, be a key for this account. If there isn't, then something is wrong in
@@ -265,6 +266,16 @@ public final class IngestChecker {
         solvencyPreCheck.checkSolvency(txInfo, payer, fees, INGEST);
 
         return txInfo;
+    }
+
+    private static int maxIngestParseSize(Configuration configuration) {
+        final var jumboTxnEnabled =
+                configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
+        final var jumboMaxTxnSize =
+                configuration.getConfigData(JumboTransactionsConfig.class).maxTxnSize();
+        final var transactionMaxBytes =
+                configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
+        return jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
     }
 
     private void assertThrottlingPreconditions(

@@ -13,7 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -92,8 +92,7 @@ public class ScheduleServiceFeesSuite {
                         .payingWith(OTHER_PAYER)
                         .signedBy(OTHER_PAYER)
                         .via("getScheduleInfoBasic"),
-                // Handle the query payment
-                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleNextRound()),
+                handleAnyRepeatableQueryPayment(),
                 validateChargedUsdWithin("canonicalCreation", BASE_FEE_SCHEDULE_CREATE, 3.0),
                 validateChargedUsdWithin("canonicalSigning", BASE_FEE_SCHEDULE_SIGN, 3.0),
                 validateChargedUsdWithin("canonicalDeletion", BASE_FEE_SCHEDULE_DELETE, 3.0),

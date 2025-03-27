@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream;
 
-import com.swirlds.common.crypto.Hash;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * A record used to override the running event hash on various components when a new state is loaded (i.e. after a

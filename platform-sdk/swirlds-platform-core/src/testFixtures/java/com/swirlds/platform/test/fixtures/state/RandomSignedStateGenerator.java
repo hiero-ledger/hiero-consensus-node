@@ -9,6 +9,7 @@ import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHa
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 import static org.mockito.Mockito.spy;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -17,11 +18,10 @@ import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -29,12 +29,8 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder.WeightDistributionStrategy;
 import com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -48,6 +44,9 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * A utility for generating random signed states.
@@ -69,7 +68,7 @@ public class RandomSignedStateGenerator {
     private Roster roster;
     private Instant consensusTimestamp;
     private Boolean freezeState = false;
-    private SoftwareVersion softwareVersion;
+    private SemanticVersion softwareVersion;
     private List<NodeId> signingNodeIds;
     private Map<NodeId, Signature> signatures;
     private Hash stateHash = null;
@@ -121,15 +120,16 @@ public class RandomSignedStateGenerator {
         final Roster rosterInstance;
         if (roster == null) {
             rosterInstance = RandomRosterBuilder.create(random)
-                    .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                    .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
                     .build();
         } else {
             rosterInstance = roster;
         }
 
-        final SoftwareVersion softwareVersionInstance;
+        final SemanticVersion softwareVersionInstance;
         if (softwareVersion == null) {
-            softwareVersionInstance = new BasicSoftwareVersion(random.nextInt(1, 100));
+            softwareVersionInstance =
+                    SemanticVersion.newBuilder().major(random.nextInt(1, 100)).build();
         } else {
             softwareVersionInstance = softwareVersion;
         }
@@ -143,7 +143,7 @@ public class RandomSignedStateGenerator {
             roundInstance = round;
         }
 
-        TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade((v -> softwareVersionInstance));
+        TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
         if (state == null) {
             if (useBlockingState) {
                 stateInstance = new BlockingState(platformStateFacade);
@@ -196,7 +196,7 @@ public class RandomSignedStateGenerator {
                             .mapToObj(i -> new MinimumJudgeInfo(roundInstance - i, 0L))
                             .toList(),
                     roundInstance,
-                    PbjConverter.toPbjTimestamp(consensusTimestampInstance));
+                    CommonUtils.toPbjTimestamp(consensusTimestampInstance));
         } else {
             consensusSnapshotInstance = consensusSnapshot;
         }
@@ -205,7 +205,7 @@ public class RandomSignedStateGenerator {
         platformStateFacade.bulkUpdateOf(stateInstance, v -> {
             v.setSnapshot(consensusSnapshotInstance);
             v.setLegacyRunningEventHash(legacyRunningEventHashInstance);
-            v.setCreationSoftwareVersion(softwareVersionInstance.getPbjSemanticVersion());
+            v.setCreationSoftwareVersion(softwareVersionInstance);
             v.setRoundsNonAncient(roundsNonAncientInstance);
             v.setConsensusTimestamp(consensusTimestampInstance);
         });
@@ -363,7 +363,7 @@ public class RandomSignedStateGenerator {
      *
      * @return this object
      */
-    public RandomSignedStateGenerator setSoftwareVersion(final SoftwareVersion softwareVersion) {
+    public RandomSignedStateGenerator setSoftwareVersion(final SemanticVersion softwareVersion) {
         this.softwareVersion = softwareVersion;
         return this;
     }

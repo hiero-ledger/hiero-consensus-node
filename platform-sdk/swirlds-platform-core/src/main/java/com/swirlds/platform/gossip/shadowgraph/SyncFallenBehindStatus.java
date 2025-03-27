@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
-import com.swirlds.platform.consensus.EventWindow;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 public enum SyncFallenBehindStatus {
     NONE_FALLEN_BEHIND,

@@ -70,7 +70,6 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -87,6 +86,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
 
 @Singleton
 public class ParentTxnFactory {
@@ -193,7 +193,7 @@ public class ParentTxnFactory {
         requireNonNull(type);
         final var config = configProvider.getConfiguration();
         final var stack = createRootSavepointStack(state, type);
-        final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
+        final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
                 creatorInfo, platformTxn, readableStoreFactory, stateSignatureTxnCallback);
         final var txnInfo = preHandleResult.txInfo();
@@ -205,11 +205,7 @@ public class ParentTxnFactory {
             return null;
         }
         final var tokenContext = new TokenContextImpl(
-                config,
-                stack,
-                consensusNow,
-                new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME)),
-                softwareVersionFactory);
+                config, stack, consensusNow, new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME)));
         return new ParentTxn(
                 type,
                 txnInfo.functionality(),
@@ -250,12 +246,12 @@ public class ParentTxnFactory {
         requireNonNull(body);
         final var config = configProvider.getConfiguration();
         final var stack = createRootSavepointStack(state, type);
-        final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
+        final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var functionality = functionOfTxn(body);
-        final var preHandleResult = preHandleSystemTransaction(body, payerId, config, readableStoreFactory);
+        final var preHandleResult =
+                preHandleSystemTransaction(body, payerId, config, readableStoreFactory, creatorInfo);
         final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
-        final var tokenContext =
-                new TokenContextImpl(config, stack, consensusNow, entityIdStore, softwareVersionFactory);
+        final var tokenContext = new TokenContextImpl(config, stack, consensusNow, entityIdStore);
         return new ParentTxn(
                 type,
                 functionality,
@@ -331,7 +327,7 @@ public class ParentTxnFactory {
         final var tokenContextImpl = parentTxn.tokenContextImpl();
         final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
 
-        final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
+        final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var entityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);
         final var writableStoreFactory =
                 new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);
@@ -437,7 +433,8 @@ public class ParentTxnFactory {
             @NonNull final TransactionBody body,
             @NonNull final AccountID payerId,
             @NonNull final Configuration config,
-            @NonNull final ReadableStoreFactory readableStoreFactory) {
+            @NonNull final ReadableStoreFactory readableStoreFactory,
+            @NonNull final NodeInfo creatorInfo) {
         // Until system entities exist, we can skip everything here
         if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
             return new PreHandleResult(
@@ -457,7 +454,7 @@ public class ParentTxnFactory {
             final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             final var preHandleContext = new PreHandleContextImpl(
-                    readableStoreFactory, body, payerId, config, dispatcher, transactionChecker);
+                    readableStoreFactory, body, payerId, config, dispatcher, transactionChecker, creatorInfo);
             dispatcher.dispatchPreHandle(preHandleContext);
             final var txInfo = getTxnInfoFrom(payerId, body);
             return new PreHandleResult(

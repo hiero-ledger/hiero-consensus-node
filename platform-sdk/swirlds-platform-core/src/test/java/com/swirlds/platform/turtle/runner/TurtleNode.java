@@ -7,6 +7,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupG
 import static com.swirlds.platform.state.signed.StartupStateUtils.getInitialState;
 import static com.swirlds.platform.turtle.runner.TurtleConsensusStateEventHandler.TURTLE_CONSENSUS_STATE_EVENT_HANDLER;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig_;
@@ -14,7 +15,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.component.ComponentWiring;
@@ -31,7 +31,6 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.BasicConfig_;
 import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.internal.ConsensusRound;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.BasicSoftwareVersion;
@@ -49,6 +48,8 @@ import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.List;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Encapsulates a single node running in a TURTLE network.
@@ -109,8 +110,8 @@ public class TurtleNode {
                 .withDeterministicModeEnabled(true)
                 .build();
         final SoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
-        final PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> softwareVersion);
-        final var version = new BasicSoftwareVersion(1);
+        final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
+        final var version = SemanticVersion.newBuilder().major(1).build();
         MerkleDb.resetDefaultInstancePath();
         final var metrics = getMetricsProvider().createPlatformMetrics(nodeId);
         final var fileSystemManager = FileSystemManager.create(configuration);
@@ -119,7 +120,7 @@ public class TurtleNode {
 
         final var reservedState = getInitialState(
                 recycleBin,
-                version.getPbjSemanticVersion(),
+                version,
                 TurtleTestingToolState::getStateRootNode,
                 "foo",
                 "bar",

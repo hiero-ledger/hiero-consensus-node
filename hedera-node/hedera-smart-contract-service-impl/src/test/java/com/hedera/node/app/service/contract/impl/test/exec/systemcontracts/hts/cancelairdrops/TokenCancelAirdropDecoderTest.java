@@ -25,11 +25,9 @@ import static org.mockito.Mockito.lenient;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.PendingAirdropId;
-import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.cancelairdrops.TokenCancelAirdropDecoder;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
+import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
@@ -37,24 +35,12 @@ import java.util.ArrayList;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-class TokenCancelAirdropDecoderTest {
+class TokenCancelAirdropDecoderTest extends CallAttemptTestBase {
 
     @Mock
     private HtsCallAttempt attempt;
-
-    @Mock
-    private AddressIdConverter addressIdConverter;
-
-    @Mock
-    private Enhancement enhancement;
-
-    @Mock
-    private HederaNativeOperations nativeOperations;
 
     @Mock
     private Configuration configuration;
@@ -70,8 +56,7 @@ class TokenCancelAirdropDecoderTest {
 
         lenient().when(attempt.addressIdConverter()).thenReturn(addressIdConverter);
         lenient().when(attempt.configuration()).thenReturn(configuration);
-        lenient().when(attempt.enhancement()).thenReturn(enhancement);
-        lenient().when(enhancement.nativeOperations()).thenReturn(nativeOperations);
+        lenient().when(attempt.enhancement()).thenReturn(mockEnhancement());
         lenient().when(configuration.getConfigData(TokensConfig.class)).thenReturn(tokensConfig);
     }
 
@@ -79,7 +64,7 @@ class TokenCancelAirdropDecoderTest {
     void cancelAirdropDecoder1FTTest() {
         // given:
         given(tokensConfig.maxAllowedPendingAirdropsToCancel()).willReturn(10);
-        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID)).willReturn(FUNGIBLE_TOKEN);
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
@@ -130,7 +115,7 @@ class TokenCancelAirdropDecoderTest {
     void failsIfTokenIsNull() {
         // given:
         given(tokensConfig.maxAllowedPendingAirdropsToCancel()).willReturn(10);
-        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(null);
+        given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID)).willReturn(null);
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
@@ -153,7 +138,7 @@ class TokenCancelAirdropDecoderTest {
     void cancelAirdropDecoder1NFTTest() {
         // given:
         given(tokensConfig.maxAllowedPendingAirdropsToCancel()).willReturn(10);
-        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID.tokenNum())).willReturn(NON_FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(NON_FUNGIBLE_TOKEN);
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);

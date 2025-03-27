@@ -27,7 +27,7 @@ val jackson = "2.18.3"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
 val mockito = "5.16.0"
-val pbj = "0.9.20" // ATTENTION: keep in sync with plugin version in 'hapi/build.gradle.kts'
+val pbj = "0.10.0" // ATTENTION: keep in sync with plugin version in 'hapi/build.gradle.kts'
 val protobuf = "4.30.0"
 val testContainers = "1.20.6"
 val tuweni = "2.4.2"
@@ -50,7 +50,7 @@ dependencies.constraints {
         because("com.fasterxml.jackson.dataformat.yaml")
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.0") { because("com.github.benmanes.caffeine") }
-    api("com.github.docker-java:docker-java-api:3.4.1") { because("com.github.dockerjava.api") }
+    api("com.github.docker-java:docker-java-api:3.4.2") { because("com.github.dockerjava.api") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.2") {
         because("com.github.spotbugs.annotations")
     }
