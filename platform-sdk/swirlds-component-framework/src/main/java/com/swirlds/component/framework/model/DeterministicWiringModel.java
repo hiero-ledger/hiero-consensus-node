@@ -5,6 +5,8 @@ import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.internal.deterministic.DeterministicHeartbeatScheduler;
 import com.swirlds.component.framework.model.internal.deterministic.DeterministicTaskSchedulerBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder;
+import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
+import com.swirlds.component.framework.schedulers.internal.SequentialThreadTaskScheduler;
 import com.swirlds.component.framework.wires.output.NoOpOutputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.metrics.api.Metrics;
@@ -135,5 +137,10 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     @Override
     public void stop() {
         throwIfNotStarted();
+        heartbeatScheduler.stop();
+        schedulers.stream()
+                .filter(s -> s.getType() == TaskSchedulerType.SEQUENTIAL_THREAD)
+                .map(t -> (SequentialThreadTaskScheduler<?>) t)
+                .forEach(SequentialThreadTaskScheduler::stop);
     }
 }
