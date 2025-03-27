@@ -21,15 +21,6 @@ public class ConsensusRoundValidator {
     private final Set<ConsensusRoundValidation> validationsForSameNode = new HashSet<>();
 
     /**
-     * Enum that defines whether a given validation needs consensus rounds coming from the same node
-     * or from different nodes
-     */
-    enum ConsensusRoundsNodeOrigin {
-        SAME,
-        DIFFERENT
-    }
-
-    /**
      * Creates a new instance of the validator with all available validations for {@link ConsensusRound}.
      */
     public ConsensusRoundValidator() {
@@ -62,10 +53,6 @@ public class ConsensusRoundValidator {
             if (rounds1.size() > 1) {
                 for (int i = 0; i < rounds1.size() - 1; i++) {
                     validation.validate(rounds1.get(i), rounds1.get(i + 1));
-                }
-            }
-            if (rounds2.size() > 1) {
-                for (int i = 0; i < rounds2.size() - 1; i++) {
                     validation.validate(rounds2.get(i), rounds2.get(i + 1));
                 }
             }

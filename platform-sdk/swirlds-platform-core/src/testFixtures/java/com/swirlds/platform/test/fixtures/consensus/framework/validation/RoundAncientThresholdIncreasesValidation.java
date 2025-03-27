@@ -32,10 +32,6 @@ public class RoundAncientThresholdIncreasesValidation implements ConsensusRoundV
                 .withFailMessage(String.format(
                         "the last threshold should be equal for the current round %d", round2.getRoundNum()))
                 .isEqualTo(thresholdInfoForRound2.round());
-        if (thresholdInfoForRound1.minimumJudgeAncientThreshold()
-                > thresholdInfoForRound2.minimumJudgeAncientThreshold()) {
-            int a = 5;
-        }
         assertThat(thresholdInfoForRound2.minimumJudgeAncientThreshold())
                 .withFailMessage("the ancient threshold should never decrease")
                 .isGreaterThanOrEqualTo(thresholdInfoForRound1.minimumJudgeAncientThreshold());

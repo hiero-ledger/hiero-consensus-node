@@ -7,6 +7,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 /**
  * Validates rounds produced by a test. The type of validation that is done depends on the implementation.
  */
+@FunctionalInterface
 public interface ConsensusRoundValidation {
 
     /**

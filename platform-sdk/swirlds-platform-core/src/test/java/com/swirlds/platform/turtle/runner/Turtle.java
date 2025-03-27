@@ -134,7 +134,7 @@ public class Turtle {
     }
 
     /**
-     * Simulate the network for a period of time. Validate the correctness of collected items at a regular interval.
+     * Simulate the network for a period of time. Validate the correctness of collected items after each tick.
      *
      * @param duration the duration to simulate
      */
@@ -154,7 +154,7 @@ public class Turtle {
 
     /**
      * Validate all commonly collected {@link ConsensusRound} instances by all nodes during Turtle execution
-     * using the suitable validator.
+     * using the configured validators.
      *
      * At the end of the validation, the specified commonly collected items are cleared to keep memory usage low.
      */
@@ -186,6 +186,11 @@ public class Turtle {
         }
     }
 
+    /**
+     * Collect rounds that reached consensus in all nodes participating in the Turtle network.
+     *
+     * @return the set of round numbers that represent rounds that reached consensus in all nodes
+     */
     private Set<Long> getCommonlyCollectedConsensusRounds() {
         final Set<Long> commonRoundNumbers = new HashSet<>(
                 nodes.getFirst().getConsensusRoundsHolder().getCollectedRounds().keySet());
