@@ -400,7 +400,12 @@ public class PlatformWiring {
 
         // consensus and event creation are gated by the future event buffer if event.useBirthRoundAncientThreshold is
         // true.
-        // this ensures that only events that are not too far in the future are processed.
+        // This ensures that only events not too far in the future are processed.
+        // It is critical for event creation, as it protects the event creator from
+        // accepting future events that could cause birth rounds to decrease from
+        // parent to child, which would violate invariants. For consensus processing,
+        // this serves as an optimization to avoid wasting resources on events that
+        // are not yet relevant.
         futureEventBufferSplitter.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
         futureEventBufferSplitter.solderTo(
                 eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
