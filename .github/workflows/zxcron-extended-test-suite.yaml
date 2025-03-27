@@ -235,7 +235,7 @@ jobs:
       needs.fetch-xts-candidate.result == 'success' &&
       needs.hedera-node-jrs-panel.result == 'success' &&
       needs.tag-for-promotion.result == 'success') &&
-      !cancelled() && always() }}
+      !cancelled() }}
 
     steps:
       - name: Harden Runner
