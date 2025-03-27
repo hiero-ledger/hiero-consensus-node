@@ -93,6 +93,7 @@ public class BlockNodeConnectionManager {
                     .baseUri(new URI("http://" + node.address() + ":" + node.port()))
                     .protocolConfig(GrpcClientProtocolConfig.builder()
                             .abortPollTimeExpired(false)
+                            .pollWaitTime(Duration.ofSeconds(30))
                             .build())
                     .keepAlive(true)
                     .build();
