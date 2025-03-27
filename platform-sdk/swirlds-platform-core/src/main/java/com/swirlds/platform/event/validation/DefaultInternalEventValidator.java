@@ -96,8 +96,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
         this.fieldLengthLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.tooManyTransactionBytesLogger =
                 new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
-        this.invalidParentsLogger =
-                new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
+        this.invalidParentsLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.invalidGenerationLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.invalidBirthRoundLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
 
@@ -231,11 +230,10 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * @return true if the parent hashes and generations of the event are internally consistent, otherwise false
      */
     private boolean areParentsInternallyConsistent(@NonNull final PlatformEvent event) {
-        if(!ParentMigrationUtils.areParentsPopulatedCorrectly(event.getGossipEvent())){
+        if (!ParentMigrationUtils.areParentsPopulatedCorrectly(event.getGossipEvent())) {
             invalidParentsLogger.error(
                     EXCEPTION.getMarker(),
-                    "Event %s has parents populated in both EventCore and GossipEvent"
-                            .formatted(event));
+                    "Event %s has parents populated in both EventCore and GossipEvent".formatted(event));
             invalidParentsAccumulator.update(1);
             return false;
         }

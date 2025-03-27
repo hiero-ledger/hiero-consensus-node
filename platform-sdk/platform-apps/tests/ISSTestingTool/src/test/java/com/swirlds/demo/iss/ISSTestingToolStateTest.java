@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
+import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
@@ -12,7 +18,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
-import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -22,10 +27,6 @@ import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 class ISSTestingToolStateTest {
 
@@ -69,7 +70,7 @@ class ISSTestingToolStateTest {
         // Given
         givenRoundAndEvent();
 
-        final var bytes = Bytes.wrap(new byte[]{1, 1, 1, 1});
+        final var bytes = Bytes.wrap(new byte[] {1, 1, 1, 1});
         when(transaction.getApplicationTransaction()).thenReturn(bytes);
 
         // When
