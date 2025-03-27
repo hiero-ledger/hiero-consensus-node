@@ -41,7 +41,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 @DisplayName("PcesFileReader Tests")
 class PcesFileReaderTests {
     /**
-     * Default range for the resultingUnbrokenOrigin value.
+     * Default range for the origin value.
      */
     public static final Range DEFAULT_ORIGIN_RANGE = new Range(1, 1000);
 
@@ -281,18 +281,18 @@ class PcesFileReaderTests {
     }
 
     /**
-     *  Given that allowing gaps or discontinuities in the resultingUnbrokenOrigin block of the PcesFile is likely to either lead to ISSes or, more likely, cause
+     *  Given that allowing gaps or discontinuities in the origin block of the PcesFile is likely to either lead to ISSes or, more likely, cause
      *  events to be added to the hashgraph without their parents being added,
      * the aim of the test is asserting that readFilesFromDisk is able to detect gaps or discontinuities exist in the existing PcesFiles.
      * </br>
-     * This test, generates a list of files PcesFiles and places a discontinuity in the resultingUnbrokenOrigin block randomly in the list.
+     * This test, generates a list of files PcesFiles and places a discontinuity in the origin block randomly in the list.
      * The sequence numbers are intentionally picked close to wrapping around the 3 digit to 4 digit, to cause the files not to line up
      * alphabetically, and test the code support for that.
      * The scenarios under test are:
-     *  * readFilesFromDisk is asked to read at the discontinuity resultingUnbrokenOrigin block
-     *  * readFilesFromDisk is asked to read after the discontinuity resultingUnbrokenOrigin block
-     *  * readFilesFromDisk is asked to read before the discontinuity resultingUnbrokenOrigin block
-     *  * readFilesFromDisk is asked to read a non-existent resultingUnbrokenOrigin block
+     *  * readFilesFromDisk is asked to read at the discontinuity origin block
+     *  * readFilesFromDisk is asked to read after the discontinuity origin block
+     *  * readFilesFromDisk is asked to read before the discontinuity origin block
+     *  * readFilesFromDisk is asked to read a non-existent origin block
      */
     @ParameterizedTest
     @MethodSource("ancientModes")
@@ -306,14 +306,14 @@ class PcesFileReaderTests {
 
         final PlatformContext platformContext =
                 TestPlatformContexts.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
-        // Scenario 1: choose an resultingUnbrokenOrigin that lands on the resultingUnbrokenOrigin exactly.
+        // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
                 platformContext, fileDirectory, pcesFilesGenerator.resultingUnbrokenOrigin(), false, ancientMode);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(NO_LOWER_BOUND, pcesFilesGenerator.resultingUnbrokenOrigin()));
 
-        // Scenario 2: choose an resultingUnbrokenOrigin that lands after the resultingUnbrokenOrigin.
+        // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
         final PcesFileTracker fileTracker2 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound2, false, ancientMode);
@@ -321,7 +321,7 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(NO_LOWER_BOUND, startingRound2));
 
-        // Scenario 3: choose an resultingUnbrokenOrigin that comes before the resultingUnbrokenOrigin. This will cause
+        // Scenario 3: choose an origin that comes before the resultingUnbrokenOrigin. This will cause
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
@@ -371,7 +371,7 @@ class PcesFileReaderTests {
         final PlatformContext platformContext =
                 TestPlatformContexts.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
 
-        // Scenario 1: choose an origin that lands on the origin exactly.
+        // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
         final PcesFileTracker fileTracker1 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound1, false, ancientMode);
@@ -379,7 +379,7 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(startAncientIdentifier, startingRound1));
 
-        // Scenario 2: choose an origin that lands after the origin.
+        // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
         final PcesFileTracker fileTracker2 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound2, false, ancientMode);
@@ -387,7 +387,7 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(startAncientIdentifier, startingRound2));
 
-        // Scenario 3: choose an origin that comes before the origin. This will cause
+        // Scenario 3: choose an origin that comes before the resultingUnbrokenOrigin. This will cause
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
@@ -431,7 +431,7 @@ class PcesFileReaderTests {
 
         final PlatformContext platformContext =
                 TestPlatformContexts.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
-        // Scenario 1: choose an origin that lands on the origin exactly.
+        // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
         final PcesFileTracker fileTracker1 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound1, false, ancientMode);
@@ -439,7 +439,7 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(startAncientIdentifier, startingRound1));
 
-        // Scenario 2: choose an origin that lands after the origin.
+        // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
         final PcesFileTracker fileTracker2 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound2, false, ancientMode);
@@ -447,7 +447,7 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(startAncientIdentifier, startingRound2));
 
-        // Scenario 3: choose an origin that comes before the origin. This will cause
+        // Scenario 3: choose an origin that comes before the resultingUnbrokenOrigin. This will cause
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
@@ -494,7 +494,7 @@ class PcesFileReaderTests {
         final PlatformContext platformContext =
                 TestPlatformContexts.context(false, ancientMode, recycleBinPath, dataDir, fileSystemDirectory);
 
-        // Scenario 1: choose an origin that lands on the origin exactly.
+        // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
         final PcesFileTracker fileTracker1 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound1, false, ancientMode);
@@ -502,7 +502,7 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(startAncientBoundary, startingRound1));
 
-        // Scenario 2: choose an origin that lands after the origin.
+        // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
         final PcesFileTracker fileTracker2 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound2, false, ancientMode);
@@ -510,7 +510,7 @@ class PcesFileReaderTests {
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(startAncientBoundary, startingRound2));
 
-        // Scenario 3: choose an origin that comes before the origin. This will cause
+        // Scenario 3: choose an origin that comes before the resultingUnbrokenOrigin. This will cause
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
