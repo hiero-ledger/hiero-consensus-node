@@ -23,7 +23,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
@@ -203,7 +205,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
                     jumboEthCall(CONTRACT, FUNCTION, new byte[test.txnSize], test.type)
-                            .orUnavailableStatus()
+                            .hasPrecheck(TRANSACTION_OVERSIZE)
             ));
         }
 
@@ -228,20 +230,21 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .payingWith(RELAYER)
                             .signingWith(SECP_256K1_SOURCE_KEY)
                             .gasLimit(1_000_000L)
+                            .hasPrecheck(TRANSACTION_OVERSIZE)
 //                            .orUnavailableStatus()
             ));
         }
 
         @HapiTest
-        @DisplayName("Jumbo Ethereum transactions should fail with corrupted payload")
+        @DisplayName("Jumbo Ethereum transactions should fail with wrong signature")
         @Order(7)
         public Stream<DynamicTest> jumboTxnWithWrongSignatureShouldFail() {
-            var payload = new byte[4 * 1024];
+            var payload = new byte[10 * 1024];
             return hapiTest(
-//                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     prepareFakeUpgrade(),
                     upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
                     newKeyNamed("string").shape(SECP_256K1_SHAPE),
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
                     cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
                     ethereumCall(CONTRACT, FUNCTION, payload)
@@ -249,20 +252,20 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .signingWith("string")
                             .payingWith(RELAYER)
                             .gasLimit(1_000_000L)
-                            .hasPrecheckFrom(OK)
+                            .hasPrecheck(INVALID_ACCOUNT_ID)
             );
         }
 
         @HapiTest
-        @DisplayName("Jumbo Ethereum transactions should fail due to insufficient fees")
+        @DisplayName("Jumbo Ethereum transactions should fail due to insufficient payer balance")
         @Order(8)
-        public Stream<DynamicTest> jumboTxnWithInsufficientFeesShouldFail() {
+        public Stream<DynamicTest> jumboTxnWithInsufficientPayerBalanceShouldFail() {
             return insufficientFeeCases.flatMap(txnSize -> hapiTest(
-                    logIt("Invalid Jumbo Txn with insufficient fees and size: " + (txnSize / 1024) + "KB"),
+                    logIt("Invalid Jumbo Txn with insufficient balance and size: " + (txnSize / 1024) + "KB"),
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoCreate(RELAYER).balance(1L),
                     jumboEthCall(CONTRACT, FUNCTION, new byte[txnSize], null)
-                            .hasPrecheck(INSUFFICIENT_TX_FEE)
+                            .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)
             ));
         }
     }
