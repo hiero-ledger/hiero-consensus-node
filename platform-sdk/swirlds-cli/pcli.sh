@@ -20,6 +20,11 @@
 # This script provides a convenient wrapper for launching the platform CLI.
 
 JVM_CLASSPATH=''
+echo "Show environment variables"
+env
+echo "Show environment variables"
+# show which java result
+echo "Show which java result = $(which java)"
 
 # This function attempts to add a jar file to the classpath, or if given a directory attempts to
 # add all jarfiles inside that directory to the classpath.
