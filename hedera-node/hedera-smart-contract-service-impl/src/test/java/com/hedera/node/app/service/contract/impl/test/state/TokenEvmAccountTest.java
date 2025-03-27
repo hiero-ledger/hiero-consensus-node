@@ -30,6 +30,7 @@ class TokenEvmAccountTest {
     private static final Bytes SOME_PRETEND_CODE = Bytes.wrap("<NOT-REALLY-CODE>");
     private static final Hash SOME_PRETEND_CODE_HASH =
             Hash.wrap(Bytes32.wrap("<NOT-REALLY-BYTECODE-HASH-12345>".getBytes()));
+    private static final CodeFactory CODE_FACTORY = new CodeFactory(0, 0);
 
     @Mock
     private EvmFrameState state;
@@ -86,7 +87,9 @@ class TokenEvmAccountTest {
     void returnsEvmCode() {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
         given(state.getTokenRedirectCode(TOKEN_ADDRESS)).willReturn(code);
-        assertEquals(CodeFactory.createCode(code, 0, false), subject.getEvmCode(org.apache.tuweni.bytes.Bytes.EMPTY));
+        assertEquals(
+                CODE_FACTORY.createCode(code, false),
+                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.EMPTY, CODE_FACTORY));
     }
 
     @Test
@@ -137,7 +140,7 @@ class TokenEvmAccountTest {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
         given(state.getTokenRedirectCode(TOKEN_ADDRESS)).willReturn(code);
         assertEquals(
-                CodeFactory.createCode(code, 0, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector())));
+                CODE_FACTORY.createCode(code, false),
+                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector()), CODE_FACTORY));
     }
 }

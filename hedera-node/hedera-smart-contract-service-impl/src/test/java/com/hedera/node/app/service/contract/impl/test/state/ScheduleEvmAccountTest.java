@@ -41,6 +41,8 @@ class ScheduleEvmAccountTest {
 
     private ScheduleEvmAccount subject;
 
+    private static final CodeFactory CODE_FACTORY = new CodeFactory(0, 0);
+
     @BeforeEach
     void setUp() {
         subject = new ScheduleEvmAccount(SCHEDULE_ADDRESS, state);
@@ -92,8 +94,9 @@ class ScheduleEvmAccountTest {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
         given(state.getScheduleRedirectCode(SCHEDULE_ADDRESS)).willReturn(code);
         assertEquals(
-                CodeFactory.createCode(code, 0, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.fromHexString(SIGN_SCHEDULE_FUNCTION_SELECTOR)));
+                CODE_FACTORY.createCode(code, false),
+                subject.getEvmCode(
+                        org.apache.tuweni.bytes.Bytes.fromHexString(SIGN_SCHEDULE_FUNCTION_SELECTOR), CODE_FACTORY));
     }
 
     @Test
@@ -144,14 +147,15 @@ class ScheduleEvmAccountTest {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
         given(state.getScheduleRedirectCode(SCHEDULE_ADDRESS)).willReturn(code);
         assertEquals(
-                CodeFactory.createCode(code, 0, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.fromHexString(SIGN_SCHEDULE_FUNCTION_SELECTOR)));
+                CODE_FACTORY.createCode(code, false),
+                subject.getEvmCode(
+                        org.apache.tuweni.bytes.Bytes.fromHexString(SIGN_SCHEDULE_FUNCTION_SELECTOR), CODE_FACTORY));
     }
 
     @Test
     void returnEmptyEvmCodeWhenCalledWithUnexpectedFunctionSelectorBytes() {
         assertEquals(
-                CodeFactory.createCode(org.apache.tuweni.bytes.Bytes.EMPTY, 0, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector())));
+                CODE_FACTORY.createCode(org.apache.tuweni.bytes.Bytes.EMPTY, false),
+                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector()), CODE_FACTORY));
     }
 }
