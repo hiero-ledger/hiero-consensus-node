@@ -3,8 +3,8 @@ name: "ZXCron: Promote Build Candidate"
 on:
   workflow_dispatch:
   schedule:
-    # Runs Promote Build Candidate at 2000 hours
-    - cron: "0 20 * * *"
+    # Runs Promote Build Candidate at 0100 hours UTC (8:00 PM CDT)
+    - cron: "0 1 * * *"
 
 permissions:
   actions: write
@@ -185,7 +185,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.determine-build-candidate.outputs.build-candidate-commit }}"
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.determine-build-candidate.outputs.build-candidate-commit }}>"
                         },
                         {
                           "type": "plain_text",
@@ -193,7 +193,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.promote-build-candidate.outputs.build-candidate-tag }}>"
                         }
                       ]
                     }
