@@ -3,19 +3,14 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator.ConsensusRoundsNodeOrigin;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
- * Validates that the timestamps in consensus rounds are increasing in proper manner.
+ * Validates that the timestamps of consensus events increase.
  */
 public class RoundTimestampCheckerValidation implements ConsensusRoundValidation {
-
-    public ConsensusRoundsNodeOrigin getNodeOrigin() {
-        return ConsensusRoundsNodeOrigin.DIFFERENT;
-    }
 
     /**
      * Validate the timestamps of {@link PlatformEvent} in a consensus round are increasing.
@@ -40,7 +35,6 @@ public class RoundTimestampCheckerValidation implements ConsensusRoundValidation
             assertThat(e.getConsensusTimestamp()).isNotNull();
             assertThat(previousConsensusEvent.getConsensusTimestamp()).isNotNull();
             assertThat(e.getConsensusTimestamp().isAfter(previousConsensusEvent.getConsensusTimestamp()))
-                    .isTrue()
                     .withFailMessage(String.format(
                             "Consensus time does not increase!%n"
                                     + "Event %s consOrder:%s consTime:%s%n"
@@ -50,7 +44,8 @@ public class RoundTimestampCheckerValidation implements ConsensusRoundValidation
                             previousConsensusEvent.getConsensusTimestamp(),
                             e.getDescriptor(),
                             e.getConsensusOrder(),
-                            e.getConsensusTimestamp()));
+                            e.getConsensusTimestamp()))
+                    .isTrue();
             previousConsensusEvent = e;
         }
     }

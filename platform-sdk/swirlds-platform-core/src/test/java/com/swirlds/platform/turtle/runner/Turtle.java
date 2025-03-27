@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.turtle.runner;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
@@ -17,11 +15,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -135,54 +137,65 @@ public class Turtle {
      * Simulate the network for a period of time. Validate the correctness of collected items at a regular interval.
      *
      * @param duration the duration to simulate
-     * @param validationInterval the interval at which to validate the collected items
      */
-    public void simulateTimeAndValidate(@NonNull final Duration duration, @NonNull final Duration validationInterval) {
+    public void simulateTimeAndValidate(@NonNull final Duration duration) {
         final Instant simulatedStart = time.now();
         final Instant simulatedEnd = simulatedStart.plus(duration);
 
-        Instant nextValidationTime = simulatedStart.plus(validationInterval);
         while (time.now().isBefore(simulatedEnd)) {
             reportThePassageOfTime();
 
             time.tick(simulationGranularity);
             network.tick(time.now());
             tickAllNodes();
-
-            if (time.now().isAfter(nextValidationTime)) {
-                validateConsensusRounds();
-                nextValidationTime = time.now().plus(validationInterval);
-            }
+            validateConsensusRounds();
         }
     }
 
     /**
-     * Validate all collected {@link ConsensusRound} instances during Turtle execution using the suitable validator.
+     * Validate all commonly collected {@link ConsensusRound} instances by all nodes during Turtle execution
+     * using the suitable validator.
      *
-     * At the end of the validation, all collected items are cleared to keep memory usage low.
+     * At the end of the validation, the specified commonly collected items are cleared to keep memory usage low.
      */
     public void validateConsensusRounds() {
+        final Set<Long> commonConsensusRounds = getCommonlyCollectedConsensusRounds();
+
         final TurtleNode node1 = nodes.getFirst();
         final List<ConsensusRound> consensusRoundsForNode1 =
-                node1.getConsensusRoundsHolder().getCollectedRounds();
+                node1.getConsensusRoundsHolder().getCollectedRounds().entrySet().stream()
+                        .filter(e -> commonConsensusRounds.contains(e.getKey()))
+                        .map(Map.Entry::getValue)
+                        .collect(Collectors.toList());
 
+        if (!commonConsensusRounds.isEmpty()) {
+            for (int i = 1; i < nodes.size(); i++) {
+                final TurtleNode otherNode = nodes.get(i);
+                final List<ConsensusRound> consensusRoundsForOtherNode =
+                        otherNode.getConsensusRoundsHolder().getCollectedRounds().entrySet().stream()
+                                .filter(e -> commonConsensusRounds.contains(e.getKey()))
+                                .map(Map.Entry::getValue)
+                                .collect(Collectors.toList());
+
+                consensusRoundValidator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
+
+                otherNode.getConsensusRoundsHolder().clear(commonConsensusRounds);
+            }
+
+            node1.getConsensusRoundsHolder().clear(commonConsensusRounds);
+        }
+    }
+
+    private Set<Long> getCommonlyCollectedConsensusRounds() {
+        final Set<Long> commonRoundNumbers = new HashSet<>(
+                nodes.getFirst().getConsensusRoundsHolder().getCollectedRounds().keySet());
         for (int i = 1; i < nodes.size(); i++) {
-            final TurtleNode otherNode = nodes.get(i);
-            final List<ConsensusRound> consensusRoundsForOtherNode =
-                    otherNode.getConsensusRoundsHolder().getCollectedRounds();
-
-            assertThat(consensusRoundsForNode1)
-                    .hasSameSizeAs(consensusRoundsForOtherNode)
-                    .withFailMessage(String.format(
-                            "The number of consensus rounds is not the same."
-                                    + "output1 has %d rounds, output2 has %d rounds",
-                            consensusRoundsForNode1.size(), consensusRoundsForOtherNode.size()));
-            consensusRoundValidator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
-
-            otherNode.getConsensusRoundsHolder().clear();
+            final Set<Long> roundNumbersForOtherNode =
+                    nodes.get(i).getConsensusRoundsHolder().getCollectedRounds().keySet();
+            commonRoundNumbers.retainAll(roundNumbersForOtherNode);
         }
 
-        node1.getConsensusRoundsHolder().clear();
+        return commonRoundNumbers;
     }
 
     /**

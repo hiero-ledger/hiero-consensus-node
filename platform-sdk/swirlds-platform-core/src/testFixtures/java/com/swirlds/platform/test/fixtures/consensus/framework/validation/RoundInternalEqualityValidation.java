@@ -3,7 +3,6 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator.ConsensusRoundsNodeOrigin;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 import java.util.Objects;
@@ -14,10 +13,6 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
  * A validator that ensures that the internal state of two rounds from different nodes are equal.
  */
 public class RoundInternalEqualityValidation implements ConsensusRoundValidation {
-
-    public ConsensusRoundsNodeOrigin getNodeOrigin() {
-        return ConsensusRoundsNodeOrigin.DIFFERENT;
-    }
 
     /**
      * Validates that the internal state of two rounds from different nodes are equal.
@@ -30,17 +25,17 @@ public class RoundInternalEqualityValidation implements ConsensusRoundValidation
         final long firstRoundNumber = round1.getRoundNum();
         final long secondRoundNumber = round2.getRoundNum();
         assertThat(round1.getRoundNum())
-                .isEqualTo(round2.getRoundNum())
                 .withFailMessage(String.format(
-                        "round diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
+                        "round diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber))
+                .isEqualTo(round2.getRoundNum());
         assertThat(round1.getEventCount())
-                .isEqualTo(round2.getEventCount())
                 .withFailMessage(String.format(
-                        "event number diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
+                        "event number diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber))
+                .isEqualTo(round2.getEventCount());
         assertThat(round1.getSnapshot())
-                .isEqualTo(round2.getSnapshot())
                 .withFailMessage(String.format(
-                        "snapshot diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber));
+                        "snapshot diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber))
+                .isEqualTo(round2.getSnapshot());
         final Iterator<PlatformEvent> evIt1 = round1.getConsensusEvents().iterator();
         final Iterator<PlatformEvent> evIt2 = round2.getConsensusEvents().iterator();
         int eventIndex = 0;
@@ -48,15 +43,15 @@ public class RoundInternalEqualityValidation implements ConsensusRoundValidation
             final PlatformEvent e1 = evIt1.next();
             final PlatformEvent e2 = evIt2.next();
             assertThat(e1.getConsensusData())
-                    .isNotNull()
                     .withFailMessage(String.format(
                             "output:1, roundNumberFromFirstNode:%d, roundNumberFromSecondRound:%d, eventIndex%d is not consensus",
-                            firstRoundNumber, secondRoundNumber, eventIndex));
+                            firstRoundNumber, secondRoundNumber, eventIndex))
+                    .isNotNull();
             assertThat(e2.getConsensusData())
-                    .isNotNull()
                     .withFailMessage(String.format(
                             "output:1, roundNumberFromFirstNode:%d, roundNumberFromSecondRound:%d, eventIndex%d is not consensus",
-                            firstRoundNumber, secondRoundNumber, eventIndex));
+                            firstRoundNumber, secondRoundNumber, eventIndex))
+                    .isNotNull();
             assertConsensusEvents(
                     String.format(
                             "roundNumberFromFirstNode:%d, roundNumberFromSecondRound:%d, event index %d",

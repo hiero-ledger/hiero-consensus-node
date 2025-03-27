@@ -6,7 +6,7 @@ import static com.swirlds.platform.test.fixtures.consensus.framework.validation.
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 
 /**
- * Validate that the outputs comping from different nodes have base events that are added in a different order.
+ * Validate that the events added to different nodes were added in different orders.
  */
 public class OutputEventsAddedInDifferentOrderValidation implements ConsensusOutputValidation {
 

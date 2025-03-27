@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.turtle.consensus;
 
-import java.util.ArrayList;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
@@ -10,22 +13,25 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
  */
 public class ConsensusRoundsListContainer implements ConsensusRoundsHolder {
 
-    final List<ConsensusRound> collectedRounds = new ArrayList<>();
+    final Map<Long, ConsensusRound> collectedRounds = new TreeMap<>();
 
     @Override
     public void interceptRounds(final List<ConsensusRound> rounds) {
-        if (!rounds.isEmpty()) {
-            collectedRounds.addAll(rounds);
+        for (final ConsensusRound round : rounds) {
+            collectedRounds.put(round.getRoundNum(), round);
         }
     }
 
     @Override
-    public void clear() {
-        collectedRounds.clear();
+    public void clear(final Set<Long> roundNumbers) {
+        for (final Long roundNumber : roundNumbers) {
+            collectedRounds.remove(roundNumber);
+        }
     }
 
+    @NonNull
     @Override
-    public List<ConsensusRound> getCollectedRounds() {
+    public Map<Long, ConsensusRound> getCollectedRounds() {
         return collectedRounds;
     }
 }

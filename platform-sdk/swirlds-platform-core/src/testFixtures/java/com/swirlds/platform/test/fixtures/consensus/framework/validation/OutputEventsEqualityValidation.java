@@ -7,7 +7,7 @@ import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * Validate that the base events contained in {@link ConsensusOutput} are the same.
+ * Validate that the added events in {@link ConsensusOutput} are the same.
  */
 public class OutputEventsEqualityValidation implements ConsensusOutputValidation {
 

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator.ConsensusRoundsNodeOrigin;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
@@ -17,6 +16,4 @@ public interface ConsensusRoundValidation {
      * @param round2 the round from another node
      */
     void validate(@NonNull final ConsensusRound round1, @NonNull final ConsensusRound round2);
-
-    ConsensusRoundsNodeOrigin getNodeOrigin();
 }
