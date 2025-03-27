@@ -9,6 +9,7 @@ import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGAT
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
+import com.hedera.hapi.util.EventMigrationUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.SignatureType;
@@ -28,7 +29,6 @@ import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import com.hedera.hapi.util.EventMigrationUtils;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
 

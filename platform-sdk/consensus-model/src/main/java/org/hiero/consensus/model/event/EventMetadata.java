@@ -3,8 +3,8 @@ package org.hiero.consensus.model.event;
 
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.EventMigrationUtils;
+import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
