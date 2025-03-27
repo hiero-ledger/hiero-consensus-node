@@ -327,8 +327,7 @@ public class HandleWorkflow {
                             creator,
                             platformTxn,
                             event.getSoftwareVersion(),
-                            simplifiedStateSignatureTxnCallback,
-                            userTransactionsHandled);
+                            simplifiedStateSignatureTxnCallback);
                 } catch (final Exception e) {
                     logger.fatal(
                             "Possibly CATASTROPHIC failure while running the handle workflow. "
@@ -360,7 +359,6 @@ public class HandleWorkflow {
      * @param creator the {@link NodeInfo} of the creator of the transaction
      * @param txn the {@link ConsensusTransaction} to be handled
      * @param txnVersion the software version for the event containing the transaction
-     * @param userTxnHandled whether a user transaction has been handled in this round
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
     private boolean handlePlatformTransaction(
@@ -368,8 +366,7 @@ public class HandleWorkflow {
             @NonNull final NodeInfo creator,
             @NonNull final ConsensusTransaction txn,
             @NonNull final SemanticVersion txnVersion,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback,
-            final boolean userTxnHandled) {
+            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
         final var handleStart = System.nanoTime();
 
         // Always use platform-assigned time for user transaction, c.f. https://hips.hedera.com/hip/hip-993
@@ -404,9 +401,6 @@ public class HandleWorkflow {
         }
         if (streamMode != RECORDS) {
             handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
-            if (!userTxnHandled) {
-                blockStreamManager.setRoundFirstTransactionTime(handleOutput.firstAssignedConsensusTime());
-            }
         }
 
         opWorkflowMetrics.updateDuration(userTxn.functionality(), (int) (System.nanoTime() - handleStart));
