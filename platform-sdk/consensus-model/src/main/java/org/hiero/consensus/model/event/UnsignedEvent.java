@@ -36,6 +36,7 @@ public class UnsignedEvent implements Hashable {
      * The metadata of the event.
      */
     private final EventMetadata metadata;
+
     private final List<EventDescriptor> parents;
 
     /**

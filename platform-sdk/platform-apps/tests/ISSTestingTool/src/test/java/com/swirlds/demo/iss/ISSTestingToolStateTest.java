@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import java.time.Instant;
 import java.util.ArrayList;

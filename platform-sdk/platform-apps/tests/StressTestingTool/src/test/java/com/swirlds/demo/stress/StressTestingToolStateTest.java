@@ -219,9 +219,7 @@ class StressTestingToolStateTest {
         final var gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
                 .transactions(List.of(
-                        stateSignatureTransactionBytes,
-                        stateSignatureTransactionBytes,
-                        stateSignatureTransactionBytes))
+                        stateSignatureTransactionBytes, stateSignatureTransactionBytes, stateSignatureTransactionBytes))
                 .build();
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         event = new PlatformEvent(gossipEvent);

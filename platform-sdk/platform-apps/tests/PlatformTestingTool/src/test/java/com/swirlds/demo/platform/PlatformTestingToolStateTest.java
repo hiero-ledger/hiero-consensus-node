@@ -274,9 +274,7 @@ class PlatformTestingToolStateTest {
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
                 .transactions(List.of(
-                        stateSignatureTransactionBytes,
-                        stateSignatureTransactionBytes,
-                        stateSignatureTransactionBytes))
+                        stateSignatureTransactionBytes, stateSignatureTransactionBytes, stateSignatureTransactionBytes))
                 .build();
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         platformEvent = new PlatformEvent(gossipEvent);

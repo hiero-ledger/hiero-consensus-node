@@ -4,7 +4,6 @@ package com.swirlds.platform.event.validation;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
-import org.hiero.consensus.model.event.ParentMigrationUtils;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
 
 import com.hedera.hapi.platform.event.EventCore;
@@ -29,6 +28,7 @@ import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.ParentMigrationUtils;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
 
