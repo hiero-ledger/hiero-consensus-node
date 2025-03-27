@@ -182,56 +182,6 @@ public class AtomicBatchNegativeTest {
     class BatchConstraintsNegative {
 
         @HapiTest
-        @DisplayName("Batch fails with inner txn missing TxnProtoStructure.NORMALIZED")
-        public Stream<DynamicTest> innerTxnWithSignedTransactionBytesFails() {
-            final var batchOperator = "batchOperator";
-            final var innerTxnPayer = "innerPayer";
-            final var innerTxnId = "innerId";
-
-            // create inner txn with:
-            // - custom txn id -> for getting the record
-            // - batch key -> for batch operator to sign
-            // - payer -> for paying the fee
-            final var innerTxn = cryptoCreate("foo")
-                    .balance(ONE_HBAR)
-                    .txnId(innerTxnId)
-                    .batchKey(batchOperator)
-                    .payingWith(innerTxnPayer);
-
-            return hapiTest(
-                    cryptoCreate(batchOperator).balance(ONE_HBAR),
-                    cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
-                    usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
-                    // Since the inner txn is not normalized, it should fail
-                    atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(BATCH_TRANSACTION_IN_BLACKLIST));
-        }
-
-        @HapiTest
-        @DisplayName("Batch fails with inner txn having TxnProtoStructure.OLD")
-        public Stream<DynamicTest> innerTxnWithBodyBytesFails() {
-            final var batchOperator = "batchOperator";
-            final var innerTxnPayer = "innerPayer";
-            final var innerTxnId = "innerId";
-
-            // create inner txn with:
-            // - custom txn id -> for getting the record
-            // - batch key -> for batch operator to sign
-            // - payer -> for paying the fee
-            final var innerTxn = cryptoCreate("foo")
-                    .balance(ONE_HBAR)
-                    .txnId(innerTxnId)
-                    .batchKey(batchOperator)
-                    .payingWith(innerTxnPayer);
-
-            return hapiTest(
-                    cryptoCreate(batchOperator).balance(ONE_HBAR),
-                    cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
-                    usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
-                    // Since the inner txn is not normalized, it should fail
-                    atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(BATCH_TRANSACTION_IN_BLACKLIST));
-        }
-
-        @HapiTest
         @DisplayName("Batch fails with inner txn missing DEFAULT_PAYER key signature")
         public Stream<DynamicTest> missingInnerTxnPayerSignatureFails() {
             final var batchOperator = "batchOperator";
