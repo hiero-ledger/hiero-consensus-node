@@ -144,6 +144,14 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * {@inheritDoc}
      */
     @Override
+    public SemanticVersion getSemanticVersion() {
+        return hederaOrThrow().getSoftwareVersion().getPbjSemanticVersion();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void init(@NonNull final Platform platform, @NonNull final NodeId nodeId) {
         requireNonNull(platform);
         requireNonNull(nodeId);
