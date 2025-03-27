@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle.record;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
@@ -22,7 +23,6 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ST
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_KEY;
-import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.independentDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
@@ -33,6 +33,7 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.roster.RosterUtils.formatNodeName;
+import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
@@ -80,6 +81,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
+import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -90,6 +92,7 @@ import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.EntityIdFactory;
@@ -137,6 +140,7 @@ public class SystemTransactions {
     private static final EnumSet<ResponseCodeEnum> SUCCESSES =
             EnumSet.of(SUCCESS, SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
 
+    private final InitTrigger initTrigger;
     private final BlocklistParser blocklistParser = new BlocklistParser();
     private final AtomicInteger nextDispatchNonce = new AtomicInteger(1);
     private final FileServiceImpl fileService;
@@ -157,6 +161,7 @@ public class SystemTransactions {
      */
     @Inject
     public SystemTransactions(
+            @NonNull final InitTrigger initTrigger,
             @NonNull final ParentTxnFactory parentTxnFactory,
             @NonNull final FileServiceImpl fileService,
             @NonNull final NetworkInfo networkInfo,
@@ -168,6 +173,7 @@ public class SystemTransactions {
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final HederaRecordCache recordCache,
             @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+        this.initTrigger = initTrigger;
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
         this.networkInfo = networkInfo;
@@ -518,15 +524,25 @@ public class SystemTransactions {
 
     /**
      * Returns the timestamp to use for startup work state change consensus time in the block stream.
-     * @param roundTime the round timestamp
+     *
+     * @param firstEventTime the timestamp of the first event in the current round
      */
-    public Instant startupWorkConsTimeFor(@NonNull final Instant roundTime) {
-        requireNonNull(roundTime);
+    public Instant startupWorkConsTimeFor(@NonNull final Instant firstEventTime) {
+        requireNonNull(firstEventTime);
         final var config = configProvider.getConfiguration();
-        // Make room for dispatching at least as many transactions as there are system entities
-        return roundTime
-                .minusNanos(config.getConfigData(SchedulingConfig.class).consTimeSeparationNanos())
-                .minusNanos(config.getConfigData(HederaConfig.class).firstUserEntity());
+        final var consensusConfig = config.getConfigData(ConsensusConfig.class);
+        return firstEventTime
+                // Avoid overlap with a possible user transaction first in the event
+                .minusNanos(1)
+                // Avoid overlap with possible preceding records of this user transaction
+                .minusNanos(consensusConfig.handleMaxPrecedingRecords())
+                // Then back up to the first reserved system transaction time
+                .minusNanos(config.getConfigData(SchedulingConfig.class).reservedSystemTxnNanos())
+                // And at genesis, further step back to accommodate creating system entities
+                .minusNanos(
+                        initTrigger == GENESIS
+                                ? (int) config.getConfigData(HederaConfig.class).firstUserEntity()
+                                : 0);
     }
 
     private SystemContext newSystemContext(
