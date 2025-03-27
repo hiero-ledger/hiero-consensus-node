@@ -13,6 +13,7 @@ import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_ST
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.state.recordcache.RecordCacheService.NAME;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -33,6 +34,7 @@ import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
+import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -304,6 +306,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
         final boolean closesBlock = shouldCloseBlock(roundNum, roundsPerBlock);
+
+        final var recordCache = state.getWritableStates(RecordCacheService.NAME);
+
+        if(recordCache instanceof CommittableWritableStates committableWritableStates) {
+            committableWritableStates.commit();
+        }
+
         if (closesBlock) {
             // If there were no user or node transactions in the block, this writes all
             // the accumulated items starting from the header, sacrificing the benefits

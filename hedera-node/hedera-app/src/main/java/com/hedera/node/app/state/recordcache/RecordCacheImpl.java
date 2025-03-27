@@ -332,13 +332,14 @@ public class RecordCacheImpl implements HederaRecordCache {
         requireNonNull(consensusNow);
         final var states = state.getWritableStates(NAME);
         final var queue = states.<TransactionReceiptEntries>getQueue(TXN_RECEIPT_QUEUE);
+
         purgeExpiredReceiptEntries(queue, consensusNow);
         if (!transactionReceipts.isEmpty()) {
             queue.add(new TransactionReceiptEntries(new ArrayList<>(transactionReceipts)));
         }
-        if (states instanceof CommittableWritableStates committable) {
-            committable.commit();
-        }
+//        if (states instanceof CommittableWritableStates committable) {
+//            committable.commit();
+//        }
     }
 
     @NonNull

@@ -635,6 +635,7 @@ public class NewStateRoot implements MerkleNodeState {
 
         @Override
         public void commit() {
+            // FIXME: Order is not guaranteed here, but it should be
             for (final ReadableKVState kv : kvInstances.values()) {
                 ((WritableKVStateBase) kv).commit();
             }

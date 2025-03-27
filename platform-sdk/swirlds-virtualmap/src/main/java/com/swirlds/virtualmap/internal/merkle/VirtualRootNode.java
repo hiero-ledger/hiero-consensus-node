@@ -79,6 +79,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -86,6 +87,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -1684,8 +1686,25 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
         final VirtualLeafBytes<V> newLeaf = valueCodec != null
                 ? new VirtualLeafBytes<>(leafPath, key, value, valueCodec)
                 : new VirtualLeafBytes<>(leafPath, key, valueBytes);
+
+        String keyString = key.toString();
+        String trimmedKeyString = keyString.length() > 16 ? keyString.substring(0, 16) : keyString;
+        String valueString = newLeaf.valueBytes().toString();
+        String trimmedValueString = valueString.length() > 16 ? valueString.substring(0, 16) : valueString;
+
+        logger.info(STARTUP.getMarker(), "path = {}, key = {}, value = {}. Stacktrace: \n {}", leafPath, trimmedKeyString, trimmedValueString, getLimitedStackTrace(20));
         cache.putLeaf(newLeaf);
     }
+
+    public static String getLimitedStackTrace(int frameLimit) {
+        StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
+        return Arrays.stream(stackTraceElements)
+                .skip(4)
+                .limit(frameLimit)
+                .map(StackTraceElement::toString)
+                .collect(Collectors.joining("\n"));
+    }
+
 
     @Override
     public long getFastCopyVersion() {
