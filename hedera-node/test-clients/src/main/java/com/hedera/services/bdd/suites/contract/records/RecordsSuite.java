@@ -4,6 +4,8 @@ package com.hedera.services.bdd.suites.contract.records;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -99,6 +101,8 @@ public class RecordsSuite {
                     final List<AccountAmount> expectedTransfers = new ArrayList<>(2);
                     final var receiverTransfer = AccountAmount.newBuilder()
                             .setAccountID(AccountID.newBuilder()
+                                    .setShardNum(SHARD)
+                                    .setRealmNum(REALM)
                                     .setAccountNum(parent.getContractNum())
                                     .build())
                             .setAmount(-10_000L)
@@ -106,6 +110,8 @@ public class RecordsSuite {
                     expectedTransfers.add(receiverTransfer);
                     final var contractTransfer = AccountAmount.newBuilder()
                             .setAccountID(AccountID.newBuilder()
+                                    .setShardNum(SHARD)
+                                    .setRealmNum(REALM)
                                     .setAccountNum(child.getContractNum())
                                     .build())
                             .setAmount(10_000L)

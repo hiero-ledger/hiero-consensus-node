@@ -3,7 +3,7 @@ package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.never;
@@ -30,6 +30,7 @@ import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHan
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -38,6 +39,7 @@ import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.Collections;
@@ -189,7 +191,9 @@ public class HollowAccountCompletionsTest {
     void completeHollowAccountsWithEthereumTransaction() {
         when(parentTxn.functionality()).thenReturn(ETHEREUM_TRANSACTION);
         final var alias = Bytes.fromHex("89abcdef89abcdef89abcdef89abcdef89abcdef");
-        final var hollowId = AccountID.newBuilder().accountNum(1234).build();
+        final var hederaConfig = DEFAULT_CONFIG.getConfigData(HederaConfig.class);
+        final var idFactory = new FakeEntityIdFactoryImpl(hederaConfig.shard(), hederaConfig.realm());
+        final var hollowId = idFactory.newAccountId(1234);
         final var hollowAccount = Account.newBuilder()
                 .alias(alias)
                 .key(IMMUTABILITY_SENTINEL_KEY)
@@ -197,7 +201,8 @@ public class HollowAccountCompletionsTest {
                 .build();
         final var ethTxSigs = new EthTxSigs(Bytes.EMPTY.toByteArray(), alias.toByteArray());
         when(ethereumTransactionHandler.maybeEthTxSigsFor(any(), any(), any())).thenReturn(ethTxSigs);
-        when(accountStore.getAccountIDByAlias(0, 0, alias)).thenReturn(hollowId);
+        when(accountStore.getAccountIDByAlias(hederaConfig.shard(), hederaConfig.realm(), alias))
+                .thenReturn(hollowId);
         when(accountStore.getAccountById(hollowId)).thenReturn(hollowAccount);
         final var txnBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder()

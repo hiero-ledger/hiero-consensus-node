@@ -32,7 +32,11 @@ public class IsAssociatedCall extends AbstractRevertibleTokenViewCall {
     protected PricedResult resultOfViewingToken(@NonNull final Token token) {
         requireNonNull(token);
         var tokenRel = nativeOperations()
-                .getTokenRelation(sender.accountNum(), token.tokenIdOrThrow().tokenNum());
+                .getTokenRelation(
+                        nativeOperations().entityIdFactory().newAccountId(sender.accountNum()),
+                        nativeOperations()
+                                .entityIdFactory()
+                                .newTokenId(token.tokenIdOrThrow().tokenNum()));
         var result = tokenRel != null;
         return gasOnly(
                 successResult(

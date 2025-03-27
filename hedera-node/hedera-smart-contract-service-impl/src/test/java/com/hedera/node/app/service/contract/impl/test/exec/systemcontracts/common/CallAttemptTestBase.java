@@ -19,6 +19,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
+import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.swirlds.config.api.Configuration;
@@ -44,6 +45,9 @@ public class CallAttemptTestBase extends CallTestBase {
 
     @Mock
     protected SignatureVerifier signatureVerifier;
+
+    @Mock
+    protected Enhancement enhancement;
 
     protected final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
