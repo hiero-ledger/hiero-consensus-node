@@ -184,7 +184,7 @@ jobs:
                           "text": "Build Candidate Commit"
                         },
                         {
-                          "type": "plain_text",
+                          "type": "mrkdwn",
                           "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.determine-build-candidate.outputs.build-candidate-commit }}>"
                         },
                         {
@@ -192,7 +192,7 @@ jobs:
                           "text": "Promoted Build Tag"
                         },
                         {
-                          "type": "plain_text",
+                          "type": "mrkdwn",
                           "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.promote-build-candidate.outputs.build-candidate-tag }}>"
                         }
                       ]
