@@ -286,7 +286,9 @@ class OrphanBufferTests {
         }
 
         // Verify that when nGen is assigned such that children always have higher values than parents but sorting
-        // by ngen, then checking that parents are always before children
+        // by ngen, then checking that parents are always before children. Shuffle the list first, because the
+        // orphan buffer already emits events in topological order, and we want to test sorting by ngen only.
+        Collections.shuffle(emittedEvents, random);
         emittedEvents.sort(Comparator.comparingLong(PlatformEvent::getNGen));
 
         final Set<Hash> parentHashes = new HashSet<>();
