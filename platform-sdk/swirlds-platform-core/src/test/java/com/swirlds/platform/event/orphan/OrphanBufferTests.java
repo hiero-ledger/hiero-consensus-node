@@ -293,6 +293,10 @@ class OrphanBufferTests {
             emittedEvents.addAll(unorphanedEvents);
         }
 
+        // The orphan buffer should be empty now, since the event window was never shifted and all events were sent.
+        assertThat(orphanBuffer.getCurrentOrphanCount()).isEqualTo(0);
+        assertThat(emittedEvents.size()).isEqualTo(intakeEvents.size());
+
         // Verify that when nGen is assigned such that children always have higher values than parents by
         // shuffling the list, then sorting by ngen and checking that parents are always before children.
         Collections.shuffle(emittedEvents, random);
