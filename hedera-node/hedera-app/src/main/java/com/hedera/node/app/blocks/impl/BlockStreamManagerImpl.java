@@ -11,7 +11,7 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
-import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadPendingBlocks;
+import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
@@ -26,6 +26,7 @@ import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -48,6 +49,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -79,6 +82,7 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
@@ -189,6 +193,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private volatile CompletableFuture<Void> fatalShutdownFuture = null;
 
     /**
+     * A future that completes the first time the platform becomes {@link PlatformStatus#ACTIVE}.
+     */
+    private final CompletableFuture<Void> onFirstActive = new CompletableFuture<>();
+
+    /**
      * False until any the node has attempted to sign any blocks pending TSS signature still on disk.
      */
     private boolean attemptedPendingBlockSigning = false;
@@ -253,29 +262,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             return;
         }
 
-        if (hintsEnabled && !attemptedPendingBlockSigning) {
-            final var path = blockDirFor(configProvider.getConfiguration(), networkInfo.selfNodeInfo());
-            log.info("Attempting to sign any pending blocks still on disk @ {}", path.toAbsolutePath());
-            final var onDiskPendingBlocks = loadPendingBlocks(path);
-            onDiskPendingBlocks.forEach(block -> {
-                final var pendingWriter = writerSupplier.get();
-                block.items().forEach(item -> pendingWriter.writePbjItem(BlockItem.PROTOBUF.toBytes(item)));
-                final var blockHash = block.blockHash();
-                pendingBlocks.add(new PendingBlock(
-                        block.number(),
-                        block.contentsPath(),
-                        blockHash,
-                        block.proofBuilder(),
-                        pendingWriter,
-                        block.siblingHashesIfUseful()));
-                log.info("  - Recovered pending block #{}, gossiping partial signature", block.number());
-                blockHashSigner
-                        .signFuture(blockHash)
-                        .thenAcceptAsync(signature -> finishProofWithSignature(blockHash, signature));
-            });
-            attemptedPendingBlockSigning = true;
-        }
-
         // In case we hash this round, include a future for the end-of-round state hash
         endRoundStateHashes.put(round.getRoundNum(), new CompletableFuture<>());
 
@@ -301,6 +287,46 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             inputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             outputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             blockNumber = blockStreamInfo.blockNumber() + 1;
+            if (hintsEnabled && !attemptedPendingBlockSigning) {
+                final var hasBeenFrozen = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
+                                .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY)
+                                .get())
+                        .hasLastFrozenTime();
+                if (hasBeenFrozen) {
+                    final var path = blockDirFor(configProvider.getConfiguration(), networkInfo.selfNodeInfo());
+                    log.info(
+                            "Attempting to sign any pending blocks contiguous to #{} still on disk @ {}",
+                            blockNumber,
+                            path.toAbsolutePath());
+                    final var onDiskPendingBlocks = loadContiguousPendingBlocks(path, blockNumber);
+                    final List<Bytes> blockHashes = new ArrayList<>();
+                    onDiskPendingBlocks.forEach(block -> {
+                        try {
+                            final var pendingWriter = writerSupplier.get();
+                            pendingWriter.openBlock(block.number());
+                            block.items().forEach(item -> pendingWriter.writePbjItem(BlockItem.PROTOBUF.toBytes(item)));
+                            final var blockHash = block.blockHash();
+                            pendingBlocks.add(new PendingBlock(
+                                    block.number(),
+                                    block.contentsPath(),
+                                    blockHash,
+                                    block.proofBuilder(),
+                                    pendingWriter,
+                                    block.siblingHashesIfUseful()));
+                            log.info("  - Recovered pending block #{}, gossiping partial signature", block.number());
+                            blockHashes.add(blockHash);
+                        } catch (Exception e) {
+                            log.warn("Failed to recover pending block #{}", block.number(), e);
+                        }
+                    });
+                    //                    onFirstActive.thenRunAsync(() -> blockHashes.forEach(blockHash ->
+                    // blockHashSigner
+                    //                            .signFuture(blockHash)
+                    //                            .thenAcceptAsync(signature -> finishProofWithSignature(blockHash,
+                    // signature))));
+                }
+                attemptedPendingBlockSigning = true;
+            }
 
             worker = new BlockStreamManagerTask();
             final var header = BlockHeader.newBuilder()
@@ -831,6 +857,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         endRoundStateHashes
                 .get(notification.round())
                 .complete(notification.hash().getBytes());
+    }
+
+    @Override
+    public void notifyActive() {
+        if (!onFirstActive.isDone()) {
+            onFirstActive.complete(null);
+        }
     }
 
     @Override

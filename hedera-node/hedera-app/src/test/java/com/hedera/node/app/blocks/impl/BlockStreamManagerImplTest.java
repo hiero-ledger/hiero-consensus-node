@@ -56,6 +56,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -114,6 +115,9 @@ class BlockStreamManagerImplTest {
 
     @Mock
     private ConfigProvider configProvider;
+
+    @Mock
+    private NetworkInfo networkInfo;
 
     @Mock
     private BoundaryStateChangeListener boundaryStateChangeListener;
@@ -214,6 +218,7 @@ class BlockStreamManagerImplTest {
                 blockHashSigner,
                 () -> aWriter,
                 ForkJoinPool.commonPool(),
+                networkInfo,
                 configProvider,
                 boundaryStateChangeListener,
                 hashInfo,
@@ -235,6 +240,7 @@ class BlockStreamManagerImplTest {
                 blockHashSigner,
                 () -> aWriter,
                 ForkJoinPool.commonPool(),
+                networkInfo,
                 configProvider,
                 boundaryStateChangeListener,
                 hashInfo,
@@ -810,6 +816,7 @@ class BlockStreamManagerImplTest {
                 blockHashSigner,
                 () -> writers[nextWriter.getAndIncrement()],
                 ForkJoinPool.commonPool(),
+                networkInfo,
                 configProvider,
                 boundaryStateChangeListener,
                 hashInfo,

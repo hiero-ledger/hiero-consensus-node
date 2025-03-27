@@ -55,7 +55,6 @@ public class HintsLibraryImpl implements HintsLibrary {
     public Bytes computeHints(
             @NonNull final Bytes crs, @NonNull final Bytes blsPrivateKey, final int partyId, final int n) {
         requireNonNull(blsPrivateKey);
-        log.info("INSIDE computeHints");
         final var hints = BRIDGE.computeHints(crs.toByteArray(), blsPrivateKey.toByteArray(), partyId, n);
         return hints == null ? null : Bytes.wrap(hints);
     }

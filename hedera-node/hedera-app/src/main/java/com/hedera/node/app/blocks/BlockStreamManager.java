@@ -134,6 +134,11 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     void notifyFatalEvent();
 
     /**
+     * Notifies the block stream manager that the platform is active.
+     */
+    void notifyActive();
+
+    /**
      * Synchronous method that, when invoked, blocks until the block stream manager signals a successful
      * completion of its fatal shutdown logic.
      * @param timeout the maximum time to wait for block stream shutdown

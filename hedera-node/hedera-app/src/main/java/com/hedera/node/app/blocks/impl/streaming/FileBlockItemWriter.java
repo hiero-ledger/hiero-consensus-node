@@ -24,6 +24,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
@@ -31,8 +32,11 @@ import java.math.BigInteger;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -45,6 +49,11 @@ import org.apache.logging.log4j.Logger;
 public class FileBlockItemWriter implements BlockItemWriter {
 
     private static final Logger logger = LogManager.getLogger(FileBlockItemWriter.class);
+
+    private static final ToLongFunction<File> PROOF_JSON_BLOCK_NUMBER_FN =
+            f -> Long.parseLong(f.getName().substring(0, f.getName().length() - ".pnd.json".length()));
+    private static final Comparator<File> PROOF_JSON_FILE_COMPARATOR =
+            Comparator.comparingLong(PROOF_JSON_BLOCK_NUMBER_FN);
 
     /** The file extension for complete block files. */
     private static final String COMPLETE_BLOCK_EXTENSION = "blk";
@@ -173,28 +182,44 @@ public class FileBlockItemWriter implements BlockItemWriter {
      * with pending block proofs. The contents of the blocks are read from the corresponding {@code .blk.gz} or
      * {@code .blk} files.
      * @param p the directory to load pending blocks from
+     * @param number the block number the pending blocks should be contiguous to
      * @return the list of pending blocks
      */
-    public static List<OnDiskPendingBlock> loadPendingBlocks(@NonNull final Path p) {
+    public static List<OnDiskPendingBlock> loadContiguousPendingBlocks(@NonNull final Path p, final long number) {
         requireNonNull(p);
-        final List<OnDiskPendingBlock> pendingBlocks = new ArrayList<>();
+        final List<OnDiskPendingBlock> pendingBlocks = new LinkedList<>();
         final var proofJsons = p.toFile().listFiles((dir, name) -> name.endsWith(".pnd.json"));
         if (proofJsons == null) {
-            logger.warn("No pending blocks found in {}; assuming TSS was not active in previous release", p);
+            logger.warn("No pending blocks found in {}", p);
             return pendingBlocks;
         }
-        for (final var proofJson : proofJsons) {
+        Arrays.sort(proofJsons, PROOF_JSON_FILE_COMPARATOR.reversed());
+        logger.info("Evaluating {} pending blocks on disk", proofJsons.length);
+        long nextContiguousBlock = number - 1;
+        for (int i = 0; i < proofJsons.length; i++) {
+            final var proofJson = proofJsons[i];
+            final long nextNumber = PROOF_JSON_BLOCK_NUMBER_FN.applyAsLong(proofJson);
+            if (nextNumber != nextContiguousBlock) {
+                logger.info("No more contiguous blocks (#{} != #{})", nextNumber, nextContiguousBlock);
+                break;
+            } else {
+                logger.info("Trying to load next contiguous pending block #{}", nextNumber);
+                nextContiguousBlock--;
+            }
             final var proofJsonPath = proofJson.toPath();
             final PendingProof pendingProof;
             try {
                 pendingProof = PendingProof.JSON.parse(new ReadableStreamingData(proofJsonPath));
             } catch (IOException | ParseException e) {
-                logger.warn("Error reading pending proof metadata from {}", proofJson.toPath(), e);
-                continue;
+                logger.warn(
+                        "Error reading pending proof metadata from {} (not considering remaining - {})",
+                        proofJson.toPath(),
+                        Arrays.toString(Arrays.copyOfRange(proofJsons, i + 1, proofJsons.length)));
+                break;
             }
             Block partialBlock = null;
             final var name = proofJson.getName();
-            Path contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".blk.gz"));
+            Path contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd.gz"));
             if (contentsPath.toFile().exists()) {
                 try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(contentsPath))) {
                     partialBlock = Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
@@ -202,7 +227,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
                     logger.warn("Error reading zipped pending block contents from {}", contentsPath, e);
                 }
             } else {
-                contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".blk"));
+                contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd"));
                 if (contentsPath.toFile().exists()) {
                     try {
                         partialBlock = Block.PROTOBUF.parse(Bytes.wrap(Files.readAllBytes(contentsPath)));
@@ -212,9 +237,13 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 }
             }
             if (partialBlock == null) {
-                logger.warn("No pending block contents found at for {}", proofJson.toPath());
+                logger.warn(
+                        "No pending block contents found for {} (not considering remaining - {})",
+                        proofJson.toPath(),
+                        Arrays.toString(Arrays.copyOfRange(proofJsons, i + 1, proofJsons.length)));
+                break;
             } else {
-                pendingBlocks.add(
+                pendingBlocks.addFirst(
                         new OnDiskPendingBlock(partialBlock.items(), pendingProof, proofJsonPath, contentsPath));
             }
         }
@@ -228,7 +257,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
     public static void cleanUpPendingBlock(@NonNull final Path contentsPath) {
         requireNonNull(contentsPath);
         final var name = contentsPath.getFileName().toString();
-        final var suffix = name.endsWith(".blk.gz") ? ".blk.gz" : ".blk";
+        final var suffix = name.endsWith(".pnd.gz") ? ".pnd.gz" : ".pnd";
         final var proofJsonPath = contentsPath.resolveSibling(name.replace(suffix, ".pnd.json"));
         logger.info("Cleaning up pending block ({}, {})", proofJsonPath, contentsPath);
         if (!proofJsonPath.toFile().delete()) {
@@ -339,6 +368,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 Files.move(pathOf(blockNumber, completeFileName), pathOf(blockNumber, pendingFileName));
             } catch (IOException e) {
                 logger.error("Error flushing pending block #{}", blockNumber, e);
+                return;
             } finally {
                 state = State.CLOSED;
             }
@@ -347,13 +377,12 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 Files.writeString(pathOf(blockNumber, name -> name + ".pnd.json"), json);
             } catch (IOException e) {
                 logger.error("Error flushing pending proof metadata #{}", blockNumber, e);
-                if (pathOf(blockNumber, completeFileName).toFile().delete()) {
-                    logger.warn("Cleaned up flushed complete block");
-                }
-                if (pathOf(blockNumber, pendingFileName).toFile().delete()) {
-                    logger.warn("Cleaned up flushed pending block");
-                }
             }
+            logger.info(
+                    "Flushed pending block #{} ({}, {})",
+                    blockNumber,
+                    pathOf(blockNumber, pendingFileName),
+                    pathOf(blockNumber, name -> name + ".pnd.json"));
         } else {
             logger.warn("Block #{} flushed in non-OPEN state '{}'", blockNumber, state, new IllegalStateException());
         }

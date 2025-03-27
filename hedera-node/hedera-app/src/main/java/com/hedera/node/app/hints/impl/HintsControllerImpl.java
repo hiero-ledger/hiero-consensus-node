@@ -178,11 +178,11 @@ public class HintsControllerImpl implements HintsController {
         if (hintsStore.getCrsState().stage() != COMPLETED || construction.hasHintsScheme()) {
             return;
         }
-        if (construction.hasPreprocessingStartTime() && isActive) {
-            final var crs = hintsStore.getCrsState().crs();
-            if (!votes.containsKey(selfId) && preprocessingVoteFuture == null) {
-                preprocessingVoteFuture =
-                        startPreprocessingVoteFuture(asInstant(construction.preprocessingStartTimeOrThrow()), crs);
+        if (construction.hasPreprocessingStartTime()) {
+            if (isActive && !votes.containsKey(selfId) && preprocessingVoteFuture == null) {
+                preprocessingVoteFuture = startPreprocessingVoteFuture(
+                        asInstant(construction.preprocessingStartTimeOrThrow()),
+                        hintsStore.getCrsState().crs());
             }
         } else {
             final var crs = hintsStore.getCrsState().crs();
