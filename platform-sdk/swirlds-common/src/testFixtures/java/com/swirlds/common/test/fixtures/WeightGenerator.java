@@ -19,5 +19,5 @@ public interface WeightGenerator {
      * 		the number of nodes to generate weight for
      * @return a list of weights equal in size to {@code numberOfNodes}
      */
-    List<Long> getWeights(Long seed, int numberOfNodes);
+    List<Long> getWeights(long seed, int numberOfNodes);
 }
