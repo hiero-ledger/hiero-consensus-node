@@ -71,22 +71,24 @@ public class HealthMonitor {
     /**
      * Constructor.
      *
-     * @param metrics   the metrics
+     * @param metrics the metrics
      * @param time  the time
-     * @param schedulers         the task schedulers to monitor
+     * @param schedulers the task schedulers to monitor
      * @param healthLogThreshold the amount of time that must pass before we start logging health information
-     * @param healthLogPeriod    the period at which we log health information
+     * @param healthLogPeriod the period at which we log health information
+     * @param healthyReportThreshold How long between two consecutive reports when the system is healthy.
      */
     public HealthMonitor(
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final List<TaskScheduler<?>> schedulers,
             @NonNull final Duration healthLogThreshold,
-            @NonNull final Duration healthLogPeriod) {
+            @NonNull final Duration healthLogPeriod,
+            @NonNull final Duration healthyReportThreshold) {
 
         this.metrics = new HealthMonitorMetrics(metrics, healthLogThreshold);
         this.schedulers = new ArrayList<>();
-        this.healthyReportThreshold = Duration.ofSeconds(1);
+        this.healthyReportThreshold = healthyReportThreshold;
         for (final TaskScheduler<?> scheduler : schedulers) {
             if (scheduler.getCapacity() != TaskSchedulerBuilder.UNLIMITED_CAPACITY) {
                 this.schedulers.add(Objects.requireNonNull(scheduler));

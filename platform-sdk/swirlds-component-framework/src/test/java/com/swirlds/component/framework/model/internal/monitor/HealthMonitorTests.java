@@ -27,8 +27,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class HealthMonitorTests {
-    public static final Duration HUNDRED_MILLIS = Duration.ofMillis(100);
-    public static final int THOUSAND = 1000;
+    public static final Duration HEALTH_LOG_THRESHOLD = Duration.ofSeconds(5);
+    public static final Duration HEALTH_LOG_PERIOD = Duration.ofDays(10000);
+    public static final Duration HEALTHY_REPORT_THRESHOLD = Duration.ofSeconds(1);
+    public static final long HEALTHY_REPORT_THRESHOLD_MS = HEALTHY_REPORT_THRESHOLD.toMillis();
+    public static final Duration ONE_TENTH_OF_HRT_MS = HEALTHY_REPORT_THRESHOLD.dividedBy(10);
     private FakeTime time;
     private Randotron randotron;
 
@@ -43,7 +46,12 @@ class HealthMonitorTests {
     void emptySchedulerList() {
         final List<TaskScheduler<?>> schedulers = new ArrayList<>();
         final HealthMonitor healthMonitor = new HealthMonitor(
-                new NoOpMetrics(), Time.getCurrent(), schedulers, Duration.ofSeconds(5), Duration.ofDays(10000));
+                new NoOpMetrics(),
+                Time.getCurrent(),
+                schedulers,
+                HEALTH_LOG_THRESHOLD,
+                HEALTH_LOG_PERIOD,
+                HEALTHY_REPORT_THRESHOLD);
         assertEquals(ZERO, healthMonitor.checkSystemHealth(time.now()));
         assertEquals(ZERO, healthMonitor.getUnhealthyDuration());
         assertNull(healthMonitor.checkSystemHealth(time.now()));
@@ -56,8 +64,8 @@ class HealthMonitorTests {
         final AtomicBoolean healthy = new AtomicBoolean(true);
         final TaskScheduler<?> scheduler = buildMockScheduler(healthy);
         final List<TaskScheduler<?>> schedulers = List.of(scheduler);
-        final HealthMonitor healthMonitor =
-                new HealthMonitor(new NoOpMetrics(), time, schedulers, Duration.ofSeconds(5), Duration.ofDays(10000));
+        final HealthMonitor healthMonitor = new HealthMonitor(
+                new NoOpMetrics(), time, schedulers, HEALTH_LOG_THRESHOLD, HEALTH_LOG_PERIOD, HEALTHY_REPORT_THRESHOLD);
 
         assertSystemRemainsHealthy(healthMonitor, time);
     }
@@ -68,12 +76,12 @@ class HealthMonitorTests {
         final AtomicBoolean healthy = new AtomicBoolean(false);
         final TaskScheduler<?> scheduler = buildMockScheduler(healthy);
         final List<TaskScheduler<?>> schedulers = List.of(scheduler);
-        final HealthMonitor healthMonitor =
-                new HealthMonitor(new NoOpMetrics(), time, schedulers, Duration.ofSeconds(5), Duration.ofDays(10000));
+        final HealthMonitor healthMonitor = new HealthMonitor(
+                new NoOpMetrics(), time, schedulers, HEALTH_LOG_THRESHOLD, HEALTH_LOG_PERIOD, HEALTHY_REPORT_THRESHOLD);
         assertEquals(ZERO, healthMonitor.checkSystemHealth(time.now()));
-        time.tick(HUNDRED_MILLIS);
-        assertEquals(HUNDRED_MILLIS, healthMonitor.checkSystemHealth(time.now()));
-        assertEquals(HUNDRED_MILLIS, healthMonitor.getUnhealthyDuration());
+        time.tick(ONE_TENTH_OF_HRT_MS);
+        assertEquals(ONE_TENTH_OF_HRT_MS, healthMonitor.checkSystemHealth(time.now()));
+        assertEquals(ONE_TENTH_OF_HRT_MS, healthMonitor.getUnhealthyDuration());
         time.tick(Duration.ofMinutes(1));
         assertEquals(Duration.ofMinutes(1).plus(100, ChronoUnit.MILLIS), healthMonitor.checkSystemHealth(time.now()));
         assertEquals(Duration.ofMinutes(1).plus(100, ChronoUnit.MILLIS), healthMonitor.getUnhealthyDuration());
@@ -85,35 +93,37 @@ class HealthMonitorTests {
         final AtomicBoolean healthy = new AtomicBoolean(false);
         final TaskScheduler<?> scheduler = buildMockScheduler(healthy);
         final List<TaskScheduler<?>> schedulers = List.of(scheduler);
-        final HealthMonitor healthMonitor =
-                new HealthMonitor(new NoOpMetrics(), time, schedulers, Duration.ofSeconds(5), Duration.ofDays(10000));
+        final HealthMonitor healthMonitor = new HealthMonitor(
+                new NoOpMetrics(), time, schedulers, HEALTH_LOG_THRESHOLD, HEALTH_LOG_PERIOD, HEALTHY_REPORT_THRESHOLD);
 
         // Initial -> unhealthy transition
         // it is unhealthy but given that time did not pass, no effect will be reported.
         // internally the scheduler has been registered as unhealthy
         assertEquals(ZERO, healthMonitor.checkSystemHealth(time.now()));
-        time.tick(HUNDRED_MILLIS); // let time pass, now its been unhealthy for a while, that while should be reported
+        time.tick(ONE_TENTH_OF_HRT_MS); // let time pass, now its been unhealthy for a while, that while should be
+        // reported
         assertEquals(
-                HUNDRED_MILLIS, healthMonitor.checkSystemHealth(time.now())); // system should transition to unhealthy
+                ONE_TENTH_OF_HRT_MS,
+                healthMonitor.checkSystemHealth(time.now())); // system should transition to unhealthy
         assertNull(healthMonitor.checkSystemHealth(time.now())); // no change should not be reported
-        time.tick(HUNDRED_MILLIS); // double the passed time
+        time.tick(ONE_TENTH_OF_HRT_MS); // double the passed time
         assertEquals(
-                HUNDRED_MILLIS.plus(HUNDRED_MILLIS),
+                ONE_TENTH_OF_HRT_MS.plus(ONE_TENTH_OF_HRT_MS),
                 healthMonitor.checkSystemHealth(time.now())); // unhealthy time should double
         assertNull(healthMonitor.checkSystemHealth(time.now())); // no change should not be reported
 
         // Unhealthy -> healthy transition
-        time.tick(HUNDRED_MILLIS);
+        time.tick(ONE_TENTH_OF_HRT_MS);
         healthy.set(true); // transition the scheduler to healthy again
         assertSystemRemainsHealthy(healthMonitor, time); // Time will be affected by 1 second
 
         // Healthy -> healthy
-        time.tick(HUNDRED_MILLIS);
+        time.tick(ONE_TENTH_OF_HRT_MS);
         healthy.set(true); // this has no effect, just for documenting in the test
         assertNull(healthMonitor.checkSystemHealth(time.now())); // no change should not be reported
 
         // assert that while a second hasn't pass yet, it does not report the value
-        breakValueRandomly(randotron, THOUSAND - 101).forEach(v -> {
+        breakValueRandomly(randotron, HEALTHY_REPORT_THRESHOLD.toMillis() - 101).forEach(v -> {
             time.tick(Duration.ofMillis(v));
             assertNull(healthMonitor.checkSystemHealth(time.now()));
         });
@@ -121,20 +131,20 @@ class HealthMonitorTests {
         assertEquals(ZERO, healthMonitor.checkSystemHealth(time.now())); // value should be reported again
 
         // Healthy -> unhealthy transition
-        time.tick(HUNDRED_MILLIS);
+        time.tick(ONE_TENTH_OF_HRT_MS);
         healthy.set(false); // transition the scheduler to unHealthy again
         assertNull(healthMonitor.checkSystemHealth(
                 time.now())); // no effect will be reported now but internally the scheduler has been registered as
         // unhealthy
         int repeat = 10;
-        Duration duration = HUNDRED_MILLIS;
+        Duration duration = ONE_TENTH_OF_HRT_MS;
         // Unhealthy -> Unhealthy transition
         while (repeat-- > 0) {
-            time.tick(HUNDRED_MILLIS); // simulate pass time
+            time.tick(ONE_TENTH_OF_HRT_MS); // simulate pass time
             healthy.set(false); // this has no effect, just for documenting
             assertEquals(
                     duration, healthMonitor.checkSystemHealth(time.now())); // system should report increasing values
-            duration = duration.plus(HUNDRED_MILLIS);
+            duration = duration.plus(ONE_TENTH_OF_HRT_MS);
         }
     }
 
@@ -148,27 +158,28 @@ class HealthMonitorTests {
                 .<TaskScheduler<?>>map(HealthMonitorTests::buildMockScheduler)
                 .toList();
 
-        final HealthMonitor healthMonitor =
-                new HealthMonitor(new NoOpMetrics(), time, schedulers, Duration.ofSeconds(5), Duration.ofDays(10000));
+        final HealthMonitor healthMonitor = new HealthMonitor(
+                new NoOpMetrics(), time, schedulers, HEALTH_LOG_THRESHOLD, HEALTH_LOG_PERIOD, HEALTHY_REPORT_THRESHOLD);
         healthMonitor.checkSystemHealth(time.now());
         // Make each scheduler unhealthy.
         for (final var h : healthy) {
             h.set(false);
-            time.tick(THOUSAND);
+            time.tick(HEALTHY_REPORT_THRESHOLD_MS);
             healthMonitor.checkSystemHealth(time.now());
         }
 
-        time.tick(THOUSAND);
+        time.tick(HEALTHY_REPORT_THRESHOLD_MS);
         // Make each of schedulers healthy again. This will allow us to see the unhealthy time of the latter schedulers
         for (int i = 0; i < healthy.length; i++) {
             assertEquals(
-                    Duration.ofNanos((healthy.length - i) * THOUSAND), healthMonitor.checkSystemHealth(time.now()));
+                    Duration.ofNanos((healthy.length - i) * HEALTHY_REPORT_THRESHOLD_MS),
+                    healthMonitor.checkSystemHealth(time.now()));
             healthy[i].set(true);
         }
         // Make the scheduler healthy again. We should see a single report of 0s, followed by nulls.
         assertSystemRemainsHealthy(healthMonitor, time);
         assertNull(healthMonitor.checkSystemHealth(time.now()));
-        time.tick(Duration.ofSeconds(1));
+        time.tick(HEALTHY_REPORT_THRESHOLD);
         // if a second is passed, then the healthy duration should be reported again
         assertEquals(ZERO, healthMonitor.checkSystemHealth(time.now()));
     }
@@ -179,8 +190,8 @@ class HealthMonitorTests {
         final AtomicBoolean healthy = new AtomicBoolean(true);
         final TaskScheduler<?> scheduler = buildMockScheduler(healthy);
         final List<TaskScheduler<?>> schedulers = List.of(scheduler);
-        final HealthMonitor healthMonitor =
-                new HealthMonitor(new NoOpMetrics(), time, schedulers, Duration.ofSeconds(5), Duration.ofDays(10000));
+        final HealthMonitor healthMonitor = new HealthMonitor(
+                new NoOpMetrics(), time, schedulers, HEALTH_LOG_THRESHOLD, HEALTH_LOG_PERIOD, HEALTHY_REPORT_THRESHOLD);
         assertEquals(ZERO, healthMonitor.checkSystemHealth(time.now()));
 
         // Checks that within the second, while the system stays healthy the healthy is not reported
@@ -203,7 +214,7 @@ class HealthMonitorTests {
     private void assertSystemRemainsHealthy(final HealthMonitor healthMonitor, final FakeTime time) {
         assertEquals(ZERO, healthMonitor.checkSystemHealth(time.now()));
         assertEquals(ZERO, healthMonitor.getUnhealthyDuration());
-        breakValueRandomly(randotron, THOUSAND - 1).forEach(v -> {
+        breakValueRandomly(randotron, HEALTHY_REPORT_THRESHOLD_MS - 1).forEach(v -> {
             time.tick(v * 1000000);
             assertNull(healthMonitor.checkSystemHealth(time.now()));
         });
