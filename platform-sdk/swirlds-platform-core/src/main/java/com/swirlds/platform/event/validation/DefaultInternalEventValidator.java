@@ -28,7 +28,7 @@ import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.ParentMigrationUtils;
+import com.hedera.hapi.util.EventMigrationUtils;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
 
@@ -148,7 +148,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             nullField = "timeCreated";
         } else if (eventCore.version() == null) {
             nullField = "version";
-        } else if (ParentMigrationUtils.getParents(gossipEvent).stream().anyMatch(Objects::isNull)) {
+        } else if (EventMigrationUtils.getParents(gossipEvent).stream().anyMatch(Objects::isNull)) {
             nullField = "parent";
         } else if (gossipEvent.transactions().stream().anyMatch(DefaultInternalEventValidator::isTransactionNull)) {
             nullField = "transaction";
@@ -184,7 +184,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             fieldLengthAccumulator.update(1);
             return false;
         }
-        if (ParentMigrationUtils.getParents(gossipEvent).stream()
+        if (EventMigrationUtils.getParents(gossipEvent).stream()
                 .map(EventDescriptor::hash)
                 .anyMatch(hash -> hash.length() != DigestType.SHA_384.digestLength())) {
             fieldLengthLogger.error(
@@ -230,7 +230,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * @return true if the parent hashes and generations of the event are internally consistent, otherwise false
      */
     private boolean areParentsInternallyConsistent(@NonNull final PlatformEvent event) {
-        if (!ParentMigrationUtils.areParentsPopulatedCorrectly(event.getGossipEvent())) {
+        if (!EventMigrationUtils.areParentsPopulatedCorrectly(event.getGossipEvent())) {
             invalidParentsLogger.error(
                     EXCEPTION.getMarker(),
                     "Event %s has parents populated in both EventCore and GossipEvent".formatted(event));

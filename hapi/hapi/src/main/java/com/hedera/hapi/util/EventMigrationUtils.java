@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.event;
+package com.hedera.hapi.util;
 
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
@@ -9,13 +9,14 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Utility class for migrating parent data from {@link EventCore} to {@link GossipEvent}.
+ * Utility class for {@link GossipEvent} data.
  */
-public final class ParentMigrationUtils {
-    private ParentMigrationUtils() {}
+public final class EventMigrationUtils {
+    private EventMigrationUtils() {}
 
     /**
-     * Checks if the parent data is populated correctly.
+     * Checks if the parent data is populated correctly. Used while migrating parent data from {@link EventCore} to
+     * {@link GossipEvent}
      *
      * @param event the event to check
      * @return true if the parent data is populated correctly, false otherwise
@@ -26,7 +27,8 @@ public final class ParentMigrationUtils {
     }
 
     /**
-     * Gets the parents of the given event.
+     * Gets the parents of the given event. Used while migrating parent data from {@link EventCore} to
+     * {@link GossipEvent}
      *
      * @param event the event to get the parents of
      * @return the parents of the given event
