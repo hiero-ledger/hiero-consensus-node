@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
+import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -41,6 +43,7 @@ class ISSTestingToolStateTest {
     private Consumer<ScopedSystemTransaction<StateSignatureTransaction>> consumer;
     private Transaction transaction;
     private StateSignatureTransaction stateSignatureTransaction;
+    private Bytes signatureTransactionBytes;
 
     @BeforeEach
     void setUp() {
@@ -64,6 +67,13 @@ class ISSTestingToolStateTest {
                 .hash(Bytes.wrap(hash))
                 .round(round.getRoundNum())
                 .build();
+
+        final var stateSignatureTransactionBytes =
+                StateSignatureTransaction.PROTOBUF.toBytes(stateSignatureTransaction);
+        final var transactionProto = com.hedera.hapi.node.base.Transaction.newBuilder()
+                .bodyBytes(stateSignatureTransactionBytes)
+                .build();
+        signatureTransactionBytes = com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(transactionProto);
     }
 
     @Test
@@ -195,30 +205,9 @@ class ISSTestingToolStateTest {
     @Test
     void preHandleEventWithMultipleSystemTransaction() {
         // Given
-        final var gossipEvent = mock(GossipEvent.class);
-        final var eventCore = mock(EventCore.class);
-        when(gossipEvent.eventCore()).thenReturn(eventCore);
-        when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
-        when(eventCore.creatorNodeId()).thenReturn(1L);
-        when(eventCore.parents()).thenReturn(Collections.emptyList());
-        final var consensusTransaction = mock(TransactionWrapper.class);
-        final var secondConsensusTransaction = mock(TransactionWrapper.class);
-        final var thirdConsensusTransaction = mock(TransactionWrapper.class);
-
-        final var stateSignatureTransactionBytes =
-                StateSignatureTransaction.PROTOBUF.toBytes(stateSignatureTransaction);
-        final var transactionProto = com.hedera.hapi.node.base.Transaction.newBuilder()
-                .bodyBytes(stateSignatureTransactionBytes)
+        final PlatformEvent event = new TestingEventBuilder(Randotron.create())
+                .setTransactionBytes(Collections.nCopies(3, signatureTransactionBytes))
                 .build();
-        final var transactionBytes = com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(transactionProto);
-
-        when(consensusTransaction.getApplicationTransaction()).thenReturn(transactionBytes);
-        when(secondConsensusTransaction.getApplicationTransaction()).thenReturn(transactionBytes);
-        when(thirdConsensusTransaction.getApplicationTransaction()).thenReturn(transactionBytes);
-        when(gossipEvent.transactions()).thenReturn(List.of(transactionBytes, transactionBytes, transactionBytes));
-        event = new PlatformEvent(gossipEvent);
-        when(round.iterator()).thenReturn(Collections.singletonList(event).iterator());
-
         // When
         consensusStateEventHandler.onPreHandle(event, state, consumer);
 
@@ -229,27 +218,9 @@ class ISSTestingToolStateTest {
     @Test
     void preHandleEventWithSystemTransaction() {
         // Given
-        final var gossipEvent = mock(GossipEvent.class);
-        final var eventCore = mock(EventCore.class);
-        when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
-        when(eventCore.creatorNodeId()).thenReturn(1L);
-        when(eventCore.parents()).thenReturn(Collections.emptyList());
-        final var consensusTransaction = mock(TransactionWrapper.class);
-        when(gossipEvent.eventCore()).thenReturn(eventCore);
-
-        final var stateSignatureTransactionBytes =
-                StateSignatureTransaction.PROTOBUF.toBytes(stateSignatureTransaction);
-        final var transactionProto = com.hedera.hapi.node.base.Transaction.newBuilder()
-                .bodyBytes(stateSignatureTransactionBytes)
+        final PlatformEvent event = new TestingEventBuilder(Randotron.create())
+                .setTransactionBytes(List.of(signatureTransactionBytes))
                 .build();
-        final var transactionBytes = com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(transactionProto);
-        when(consensusTransaction.getApplicationTransaction()).thenReturn(transactionBytes);
-        when(gossipEvent.transactions()).thenReturn(List.of(transactionBytes));
-
-        event = new PlatformEvent(gossipEvent);
-
-        when(round.iterator()).thenReturn(Collections.singletonList(event).iterator());
-        when(transaction.getApplicationTransaction()).thenReturn(transactionBytes);
 
         // When
         consensusStateEventHandler.onPreHandle(event, state, consumer);
@@ -261,25 +232,10 @@ class ISSTestingToolStateTest {
     @Test
     void preHandleEventWithEmptyTransaction() {
         // Given
-        final var gossipEvent = mock(GossipEvent.class);
-        final var eventCore = mock(EventCore.class);
-        when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
-        when(eventCore.creatorNodeId()).thenReturn(1L);
-        when(eventCore.parents()).thenReturn(Collections.emptyList());
-        final var consensusTransaction = mock(TransactionWrapper.class);
-        when(gossipEvent.eventCore()).thenReturn(eventCore);
-
-        final var stateSignatureTransactionBytes =
-                StateSignatureTransaction.PROTOBUF.toBytes(StateSignatureTransaction.DEFAULT);
-        final var transactionProto = com.hedera.hapi.node.base.Transaction.newBuilder()
-                .bodyBytes(stateSignatureTransactionBytes)
+        final PlatformEvent event = new TestingEventBuilder(Randotron.create())
+                .setAppTransactionCount(0)
+                .setSystemTransactionCount(0)
                 .build();
-        final var transactionBytes = com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(transactionProto);
-        when(consensusTransaction.getApplicationTransaction()).thenReturn(transactionBytes);
-
-        event = new PlatformEvent(gossipEvent);
-        when(round.iterator()).thenReturn(Collections.singletonList(event).iterator());
-        when(transaction.getApplicationTransaction()).thenReturn(transactionBytes);
 
         // When
         consensusStateEventHandler.onPreHandle(event, state, consumer);

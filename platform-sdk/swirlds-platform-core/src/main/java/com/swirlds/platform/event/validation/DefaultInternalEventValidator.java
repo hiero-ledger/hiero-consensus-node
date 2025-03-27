@@ -4,6 +4,7 @@ package com.swirlds.platform.event.validation;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
+import org.hiero.consensus.model.event.ParentMigrationUtils;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
 
 import com.hedera.hapi.platform.event.EventCore;
@@ -165,7 +166,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             nullField = "timeCreated";
         } else if (eventCore.version() == null) {
             nullField = "version";
-        } else if (eventCore.parents().stream().anyMatch(Objects::isNull)) {
+        } else if (ParentMigrationUtils.getParents(gossipEvent).stream().anyMatch(Objects::isNull)) {
             nullField = "parent";
         } else if (gossipEvent.transactions().stream().anyMatch(DefaultInternalEventValidator::isTransactionNull)) {
             nullField = "transaction";
@@ -202,7 +203,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             fieldLengthAccumulator.update(1);
             return false;
         }
-        if (eventCore.parents().stream()
+        if (ParentMigrationUtils.getParents(gossipEvent).stream()
                 .map(EventDescriptor::hash)
                 .anyMatch(hash -> hash.length() != DigestType.SHA_384.digestLength())) {
             fieldLengthLogger.error(

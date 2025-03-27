@@ -3,12 +3,14 @@ package org.hiero.consensus.model.event;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventCore;
+import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.model.crypto.Hash;
@@ -34,6 +36,7 @@ public class UnsignedEvent implements Hashable {
      * The metadata of the event.
      */
     private final EventMetadata metadata;
+    private final List<EventDescriptor> parents;
 
     /**
      * Create a UnsignedEvent object
@@ -56,13 +59,14 @@ public class UnsignedEvent implements Hashable {
             @NonNull final List<Bytes> transactions) {
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null");
         this.metadata = new EventMetadata(creatorId, selfParent, otherParents, timeCreated, transactions, birthRound);
+        this.parents = this.metadata.getAllParents().stream()
+                .map(EventDescriptorWrapper::eventDescriptor)
+                .toList();
         this.eventCore = new EventCore(
                 creatorId.id(),
                 birthRound,
                 HapiUtils.asTimestamp(timeCreated),
-                this.metadata.getAllParents().stream()
-                        .map(EventDescriptorWrapper::eventDescriptor)
-                        .toList(),
+                Collections.emptyList(),
                 softwareVersion);
     }
 
@@ -106,6 +110,10 @@ public class UnsignedEvent implements Hashable {
     @NonNull
     public EventCore getEventCore() {
         return eventCore;
+    }
+
+    public List<EventDescriptor> getParents() {
+        return parents;
     }
 
     /**

@@ -232,7 +232,9 @@ public class TestingEventBuilder {
      *
      * @param numberOfSystemTransactions the number of system transactions
      * @return this instance
+     * @deprecated
      */
+    @Deprecated
     public @NonNull TestingEventBuilder setSystemTransactionCount(final int numberOfSystemTransactions) {
         if (transactionBytes != null) {
             throw new IllegalStateException("Cannot set system transaction count when transactions are explicitly set");
@@ -266,7 +268,9 @@ public class TestingEventBuilder {
      *
      * @param transactions the transactions
      * @return this instance
+     * @deprecated the {@link EventTransaction} type will be removed in the future
      */
+    @Deprecated
     public @NonNull TestingEventBuilder setTransactions(@Nullable final List<EventTransaction> transactions) {
         if (appTransactionCount != null || systemTransactionCount != null || transactionSize != null) {
             throw new IllegalStateException(
