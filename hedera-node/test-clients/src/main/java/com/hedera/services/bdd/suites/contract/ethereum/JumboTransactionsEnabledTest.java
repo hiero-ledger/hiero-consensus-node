@@ -75,6 +75,21 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
     @HapiTest
     @Order(2)
+    @DisplayName("Update the config")
+    public Stream<DynamicTest> updateTheConfig() {
+        return hapiTest(
+                // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),
+                // so we can't toggle it via overriding(). Instead, we need to upgrade to the config version.
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(
+                        Map.of(
+                                "jumboTransactions.isEnabled", "true",
+                                "hedera.transaction.maxMemoUtf8Bytes", "10000"),
+                        noOp()));
+    }
+
+    @HapiTest
+    @Order(3)
     @DisplayName("Jumbo transaction should pass")
     public Stream<DynamicTest> jumboTransactionShouldPass() {
         final var jumboPayload = new byte[10 * 1024];
@@ -82,11 +97,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-
-                // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),
-                // so we can't toggle it via overriding(). Instead, we need to upgrade to the config version.
-                prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
 
                 // send jumbo payload to non jumbo endpoint
                 contractCall(CONTRACT, FUNCTION, jumboPayload)
@@ -114,7 +124,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(3)
+    @Order(4)
     @DisplayName("Ethereum Call jumbo transaction with ethereum data overflow should fail")
     public Stream<DynamicTest> ethereumCallJumboTxnWithEthereumDataOverflow() {
         final var size = 131072 + 1; // Exceeding the limit
@@ -135,7 +145,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(4)
+    @Order(5)
     @DisplayName("Allows Ethereum jumbo contract create jumbo above max transaction size of 6kb")
     public Stream<DynamicTest> ethereumContractCreateJumboTxnMoreThen6Kb() {
         final var contract = "TokenCreateContract";
@@ -157,25 +167,19 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(6)
+    @Order(7)
     @DisplayName("Non-jumbo transaction bigger then 6kb should fail")
     public Stream<DynamicTest> nonJumboTransactionBiggerThen6kb() {
         return hapiTest(
-                prepareFakeUpgrade(),
-                // updating the max memo size so we can send cryptoTransfer with a memo of 6145 bytes
-                upgradeToNextConfigVersion(Map.of("hedera.transaction.maxMemoUtf8Bytes", "10000"), noOp()),
                 cryptoCreate("receiver"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, "receiver", ONE_HUNDRED_HBARS))
                         .memo(StringUtils.repeat("a", 6145))
                         .hasKnownStatus(TRANSACTION_OVERSIZE)
-                        .orUnavailableStatus(),
-                prepareFakeUpgrade(),
-                // reverting the max memo size back to 100 bytes
-                upgradeToNextConfigVersion(Map.of("hedera.transaction.maxMemoUtf8Bytes", "100"), noOp()));
+                        .orUnavailableStatus());
     }
 
     @HapiTest
-    @Order(7)
+    @Order(8)
     @DisplayName("Three jumbo transactions one after the other")
     public Stream<DynamicTest> treeJumboTransactionOneAfterTheOther() {
         final var payload = new byte[127 * 1024];
@@ -201,7 +205,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(8)
+    @Order(9)
     @DisplayName("Mix of jumbo and non-jumbo transactions")
     public Stream<DynamicTest> mixOfJumboAndNonJumboTransactions() {
         final var payload = new byte[50 * 1024];
