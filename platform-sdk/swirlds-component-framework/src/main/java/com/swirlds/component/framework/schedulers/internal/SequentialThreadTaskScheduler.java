@@ -86,7 +86,10 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
         this.busyTimer = Objects.requireNonNull(busyTimer);
         this.capacity = capacity;
 
-        thread = new Thread(this::run, THREAD_NAME_PREFIX + name + THREAD_NAME_SUFFIX);
+        StackTraceElement[] stacktrace = Thread.currentThread().getStackTrace();
+        StackTraceElement e = stacktrace[2]; // maybe this number needs to be corrected
+        String methodName = e.getMethodName();
+        thread = new Thread(this::run, THREAD_NAME_PREFIX + "-" + methodName + "-" + name + THREAD_NAME_SUFFIX);
     }
 
     /**
