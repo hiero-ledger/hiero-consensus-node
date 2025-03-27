@@ -278,7 +278,7 @@ the extensions we use to make a `HapiSpec` an executable JUnit5 test and manage 
 lifecycle are not particularly polished and will not reward careful examination by anyone not
 motivated by necessity to change their behavior.
 
-We only mention a a few things here to avoid giving the reader a sense of excessive "magic" beyond
+We only mention a few things here to avoid giving the reader a sense of excessive "magic" beyond
 what is already built in to JUnit Jupiter.
 
 ### Meta-annotations

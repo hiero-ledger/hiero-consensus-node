@@ -10,7 +10,7 @@ import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
  * A concrete subclass of {@link AbstractProxyEvmAccount} that represents a contract account.
- *
+ * <p>
  * Responsible for retrieving the contract byte code from the {@link EvmFrameState}
  */
 public class ProxyEvmContract extends AbstractProxyEvmAccount {

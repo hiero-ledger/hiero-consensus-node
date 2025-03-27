@@ -147,7 +147,8 @@ class QueryWorkflowImplTest extends AppTestBase {
     private TransactionInfo transactionInfo;
 
     private QueryWorkflowImpl workflow;
-    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory = v -> new ServicesSoftwareVersion();
+    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory =
+            v -> new ServicesSoftwareVersion();
 
     @BeforeEach
     void setup(@Mock FeeCalculator feeCalculator) throws ParseException, PreCheckException {

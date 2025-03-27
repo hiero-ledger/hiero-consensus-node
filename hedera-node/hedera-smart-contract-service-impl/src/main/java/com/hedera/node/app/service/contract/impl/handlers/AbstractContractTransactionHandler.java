@@ -43,7 +43,7 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
 
     /**
      * Handle common metrics for transactions that fail `pureChecks`.
-     *
+     * <p>
      * (Caller is responsible to rethrow `e`.)
      */
     protected void bumpExceptionMetrics(@NonNull final HederaFunctionality functionality, @NonNull final Exception e) {
@@ -67,7 +67,7 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
     /**
      * Return the fee matrix for the given transaction.  Inheritor is responsible for picking
      * the correct fee matrix for the transactions it is handling.
-     *
+     * <p>
      * Used by the default implementation of `calculateFees`, above.  If inheritor overrides
      * `calculateFees` then it doesn't need to override this method.
      */
