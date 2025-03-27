@@ -92,8 +92,7 @@ public class HapiSpecSetup {
     public enum TxnProtoStructure {
         NEW,
         OLD,
-        ALTERNATE,
-        NORMALIZED
+        ALTERNATE
     }
 
     public HapiSpecSetup(HapiPropertySource props) {
