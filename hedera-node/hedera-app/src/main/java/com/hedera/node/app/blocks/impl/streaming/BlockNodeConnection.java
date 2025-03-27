@@ -49,7 +49,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
     private void handleAcknowledgement(Acknowledgement acknowledgement) {
         if (acknowledgement.hasBlockAck()) {
-            logger.info("Block acknowledgment received for a full block: {}", acknowledgement.blockAck());
+            logger.debug("Block acknowledgment received for a full block: {}", acknowledgement.blockAck());
         }
     }
 
@@ -61,7 +61,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     }
 
     private void handleEndOfStream(EndOfStream endOfStream) {
-        logger.info("Error returned from block node at block number {}: {}", endOfStream.blockNumber(), endOfStream);
+        logger.debug("Error returned from block node at block number {}: {}", endOfStream.blockNumber(), endOfStream);
     }
 
     private void removeFromActiveConnections(BlockNodeConfig node) {
@@ -124,13 +124,13 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         } else if (response.hasEndStream()) {
             handleEndOfStream(response.endStream());
         } else if (response.hasSkipBlock()) {
-            logger.info(
+            logger.debug(
                     "Received SkipBlock from Block Node {}:{}  Block #{}",
                     node.address(),
                     node.port(),
                     response.skipBlock().blockNumber());
         } else if (response.hasResendBlock()) {
-            logger.info(
+            logger.debug(
                     "Received ResendBlock from Block Node {}:{}  Block #{}",
                     node.address(),
                     node.port(),
@@ -149,7 +149,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
     @Override
     public void onCompleted() {
-        logger.info("Stream completed for block node {}:{}", node.address(), node.port());
+        logger.debug("Stream completed for block node {}:{}", node.address(), node.port());
         handleStreamFailure();
     }
 }

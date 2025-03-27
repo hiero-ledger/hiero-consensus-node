@@ -76,7 +76,7 @@ public class BlockNodeConnectionManager {
      * Attempts to establish connections to block nodes based on priority and configuration.
      */
     private void establishConnections() {
-        logger.info("Establishing connections to block nodes");
+        logger.debug("Establishing connections to block nodes");
 
         List<BlockNodeConfig> availableNodes = blockNodeConfigurations.getAllNodes().stream()
                 .filter(node -> !activeConnections.containsKey(node))
@@ -86,7 +86,7 @@ public class BlockNodeConnectionManager {
     }
 
     private void connectToNode(@NonNull BlockNodeConfig node) {
-        logger.info("Connecting to block node {}:{}", node.address(), node.port());
+        logger.debug("Connecting to block node {}:{}", node.address(), node.port());
         try {
             GrpcClient client = GrpcClient.builder()
                     .tls(Tls.builder().enabled(false).build())
@@ -115,7 +115,7 @@ public class BlockNodeConnectionManager {
             synchronized (connectionLock) {
                 activeConnections.put(node, connection);
             }
-            logger.info("Successfully connected to block node {}:{}", node.address(), node.port());
+            logger.debug("Successfully connected to block node {}:{}", node.address(), node.port());
         } catch (Exception e) {
             logger.error("Failed to connect to block node {}:{}", node.address(), node.port(), e);
         }
@@ -126,7 +126,7 @@ public class BlockNodeConnectionManager {
             BlockNodeConnection connection = activeConnections.remove(node);
             if (connection != null) {
                 connection.close();
-                logger.info("Disconnected from block node {}:{}", node.address(), node.port());
+                logger.debug("Disconnected from block node {}:{}", node.address(), node.port());
             }
         }
     }
@@ -142,11 +142,11 @@ public class BlockNodeConnectionManager {
         }
 
         if (connectionsToStream.isEmpty()) {
-            logger.info("No active connections to stream block {}", blockNumber);
+            logger.debug("No active connections to stream block {}", blockNumber);
             return;
         }
 
-        logger.info("Streaming block {} to {} active connections", blockNumber, connectionsToStream.size());
+        logger.debug("Streaming block {} to {} active connections", blockNumber, connectionsToStream.size());
 
         // Create all batches once
         List<PublishStreamRequest> batchRequests =
@@ -159,7 +159,7 @@ public class BlockNodeConnectionManager {
                 for (PublishStreamRequest request : batchRequests) {
                     connection.sendRequest(request);
                 }
-                logger.info(
+                logger.debug(
                         "Sent block {} to stream observer for Block Node {}:{}",
                         blockNumber,
                         connectionNodeConfig.address(),
@@ -245,7 +245,7 @@ public class BlockNodeConnectionManager {
             try {
                 // Apply jitter: use a random value between 50-100% of the calculated delay
                 final long jitteredDelayMs = delay.toMillis() / 2 + random.nextLong(delay.toMillis() / 2 + 1);
-                logger.info("Retrying in {} ms", jitteredDelayMs);
+                logger.debug("Retrying in {} ms", jitteredDelayMs);
                 Thread.sleep(jitteredDelayMs);
                 action.get();
                 return;
@@ -266,7 +266,7 @@ public class BlockNodeConnectionManager {
             if (!awaitTermination) {
                 logger.error("Failed to shut down streaming executor within 10 seconds");
             } else {
-                logger.info("Successfully shut down streaming executor");
+                logger.debug("Successfully shut down streaming executor");
             }
         } catch (InterruptedException e) {
             throw new RuntimeException(e);

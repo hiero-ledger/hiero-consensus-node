@@ -88,7 +88,7 @@ class BlockNodeConnectionManagerTest {
         given(mockConfigProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         blockNodeConnectionManager = new BlockNodeConnectionManager(mockConfigProvider);
         assertTrue(blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(1L)));
-        assertThat(logCaptor.infoLogs()).contains("Successfully connected to block node localhost:8080");
+        assertThat(logCaptor.debugLogs()).contains("Successfully connected to block node localhost:8080");
     }
 
     @Test
@@ -171,7 +171,7 @@ class BlockNodeConnectionManagerTest {
 
         verify(mockSupplier, times(1)).get();
 
-        assertThat(logCaptor.infoLogs()).containsAnyElementsOf(generateExpectedRetryLogs(INITIAL_DELAY));
+        assertThat(logCaptor.debugLogs()).containsAnyElementsOf(generateExpectedRetryLogs(INITIAL_DELAY));
     }
 
     @Test
@@ -183,8 +183,8 @@ class BlockNodeConnectionManagerTest {
         blockNodeConnectionManager.retry(mockSupplier, INITIAL_DELAY);
 
         verify(mockSupplier, times(2)).get();
-        assertThat(logCaptor.infoLogs()).containsAnyElementsOf(generateExpectedRetryLogs(INITIAL_DELAY));
-        assertThat(logCaptor.infoLogs())
+        assertThat(logCaptor.debugLogs()).containsAnyElementsOf(generateExpectedRetryLogs(INITIAL_DELAY));
+        assertThat(logCaptor.debugLogs())
                 .containsAnyElementsOf(generateExpectedRetryLogs(INITIAL_DELAY.multipliedBy(2)));
     }
 
@@ -196,7 +196,7 @@ class BlockNodeConnectionManagerTest {
 
         Thread.sleep(BlockNodeConnectionManager.INITIAL_RETRY_DELAY.plusMillis(100));
 
-        assertThat(logCaptor.infoLogs()).containsAnyElementsOf(generateExpectedRetryLogs(Duration.ofSeconds(1L)));
+        assertThat(logCaptor.debugLogs()).containsAnyElementsOf(generateExpectedRetryLogs(Duration.ofSeconds(1L)));
         verify(mockConnection, times(1)).establishStream();
     }
 
@@ -224,7 +224,7 @@ class BlockNodeConnectionManagerTest {
 
         blockNodeConnectionManager.streamBlockToConnections(block);
 
-        assertThat(logCaptor.infoLogs())
+        assertThat(logCaptor.debugLogs())
                 .contains(
                         "Streaming block 1 to 1 active connections",
                         "Sent block 1 to stream observer for Block Node localhost:8080");

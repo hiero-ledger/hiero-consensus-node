@@ -133,7 +133,7 @@ class BlockNodeConnectionTest {
                 .build();
         capturedObserver.onNext(response);
 
-        assertThat(logCaptor.infoLogs())
+        assertThat(logCaptor.debugLogs())
                 .contains(
                         "Block acknowledgment received for a full block: BlockAcknowledgement[blockNumber=1234, blockRootHash=, blockAlreadyExists=false]");
     }
@@ -156,7 +156,7 @@ class BlockNodeConnectionTest {
                 .build();
         capturedObserver.onNext(response);
 
-        assertThat(logCaptor.infoLogs())
+        assertThat(logCaptor.debugLogs())
                 .contains(
                         "Error returned from block node at block number 1234: EndOfStream[status=STREAM_ITEMS_TIMEOUT, blockNumber=1234]");
     }
@@ -175,7 +175,7 @@ class BlockNodeConnectionTest {
 
         capturedObserver.onCompleted();
 
-        assertThat(logCaptor.infoLogs()).contains("Stream completed for block node localhost:12345");
+        assertThat(logCaptor.debugLogs()).contains("Stream completed for block node localhost:12345");
         assertFalse(blockNodeConnection.isActive());
         verify(blockNodeConnectionManager, times(1)).handleConnectionError(nodeConfig);
     }
