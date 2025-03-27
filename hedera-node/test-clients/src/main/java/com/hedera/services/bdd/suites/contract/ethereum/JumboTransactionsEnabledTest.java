@@ -11,8 +11,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumContractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -31,6 +33,7 @@ import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -43,8 +46,8 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class JumboTransactionsEnabledTest implements LifecycleTest {
 
-    private static String CONTRACT = "CalldataSize";
-    private static String FUNCTION = "callme";
+    private static final String CONTRACT = "CalldataSize";
+    private static final String FUNCTION = "callme";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -108,17 +111,15 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @Order(3)
     @DisplayName("Ethereum Call jumbo transaction with ethereum data overflow should fail")
     public Stream<DynamicTest> ethereumCallJumboTxnWithEthereumDataOverflow() {
-        final var contract = "CalldataSize";
-        final var function = "callme";
         final var size = 131072 + 1; // Exceeding the limit
         final var payload = new byte[size];
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                uploadInitCode(contract),
-                contractCreate(contract),
-                ethereumCall(contract, function, payload)
+                uploadInitCode(CONTRACT),
+                contractCreate(CONTRACT),
+                ethereumCall(CONTRACT, FUNCTION, payload)
                         .markAsJumboTxn()
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -147,5 +148,67 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .maxGasAllowance(ONE_HUNDRED_HBARS)
                         .gasLimit(1_000_000L)
                         .via("payTxn"));
+    }
+
+    @HapiTest
+    @Order(6)
+    @DisplayName("Non-jumbo transaction bigger then 6kb should fail")
+    public Stream<DynamicTest> nonJumboTransactionBiggerThen6kb() {
+        return hapiTest(
+                prepareFakeUpgrade(),
+                // updating the max memo size so we can send cryptoTransfer with a memo of 6145 bytes
+                upgradeToNextConfigVersion(Map.of("hedera.transaction.maxMemoUtf8Bytes", "10000"), noOp()),
+                cryptoCreate("receiver"),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "receiver", ONE_HUNDRED_HBARS))
+                        .memo(StringUtils.repeat("a", 6145))
+                        .hasKnownStatus(TRANSACTION_OVERSIZE)
+                        .orUnavailableStatus(),
+                prepareFakeUpgrade(),
+                // reverting the max memo size back to 100 bytes
+                upgradeToNextConfigVersion(Map.of("hedera.transaction.maxMemoUtf8Bytes", "100"), noOp()));
+    }
+
+    @HapiTest
+    @Order(7)
+    @DisplayName("Three jumbo transactions one after the other")
+    public Stream<DynamicTest> treeJumboTransactionOneAfterTheOther() {
+        final var payload = new byte[127 * 1024];
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
+                        .via("autoAccount"),
+                ethereumCall(CONTRACT, FUNCTION, payload)
+                        .markAsJumboTxn()
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .gasLimit(1_000_000L),
+                sleepFor(1000),
+                ethereumCall(CONTRACT, FUNCTION, payload)
+                        .markAsJumboTxn()
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .gasLimit(1_000_000L),
+                sleepFor(1000),
+                ethereumCall(CONTRACT, FUNCTION, payload)
+                        .markAsJumboTxn()
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .gasLimit(1_000_000L));
+    }
+
+    @HapiTest
+    @Order(8)
+    @DisplayName("Mix of jumbo and non-jumbo transactions")
+    public Stream<DynamicTest> mixOfJumboAndNonJumboTransactions() {
+        final var payload = new byte[50 * 1024];
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
+                        .via("autoAccount"),
+                ethereumCall(CONTRACT, FUNCTION, payload)
+                        .markAsJumboTxn()
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .gasLimit(1_000_000L),
+                cryptoCreate("receiver"),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "receiver", ONE_HUNDRED_HBARS)));
     }
 }
