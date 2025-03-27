@@ -29,11 +29,8 @@ public final class PcesTestFilesGenerator {
      */
     public static final Range FIRST_SEQUENCE_RANGE = new Range(950, 1000);
     /**
-     * Default range for the resultingUnbrokenOrigin value.
-     */
-    public static final Range DEFAULT_ORIGIN_RANGE = new Range(1, 1000);
-    /**
-     * Range for the maximum delta between lower and upper bounds.
+     * Range for the maximum delta between lower and upper bounds values (generation or round)
+     * that indicates what's allowed to be stored in a Pces file.
      */
     public static final Range MAX_DELTA_RANGE = new Range(10, 20);
     /**
@@ -48,14 +45,14 @@ public final class PcesTestFilesGenerator {
     /**
      * Default number of files to generate.
      */
-    public static final int FILE_COUNT = 100;
+    public static final int DEFAULT_NUM_FILES_TO_GENERATE = 100;
 
-    private final Range startingRoundRange;
+    private final Range startingOriginRange;
     private final AncientMode ancientMode;
     private final Random rng;
-    private final int count;
+    private final int numFilesToGenerate;
     private final Path fileDirectory;
-    private final boolean skipSomeAtStart;
+    private final boolean skipAtStart;
     private final boolean discontinue;
     private final boolean skipElementAtHalf;
     private final Predicate<Integer> shouldAdvanceBoundsPredicate;
@@ -63,44 +60,44 @@ public final class PcesTestFilesGenerator {
     /**
      * Constructs a new PcesTestFilesGenerator.
      *
-     * @param startingRoundRange           The range to generate starting round.
-     * @param ancientMode                  The ancient mode to use for file generation.
-     * @param rng                          The random number generator.
-     * @param count                        The number of files to generate.
-     * @param fileDirectory                The directory to store the generated files.
-     * @param skipSomeAtStart              Whether to skip generating some files at the start.
-     * @param discontinue                  Whether to introduce a discontinuity in the resultingUnbrokenOrigin value.
-     * @param skipElementAtHalf            Whether to skip generating a file at the halfway point.
+     * @param startingOriginRange The range to generate origin value.
+     * @param ancientMode The ancient mode to use for file generation.
+     * @param rng The random number generator.
+     * @param numFilesToGenerate The number of files to generate.
+     * @param fileDirectory The directory to store the generated files.
+     * @param skipAtStart Whether to skip generating some files at the beginning of the list.
+     * @param discontinue Whether to introduce a discontinuity in the origin value.
+     * @param skipElementAtHalf Whether to skip generating a file at the halfway point.
      * @param shouldAdvanceBoundsPredicate A predicate that tells whether to advance the bounds on the files or not.
      */
     private PcesTestFilesGenerator(
-            final @Nullable Range startingRoundRange,
+            final @Nullable Range startingOriginRange,
             final @NonNull AncientMode ancientMode,
             final @NonNull Random rng,
-            final int count,
+            final int numFilesToGenerate,
             final @NonNull Path fileDirectory,
-            final boolean skipSomeAtStart,
+            final boolean skipAtStart,
             final boolean discontinue,
             final boolean skipElementAtHalf,
             final @Nullable Predicate<Integer> shouldAdvanceBoundsPredicate) {
-        this.startingRoundRange = startingRoundRange;
+        this.startingOriginRange = startingOriginRange;
         this.ancientMode = ancientMode;
         this.rng = rng;
-        this.count = count;
+        this.numFilesToGenerate = numFilesToGenerate;
         this.fileDirectory = fileDirectory;
-        this.skipSomeAtStart = skipSomeAtStart;
+        this.skipAtStart = skipAtStart;
         this.discontinue = discontinue;
         this.skipElementAtHalf = skipElementAtHalf;
         this.shouldAdvanceBoundsPredicate = shouldAdvanceBoundsPredicate;
     }
 
     /**
-     * Creates a dummy {@link PcesFile} with the given descriptor.
+     * Writes to disk a {@link PcesFile} with the given descriptor and dummy content.
      *
      * @param descriptor The descriptor of the file to create.
      * @throws IOException if an I/O error occurs while writing the file.
      */
-    private static void createDummyFile(final @NonNull PcesFile descriptor) throws IOException {
+    private static void createDummyPcesFile(final @NonNull PcesFile descriptor) throws IOException {
         final Path parentDir = descriptor.getPath().getParent();
         if (!Files.exists(parentDir)) {
             Files.createDirectories(parentDir);
@@ -123,54 +120,58 @@ public final class PcesTestFilesGenerator {
         final int firstSequenceNumber = getIntFromRange(FIRST_SEQUENCE_RANGE);
         final int maxDelta = getIntFromRange(MAX_DELTA_RANGE);
         long lowerBound = getLongFromRange(LOWERBOUND_RANGE);
+        // First lower bound needs to leave an space to get a valid nonExistentValue
         long upperBound = lowerBound + rng.nextInt(2, maxDelta);
 
-        final long nonExistentValue = lowerBound - 1;
-        final long halfIndex = count / 2;
+        final long nonExistentValue = lowerBound + 1;
+        final long halfIndex = numFilesToGenerate / 2;
 
-        final int startIndex = rng.nextInt(2, count - 2);
+        if ((discontinue || skipAtStart) && numFilesToGenerate < 5) {
+            throw new IllegalArgumentException("if discontinue or skipStart is set the minimum files to generate is 5");
+        }
 
-        // The index of the fileCount where the
-        // discontinuity will be placed
-        final int discontinuityIndex = rng.nextInt(startIndex, count);
+        final int startIndexIfSkip = discontinue || skipAtStart ? rng.nextInt(2, numFilesToGenerate - 2) : 0;
+
+        // The index of the fileCount where the discontinuity (if set) will be placed
+        final int discontinuityIndex = rng.nextInt(startIndexIfSkip, numFilesToGenerate);
 
         Instant timestamp = Instant.now();
-        final long startingRound = startingRoundRange != null ? getLongFromRange(startingRoundRange) : 0;
-        // In case we set a discontinuity, lastUnbrokenOrigin will be replaced
-        long lastUnbrokenOrigin = startingRound;
+        final long originStartValue = startingOriginRange != null ? getLongFromRange(startingOriginRange) : 0;
+        // In case we set a discontinuity, originCurrentValue will be replaced
+        long originCurrentValue = originStartValue;
 
         final List<PcesFile> filesBeforeDiscontinuity = new ArrayList<>();
         final List<PcesFile> filesAfterDiscontinuity = new ArrayList<>();
         final List<PcesFile> files = new ArrayList<>();
 
-        for (int index = 0; index < count; index++) {
+        for (int index = 0; index < numFilesToGenerate; index++) {
             final long sequenceNumber = firstSequenceNumber + index;
             final boolean isPreDiscontinuity = index < discontinuityIndex;
 
-            // if set to intentionally introduce a discontinuity
+            // if set, intentionally introduce a discontinuity
             if (discontinue && index == discontinuityIndex) {
-                lastUnbrokenOrigin = lastUnbrokenOrigin + getIntFromRange(MAX_DELTA_RANGE);
+                originCurrentValue = originCurrentValue + getIntFromRange(MAX_DELTA_RANGE);
             }
 
             final PcesFile file = PcesFile.of(
-                    ancientMode, timestamp, sequenceNumber, lowerBound, upperBound, lastUnbrokenOrigin, fileDirectory);
+                    ancientMode, timestamp, sequenceNumber, lowerBound, upperBound, originCurrentValue, fileDirectory);
 
-            // if set to intentionally don't advance bounds
+            // if set, apply custom logic to how (and if) bounds are advanced. Otherwise, advance bounds normally.
             if (shouldAdvanceBoundsPredicate == null || shouldAdvanceBoundsPredicate.test(index)) {
                 lowerBound = rng.nextLong(lowerBound + 1, upperBound + 1);
-                upperBound = rng.nextLong(upperBound + 1, upperBound + maxDelta);
+                upperBound = upperBound + rng.nextInt(1, maxDelta);
             }
             timestamp = timestamp.plusMillis(getIntFromRange(TIMESTAP_RANGE));
 
-            // if set to intentionally don't write a file
+            // if set, intentionally don't write a file
             if (skipElementAtHalf && index == halfIndex) {
                 continue;
             }
 
             // it might be set to not generate some files at the beginning
-            if (!skipSomeAtStart || index >= startIndex) {
+            if (!skipAtStart || index >= startIndexIfSkip) {
                 files.add(file);
-                createDummyFile(file);
+                createDummyPcesFile(file);
                 if (discontinue) {
                     if (isPreDiscontinuity) {
                         filesBeforeDiscontinuity.add(file);
@@ -180,14 +181,18 @@ public final class PcesTestFilesGenerator {
                 }
             }
         }
+
+        long afterUnbrokenOrigin = discontinue ? rng.nextLong(originCurrentValue + 1, originCurrentValue + 1000) : -1;
+        long beforeUnbrokenOrigin = discontinue ? rng.nextLong(originStartValue, originCurrentValue) : -1;
         return new PcesFilesGeneratorResult(
-                rng,
                 filesBeforeDiscontinuity,
                 filesAfterDiscontinuity,
                 files,
-                startingRound,
-                lastUnbrokenOrigin,
-                nonExistentValue);
+                originStartValue,
+                originCurrentValue,
+                nonExistentValue,
+                afterUnbrokenOrigin,
+                beforeUnbrokenOrigin);
     }
 
     /**
@@ -214,35 +219,23 @@ public final class PcesTestFilesGenerator {
      * A record representing the result of the PCES file generation process.
      *
      * @param filesBeforeDiscontinuity The list of files generated before the discontinuity.
-     * @param filesAfterDiscontinuity  The list of files generated after the discontinuity.
-     * @param files                    The list of all generated files.
-     * @param startUnbrokenOrigin      The starting unbrokenOrigin value.
-     * @param resultingUnbrokenOrigin  The final unbrokenOrigin value.
-     * @param nonExistentValue         A value that does not exist in any generated file.
+     * @param filesAfterDiscontinuity The list of files generated after the discontinuity.
+     * @param files The list of all generated files.
+     * @param startUnbrokenOrigin The starting unbrokenOrigin value.
+     * @param resultingUnbrokenOrigin The final unbrokenOrigin value.
+     * @param nonExistentValue A value that does not exist in any generated file.
+     * @param pointAfterUnbrokenOrigin a random value placed after {@code resultingUnbrokenOrigin}
+     * @param pointBeforeUnbrokenOrigin a random value placed before {@code resultingUnbrokenOrigin} and after {@code startUnbrokenOrigin}
      */
     public record PcesFilesGeneratorResult(
-            @NonNull Random rng,
             @NonNull List<PcesFile> filesBeforeDiscontinuity,
             @NonNull List<PcesFile> filesAfterDiscontinuity,
             @NonNull List<PcesFile> files,
             long startUnbrokenOrigin,
             long resultingUnbrokenOrigin,
-            long nonExistentValue) {
-
-        /**
-         * @return a random value placed after {@code resultingUnbrokenOrigin}
-         */
-        public long getPointAfterUnbrokenOrigin() {
-            return this.rng.nextLong(this.resultingUnbrokenOrigin() + 1, this.resultingUnbrokenOrigin() + 1000);
-        }
-
-        /**
-         * @return a random value placed before {@code resultingUnbrokenOrigin} and after {@code startUnbrokenOrigin}
-         */
-        public long getPointBeforeUnbrokenOrigin() {
-            return this.rng.nextLong(this.startUnbrokenOrigin(), this.resultingUnbrokenOrigin());
-        }
-    }
+            long nonExistentValue,
+            long pointAfterUnbrokenOrigin,
+            long pointBeforeUnbrokenOrigin) {}
 
     /**
      * A builder for creating PcesTestFilesGenerator instances.
@@ -257,6 +250,8 @@ public final class PcesTestFilesGenerator {
         private boolean skipElementAtHalf;
         private boolean discontinue;
         private Predicate<Integer> shouldAdvanceBoundsPredicate;
+        private Integer numFilesToGenerate = DEFAULT_NUM_FILES_TO_GENERATE;
+
         /**
          * Constructs a new Builder.
          *
@@ -313,19 +308,19 @@ public final class PcesTestFilesGenerator {
          * @return This Builder instance.
          */
         @NonNull
-        public Builder skipSomeAtStart() {
+        public Builder skipAtStart() {
             ignoreSome = true;
             return this;
         }
 
         /**
-         * Sets the generator to use the default resultingUnbrokenOrigin range.
+         * Sets the generator to use a range for origin value.
          *
          * @return This Builder instance.
          */
         @NonNull
-        public Builder withDefaultOriginRange() {
-            this.originRange = DEFAULT_ORIGIN_RANGE;
+        public Builder withDefaultOriginRange(final @NonNull Range range) {
+            this.originRange = range;
             return this;
         }
 
@@ -337,6 +332,18 @@ public final class PcesTestFilesGenerator {
         @NonNull
         public Builder withAdvanceBoundsStrategy(final @NonNull Predicate<Integer> shouldAdvanceBoundsPredicate) {
             this.shouldAdvanceBoundsPredicate = shouldAdvanceBoundsPredicate;
+            return this;
+        }
+        /**
+         * Sets the number of files to generate
+         *
+         * @return This Builder instance.
+         */
+        @NonNull
+        public Builder withNumFilesToGenerate(final @NonNull Integer numFilesToGenerate) {
+            if (numFilesToGenerate <= 0)
+                throw new IllegalArgumentException("numFilesToGenerate should be higher than 0");
+            this.numFilesToGenerate = numFilesToGenerate;
             return this;
         }
 
@@ -351,7 +358,7 @@ public final class PcesTestFilesGenerator {
                     originRange,
                     ancientMode,
                     rng,
-                    FILE_COUNT,
+                    numFilesToGenerate,
                     fileDirectory,
                     ignoreSome,
                     discontinue,

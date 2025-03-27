@@ -47,7 +47,7 @@ class PcesFileManagerTests {
 
     private Random random;
 
-    private final int fileCount = 100;
+    private static final int NUM_FILES = 100;
 
     private Path fileDirectory = null;
     private Path dataDirectory = null;
@@ -78,7 +78,8 @@ class PcesFileManagerTests {
         final PcesFileTracker fileTracker =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode);
 
-        assertIteratorEquality(result.files().iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
+        final List<PcesFile> expectedFiles = result.files();
+        assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
     }
 
     @ParameterizedTest
@@ -86,17 +87,18 @@ class PcesFileManagerTests {
     @DisplayName("Incremental Pruning By Ancient Boundary Test")
     void incrementalPruningByAncientBoundaryTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+                .withNumFilesToGenerate(NUM_FILES)
                 .build()
                 .generate();
 
         // Choose a file in the middle. The goal is to incrementally purge all files before this file, but not
         // to purge this file or any of the ones after it.
-        final int middleFileIndex = fileCount / 2;
+        final int middleFileIndex = NUM_FILES / 2;
 
-        final List<PcesFile> files = pcesFilesGeneratorResult.files();
-        final PcesFile firstFile = files.getFirst();
-        final PcesFile middleFile = files.get(middleFileIndex);
-        final PcesFile lastFile = files.getLast();
+        final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
+        final PcesFile firstFile = expectedFiles.getFirst();
+        final PcesFile middleFile = expectedFiles.get(middleFileIndex);
+        final PcesFile lastFile = expectedFiles.getLast();
 
         // Set the far in the future, we want all files to be GC eligible by temporal reckoning.
         final FakeTime time = new FakeTime(lastFile.getTimestamp().plus(Duration.ofHours(1)), Duration.ZERO);
@@ -106,7 +108,7 @@ class PcesFileManagerTests {
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode);
         final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, NodeId.of(0), 0);
 
-        assertIteratorEquality(files.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
+        assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
 
         // Increase the pruned ancient threshold a little at a time,
         // until the middle file is almost GC eligible but not quite.
@@ -124,8 +126,8 @@ class PcesFileManagerTests {
             final PcesFile firstUnPrunedFile = freshFileTracker.getFirstFile();
 
             int firstUnPrunedIndex = -1;
-            for (int index = 0; index < files.size(); index++) {
-                if (files.get(index).equals(firstUnPrunedFile)) {
+            for (int index = 0; index < expectedFiles.size(); index++) {
+                if (expectedFiles.get(index).equals(firstUnPrunedFile)) {
                     firstUnPrunedIndex = index;
                     break;
                 }
@@ -139,18 +141,15 @@ class PcesFileManagerTests {
 
             // Check the file right before the first un-pruned file.
             if (firstUnPrunedIndex > 0) {
-                final PcesFile lastPrunedFile = files.get(firstUnPrunedIndex - 1);
+                final PcesFile lastPrunedFile = expectedFiles.get(firstUnPrunedIndex - 1);
                 assertTrue(lastPrunedFile.getUpperBound() < ancientThreshold);
             }
 
             // Check all remaining files to make sure we didn't accidentally delete something from the end
-            final List<PcesFile> expectedFiles = new ArrayList<>();
-            for (int index = firstUnPrunedIndex; index < fileCount; index++) {
-                expectedFiles.add(files.get(index));
-            }
+            final List<PcesFile> remainingFiles = expectedFiles.subList(firstUnPrunedIndex, NUM_FILES);
 
             // iterate over all files in the fresh file tracker to make sure they match expected
-            assertIteratorEquality(expectedFiles.iterator(), freshFileTracker.getFileIterator(NO_LOWER_BOUND, 0));
+            assertIteratorEquality(remainingFiles.iterator(), freshFileTracker.getFileIterator(NO_LOWER_BOUND, 0));
         }
 
         // Now, prune files so that the middle file is no longer needed.
@@ -164,8 +163,8 @@ class PcesFileManagerTests {
         final PcesFile firstUnPrunedFile = freshFileTracker.getFirstFile();
 
         int firstUnPrunedIndex = -1;
-        for (int index = 0; index < files.size(); index++) {
-            if (files.get(index).equals(firstUnPrunedFile)) {
+        for (int index = 0; index < expectedFiles.size(); index++) {
+            if (expectedFiles.get(index).equals(firstUnPrunedFile)) {
                 firstUnPrunedIndex = index;
                 break;
             }
@@ -179,13 +178,14 @@ class PcesFileManagerTests {
     @DisplayName("Incremental Pruning By Timestamp Test")
     void incrementalPruningByTimestampTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+                .withNumFilesToGenerate(NUM_FILES)
                 .build()
                 .generate();
         final var files = pcesFilesGeneratorResult.files();
 
         // Choose a file in the middle. The goal is to incrementally purge all files before this file, but not
         // to purge this file or any of the ones after it.
-        final int middleFileIndex = fileCount / 2;
+        final int middleFileIndex = NUM_FILES / 2;
 
         final PcesFile firstFile = files.getFirst();
         final PcesFile middleFile = files.get(middleFileIndex);
@@ -243,7 +243,7 @@ class PcesFileManagerTests {
 
             // Check all remaining files to make sure we didn't accidentally delete something from the end
             final List<PcesFile> expectedFiles = new ArrayList<>();
-            for (int index = firstUnPrunedIndex; index < fileCount; index++) {
+            for (int index = firstUnPrunedIndex; index < NUM_FILES; index++) {
                 expectedFiles.add(files.get(index));
             }
             assertIteratorEquality(expectedFiles.iterator(), freshFileTracker.getFileIterator(NO_LOWER_BOUND, 0));
