@@ -307,12 +307,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     public boolean endRound(@NonNull final State state, final long roundNum) {
         final boolean closesBlock = shouldCloseBlock(roundNum, roundsPerBlock);
 
-        final var recordCache = state.getWritableStates(RecordCacheService.NAME);
-
-        if(recordCache instanceof CommittableWritableStates committableWritableStates) {
-            committableWritableStates.commit();
-        }
-
         if (closesBlock) {
             // If there were no user or node transactions in the block, this writes all
             // the accumulated items starting from the header, sacrificing the benefits

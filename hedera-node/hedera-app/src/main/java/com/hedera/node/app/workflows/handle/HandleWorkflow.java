@@ -12,6 +12,8 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartU
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP2;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP3;
 import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
+import static com.hedera.node.app.state.recordcache.RecordCacheService.NAME;
+import static com.hedera.node.app.state.recordcache.schemas.V0540RecordCacheSchema.TXN_RECEIPT_QUEUE;
 import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
@@ -30,6 +32,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
@@ -61,6 +64,7 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.HederaRecordCache.DueDiligenceFailure;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
+import com.hedera.node.app.state.recordcache.RecordCacheImpl;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -268,7 +272,25 @@ public class HandleWorkflow {
         } finally {
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
-            recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
+//            recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
+
+            if (streamMode != RECORDS) {
+                requireNonNull(state);
+                requireNonNull(round.getConsensusTimestamp());
+                final var states = state.getWritableStates(NAME);
+                final var queue = states.<TransactionReceiptEntries>getQueue(TXN_RECEIPT_QUEUE);
+
+                final RecordCacheImpl recordCacheImpl = (RecordCacheImpl) recordCache;
+                recordCacheImpl.purgeExpiredReceiptEntries(queue, round.getConsensusTimestamp());
+                if (!recordCacheImpl.transactionReceipts.isEmpty()) {
+                    queue.add(new TransactionReceiptEntries(new ArrayList<>(recordCacheImpl.transactionReceipts)));
+                }
+                if (states instanceof CommittableWritableStates committable) {
+                    committable.commit();
+                }
+
+                blockStreamManager.writeItem(boundaryStateChangeListener.flushChanges());
+            }
         }
     }
 

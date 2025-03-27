@@ -284,7 +284,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
             final var shouldVerifyProof =
-                    i == 0 || i == 5;//lastVerifiableIndex || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
+                    i == 0 || i == lastVerifiableIndex || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
             if (i != 0 && shouldVerifyProof) {
                 final var stateToBeCopied = state;
                 this.state = stateToBeCopied.copy();
