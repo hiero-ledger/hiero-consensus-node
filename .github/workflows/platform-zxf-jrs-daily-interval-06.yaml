@@ -141,7 +141,7 @@ jobs:
       - addressBook-add-remove
 
   birth-round-migration:
-    name: Migration
+    name: Birth Round Migration
     uses: ./.github/workflows/zxc-jrs-regression.yaml
     if: ${{ !cancelled() && always() }}
     with:
