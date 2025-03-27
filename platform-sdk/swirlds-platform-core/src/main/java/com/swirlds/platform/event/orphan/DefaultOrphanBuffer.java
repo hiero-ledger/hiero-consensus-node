@@ -118,7 +118,6 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
 
         final List<EventDescriptorWrapper> missingParents = getMissingParents(event);
         if (missingParents.isEmpty()) {
-            calculateAndSetNGen(event);
             return eventIsNotAnOrphan(event);
         } else {
             final OrphanedEvent orphanedEvent = new OrphanedEvent(event, missingParents);
@@ -251,6 +250,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
 
             unorphanedEvents.add(nonOrphan);
             eventsWithParents.put(nonOrphanDescriptor, nonOrphan);
+            calculateAndSetNGen(nonOrphan);
 
             // since this event is no longer an orphan, we need to recheck all of its children to see if any might
             // not be orphans anymore
