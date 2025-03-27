@@ -63,7 +63,7 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     private double toCreate = 0;
     private long lastGenerateTime = System.nanoTime();
 
-    public static final int SOFTWARE_VERSION = 8;
+    public static final int SOFTWARE_VERSION = 61;
     public static final SemanticVersion PREVIOUS_SOFTWARE_VERSION =
             SemanticVersion.newBuilder().major(SOFTWARE_VERSION - 1).build();
     private final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(SOFTWARE_VERSION);

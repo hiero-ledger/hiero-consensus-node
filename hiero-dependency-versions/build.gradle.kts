@@ -51,7 +51,7 @@ dependencies.constraints {
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.0") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.4.2") { because("com.github.dockerjava.api") }
-    api("com.github.spotbugs:spotbugs-annotations:4.9.2") {
+    api("com.github.spotbugs:spotbugs-annotations:4.9.3") {
         because("com.github.spotbugs.annotations")
     }
     api("com.google.auto.service:auto-service-annotations:$autoService") {
@@ -60,14 +60,14 @@ dependencies.constraints {
     api("com.google.auto.service:auto-service:$autoService") {
         because("com.google.auto.service.processor")
     }
-    api("com.google.guava:guava:33.4.0-jre") { because("com.google.common") }
+    api("com.google.guava:guava:33.4.6-jre") { because("com.google.common") }
     api("com.google.j2objc:j2objc-annotations:3.0.0") { because("com.google.j2objc.annotations") }
     api("com.google.jimfs:jimfs:1.3.0") { because("com.google.common.jimfs") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
     api("com.hedera.pbj:pbj-runtime:$pbj") { because("com.hedera.pbj.runtime") }
     api("com.squareup:javapoet:1.13.0") { because("com.squareup.javapoet") }
-    api("net.java.dev.jna:jna:5.16.0") { because("com.sun.jna") }
+    api("net.java.dev.jna:jna:5.17.0") { because("com.sun.jna") }
     api("com.google.dagger:dagger:$dagger") { because("dagger") }
     api("com.google.dagger:dagger-compiler:$dagger") { because("dagger.compiler") }
     api("io.grpc:grpc-netty:$grpc") { because("io.grpc.netty") }
