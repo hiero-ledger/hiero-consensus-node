@@ -4,10 +4,8 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
-import com.hedera.hapi.block.PublishStreamRequest;
-import com.hedera.hapi.block.PublishStreamResponse;
-import com.hedera.hapi.block.PublishStreamResponse.Acknowledgement;
-import com.hedera.hapi.block.PublishStreamResponse.EndOfStream;
+import com.hedera.hapi.block.protoc.PublishStreamRequest;
+import com.hedera.hapi.block.protoc.PublishStreamResponse;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
@@ -52,11 +50,11 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         return null;
     }
 
-    private void handleAcknowledgement(Acknowledgement acknowledgement) {
+    private void handleAcknowledgement(PublishStreamResponse.Acknowledgement acknowledgement) {
         if (acknowledgement.hasBlockAck()) {
             logger.info(
                     "Block acknowledgment received for a full block: {}",
-                    acknowledgement.blockAck().blockNumber());
+                    acknowledgement.getBlockAck().getBlockNumber());
         }
     }
 
@@ -67,8 +65,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         }
     }
 
-    private void handleEndOfStream(EndOfStream endOfStream) {
-        logger.info("Error returned from block node at block number {}: {}", endOfStream.blockNumber(), endOfStream);
+    private void handleEndOfStream(PublishStreamResponse.EndOfStream endOfStream) {
+        logger.info("Error returned from block node at block number {}: {}", endOfStream.getBlockNumber(), endOfStream);
     }
 
     private void removeFromActiveConnections(BlockNodeConfig node) {
@@ -138,21 +136,21 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     @Override
     public void onNext(PublishStreamResponse response) {
         if (response.hasAcknowledgement()) {
-            handleAcknowledgement(response.acknowledgement());
+            handleAcknowledgement(response.getAcknowledgement());
         } else if (response.hasEndStream()) {
-            handleEndOfStream(response.endStream());
+            handleEndOfStream(response.getEndStream());
         } else if (response.hasSkipBlock()) {
             logger.info(
                     "Received SkipBlock from Block Node {}:{}  Block #{}",
                     node.address(),
                     node.port(),
-                    response.skipBlock().blockNumber());
+                    response.getSkipBlock().getBlockNumber());
         } else if (response.hasResendBlock()) {
             logger.info(
                     "Received ResendBlock from Block Node {}:{}  Block #{}",
                     node.address(),
                     node.port(),
-                    response.resendBlock().blockNumber());
+                    response.getResendBlock().getBlockNumber());
         }
     }
 

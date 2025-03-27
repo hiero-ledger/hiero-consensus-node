@@ -3,15 +3,15 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.BlockItemSet;
-import com.hedera.hapi.block.PublishStreamRequest;
-import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.protoc.BlockItemSet;
+import com.hedera.hapi.block.protoc.PublishStreamRequest;
+import com.hedera.hapi.block.stream.protoc.BlockItem;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -128,18 +128,18 @@ public class BlockNodeConnectionManager {
             List<BlockItem> protocBlockItems = new ArrayList<>();
             batch.forEach(batchItem -> {
                 try {
-                    protocBlockItems.add(BlockItem.PROTOBUF.parse(batchItem));
-                } catch (ParseException e) {
+                    protocBlockItems.add(BlockItem.parseFrom(batchItem.toByteArray()));
+                } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
             });
 
             // Create BlockItemSet by adding all items at once
             BlockItemSet itemSet =
-                    BlockItemSet.newBuilder().blockItems(protocBlockItems).build();
+                    BlockItemSet.newBuilder().addAllBlockItems(protocBlockItems).build();
 
             batchRequests.add(
-                    PublishStreamRequest.newBuilder().blockItems(itemSet).build());
+                    PublishStreamRequest.newBuilder().setBlockItems(itemSet).build());
         }
 
         // Stream prepared batches to each connection

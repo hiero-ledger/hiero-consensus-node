@@ -14,13 +14,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
-import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.PublishStreamResponse;
 import com.hedera.hapi.block.PublishStreamResponse.Acknowledgement;
 import com.hedera.hapi.block.PublishStreamResponse.BlockAcknowledgement;
 import com.hedera.hapi.block.PublishStreamResponse.EndOfStream;
 import com.hedera.hapi.block.PublishStreamResponseCode;
+import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
+import com.hedera.hapi.block.protoc.PublishStreamRequest;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
@@ -137,7 +137,7 @@ class BlockNodeConnectionTest {
         blockNodeConnection.establishStream();
         assertTrue(blockNodeConnection.isActive());
 
-        var request = PublishStreamRequest.DEFAULT;
+        var request = PublishStreamRequest.getDefaultInstance();
         blockNodeConnection.sendRequest(request);
 
         verify(requestObserver).onNext(request);
@@ -146,7 +146,7 @@ class BlockNodeConnectionTest {
     @Test
     void testSendRequest_NotActiveConnection() {
         assertFalse(blockNodeConnection.isActive());
-        blockNodeConnection.sendRequest(PublishStreamRequest.DEFAULT);
+        blockNodeConnection.sendRequest(PublishStreamRequest.getDefaultInstance());
         verifyNoInteractions(requestObserver);
     }
 
