@@ -40,8 +40,8 @@ public class PbjStreamHasher implements EventHasher, UnsignedEventHasher {
         Objects.requireNonNull(event);
         final Hash hash = hashEvent(
                 event.getEventCore(),
-                event.getTransactions(),
-                event.getGossipEvent().parents());
+                event.getGossipEvent().parents(),
+                event.getTransactions());
         event.setHash(hash);
         return event;
     }
@@ -52,22 +52,23 @@ public class PbjStreamHasher implements EventHasher, UnsignedEventHasher {
      * @param event the event to hash
      */
     public void hashUnsignedEvent(@NonNull final UnsignedEvent event) {
-        final Hash hash = hashEvent(event.getEventCore(), event.getTransactions(), event.getParents());
+        final Hash hash = hashEvent(event.getEventCore(), event.getParents(), event.getTransactions());
         event.setHash(hash);
     }
 
     /**
      * Hashes the given event and returns the hash.
      *
-     * @param eventCore         the event to hash
-     * @param transactions      the transactions to hash
+     * @param eventCore    the event to hash
+     * @param parents      the parents of the event
+     * @param transactions the transactions to hash
      * @return the hash of the event
      */
     @NonNull
     private Hash hashEvent(
             @NonNull final EventCore eventCore,
-            @NonNull final List<TransactionWrapper> transactions,
-            @NonNull final List<EventDescriptor> parents) {
+            @NonNull final List<EventDescriptor> parents,
+            @NonNull final List<TransactionWrapper> transactions){
         try {
             EventCore.PROTOBUF.write(eventCore, eventStream);
             for (final EventDescriptor parent : parents) {

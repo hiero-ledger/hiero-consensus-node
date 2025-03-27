@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
-import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
@@ -18,6 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
+import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -27,11 +22,14 @@ import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ISSTestingToolStateTest {
 
     private static final int RUNNING_SUM_INDEX = 3;
-    private ISSTestingToolMain main;
     private ISSTestingToolState state;
     private ISSTestingToolConsensusStateEventHandler consensusStateEventHandler;
     private Round round;
@@ -46,7 +44,6 @@ class ISSTestingToolStateTest {
     void setUp() {
         state = new ISSTestingToolState();
         consensusStateEventHandler = new ISSTestingToolConsensusStateEventHandler();
-        main = mock(ISSTestingToolMain.class);
         final var random = new Random();
         round = mock(Round.class);
         event = mock(ConsensusEvent.class);
@@ -64,13 +61,7 @@ class ISSTestingToolStateTest {
                 .hash(Bytes.wrap(hash))
                 .round(round.getRoundNum())
                 .build();
-
-        final var stateSignatureTransactionBytes =
-                StateSignatureTransaction.PROTOBUF.toBytes(stateSignatureTransaction);
-        final var transactionProto = com.hedera.hapi.node.base.Transaction.newBuilder()
-                .bodyBytes(stateSignatureTransactionBytes)
-                .build();
-        signatureTransactionBytes = com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(transactionProto);
+        signatureTransactionBytes = StateSignatureTransaction.PROTOBUF.toBytes(stateSignatureTransaction);
     }
 
     @Test
@@ -78,7 +69,7 @@ class ISSTestingToolStateTest {
         // Given
         givenRoundAndEvent();
 
-        final var bytes = Bytes.wrap(new byte[] {1, 1, 1, 1});
+        final var bytes = Bytes.wrap(new byte[]{1, 1, 1, 1});
         when(transaction.getApplicationTransaction()).thenReturn(bytes);
 
         // When
@@ -101,7 +92,6 @@ class ISSTestingToolStateTest {
 
         final var stateSignatureTransactionBytes =
                 StateSignatureTransaction.PROTOBUF.toBytes(stateSignatureTransaction);
-        when(main.encodeSystemTransaction(stateSignatureTransaction)).thenReturn(stateSignatureTransactionBytes);
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
 
         // When
@@ -132,7 +122,6 @@ class ISSTestingToolStateTest {
 
         final var stateSignatureTransactionBytes =
                 StateSignatureTransaction.PROTOBUF.toBytes(stateSignatureTransaction);
-        when(main.encodeSystemTransaction(stateSignatureTransaction)).thenReturn(stateSignatureTransactionBytes);
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
         when(secondConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
         when(thirdConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
@@ -157,8 +146,6 @@ class ISSTestingToolStateTest {
         final var emptyStateSignatureTransaction = StateSignatureTransaction.DEFAULT;
         final var emptyStateSignatureTransactionBytes =
                 StateSignatureTransaction.PROTOBUF.toBytes(emptyStateSignatureTransaction);
-        when(main.encodeSystemTransaction(emptyStateSignatureTransaction))
-                .thenReturn(emptyStateSignatureTransactionBytes);
         when(transaction.getApplicationTransaction()).thenReturn(emptyStateSignatureTransactionBytes);
 
         // When
@@ -182,8 +169,6 @@ class ISSTestingToolStateTest {
         final var emptyStateSignatureTransaction = StateSignatureTransaction.DEFAULT;
         final var emptyStateSignatureTransactionBytes =
                 StateSignatureTransaction.PROTOBUF.toBytes(emptyStateSignatureTransaction);
-        when(main.encodeSystemTransaction(null))
-                .thenReturn(StateSignatureTransaction.PROTOBUF.toBytes(emptyStateSignatureTransaction));
         when(transaction.getApplicationTransaction()).thenReturn(emptyStateSignatureTransactionBytes);
 
         // When

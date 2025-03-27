@@ -144,7 +144,7 @@ class InternalEventValidatorTests {
                 .eventCore(wholeEvent.eventCore())
                 .signature(wholeEvent.signature())
                 .transactions(wholeEvent.transactions())
-                .parents((List<EventDescriptor>) null)
+                .parents(parents)
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(nullParent);
         assertNull(multinodeValidator.validateEvent(platformEvent));

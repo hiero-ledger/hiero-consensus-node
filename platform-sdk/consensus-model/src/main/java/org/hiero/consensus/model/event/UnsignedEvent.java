@@ -37,6 +37,7 @@ public class UnsignedEvent implements Hashable {
      */
     private final EventMetadata metadata;
 
+    /** The parents of the event. */
     private final List<EventDescriptor> parents;
 
     /**
@@ -67,6 +68,7 @@ public class UnsignedEvent implements Hashable {
                 creatorId.id(),
                 birthRound,
                 HapiUtils.asTimestamp(timeCreated),
+                // this is where parents used to be stored
                 Collections.emptyList(),
                 softwareVersion);
     }
@@ -84,7 +86,7 @@ public class UnsignedEvent implements Hashable {
     }
 
     /**
-     * @return array of transactions inside this event instance
+     * @return list of transactions inside this event instance
      */
     @NonNull
     public List<TransactionWrapper> getTransactions() {
@@ -113,6 +115,12 @@ public class UnsignedEvent implements Hashable {
         return eventCore;
     }
 
+    /**
+     * Get the parents of the event.
+     *
+     * @return list of parents
+     */
+    @NonNull
     public List<EventDescriptor> getParents() {
         return parents;
     }
