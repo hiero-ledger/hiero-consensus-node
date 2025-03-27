@@ -31,7 +31,7 @@
 /hedera-node/infrastructure/**                  @hiero-ledger/github-maintainers @hiero-ledger/hcn-devops-codeowners @hiero-ledger/hcn-execution-codeowners
 
 # Hedera Node Docker Definitions
-/hedera-node/docker/                            @hiero-ledger/hcn-execution-codeowners @hiero-ledger/github-maintainers @hiero-ledger/github-committers
+/hedera-node/docker/                            @hiero-ledger/hcn-execution-codeowners @hiero-ledger/github-maintainers
 
 # Hedera Node Modules
 /hedera-node/hapi*/                             @hiero-ledger/hcn-execution-codeowners
@@ -104,20 +104,20 @@
 
 # Protection Rules for Github Configuration Files and Actions Workflows
 /.github/                                           @hiero-ledger/github-maintainers
-/.github/workflows/                                 @hiero-ledger/github-maintainers @hiero-ledger/github-committers
-/.github/workflows/node-zxf-deploy-integration.yaml @hiero-ledger/github-maintainers @hiero-ledger/hcn-devops-codeowners @hiero-ledger/github-committers
-/.github/workflows/node-zxf-deploy-preview.yaml     @hiero-ledger/github-maintainers @hiero-ledger/hcn-devops-codeowners @hiero-ledger/github-committers
+/.github/workflows/                                 @hiero-ledger/github-maintainers
+/.github/workflows/node-zxf-deploy-integration.yaml @hiero-ledger/github-maintainers @hiero-ledger/hcn-devops-codeowners
+/.github/workflows/node-zxf-deploy-preview.yaml     @hiero-ledger/github-maintainers @hiero-ledger/hcn-devops-codeowners
 
 # Legacy Maven project files
 **/pom.xml                                          @hiero-ledger/github-maintainers @hiero-ledger/hcn-devops-codeowners
 
 # Gradle project files and inline plugins
-/gradle/                                            @hiero-ledger/github-maintainers @hiero-ledger/github-committers
-gradlew                                             @hiero-ledger/github-maintainers @hiero-ledger/github-committers
-gradlew.bat                                         @hiero-ledger/github-maintainers @hiero-ledger/github-committers
-**/build-logic/                                     @hiero-ledger/github-maintainers @hiero-ledger/github-committers
-**/gradle.*                                         @hiero-ledger/github-maintainers @hiero-ledger/github-committers
-**/*.gradle.*                                       @hiero-ledger/github-maintainers @hiero-ledger/github-committers
+/gradle/                                            @hiero-ledger/github-maintainers
+gradlew                                             @hiero-ledger/github-maintainers
+gradlew.bat                                         @hiero-ledger/github-maintainers
+**/build-logic/                                     @hiero-ledger/github-maintainers
+**/gradle.*                                         @hiero-ledger/github-maintainers
+**/*.gradle.*                                       @hiero-ledger/github-maintainers
 
 # Codacy Tool Configurations
 /config/                                            @hiero-ledger/github-maintainers

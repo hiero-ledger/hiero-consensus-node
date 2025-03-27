@@ -12,6 +12,7 @@ import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestNode;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestOrchestrator;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestUtils;
@@ -118,11 +119,11 @@ public final class ConsensusTestDefinitions {
             for (int i = 0; i < nodeWeights.size(); i++) {
                 final long weight = nodeWeights.get(i);
                 if (i == forkingNodeId) {
-                    eventSources.add(new ForkingEventSource(weight)
+                    eventSources.add(new ForkingEventSource()
                             .setForkProbability(forkProbability)
                             .setMaximumBranchCount(numberOfForkedBranches));
                 } else {
-                    eventSources.add(new StandardEventSource(weight));
+                    eventSources.add(new StandardEventSource());
                 }
             }
             return eventSources;
@@ -319,7 +320,8 @@ public final class ConsensusTestDefinitions {
                 OrchestratorBuilder.builder().setTestInput(input).build();
         orchestrator.configGenerators(g -> {
             // Setup: pick one node to use stale other-parents
-            final NodeId staleNodeProvider = g.getAddressBook().getNodeId(0);
+            final NodeId staleNodeProvider =
+                    NodeId.of(g.getRoster().rosterEntries().get(0).nodeId());
             g.getSource(staleNodeProvider)
                     .setRecentEventRetentionSize(5000)
                     .setRequestedOtherParentAgeDistribution(integerPowerDistribution(0.002, 300));
@@ -337,15 +339,15 @@ public final class ConsensusTestDefinitions {
                 OrchestratorBuilder.builder().setTestInput(input).build();
         // Setup: pick one node to provide stale other-parents
         // The node's weight should be less than a strong minority so that we can reach consensus
+        final long totalWeight = RosterUtils.computeTotalWeight(orchestrator.getRoster());
         final NodeId staleParentProvider = StreamSupport.stream(
                         Spliterators.spliteratorUnknownSize(
-                                orchestrator.getAddressBook().iterator(), 0),
+                                orchestrator.getRoster().rosterEntries().iterator(), 0),
                         false)
-                .filter(a -> !Threshold.STRONG_MINORITY.isSatisfiedBy(
-                        a.getWeight(), orchestrator.getAddressBook().getTotalWeight()))
+                .filter(a -> !Threshold.STRONG_MINORITY.isSatisfiedBy(a.weight(), totalWeight))
+                .map(re -> NodeId.of(re.nodeId()))
                 .findFirst()
-                .orElseThrow()
-                .getNodeId();
+                .orElseThrow();
         Objects.requireNonNull(staleParentProvider, "Could not find a node with less than a strong minority of weight");
         orchestrator.configGenerators(g -> g.getSource(staleParentProvider)
                 .setRecentEventRetentionSize(5000)
@@ -526,7 +528,7 @@ public final class ConsensusTestDefinitions {
         orchestrator.validate(
                 Validations.standard().ratios(EventRatioValidation.blank().setMinimumConsensusRatio(0.5)));
 
-        orchestrator.removeNode(orchestrator.getAddressBook().getNodeId(0));
+        orchestrator.removeNode(RosterUtils.getNodeId(orchestrator.getRoster(), 0));
 
         orchestrator.generateEvents(0.5);
         orchestrator.validate(

@@ -11,6 +11,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
@@ -32,7 +33,6 @@ import com.swirlds.platform.internal.SignedStateLoadingException;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -69,7 +69,7 @@ public class StartupStateUtilsTests {
     private final NodeId selfId = NodeId.of(0);
     private final String mainClassName = "mainClassName";
     private final String swirldName = "swirldName";
-    private BasicSoftwareVersion currentSoftwareVersion;
+    private SemanticVersion currentSoftwareVersion;
     private PlatformStateFacade platformStateFacade;
 
     @BeforeEach
@@ -79,8 +79,8 @@ public class StartupStateUtilsTests {
                 .withValue("state.savedStateDirectory", testDirectory.toString())
                 .getOrCreateConfig()
                 .getConfigData(StateCommonConfig.class));
-        currentSoftwareVersion = new BasicSoftwareVersion(1);
-        platformStateFacade = new PlatformStateFacade(v -> currentSoftwareVersion);
+        currentSoftwareVersion = SemanticVersion.newBuilder().major(1).build();
+        platformStateFacade = new PlatformStateFacade();
     }
 
     @AfterEach
@@ -167,7 +167,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        currentSoftwareVersion.getPbjSemanticVersion(),
+                        currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
                 .getNullable();
@@ -197,7 +197,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        currentSoftwareVersion.getPbjSemanticVersion(),
+                        currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
                 .get();
@@ -231,7 +231,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        currentSoftwareVersion.getPbjSemanticVersion(),
+                        currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
                 .get());
@@ -277,7 +277,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        currentSoftwareVersion.getPbjSemanticVersion(),
+                        currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
                 .getNullable();

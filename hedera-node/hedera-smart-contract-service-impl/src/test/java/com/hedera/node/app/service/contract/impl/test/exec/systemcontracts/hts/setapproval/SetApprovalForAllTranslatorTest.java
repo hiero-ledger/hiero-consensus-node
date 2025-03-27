@@ -7,9 +7,10 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval.SetApprovalForAllDecoder;
@@ -44,7 +45,7 @@ public class SetApprovalForAllTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesERCSelectorTest() {
-        given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(any(TokenID.class))).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = createHtsCallAttemptForRedirect(ERC721_SET_APPROVAL_FOR_ALL, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();

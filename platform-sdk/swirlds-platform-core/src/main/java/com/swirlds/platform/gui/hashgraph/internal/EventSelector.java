@@ -69,13 +69,14 @@ public class EventSelector implements MouseListener {
         }
         final int xClicked = me.getX();
         final int yClicked = me.getY();
-        final int d = metadata.getD();
+        final int rSquared = (metadata.getD() * metadata.getD()) / 4;
 
+        stronglySeen.clear();
         for (final EventImpl e : eventsInPicture) {
             final int xEvent = metadata.xpos(null, e);
             final int yEvent = metadata.ypos(e);
-            if (xClicked > xEvent && xClicked < xEvent + d && yClicked > yEvent && yClicked < yEvent + d) {
-                stronglySeen.clear();
+            final double distanceSquared = Math.pow(xEvent - xClicked, 2) + Math.pow(yEvent - yClicked, 2);
+            if (distanceSquared <= rSquared) {
                 if (selectedEvent == e) {
                     selectedEvent = null;
                 } else {
@@ -86,8 +87,10 @@ public class EventSelector implements MouseListener {
                                 .forEach(stronglySeen::add);
                     }
                 }
+                return;
             }
         }
+        selectedEvent = null;
     }
 
     @Override

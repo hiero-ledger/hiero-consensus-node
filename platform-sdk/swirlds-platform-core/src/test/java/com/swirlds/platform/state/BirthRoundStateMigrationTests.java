@@ -16,7 +16,6 @@ import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -37,7 +36,7 @@ class BirthRoundStateMigrationTests {
     @BeforeEach
     void setUp() {
         MerkleDb.resetDefaultInstancePath();
-        platformStateFacade = new PlatformStateFacade(version -> new BasicSoftwareVersion(version.major()));
+        platformStateFacade = new PlatformStateFacade();
     }
 
     @AfterEach

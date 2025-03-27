@@ -113,8 +113,7 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
     @Override
     @NonNull
     public ConsensusStateEventHandler<ConsistencyTestingToolState> newConsensusStateEvenHandler() {
-        return new ConsistencyTestingToolConsensusStateEventHandler(
-                new PlatformStateFacade((v) -> new BasicSoftwareVersion(v.major())));
+        return new ConsistencyTestingToolConsensusStateEventHandler(new PlatformStateFacade());
     }
 
     /**

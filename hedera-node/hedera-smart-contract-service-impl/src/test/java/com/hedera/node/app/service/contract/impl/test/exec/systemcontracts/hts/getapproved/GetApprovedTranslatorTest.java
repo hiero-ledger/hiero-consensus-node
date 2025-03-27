@@ -4,10 +4,12 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator.BURN_TOKEN_V2;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.getapproved.GetApprovedTranslator.ERC_GET_APPROVED;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.getapproved.GetApprovedTranslator.HAPI_GET_APPROVED;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.fromHeadlongAddress;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -45,7 +47,7 @@ public class GetApprovedTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void matchesErcGetApprovedTest() {
-        given(nativeOperations.getToken(anyLong())).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.getToken(any())).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         attempt = createHtsCallAttemptForRedirect(ERC_GET_APPROVED, subject);
         assertThat(subject.identifyMethod(attempt)).isPresent();

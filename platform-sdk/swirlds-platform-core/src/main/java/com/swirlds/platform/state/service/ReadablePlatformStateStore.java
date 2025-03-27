@@ -16,7 +16,6 @@ import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.function.Function;
 import org.hiero.consensus.model.crypto.Hash;
 
 /**
@@ -24,37 +23,16 @@ import org.hiero.consensus.model.crypto.Hash;
  * in use by the platform.
  */
 public class ReadablePlatformStateStore implements PlatformStateAccessor {
-    public static final Function<SemanticVersion, SoftwareVersion> UNKNOWN_VERSION_FACTORY = version -> {
-        throw new IllegalStateException("State store was not initialized with a version factory");
-    };
 
     private final ReadableSingletonState<PlatformState> state;
-
-    private Function<SemanticVersion, SoftwareVersion> versionFactory;
 
     /**
      * Constructor that supports getting full {@link SoftwareVersion} information from the platform state. Must
      * be used from within {@link State}.
      * @param readableStates the readable states
-     * @param versionFactory a factory to create the current {@link SoftwareVersion} from a {@link SemanticVersion}
-     */
-    public ReadablePlatformStateStore(
-            @NonNull final ReadableStates readableStates,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        this.state = requireNonNull(readableStates).getSingleton(PLATFORM_STATE_KEY);
-        this.versionFactory = requireNonNull(versionFactory);
-    }
-
-    /**
-     * Constructor that does not support getting full {@link SoftwareVersion} information from the platform state.
-     * @param readableStates the readable states
      */
     public ReadablePlatformStateStore(@NonNull final ReadableStates readableStates) {
-        this(readableStates, UNKNOWN_VERSION_FACTORY);
-    }
-
-    public void setVersionFactory(@NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        this.versionFactory = requireNonNull(versionFactory);
+        this.state = requireNonNull(readableStates).getSingleton(PLATFORM_STATE_KEY);
     }
 
     /**

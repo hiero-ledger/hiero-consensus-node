@@ -255,6 +255,12 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     private final HistoryService historyService;
 
     /**
+     * The util service singleton, kept as a field here to avoid constructing twice
+     * (once in constructor to register schemas, again inside Dagger component).
+     */
+    private final UtilServiceImpl utilServiceImpl;
+
+    /**
      * The file service singleton, kept as a field here to avoid constructing twice
      * (once in constructor to register schemas, again inside Dagger component).
      */
@@ -484,6 +490,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, configSupplier);
         hintsService = hintsServiceFactory.apply(appContext, bootstrapConfig);
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig);
+        utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> daggerApp
+                .transactionChecker()
+                .parseSignedAndCheck(
+                        txnBytes, config.getConfigData(HederaConfig.class).transactionMaxBytes())
+                .txBody());
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         blockStreamService = new BlockStreamService();
@@ -500,7 +511,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                         new FreezeServiceImpl(),
                         scheduleServiceImpl,
                         new TokenServiceImpl(appContext),
-                        new UtilServiceImpl(),
+                        utilServiceImpl,
                         new RecordCacheService(),
                         new BlockRecordService(),
                         blockStreamService,
@@ -911,7 +922,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             @NonNull final Event event,
             @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
-        final var readableStoreFactory = new ReadableStoreFactory(state, ignore -> getSoftwareVersion());
+        final var readableStoreFactory = new ReadableStoreFactory(state);
         final var creatorInfo =
                 daggerApp.networkInfo().nodeInfo(event.getCreatorId().id());
         if (creatorInfo == null) {
@@ -1036,6 +1047,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         return configProvider;
     }
 
+    public BootstrapConfigProviderImpl bootstrapConfigProvider() {
+        return bootstrapConfigProvider;
+    }
+
     public BlockStreamManager blockStreamManager() {
         return daggerApp.blockStreamManager();
     }
@@ -1126,8 +1141,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .round();
         final var initialStateHash = new InitialStateHash(initialStateHashFuture, roundNum);
 
-        final var rosterStore =
-                new ReadableStoreFactory(state, ignore -> getSoftwareVersion()).getStore(ReadableRosterStore.class);
+        final var rosterStore = new ReadableStoreFactory(state).getStore(ReadableRosterStore.class);
         final var networkInfo = new StateNetworkInfo(
                 platform.getSelfId().id(),
                 state,
@@ -1135,22 +1149,18 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 configProvider,
                 () -> requireNonNull(genesisNetworkSupplier).get());
         final var blockHashSigner = blockHashSignerFactory.apply(hintsService, historyService, configProvider);
-        final int maxSignedTxnSize = configProvider
-                .getConfiguration()
-                .getConfigData(HederaConfig.class)
-                .transactionMaxBytes();
         // Fully qualified so as to not confuse javadoc
         daggerApp = DaggerHederaInjectionComponent.builder()
                 .configProviderImpl(configProvider)
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileServiceImpl)
                 .contractServiceImpl(contractServiceImpl)
+                .utilServiceImpl(utilServiceImpl)
                 .scheduleService(scheduleServiceImpl)
                 .initTrigger(trigger)
                 .softwareVersion(version.getPbjSemanticVersion())
                 .self(networkInfo.selfNodeInfo())
                 .platform(platform)
-                .maxSignedTxnSize(maxSignedTxnSize)
                 .currentPlatformStatus(new CurrentPlatformStatusImpl(platform))
                 .servicesRegistry(servicesRegistry)
                 .instantSource(appContext.instantSource())

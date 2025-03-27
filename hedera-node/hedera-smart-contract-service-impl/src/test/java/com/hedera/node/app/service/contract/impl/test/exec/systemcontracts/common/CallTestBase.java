@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common;
 
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static org.mockito.BDDMockito.given;
+
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
@@ -31,6 +34,10 @@ public class CallTestBase {
 
     @Mock
     protected MessageFrame frame;
+
+    protected void mockEntityIdFactory() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+    }
 
     protected HederaWorldUpdater.Enhancement mockEnhancement() {
         return new HederaWorldUpdater.Enhancement(operations, nativeOperations, systemContractOperations);
