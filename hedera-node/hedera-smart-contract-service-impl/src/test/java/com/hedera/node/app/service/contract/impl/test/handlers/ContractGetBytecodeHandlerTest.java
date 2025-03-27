@@ -366,7 +366,10 @@ class ContractGetBytecodeHandlerTest {
         given(context.createStore(ReadableAccountStore.class)).willReturn(contractStore);
         given(contractStore.getContractById(contractID)).willReturn(account);
         given(account.smartContract()).willReturn(true);
+        given(account.accountIdOrThrow()).willReturn(accountId);
+
         given(context.createStore(ContractStateStore.class)).willReturn(stateStore);
+
         final var expectedResult = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
         final var bytecode = Bytecode.newBuilder().code(expectedResult).build();
         given(stateStore.getBytecode(any())).willReturn(bytecode);
