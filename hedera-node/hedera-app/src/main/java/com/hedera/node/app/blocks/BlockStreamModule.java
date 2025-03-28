@@ -6,9 +6,11 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
+import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.swirlds.state.lifecycle.info.NodeInfo;
+import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -17,17 +19,17 @@ import java.util.function.Supplier;
 import javax.inject.Singleton;
 
 @Module
-public class BlockStreamModule {
+public interface BlockStreamModule {
 
     @Provides
     @Singleton
-    public BlockNodeConnectionManager provideBlockNodeConnectionManager(ConfigProvider configProvider) {
+    static BlockNodeConnectionManager provideBlockNodeConnectionManager(ConfigProvider configProvider) {
         return new BlockNodeConnectionManager(configProvider);
     }
 
     @Provides
     @Singleton
-    public BlockStreamManager provideBlockStreamManager(BlockStreamManagerImpl impl) {
+    static BlockStreamManager provideBlockStreamManager(BlockStreamManagerImpl impl) {
         return impl;
     }
 
@@ -47,4 +49,8 @@ public class BlockStreamModule {
                     configProvider, selfNodeInfo, fileSystem, blockNodeConnectionManager);
         };
     }
+
+    @Binds
+    @Singleton
+    BlockStreamManager.Lifecycle bindOnBlockClosed(@NonNull final NodeRewardManager nodeRewardManager);
 }

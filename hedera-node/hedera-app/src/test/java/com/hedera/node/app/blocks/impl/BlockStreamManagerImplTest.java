@@ -59,8 +59,11 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.token.TokenService;
+import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -100,8 +103,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class BlockStreamManagerImplTest {
-    private static final SemanticVersion CREATION_VERSION = new SemanticVersion(1, 2, 3, "alpha.1", "2");
+public class BlockStreamManagerImplTest {
+    public static final SemanticVersion CREATION_VERSION = new SemanticVersion(1, 2, 3, "alpha.1", "2");
     private static final long ROUND_NO = 123L;
     private static final long N_MINUS_2_BLOCK_NO = 664L;
     private static final long N_MINUS_1_BLOCK_NO = 665L;
@@ -145,6 +148,9 @@ class BlockStreamManagerImplTest {
     private ReadableStates readableStates;
 
     @Mock
+    private ExchangeRateManager exchangeRateManager;
+
+    @Mock
     private CompletableFuture<Bytes> mockSigningFuture;
 
     private WritableStates writableStates;
@@ -171,10 +177,13 @@ class BlockStreamManagerImplTest {
     private WritableSingletonStateBase<BlockStreamInfo> blockStreamInfoState;
     private WritableSingletonStateBase<NodeRewards> nodeRewardsState;
 
+    private NodeRewardManager nodeRewardManager;
     private BlockStreamManagerImpl subject;
 
     @BeforeEach
     void setUp() {
+        nodeRewardManager =
+                new NodeRewardManager(configProvider, new FakeEntityIdFactoryImpl(0, 0), exchangeRateManager);
         writableStates = mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
     }
 
@@ -235,7 +244,8 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE);
+                TEST_PLATFORM_STATE_FACADE,
+                nodeRewardManager);
         assertSame(Instant.EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
@@ -256,7 +266,8 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE);
+                TEST_PLATFORM_STATE_FACADE,
+                nodeRewardManager);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
 
@@ -288,8 +299,8 @@ class BlockStreamManagerImplTest {
         assertSame(NONE, subject.pendingWork());
         // We don't fail hard on duplicate calls to confirm post-upgrade work
         assertDoesNotThrow(() -> subject.confirmPendingWorkFinished());
-        assertEquals(0, subject.getRoundsThisStakingPeriod());
-        assertEquals(0, subject.getMissedJudgeCounts().size());
+        assertEquals(0, nodeRewardManager.getRoundsThisStakingPeriod());
+        assertEquals(0, nodeRewardManager.getMissedJudgeCounts().size());
 
         // Assert the internal state of the subject has changed as expected and the writer has been opened
         verify(boundaryStateChangeListener).setBoundaryTimestamp(CONSENSUS_NOW);
@@ -315,9 +326,10 @@ class BlockStreamManagerImplTest {
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
         // End the round
+        nodeRewardManager.updateJudgesOnEndRound(state);
         subject.endRound(state, ROUND_NO);
-        assertEquals(1, subject.getRoundsThisStakingPeriod());
-        assertEquals(1, subject.getMissedJudgeCounts().size());
+        assertEquals(1, nodeRewardManager.getRoundsThisStakingPeriod());
+        assertEquals(1, nodeRewardManager.getMissedJudgeCounts().size());
 
         verify(aWriter).openBlock(N_BLOCK_NO);
 
@@ -857,11 +869,12 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE);
+                TEST_PLATFORM_STATE_FACADE,
+                nodeRewardManager);
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
         given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
         lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(readableStates);
-        given(state.getReadableStates(RosterService.NAME)).willReturn(readableStates);
+        lenient().when(state.getReadableStates(RosterService.NAME)).thenReturn(readableStates);
         lenient().when(state.getWritableStates(TokenService.NAME)).thenReturn(writableStates);
         infoRef.set(blockStreamInfo);
         stateRef.set(platformState);
@@ -878,8 +891,9 @@ class BlockStreamManagerImplTest {
                 .when(readableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY))
                 .thenReturn(
                         new WritableSingletonStateBase<>(NODE_REWARDS_KEY, nodeRewardsRef::get, nodeRewardsRef::set));
-        given(readableStates.<RosterState>getSingleton(ROSTER_STATES_KEY))
-                .willReturn(
+        lenient()
+                .when(readableStates.<RosterState>getSingleton(ROSTER_STATES_KEY))
+                .thenReturn(
                         new WritableSingletonStateBase<>(ROSTER_STATES_KEY, rosterStateRef::get, rosterStateRef::set));
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
                         WritableRosterStore.ROSTER_KEY)
@@ -891,7 +905,7 @@ class BlockStreamManagerImplTest {
                                 RosterEntry.newBuilder().nodeId(0L).build(),
                                 RosterEntry.newBuilder().nodeId(1L).build()))
                         .build());
-        given(readableStates.<ProtoBytes, Roster>get(ROSTER_KEY)).willReturn(rosters);
+        lenient().when(readableStates.<ProtoBytes, Roster>get(ROSTER_KEY)).thenReturn(rosters);
         lenient()
                 .when(writableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY))
                 .thenReturn(

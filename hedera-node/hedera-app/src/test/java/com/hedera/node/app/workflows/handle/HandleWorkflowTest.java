@@ -25,6 +25,7 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
+import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -144,6 +145,9 @@ class HandleWorkflowTest {
     @Mock
     private CongestionMetrics congestionMetrics;
 
+    @Mock
+    private NodeRewardManager nodeRewardManager;
+
     private HandleWorkflow subject;
 
     private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
@@ -237,6 +241,7 @@ class HandleWorkflowTest {
                 softwareVersionFactory,
                 () -> PlatformStatus.ACTIVE,
                 null,
-                null);
+                null,
+                nodeRewardManager);
     }
 }

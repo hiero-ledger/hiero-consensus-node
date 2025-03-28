@@ -476,8 +476,10 @@ class TokenServiceApiImplTest {
         @Test
         void withStakingRewards() {
             // Given that staking is enabled
-            final var config =
-                    configBuilder.withValue("staking.isEnabled", true).getOrCreateConfig();
+            final var config = configBuilder
+                    .withValue("staking.isEnabled", true)
+                    .withValue("nodes.preserveMinNodeRewardBalance", false)
+                    .getOrCreateConfig();
             final Map<AccountID, Long> adjustments = new HashMap<>();
 
             subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
@@ -519,8 +521,10 @@ class TokenServiceApiImplTest {
         @Test
         void withoutStakingRewards() {
             // Given that staking is disabled
-            final var config =
-                    configBuilder.withValue("staking.isEnabled", false).getOrCreateConfig();
+            final var config = configBuilder
+                    .withValue("staking.isEnabled", false)
+                    .withValue("nodes.preserveMinNodeRewardBalance", false)
+                    .getOrCreateConfig();
             final Map<AccountID, Long> adjustments = new HashMap<>();
 
             subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
@@ -572,6 +576,7 @@ class TokenServiceApiImplTest {
                     AccountID.newBuilder().accountNum(12345678L).build();
             final var config = configBuilder
                     .withValue("ledger.fundingAccount", unknownAccountId.accountNumOrThrow())
+                    .withValue("nodes.preserveMinNodeRewardBalance", false)
                     .getOrCreateConfig();
 
             subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
@@ -589,6 +594,7 @@ class TokenServiceApiImplTest {
                     AccountID.newBuilder().accountNum(12345678L).build();
             final var config = configBuilder
                     .withValue("accounts.stakingRewardAccount", unknownAccountId.accountNumOrThrow())
+                    .withValue("nodes.preserveMinNodeRewardBalance", false)
                     .getOrCreateConfig();
 
             subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
