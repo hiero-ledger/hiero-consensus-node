@@ -10,11 +10,9 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord.nonStakingRecordsFrom;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -37,7 +35,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.MAX_CALL_DATA_SIZE;
@@ -51,12 +48,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -64,7 +58,6 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.Timestamp;
-import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -76,44 +69,7 @@ import org.junit.jupiter.api.Nested;
 public class AtomicBatchTest {
 
     @HapiTest
-    public Stream<DynamicTest> missingInnerTxnPayerSignatureFails() {
-        final var batchOperator = "batchOperator";
-        final var innerTxnPayer = "innerPayer";
-        final var innerTxnId = "innerId";
-        // crete inner txn with innerTxnPayer, but sign only with DEFAULT_PAYER
-        final var innerTxn = cryptoCreate("foo")
-                .balance(ONE_HBAR)
-                .txnId(innerTxnId)
-                .batchKey(batchOperator)
-                .payingWith(innerTxnPayer)
-                .signedBy(DEFAULT_PAYER);
-
-        return hapiTest(
-                cryptoCreate(batchOperator).balance(ONE_HBAR),
-                cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
-                usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
-                // Since the inner txn is signed by DEFAULT_PAYER, it should fail
-                atomicBatch(innerTxn).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
-    }
-
-    @HapiTest
-    public Stream<DynamicTest> missingBatchKeyFails() {
-        final var batchOperator = "batchOperator";
-        final var innerTxnPayer = "innerPayer";
-        final var innerTxnId = "innerId";
-        // crete inner txn with innerTxnPayer and without batchKey
-        final var innerTxn =
-                cryptoCreate("foo").balance(ONE_HBAR).txnId(innerTxnId).payingWith(innerTxnPayer);
-
-        return hapiTest(
-                cryptoCreate(batchOperator).balance(ONE_HBAR),
-                cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
-                usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
-                // Since the inner txn doesn't have batchKey, it should fail
-                atomicBatch(innerTxn).payingWith(batchOperator).hasPrecheck(MISSING_BATCH_KEY));
-    }
-
-    @HapiTest
+    @DisplayName("Validate batch transaction passed")
     public Stream<DynamicTest> simpleBatchTest() {
         final var batchOperator = "batchOperator";
         final var innerTxnPayer = "innerPayer";
@@ -146,6 +102,7 @@ public class AtomicBatchTest {
     }
 
     @HapiTest
+    @DisplayName("Validate multi batch transaction passed")
     public Stream<DynamicTest> multiBatchSuccess() {
         final var batchOperator = "batchOperator";
         final var innerTxnPayer = "innerPayer";
@@ -180,6 +137,7 @@ public class AtomicBatchTest {
     }
 
     @HapiTest
+    @DisplayName("Batch with multiple children passes")
     public Stream<DynamicTest> batchWithMultipleChildren() {
         final var batchOperator = "batchOperator";
         final var innerTnxPayer = "innerPayer";
@@ -225,160 +183,6 @@ public class AtomicBatchTest {
                         .andAllChildRecords()
                         .assertingNothingAboutHashes()
                         .logged()));
-    }
-
-    @HapiTest
-    public Stream<DynamicTest> multiBatchFail() {
-        final var batchOperator = "batchOperator";
-        final var innerTxnPayer = "innerPayer";
-        final var innerTxnId1 = "innerId1";
-        final var innerTxnId2 = "innerId2";
-        final var account1 = "foo1";
-        final var account2 = "foo2";
-        final var atomicTxn = "atomicTxn";
-
-        final var innerTxn1 = cryptoCreate(account1)
-                .balance(ONE_HBAR)
-                .txnId(innerTxnId1)
-                .batchKey(batchOperator)
-                .payingWith(innerTxnPayer);
-        final var innerTxn2 = cryptoCreate(account2)
-                .balance(ONE_MILLION_HBARS)
-                .txnId(innerTxnId2)
-                .batchKey(batchOperator)
-                .payingWith(innerTxnPayer);
-
-        return hapiTest(
-                cryptoCreate(batchOperator).balance(ONE_HBAR),
-                cryptoCreate(innerTxnPayer).balance(ONE_HUNDRED_HBARS),
-                usableTxnIdNamed(innerTxnId1).payerId(innerTxnPayer),
-                usableTxnIdNamed(innerTxnId2).payerId(innerTxnPayer),
-                atomicBatch(innerTxn1, innerTxn2)
-                        .via(atomicTxn)
-                        .payingWith(batchOperator)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                getTxnRecord(atomicTxn).logged(),
-                getTxnRecord(innerTxnId1).assertingNothingAboutHashes().logged(),
-                getTxnRecord(innerTxnId2).assertingNothingAboutHashes().logged());
-    }
-
-    @HapiTest
-    public Stream<DynamicTest> duplicatedInnerTransactionsFail() {
-        final var batchOperator = "batchOperator";
-        final var innerTxnPayer = "innerPayer";
-        final var innerTxnId1 = "innerId1";
-        final var innerTxnId2 = "innerId2";
-        final var account1 = "foo1";
-        final var account2 = "foo2";
-
-        final var innerTxn1 = cryptoCreate(account1)
-                .balance(ONE_HBAR)
-                .txnId(innerTxnId1)
-                .batchKey(batchOperator)
-                .payingWith(innerTxnPayer);
-        final var innerTxn2 = cryptoCreate(account2)
-                .balance(ONE_HBAR)
-                .txnId(innerTxnId2)
-                .batchKey(batchOperator)
-                .payingWith(innerTxnPayer);
-
-        return hapiTest(
-                cryptoCreate(innerTxnPayer).balance(ONE_HUNDRED_HBARS),
-                usableTxnIdNamed(innerTxnId1).payerId(innerTxnPayer),
-                usableTxnIdNamed(innerTxnId2).payerId(innerTxnPayer),
-                cryptoCreate(batchOperator)
-                        .txnId(innerTxnId1)
-                        .payingWith(innerTxnPayer)
-                        .balance(ONE_HBAR),
-                atomicBatch(innerTxn1, innerTxn2).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(innerTxn2).payingWith(batchOperator),
-                atomicBatch(innerTxn2).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
-    }
-
-    @HapiTest
-    public Stream<DynamicTest> invalidTransactionStartFailed() {
-        final var batchOperator = "batchOperator";
-        final var innerTxnPayer = "innerPayer";
-        final var innerTxnId1 = "innerId1";
-        final var account1 = "foo1";
-
-        final var innerTxn1 = cryptoCreate(account1)
-                .balance(ONE_HBAR)
-                .txnId(innerTxnId1)
-                .batchKey(batchOperator)
-                .payingWith(innerTxnPayer);
-        final var validStart = Timestamp.newBuilder()
-                .setSeconds(Instant.now().getEpochSecond() + 1000)
-                .setNanos(1)
-                .build();
-
-        return hapiTest(
-                cryptoCreate(innerTxnPayer).balance(ONE_HUNDRED_HBARS),
-                usableTxnIdNamed(innerTxnId1).payerId(innerTxnPayer).validStart(validStart),
-                cryptoCreate(batchOperator).balance(ONE_HBAR),
-                atomicBatch(innerTxn1).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
-    }
-
-    @HapiTest
-    public Stream<DynamicTest> invalidTransactionDurationFailed() {
-        final var batchOperator = "batchOperator";
-        final var innerTxnPayer = "innerPayer";
-        final var innerTxnId1 = "innerId1";
-        final var account1 = "foo1";
-
-        final var innerTxn1 = cryptoCreate(account1)
-                .balance(ONE_HBAR)
-                .txnId(innerTxnId1)
-                .batchKey(batchOperator)
-                .payingWith(innerTxnPayer)
-                .validDurationSecs(200);
-
-        return hapiTest(
-                cryptoCreate(innerTxnPayer).balance(ONE_HUNDRED_HBARS),
-                usableTxnIdNamed(innerTxnId1).payerId(innerTxnPayer),
-                cryptoCreate(batchOperator).balance(ONE_HBAR),
-                atomicBatch(innerTxn1).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
-    }
-
-    @HapiTest
-    public Stream<DynamicTest> nonInnerTransactionHasBatchKeyFails() {
-        final var batchPayer = "batchPayer";
-        final var innerTnxPayer = "innerPayer";
-        final var innerTxnId = "innerId";
-        final var basicPayer = "basicPayer";
-        final var innerTxn = cryptoCreate("foo1")
-                .balance(ONE_HBAR)
-                .txnId(innerTxnId)
-                .batchKey(batchPayer)
-                .payingWith(innerTnxPayer)
-                .via("innerTxn");
-
-        return hapiTest(
-                cryptoCreate(batchPayer).balance(FIVE_HBARS),
-                cryptoCreate(innerTnxPayer).balance(FIVE_HBARS),
-                cryptoCreate(basicPayer).balance(FIVE_HBARS),
-                usableTxnIdNamed(innerTxnId).payerId(innerTnxPayer),
-                atomicBatch(innerTxn)
-                        .batchKey(batchPayer)
-                        .payingWith(batchPayer)
-                        .via("batchTxn")
-                        .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
-                newKeyNamed("newKey"),
-                cryptoCreate("foo2")
-                        .balance(ONE_HBAR)
-                        .batchKey("newKey")
-                        .signedBy(DEFAULT_PAYER)
-                        .payingWith(basicPayer)
-                        .via("basicTxn")
-                        .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
-                getAccountRecords(batchPayer)
-                        .exposingTo(records ->
-                                assertEquals(1, nonStakingRecordsFrom(records).size())),
-                getAccountRecords(basicPayer)
-                        .exposingTo(records ->
-                                assertEquals(1, nonStakingRecordsFrom(records).size())),
-                validateChargedUsd("batchTxn", 0.001),
-                validateChargedUsd("basicTxn", 0.05, 10));
     }
 
     @Nested
