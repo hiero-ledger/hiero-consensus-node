@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
 import static com.swirlds.merkledb.files.DataFileCompactor.compactionPlan;
 import static java.util.Collections.emptyList;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

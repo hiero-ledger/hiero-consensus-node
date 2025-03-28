@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test.fixtures.map.benchmark.operations;
 
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.benchmark.AbstractBenchmarkOperation;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.merkle.test.fixtures.map.benchmark.AccountFactory;
@@ -9,6 +8,7 @@ import com.swirlds.merkle.test.fixtures.map.benchmark.BenchmarkAccount;
 import com.swirlds.merkle.test.fixtures.map.benchmark.BenchmarkKey;
 import com.swirlds.merkle.test.fixtures.map.benchmark.MerkleMapBenchmarkMetadata;
 import java.util.Random;
+import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 
 /**
  * Simulate the creation of an account.

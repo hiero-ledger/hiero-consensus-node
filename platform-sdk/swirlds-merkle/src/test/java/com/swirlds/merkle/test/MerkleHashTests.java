@@ -17,7 +17,7 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
@@ -206,7 +206,7 @@ class MerkleHashTests {
 
         // modify the hash of an internal node to something random
         final DummyMerkleNode mod1 = root.getChild(1);
-        mod1.setHash(RandomUtils.randomHash());
+        mod1.setHash(CryptoRandomUtils.randomHash());
 
         // modify the data of a leaf without changing the hash
         final DummyMerkleLeaf mod2 = root.getChild(2).asInternal().getChild(0);

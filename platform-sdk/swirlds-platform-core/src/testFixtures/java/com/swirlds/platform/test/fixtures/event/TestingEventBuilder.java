@@ -11,7 +11,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -25,6 +25,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 
 /**
  * A builder for creating event instances for testing purposes.
@@ -462,8 +463,8 @@ public class TestingEventBuilder {
         for (int i = appTransactionCount; i < appTransactionCount + systemTransactionCount; ++i) {
             generatedTransactions.add(StateSignatureTransaction.PROTOBUF.toBytes(StateSignatureTransaction.newBuilder()
                     .round(random.nextLong(0, Long.MAX_VALUE))
-                    .signature(RandomUtils.randomSignatureBytes(random))
-                    .hash(RandomUtils.randomHashBytes(random))
+                    .signature(CryptoRandomUtils.randomSignatureBytes(random))
+                    .hash(CryptoRandomUtils.randomHashBytes(random))
                     .build()));
         }
 
@@ -569,7 +570,7 @@ public class TestingEventBuilder {
 
         final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, signature);
 
-        platformEvent.setHash(RandomUtils.randomHash(random));
+        platformEvent.setHash(CryptoRandomUtils.randomHash(random));
 
         if (consensusTimestamp != null || consensusOrder != null) {
             platformEvent.setConsensusData(new EventConsensusData.Builder()

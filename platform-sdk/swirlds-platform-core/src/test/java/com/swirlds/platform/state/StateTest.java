@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.interfaces.HasMerkleRoute;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -81,7 +81,7 @@ class StateTest {
                 false,
                 false,
                 new PlatformStateFacade());
-        signedState.getState().setHash(RandomUtils.randomHash(random));
+        signedState.getState().setHash(CryptoRandomUtils.randomHash(random));
         return signedState;
     }
 }

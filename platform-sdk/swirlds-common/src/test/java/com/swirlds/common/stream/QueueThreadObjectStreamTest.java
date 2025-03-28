@@ -10,7 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStreamGenerator;
 import com.swirlds.common.test.fixtures.stream.WriteToStreamConsumer;
@@ -40,7 +40,7 @@ class QueueThreadObjectStreamTest {
     @BeforeAll
     static void init() {
         cryptography = mock(Cryptography.class);
-        when(cryptography.digestSync(any(SelfSerializable.class))).thenReturn(RandomUtils.randomHash());
+        when(cryptography.digestSync(any(SelfSerializable.class))).thenReturn(CryptoRandomUtils.randomHash());
     }
 
     @BeforeEach

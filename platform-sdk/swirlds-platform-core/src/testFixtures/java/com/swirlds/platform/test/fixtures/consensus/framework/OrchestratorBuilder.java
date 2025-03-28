@@ -6,8 +6,6 @@ import static com.swirlds.common.test.fixtures.WeightGenerators.BALANCED;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.common.test.fixtures.ResettableRandom;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
@@ -23,6 +21,8 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.hiero.consensus.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.utility.test.fixtures.ResettableRandom;
 
 /** A builder for {@link ConsensusTestOrchestrator} instances */
 public class OrchestratorBuilder {

@@ -143,6 +143,7 @@ module com.swirlds.common {
     requires transitive io.prometheus.simpleclient;
     requires transitive lazysodium.java;
     requires transitive org.apache.logging.log4j;
+    requires org.hiero.consensus.utility;
     requires com.sun.jna;
     requires io.github.classgraph;
     requires io.prometheus.simpleclient.httpserver;

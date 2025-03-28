@@ -7,13 +7,13 @@ import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.common.formatting.StringFormattingUtils.parseSanitizedTimestamp;
 import static com.swirlds.common.formatting.StringFormattingUtils.repeatedChar;
 import static com.swirlds.common.formatting.StringFormattingUtils.sanitizeTimestamp;
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.test.fixtures.RandomUtils;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

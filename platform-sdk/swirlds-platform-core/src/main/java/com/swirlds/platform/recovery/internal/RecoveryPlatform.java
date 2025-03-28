@@ -5,7 +5,7 @@ import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticT
 import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.AutoCloseableNonThrowing;
+import com.swirlds.base.utility.AutoCloseableNonThrowing;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.notification.NotificationEngine;

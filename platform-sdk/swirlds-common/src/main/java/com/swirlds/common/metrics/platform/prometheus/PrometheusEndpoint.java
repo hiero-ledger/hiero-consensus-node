@@ -9,7 +9,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.sun.net.httpserver.HttpServer;
-import com.swirlds.common.AutoCloseableNonThrowing;
+import com.swirlds.base.utility.AutoCloseableNonThrowing;
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.common.metrics.RunningAverageMetric;

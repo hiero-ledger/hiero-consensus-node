@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.stream;
 
-import static com.swirlds.common.utility.ByteUtils.intToByteArray;
+import static org.hiero.consensus.utility.ByteUtils.intToByteArray;
 
 import java.io.IOException;
 import java.security.SecureRandom;

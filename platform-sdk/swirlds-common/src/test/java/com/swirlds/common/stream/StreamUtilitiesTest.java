@@ -46,7 +46,7 @@ import com.swirlds.common.stream.internal.InvalidStreamFileException;
 import com.swirlds.common.stream.internal.LinkedObjectStreamValidateUtils;
 import com.swirlds.common.stream.internal.SingleStreamIterator;
 import com.swirlds.common.stream.internal.StreamValidationResult;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import com.swirlds.common.test.fixtures.stream.StreamObjectWorker;
@@ -125,7 +125,7 @@ class StreamUtilitiesTest {
     @Test
     void parseStreamTest() throws Exception {
         InputOutputStream io = new InputOutputStream();
-        Hash initialHash = RandomUtils.randomHash();
+        Hash initialHash = CryptoRandomUtils.randomHash();
 
         StreamObjectWorker streamObjectWorker =
                 new StreamObjectWorker(50, 50, initialHash, Instant.now(), io.getOutput());
@@ -527,7 +527,7 @@ class StreamUtilitiesTest {
             public SelfSerializable next() {
                 SelfSerializable next;
                 if (id == FIRST_ID || id == LAST_ID) {
-                    next = RandomUtils.randomHash();
+                    next = CryptoRandomUtils.randomHash();
                 } else {
                     next = getRandomObjectForTestStream(PAY_LOAD_SIZE_4);
                 }

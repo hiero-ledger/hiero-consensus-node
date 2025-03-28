@@ -16,7 +16,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.utility.ByteUtils;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
@@ -49,6 +48,7 @@ import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.utility.StackTrace;
+import org.hiero.consensus.utility.ByteUtils;
 
 /**
  * This class is responsible for processing lifecycle events for the {@link AddressBookTestingToolState}.

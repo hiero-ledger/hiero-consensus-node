@@ -4,7 +4,6 @@ package com.swirlds.common.metrics.extensions;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.time.IntegerEpochTime;
-import com.swirlds.common.utility.ByteUtils;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.FloatFormats;
@@ -16,6 +15,7 @@ import java.util.function.LongBinaryOperator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.utility.StackTrace;
+import org.hiero.consensus.utility.ByteUtils;
 
 /**
  * A utility that measures the fraction of time that is spent in one of two phases. For example, can be used to track

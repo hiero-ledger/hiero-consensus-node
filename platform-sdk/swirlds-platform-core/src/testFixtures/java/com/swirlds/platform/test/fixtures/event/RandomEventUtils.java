@@ -5,7 +5,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.platform.event.hashing.PbjStreamHasher;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -93,7 +93,7 @@ public class RandomEventUtils {
                 convertedTransactions);
 
         if (fakeHash) {
-            unsignedEvent.setHash(RandomUtils.randomHash(random));
+            unsignedEvent.setHash(CryptoRandomUtils.randomHash(random));
         } else {
             new PbjStreamHasher().hashUnsignedEvent(unsignedEvent);
         }

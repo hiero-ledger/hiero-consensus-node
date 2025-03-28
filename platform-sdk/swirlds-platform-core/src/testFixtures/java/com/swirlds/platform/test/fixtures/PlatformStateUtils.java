@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHashBytes;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHashBytes;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.nextInt;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.randomInstant;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
