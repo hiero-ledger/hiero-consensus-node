@@ -24,14 +24,21 @@ public class RekeySuite extends HapiSuite {
     private final String replKeyLoc;
     private final String replTarget;
     private final boolean genNewKey;
+    private final SigControl sigType;
     private final Map<String, String> specConfig;
 
     public RekeySuite(
-            Map<String, String> specConfig, String account, String replKeyLoc, boolean genNewKey, String replTarget) {
+            Map<String, String> specConfig,
+            String account,
+            String replKeyLoc,
+            boolean genNewKey,
+            SigControl sigType,
+            String replTarget) {
         this.specConfig = specConfig;
         this.replKeyLoc = replKeyLoc;
         this.genNewKey = genNewKey;
         this.replTarget = replTarget;
+        this.sigType = sigType;
         this.account = extractAccount(account);
     }
 
@@ -41,25 +48,29 @@ public class RekeySuite extends HapiSuite {
     }
 
     final Stream<DynamicTest> rekey() {
+        final var currKey = "currKey";
+        final var currKeyLoc = replTarget.endsWith(".pem") ? replTarget : replTarget.replace(".pem", ".words");
         final var replKey = "replKey";
-        final var newKeyLoc = replTarget.endsWith(".pem") ? replTarget : replTarget.replace(".pem", ".words");
         final var newKeyPass = TxnUtils.randomAlphaNumeric(12);
 
         return HapiSpec.customHapiSpec("rekey" + account)
                 .withProperties(specConfig)
                 .given(
+                        // First load the current key (before overwriting it). Its type at this point is unknown
+                        UtilVerbs.keyFromFile(currKey, currKeyLoc),
                         genNewKey
                                 ? UtilVerbs.newKeyNamed(replKey)
-                                        .shape(SigControl.ED25519_ON)
-                                        .exportingTo(newKeyLoc, newKeyPass)
+                                        .shape(sigType)
+                                        // Will overwrite the current key with the new key
+                                        .exportingTo(currKeyLoc, newKeyPass)
                                         .yahcliLogged()
                                 : UtilVerbs.keyFromFile(replKey, replKeyLoc)
-                                        .exportingTo(newKeyLoc, newKeyPass)
+                                        // Will overwrite the current key with the new key
+                                        .exportingTo(currKeyLoc, newKeyPass)
                                         .yahcliLogged())
                 .when(TxnVerbs.cryptoUpdate(account)
-                        .signedBy(HapiSuite.DEFAULT_PAYER, replKey)
+                        .signedBy(HapiSuite.DEFAULT_PAYER, currKey, replKey)
                         .key(replKey)
-                        .noLogging()
                         .yahcliLogging())
                 .then(UtilVerbs.withOpContext((spec, opLog) -> {
                     if (replTarget.endsWith(".words")) {

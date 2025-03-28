@@ -9,6 +9,7 @@ import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.CreateSuite;
+import com.hedera.services.yahcli.util.ParseUtils;
 import java.io.File;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
@@ -66,12 +67,9 @@ public class CreateCommand implements Callable<Integer> {
         var config = ConfigUtils.configFrom(yahcli);
 
         final var noveltyLoc = config.keysLoc() + File.separator + NOVELTY + ".pem";
-        final SigControl sigType;
-        if ("SECP256K1".equalsIgnoreCase(keyType)) {
-            sigType = SigControl.SECP256K1_ON;
-        } else if ("ED25519".equalsIgnoreCase(keyType)) {
-            sigType = SigControl.ED25519_ON;
-        } else {
+        final SigControl sigType = ParseUtils.keyTypeFromParam(keyType);
+        // Since we are creating an account, we expect the caller to explicitly specify the key type
+        if (sigType == null) {
             COMMON_MESSAGES.warn("Invalid key type: " + keyType + ". Must be 'ED25519' or 'SECP256K1'");
             return 1;
         }

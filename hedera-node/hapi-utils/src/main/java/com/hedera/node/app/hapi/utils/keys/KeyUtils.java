@@ -223,6 +223,24 @@ public final class KeyUtils {
         return true;
     }
 
+    public static PrivateKey readUnknownTypeKeyFrom(final File pem, final String passphrase) {
+        try {
+            return Ed25519Utils.readKeyFrom(pem, passphrase);
+        } catch (final Exception e) {
+            // Try to read as ECDSA key; otherwise throw
+            return Secp256k1Utils.readECKeyFrom(pem, passphrase);
+        }
+    }
+
+    public static PrivateKey readUnknownTypeKeyFrom(final byte[] bytes) {
+        try {
+            return Ed25519Utils.keyFrom(bytes);
+        } catch (final Exception e) {
+            // Try to read as ECDSA key; otherwise throw
+            return Secp256k1Utils.readECKeyFrom(bytes);
+        }
+    }
+
     private static String withDedupedHederaNodePathSegments(@NonNull final String loc) {
         final var firstSegmentI = loc.indexOf("hedera-node");
         if (firstSegmentI == -1) {

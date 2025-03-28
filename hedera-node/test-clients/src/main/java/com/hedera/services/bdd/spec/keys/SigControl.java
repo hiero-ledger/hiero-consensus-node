@@ -171,6 +171,8 @@ public class SigControl implements Serializable {
         return "SigControl{"
                 + "nature="
                 + nature
+                + ", keyAlgo="
+                + keyAlgo
                 + ", threshold="
                 + threshold
                 + ", childControls="
