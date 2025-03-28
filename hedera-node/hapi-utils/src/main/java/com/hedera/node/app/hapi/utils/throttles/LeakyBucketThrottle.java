@@ -5,12 +5,12 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
 
 /**
- * Responsible for throttling transaction by gas limit. Uses a {@link DiscreteLeakyBucket} under the
- * hood. Calculates the amount of gas that should be leaked from the bucket based on the amount of
- * elapsed nanoseconds since the last time {@link GasLimitBucketThrottle#allow(long, long)} was
+ * Responsible for throttling transaction by given limit units. Uses a {@link DiscreteLeakyBucket} under the
+ * hood. Calculates the amount of capacity that should be leaked from the bucket based on the amount of
+ * elapsed nanoseconds since the last time {@link LeakyBucketThrottle#allow(long, long)} was
  * called.
  */
-public class GasLimitBucketThrottle {
+public class LeakyBucketThrottle {
     private static final long TIME_TO_EMPTY = SECONDS_TO_NANOSECONDS;
 
     private final DiscreteLeakyBucket bucket;
@@ -21,25 +21,25 @@ public class GasLimitBucketThrottle {
      *
      * @param capacity - the capacity for the throttle
      */
-    public GasLimitBucketThrottle(final long capacity) {
+    public LeakyBucketThrottle(final long capacity) {
         this.bucket = new DiscreteLeakyBucket(capacity);
     }
 
     /**
-     * Calculates and leaks the amount of gas that should be leaked from the bucket based on the
+     * Calculates and leaks the amount of capacity that should be leaked from the bucket based on the
      * amount of nanoseconds passed as input argument. Verifies whether there is enough capacity to
-     * handle a transaction with the specified gas limit. Reserves the capacity needed for the
+     * handle a transaction with the specified limit. Reserves the capacity needed for the
      * transaction if there is enough free space.
      *
-     * @param txGasLimit - the gas limit of the transaction
+     * @param txLimit - the limit amount of the transaction
      * @param elapsedNanos - the amount of time passed since the last call
      * @return true if there is enough capacity, false if the transaction should be throttled
      */
-    public boolean allow(final long txGasLimit, final long elapsedNanos) {
+    public boolean allow(final long txLimit, final long elapsedNanos) {
         leakFor(elapsedNanos);
-        if (bucket.capacityFree() >= txGasLimit) {
-            bucket.useCapacity(txGasLimit);
-            lastAllowedUnits += txGasLimit;
+        if (bucket.capacityFree() >= txLimit) {
+            bucket.useCapacity(txLimit);
+            lastAllowedUnits += txLimit;
             return true;
         } else {
             return false;

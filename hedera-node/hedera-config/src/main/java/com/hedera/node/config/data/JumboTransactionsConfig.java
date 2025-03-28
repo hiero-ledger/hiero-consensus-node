@@ -15,4 +15,5 @@ public record JumboTransactionsConfig(
         @ConfigProperty(defaultValue = "131072") @NetworkProperty int ethereumMaxCallDataSize,
         @ConfigProperty(defaultValue = "callEthereum") @NodeProperty List<String> grpcMethodNames,
         @ConfigProperty(defaultValue = "EthereumTransaction") @NodeProperty
-                List<HederaFunctionality> allowedHederaFunctionalities) {}
+                List<HederaFunctionality> allowedHederaFunctionalities,
+        @ConfigProperty(defaultValue = "100000000000") @NetworkProperty long maxBytesPerSec) {}
