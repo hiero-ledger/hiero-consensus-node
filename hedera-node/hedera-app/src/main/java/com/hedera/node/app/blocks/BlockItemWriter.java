@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -18,11 +19,13 @@ public interface BlockItemWriter {
     void openBlock(long blockNumber);
 
     /**
-     * Writes a serialized item to the destination stream.
+     * Writes an item and/or its serialized bytes to the destination stream.
      *
+     * @param item the item to write
      * @param bytes the serialized item to write
      */
-    default void writePbjItem(@NonNull final Bytes bytes) {
+    default void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
+        requireNonNull(item);
         requireNonNull(bytes);
         writeItem(bytes.toByteArray());
     }
@@ -33,6 +36,8 @@ public interface BlockItemWriter {
      * @param bytes the serialized item to write
      */
     void writeItem(@NonNull byte[] bytes);
+
+    void writePbjItem(@NonNull final BlockItem item);
 
     /**
      * Closes the block.

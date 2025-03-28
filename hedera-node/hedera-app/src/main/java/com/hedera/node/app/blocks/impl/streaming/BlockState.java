@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.hapi.block.stream.BlockItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,9 +10,9 @@ import java.util.List;
  * Track the current block state
  *
  * @param blockNumber the block number of this block state
- * @param itemBytes the list of item bytes in this block state
+ * @param items the list of items in this block state
  */
-public record BlockState(long blockNumber, List<Bytes> itemBytes) {
+public record BlockState(long blockNumber, List<BlockItem> items) {
 
     /**
      * Create a new block state for a block number
