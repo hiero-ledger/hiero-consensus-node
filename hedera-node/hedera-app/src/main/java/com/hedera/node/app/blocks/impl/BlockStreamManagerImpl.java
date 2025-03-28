@@ -402,6 +402,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             // Clear the eventIndexInBlock map for the next block
             eventIndexInBlock.clear();
+            eventIndex = 0;
         }
         if (fatalShutdownFuture != null) {
             pendingBlocks.forEach(block -> log.fatal("Skipping incomplete block proof for block {}", block.number()));
