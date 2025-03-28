@@ -10,7 +10,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
@@ -124,7 +123,6 @@ public class FileSystemDeleteHandler implements TransactionHandler {
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageEstimator.getSystemDeleteFileTxFeeMatrices(
-                        CommonPbjConverters.fromPbj(txnBody), sigValueObj));
+                .legacyCalculate(sigValueObj -> usageEstimator.getSystemDeleteFileTxFeeMatrices(txnBody, sigValueObj));
     }
 }

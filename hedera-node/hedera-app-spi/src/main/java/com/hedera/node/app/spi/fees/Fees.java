@@ -3,8 +3,8 @@ package com.hedera.node.app.spi.fees;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -32,9 +32,9 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
      * This is useful when a fee is required, but the entity is not present in state to determine the actual fee.
      */
     public static final FeeData CONSTANT_FEE_DATA = FeeData.newBuilder()
-            .setNodedata(FeeComponents.newBuilder().setConstant(1).build())
-            .setNetworkdata(FeeComponents.newBuilder().setConstant(1).build())
-            .setServicedata(FeeComponents.newBuilder().setConstant(1).build())
+            .nodedata(FeeComponents.newBuilder().constant(1).build())
+            .networkdata(FeeComponents.newBuilder().constant(1).build())
+            .servicedata(FeeComponents.newBuilder().constant(1).build())
             .build();
 
     public Fees {

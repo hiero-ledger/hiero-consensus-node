@@ -3,7 +3,7 @@
     "currentFeeSchedule": [
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoCreate",
+          "hederaFunctionality": "CRYPTO_CREATE",
           "fees": [{
             "nodedata": {
               "constant": 1094986245,
@@ -46,7 +46,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoAccountAutoRenew",
+          "hederaFunctionality": "CRYPTO_ACCOUNT_AUTO_RENEW",
           "fees": [
             {
               "nodedata": {
@@ -90,7 +90,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoUpdate",
+          "hederaFunctionality": "CRYPTO_UPDATE",
           "fees": [{
             "nodedata": {
               "constant": 23923923,
@@ -133,7 +133,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoTransfer",
+          "hederaFunctionality": "CRYPTO_TRANSFER",
           "fees": [{
             "nodedata": {
               "constant": 11425052,
@@ -176,7 +176,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoDelete",
+          "hederaFunctionality": "CRYPTO_DELETE",
           "fees": [{
             "nodedata": {
               "constant": 573599715,
@@ -219,7 +219,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoAddClaim",
+          "hederaFunctionality": "CRYPTO_ADD_CLAIM",
           "fees": [{
             "nodedata": {
               "constant": 6796440986,
@@ -262,7 +262,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoDeleteClaim",
+          "hederaFunctionality": "CRYPTO_DELETE_CLAIM",
           "fees": [{
             "nodedata": {
               "constant": 570086650,
@@ -305,7 +305,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoGetClaim",
+          "hederaFunctionality": "CRYPTO_GET_CLAIM",
           "fees":[{
             "nodedata": {
               "constant": 67338,
@@ -348,7 +348,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoGetAccountRecords",
+          "hederaFunctionality": "CRYPTO_GET_ACCOUNT_RECORDS",
           "fees": [{
             "nodedata": {
               "constant": 22044,
@@ -391,7 +391,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoGetAccountBalance",
+          "hederaFunctionality": "CRYPTO_GET_ACCOUNT_BALANCE",
           "fees": [{
             "nodedata": {
               "constant": 68774,
@@ -434,7 +434,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoGetInfo",
+          "hederaFunctionality": "CRYPTO_GET_INFO",
           "fees": [{
             "nodedata": {
               "constant": 63990,
@@ -477,7 +477,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractCreate",
+          "hederaFunctionality": "CONTRACT_CREATE",
           "fees": [{
             "nodedata": {
               "constant": 55191131417,
@@ -520,7 +520,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractUpdate",
+          "hederaFunctionality": "CONTRACT_UPDATE",
           "fees": [{
             "nodedata": {
               "constant": 2960308152,
@@ -563,7 +563,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractDelete",
+          "hederaFunctionality": "CONTRACT_DELETE",
           "fees": [{
             "nodedata": {
               "constant": 808018883,
@@ -606,7 +606,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractCall",
+          "hederaFunctionality": "CONTRACT_CALL",
           "fees": [{
             "nodedata": {
               "constant": 4057372722,
@@ -649,7 +649,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractGetInfo",
+          "hederaFunctionality": "CONTRACT_GET_INFO",
           "fees": [{
             "nodedata": {
               "constant": 71015,
@@ -692,7 +692,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractCallLocal",
+          "hederaFunctionality": "CONTRACT_CALL_LOCAL",
           "fees": [{
             "nodedata": {
               "constant": 2610100486,
@@ -735,7 +735,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractGetBytecode",
+          "hederaFunctionality": "CONTRACT_GET_BYTECODE",
           "fees": [{
             "nodedata": {
               "constant": 226589259813,
@@ -778,7 +778,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "GetBySolidityID",
+          "hederaFunctionality": "GET_BY_SOLIDITY_ID",
           "fees": [{
             "nodedata": {
               "constant": 69385,
@@ -821,7 +821,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractGetRecords",
+          "hederaFunctionality": "CONTRACT_GET_RECORDS",
           "fees": [{
             "nodedata": {
               "constant": 10093,
@@ -864,7 +864,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractAutoRenew",
+          "hederaFunctionality": "CONTRACT_AUTO_RENEW",
           "fees": [{
             "nodedata": {
               "constant": 3601717171,
@@ -907,7 +907,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "FileCreate",
+          "hederaFunctionality": "FILE_CREATE",
           "fees": [{
             "nodedata": {
               "constant": 4449279393,
@@ -950,7 +950,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "FileUpdate",
+          "hederaFunctionality": "FILE_UPDATE",
           "fees": [{
             "nodedata": {
               "constant": 44563799,
@@ -993,7 +993,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "FileDelete",
+          "hederaFunctionality": "FILE_DELETE",
           "fees": [{
             "nodedata": {
               "constant": 808018883,
@@ -1036,7 +1036,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "FileAppend",
+          "hederaFunctionality": "FILE_APPEND",
           "fees": [{
             "nodedata": {
               "constant": 4477817896,
@@ -1079,7 +1079,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "FileGetContents",
+          "hederaFunctionality": "FILE_GET_CONTENTS",
           "fees": [{
             "nodedata": {
               "constant": 69308,
@@ -1122,7 +1122,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "FileGetInfo",
+          "hederaFunctionality": "FILE_GET_INFO",
           "fees": [{
             "nodedata": {
               "constant": 71080,
@@ -1165,7 +1165,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ConsensusCreateTopic",
+          "hederaFunctionality": "CONSENSUS_CREATE_TOPIC",
           "fees": [{
             "nodedata": {
               "constant": 1121747737,
@@ -1208,7 +1208,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ConsensusUpdateTopic",
+          "hederaFunctionality": "CONSENSUS_UPDATE_TOPIC",
           "fees": [{
             "nodedata": {
               "constant": 24579716,
@@ -1251,7 +1251,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ConsensusDeleteTopic",
+          "hederaFunctionality": "CONSENSUS_DELETE_TOPIC",
           "fees": [{
             "nodedata": {
               "constant": 577156345,
@@ -1294,7 +1294,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ConsensusSubmitMessage",
+          "hederaFunctionality": "CONSENSUS_SUBMIT_MESSAGE",
           "fees": [{
             "nodedata": {
               "constant": 11252409,
@@ -1337,7 +1337,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ConsensusGetTopicInfo",
+          "hederaFunctionality": "CONSENSUS_GET_TOPIC_INFO",
           "fees": [{
             "nodedata": {
               "constant": 64253,
@@ -1380,7 +1380,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "GetVersionInfo",
+          "hederaFunctionality": "GET_VERSION_INFO",
           "fees": [{
             "nodedata": {
               "constant": 69308,
@@ -1423,7 +1423,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "TransactionGetReceipt",
+          "hederaFunctionality": "TRANSACTION_GET_RECEIPT",
           "fees": [{
             "nodedata": {
               "constant": 1,
@@ -1466,7 +1466,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "SystemDelete",
+          "hederaFunctionality": "SYSTEM_DELETE",
           "fees": [{
             "nodedata": {
               "constant": 0,
@@ -1509,7 +1509,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "SystemUndelete",
+          "hederaFunctionality": "SYSTEM_UNDELETE",
           "fees": [{
             "nodedata": {
               "constant": 0,
@@ -1552,7 +1552,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "TransactionGetRecord",
+          "hederaFunctionality": "TRANSACTION_GET_RECORD",
           "fees": [{
             "nodedata": {
               "constant": 54605,
@@ -1602,7 +1602,7 @@
     "nextFeeSchedule": [
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoCreate",
+          "hederaFunctionality": "CRYPTO_CREATE",
           "fees": [{
             "nodedata": {
               "constant": 1094986245,
@@ -1645,7 +1645,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoAccountAutoRenew",
+          "hederaFunctionality": "CRYPTO_ACCOUNT_AUTO_RENEW",
           "fees": [{
             "nodedata": {
               "constant": 73351018,
@@ -1688,7 +1688,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoUpdate",
+          "hederaFunctionality": "CRYPTO_UPDATE",
           "fees": [{
             "nodedata": {
               "constant": 23923923,
@@ -1731,7 +1731,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoTransfer",
+          "hederaFunctionality": "CRYPTO_TRANSFER",
           "fees": [{
             "nodedata": {
               "constant": 11425052,
@@ -1774,7 +1774,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoDelete",
+          "hederaFunctionality": "CRYPTO_DELETE",
           "fees": [{
             "nodedata": {
               "constant": 573599715,
@@ -1817,7 +1817,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoAddClaim",
+          "hederaFunctionality": "CRYPTO_ADD_CLAIM",
           "fees": [{
             "nodedata": {
               "constant": 6796440986,
@@ -1860,7 +1860,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoDeleteClaim",
+          "hederaFunctionality": "CRYPTO_DELETE_CLAIM",
           "fees": [{
             "nodedata": {
               "constant": 570086650,
@@ -1903,7 +1903,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoGetClaim",
+          "hederaFunctionality": "CRYPTO_GET_CLAIM",
           "fees": [{
             "nodedata": {
               "constant": 67338,
@@ -1946,7 +1946,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoGetAccountRecords",
+          "hederaFunctionality": "CRYPTO_GET_ACCOUNT_RECORDS",
           "fees": [{
             "nodedata": {
               "constant": 22044,
@@ -1989,7 +1989,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoGetAccountBalance",
+          "hederaFunctionality": "CRYPTO_GET_ACCOUNT_BALANCE",
           "fees": [{
             "nodedata": {
               "constant": 68774,
@@ -2032,7 +2032,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "CryptoGetInfo",
+          "hederaFunctionality": "CRYPTO_GET_INFO",
           "fees": [{
             "nodedata": {
               "constant": 63990,
@@ -2075,7 +2075,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractCreate",
+          "hederaFunctionality": "CONTRACT_CREATE",
           "fees": [{
             "nodedata": {
               "constant": 55191131417,
@@ -2118,7 +2118,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractUpdate",
+          "hederaFunctionality": "CONTRACT_UPDATE",
           "fees": [{
             "nodedata": {
               "constant": 2960308152,
@@ -2161,7 +2161,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractDelete",
+          "hederaFunctionality": "CONTRACT_DELETE",
           "fees": [{
             "nodedata": {
               "constant": 808018883,
@@ -2204,7 +2204,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractCall",
+          "hederaFunctionality": "CONTRACT_CALL",
           "fees": [{
             "nodedata": {
               "constant": 4057372722,
@@ -2247,7 +2247,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractGetInfo",
+          "hederaFunctionality": "CONTRACT_GET_INFO",
           "fees": [{
             "nodedata": {
               "constant": 71015,
@@ -2290,7 +2290,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractCallLocal",
+          "hederaFunctionality": "CONTRACT_CALL_LOCAL",
           "fees": [{
             "nodedata": {
               "constant": 2610100486,
@@ -2333,7 +2333,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractGetBytecode",
+          "hederaFunctionality": "CONTRACT_GET_BYTECODE",
           "fees": [{
             "nodedata": {
               "constant": 226589259813,
@@ -2376,7 +2376,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "GetBySolidityID",
+          "hederaFunctionality": "GET_BY_SOLIDITY_ID",
           "fees": [{
             "nodedata": {
               "constant": 69385,
@@ -2419,7 +2419,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractGetRecords",
+          "hederaFunctionality": "CONTRACT_GET_RECORDS",
           "fees": [{
             "nodedata": {
               "constant": 10093,
@@ -2462,7 +2462,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ContractAutoRenew",
+          "hederaFunctionality": "CONTRACT_AUTO_RENEW",
           "fees": [{
             "nodedata": {
               "constant": 3601717171,
@@ -2505,7 +2505,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "FileCreate",
+          "hederaFunctionality": "FILE_CREATE",
           "fees": [{
             "nodedata": {
               "constant": 4449279393,
@@ -2548,7 +2548,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "FileUpdate",
+          "hederaFunctionality": "FILE_UPDATE",
           "fees": [{
             "nodedata": {
               "constant": 44563799,
@@ -2591,7 +2591,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "FileDelete",
+          "hederaFunctionality": "FILE_DELETE",
           "fees": [{
             "nodedata": {
               "constant": 808018883,
@@ -2634,7 +2634,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "FileAppend",
+          "hederaFunctionality": "FILE_APPEND",
           "fees": [{
             "nodedata": {
               "constant": 4477817896,
@@ -2677,7 +2677,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "FileGetContents",
+          "hederaFunctionality": "FILE_GET_CONTENTS",
           "fees": [{
             "nodedata": {
               "constant": 69308,
@@ -2720,7 +2720,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "FileGetInfo",
+          "hederaFunctionality": "FILE_GET_INFO",
           "fees": [{
             "nodedata": {
               "constant": 71080,
@@ -2763,7 +2763,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ConsensusCreateTopic",
+          "hederaFunctionality": "CONSENSUS_CREATE_TOPIC",
           "fees": [{
             "nodedata": {
               "constant": 1121747737,
@@ -2806,7 +2806,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ConsensusUpdateTopic",
+          "hederaFunctionality": "CONSENSUS_UPDATE_TOPIC",
           "fees": [{
             "nodedata": {
               "constant": 24579716,
@@ -2849,7 +2849,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ConsensusDeleteTopic",
+          "hederaFunctionality": "CONSENSUS_DELETE_TOPIC",
           "fees": [{
             "nodedata": {
               "constant": 577156345,
@@ -2892,7 +2892,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ConsensusSubmitMessage",
+          "hederaFunctionality": "CONSENSUS_SUBMIT_MESSAGE",
           "fees": [{
             "nodedata": {
               "constant": 11252409,
@@ -2935,7 +2935,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "ConsensusGetTopicInfo",
+          "hederaFunctionality": "CONSENSUS_GET_TOPIC_INFO",
           "fees": [{
             "nodedata": {
               "constant": 64253,
@@ -2978,7 +2978,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "GetVersionInfo",
+          "hederaFunctionality": "GET_VERSION_INFO",
           "fees": [{
             "nodedata": {
               "constant": 69308,
@@ -3021,7 +3021,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "TransactionGetReceipt",
+          "hederaFunctionality": "TRANSACTION_GET_RECEIPT",
           "fees": [{
             "nodedata": {
               "constant": 1,
@@ -3064,7 +3064,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "SystemDelete",
+          "hederaFunctionality": "SYSTEM_DELETE",
           "fees": [{
             "nodedata": {
               "constant": 0,
@@ -3107,7 +3107,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "SystemUndelete",
+          "hederaFunctionality": "SYSTEM_UNDELETE",
           "fees": [{
             "nodedata": {
               "constant": 0,
@@ -3150,7 +3150,7 @@
       },
       {
         "transactionFeeSchedule": {
-          "hederaFunctionality": "TransactionGetRecord",
+          "hederaFunctionality": "TRANSACTION_GET_RECORD",
           "fees": [{
             "nodedata": {
               "constant": 54605,

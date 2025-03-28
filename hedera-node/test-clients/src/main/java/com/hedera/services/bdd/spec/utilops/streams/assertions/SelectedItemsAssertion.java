@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams.assertions;
 
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
+
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.stream.proto.RecordStreamItem;
@@ -42,7 +44,7 @@ public class SelectedItemsAssertion implements RecordStreamAssertion {
 
     @Override
     public boolean test(@NonNull final RecordStreamItem item) throws AssertionError {
-        final var entry = RecordStreamEntry.from(item);
+        final var entry = RecordStreamEntry.from(toPbj(item));
         selectedEntries.add(entry);
         if (selectedEntries.size() == expectedCount) {
             validator.assertValid(

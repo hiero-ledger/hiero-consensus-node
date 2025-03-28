@@ -20,6 +20,5 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
-    requires("com.google.protobuf")
     requires("org.hiero.consensus.model")
 }

@@ -20,6 +20,7 @@ module com.hedera.node.app {
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.hedera.protobuf.java.api; // TODO only for BlockStreamServiceGrpc!
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;

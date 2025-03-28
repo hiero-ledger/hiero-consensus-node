@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.pricing;
 
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoApproveAllowance;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoUpdate;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
+import static com.hedera.hapi.node.base.SubType.DEFAULT;
+import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON;
+import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
+import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
+import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -22,21 +22,21 @@ class CryptoFeeSchedulesTest extends FeeSchedulesTestHelper {
 
     @Test
     void computesExpectedPriceForCryptoTransferSubyptes() throws IOException {
-        testCanonicalPriceFor(CryptoTransfer, DEFAULT);
-        testCanonicalPriceFor(CryptoTransfer, TOKEN_FUNGIBLE_COMMON);
-        testCanonicalPriceFor(CryptoTransfer, TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES);
-        testCanonicalPriceFor(CryptoTransfer, TOKEN_NON_FUNGIBLE_UNIQUE);
-        testCanonicalPriceFor(CryptoTransfer, TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES);
+        testCanonicalPriceFor(CRYPTO_TRANSFER, DEFAULT);
+        testCanonicalPriceFor(CRYPTO_TRANSFER, TOKEN_FUNGIBLE_COMMON);
+        testCanonicalPriceFor(CRYPTO_TRANSFER, TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES);
+        testCanonicalPriceFor(CRYPTO_TRANSFER, TOKEN_NON_FUNGIBLE_UNIQUE);
+        testCanonicalPriceFor(CRYPTO_TRANSFER, TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES);
     }
 
     @Test
     void computesExpectedPriceForCryptoAllowances() throws IOException {
-        testCanonicalPriceFor(CryptoApproveAllowance, DEFAULT);
+        testCanonicalPriceFor(CRYPTO_APPROVE_ALLOWANCE, DEFAULT);
     }
 
     @Test
     void computesExpectedPriceForCryptoCreate() throws IOException {
-        testCanonicalPriceFor(CryptoCreate, DEFAULT);
+        testCanonicalPriceFor(CRYPTO_CREATE, DEFAULT);
 
         for (var numSlots : new int[] {1, 2, 10, 100, 1000}) {
             testExpectedCreatePriceWith(numSlots);
@@ -45,14 +45,14 @@ class CryptoFeeSchedulesTest extends FeeSchedulesTestHelper {
 
     private void testExpectedCreatePriceWith(int numAutoAssocSlots) throws IOException {
         final var expectedBasePrice =
-                canonicalTotalPricesInUsd.get(CryptoCreate).get(DEFAULT);
+                canonicalTotalPricesInUsd.get(CRYPTO_CREATE).get(DEFAULT);
         final var scaledUsage = baseOperationUsage.cryptoCreate(numAutoAssocSlots);
-        testExpected(expectedBasePrice, scaledUsage, CryptoCreate, DEFAULT, CREATE_AUTO_ASSOC_ALLOWED_DEVIATION);
+        testExpected(expectedBasePrice, scaledUsage, CRYPTO_CREATE, DEFAULT, CREATE_AUTO_ASSOC_ALLOWED_DEVIATION);
     }
 
     @Test
     void computesExpectedPriceForCryptoUpdate() throws IOException {
-        testCanonicalPriceFor(CryptoUpdate, DEFAULT);
+        testCanonicalPriceFor(CRYPTO_UPDATE, DEFAULT);
 
         for (var numSlots : new int[] {1, 2, 10, 100, 1000}) {
             testExpectedUpdatePriceWith(numSlots);
@@ -61,11 +61,11 @@ class CryptoFeeSchedulesTest extends FeeSchedulesTestHelper {
 
     private void testExpectedUpdatePriceWith(int numAutoAssocSlots) throws IOException {
         final var expectedBasePrice =
-                canonicalTotalPricesInUsd.get(CryptoUpdate).get(DEFAULT);
+                canonicalTotalPricesInUsd.get(CRYPTO_UPDATE).get(DEFAULT);
 
         final var expectedScaledPrice =
                 expectedBasePrice.add(APPROX_AUTO_ASSOC_SLOT_PRICE.multiply(BigDecimal.valueOf(numAutoAssocSlots)));
         final var scaledUsage = baseOperationUsage.cryptoUpdate(numAutoAssocSlots);
-        testExpected(expectedScaledPrice, scaledUsage, CryptoUpdate, DEFAULT, UPDATE_AUTO_ASSOC_ALLOWED_DEVIATION);
+        testExpected(expectedScaledPrice, scaledUsage, CRYPTO_UPDATE, DEFAULT, UPDATE_AUTO_ASSOC_ALLOWED_DEVIATION);
     }
 }

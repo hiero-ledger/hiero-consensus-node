@@ -4,15 +4,19 @@ package com.hedera.node.app.hapi.fees.usage.token;
 import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.QueryHeader;
+import com.hedera.hapi.node.token.TokenGetInfoQuery;
+import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.hapi.fees.usage.QueryUsage;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.Query;
 import java.util.Optional;
 
 public class TokenGetInfoUsage extends QueryUsage {
     private TokenGetInfoUsage(final Query query) {
-        super(query.getTokenGetInfo().getHeader().getResponseType());
+        super(query.tokenGetInfoOrElse(TokenGetInfoQuery.DEFAULT)
+                .headerOrElse(QueryHeader.DEFAULT)
+                .responseType());
         addTb(BASIC_ENTITY_ID_SIZE);
         addRb(TOKEN_ENTITY_SIZES.fixedBytesInTokenRepr());
     }

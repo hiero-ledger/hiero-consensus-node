@@ -28,14 +28,15 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.consensus.ConsensusUpdateTopicTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
@@ -55,8 +56,6 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TopicsConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
@@ -397,23 +396,22 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
     private FeeData usageGivenExplicit(
             @NonNull final TransactionBody txnBody, @NonNull final SigValueObj sigUsage, @Nullable final Topic topic) {
         long rbsIncrease = 0;
-        final var protoTxnBody = CommonPbjConverters.fromPbj(txnBody);
         if (topic != null && topic.hasAdminKey()) {
             final var expiry =
-                    Timestamp.newBuilder().setSeconds(topic.expirationSecond()).build();
+                    Timestamp.newBuilder().seconds(topic.expirationSecond()).build();
             try {
                 rbsIncrease = getUpdateTopicRbsIncrease(
-                        protoTxnBody.getTransactionID().getTransactionValidStart(),
-                        CommonPbjConverters.fromPbj(topic.adminKeyOrElse(Key.DEFAULT)),
-                        CommonPbjConverters.fromPbj(topic.submitKeyOrElse(Key.DEFAULT)),
+                        txnBody.transactionID().transactionValidStart(),
+                        topic.adminKeyOrElse(Key.DEFAULT),
+                        topic.submitKeyOrElse(Key.DEFAULT),
                         topic.memo(),
                         topic.hasAutoRenewAccountId(),
                         expiry,
-                        protoTxnBody.getConsensusUpdateTopic());
+                        txnBody.consensusUpdateTopic());
             } catch (Exception e) {
                 log.warn("Usage estimation unexpectedly failed for {}!", txnBody, e);
             }
         }
-        return getConsensusUpdateTopicFee(protoTxnBody, rbsIncrease, sigUsage);
+        return getConsensusUpdateTopicFee(txnBody, rbsIncrease, sigUsage);
     }
 }

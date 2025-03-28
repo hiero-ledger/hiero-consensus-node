@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.transactions;
 
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toList;
@@ -217,6 +218,8 @@ public abstract class HapiBaseTransfer<T extends HapiTxnOp<T>> extends HapiTxnOp
         cryptoOpsUsage.cryptoTransferUsage(suFrom(svo), xferUsageMeta, baseMeta, accumulator);
 
         final var feeData = AdapterUtils.feeDataFrom(accumulator);
-        return feeData.toBuilder().setSubType(xferUsageMeta.getSubType()).build();
+        return feeData.toBuilder()
+                .setSubType(fromPbj(xferUsageMeta.getSubType()))
+                .build();
     }
 }

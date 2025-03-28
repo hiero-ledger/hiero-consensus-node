@@ -6,6 +6,8 @@ import static com.hedera.services.bdd.spec.PropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -80,9 +82,9 @@ public class HapiTokenAssociate extends HapiTxnOp<HapiTokenAssociate> {
             final long expiry = lookupExpiry(spec);
             FeeCalculator.ActivityMetrics metricsCalc = (_txn, svo) -> {
                 var estimate = TokenAssociateUsage.newEstimate(
-                                _txn, new TxnUsageEstimator(suFrom(svo), _txn, ESTIMATOR_UTILS))
+                                toPbj(_txn), new TxnUsageEstimator(suFrom(svo), toPbj(_txn), ESTIMATOR_UTILS))
                         .givenCurrentExpiry(expiry);
-                return estimate.get();
+                return fromPbj(estimate.get());
             };
             return spec.fees()
                     .forActivityBasedOp(HederaFunctionality.TokenAssociateToAccount, metricsCalc, txn, numPayerKeys);

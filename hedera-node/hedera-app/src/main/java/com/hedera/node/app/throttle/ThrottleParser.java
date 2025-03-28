@@ -38,7 +38,7 @@ import javax.inject.Singleton;
 @Singleton
 public class ThrottleParser {
     public static final Set<HederaFunctionality> EXPECTED_OPS = ExpectedCustomThrottles.ACTIVE_OPS.stream()
-            .map(protoOp -> HederaFunctionality.fromProtobufOrdinal(protoOp.getNumber()))
+            .map(protoOp -> HederaFunctionality.fromProtobufOrdinal(protoOp.protoOrdinal()))
             .collect(Collectors.toCollection(() -> EnumSet.noneOf(HederaFunctionality.class)));
 
     @Inject

@@ -14,6 +14,7 @@ import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.
 import static com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate.correspondingScheduledTxnId;
 import static com.hedera.services.bdd.suites.HapiSuite.HBAR_TOKEN_SENTINEL;
 import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseType.COST_ANSWER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -1059,7 +1060,7 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
         return spec.fees()
                 .forOp(
                         HederaFunctionality.TransactionGetRecord,
-                        CryptoFeeBuilder.getCostTransactionRecordQueryFeeMatrices());
+                        fromPbj(CryptoFeeBuilder.getCostTransactionRecordQueryFeeMatrices()));
     }
 
     @Override

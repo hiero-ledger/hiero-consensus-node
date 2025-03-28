@@ -15,20 +15,19 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.mock;
 import static org.mockito.BDDMockito.verify;
 
-import com.google.protobuf.StringValue;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.test.IdUtils;
 import com.hedera.node.app.hapi.fees.test.KeyUtils;
 import com.hedera.node.app.hapi.fees.usage.EstimatorFactory;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TokenID;
-import com.hederahashgraph.api.proto.java.TokenUpdateTransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionID;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -177,7 +176,7 @@ class TokenUpdateUsageTest {
         final var expectedBytes = newRb + 3 * BASIC_ENTITY_ID_SIZE + 8;
 
         givenOp();
-        op = op.toBuilder().setAutoRenewAccount(AccountID.getDefaultInstance()).build();
+        op = op.copyBuilder().autoRenewAccount(AccountID.DEFAULT).build();
         setTxn();
         // and:
         givenImpliedSubjectWithSmallerKeys();
@@ -248,27 +247,27 @@ class TokenUpdateUsageTest {
 
     private void givenOp(final long newExpiry) {
         op = TokenUpdateTransactionBody.newBuilder()
-                .setToken(id)
-                .setMemo(StringValue.newBuilder().setValue(memo).build())
-                .setExpiry(Timestamp.newBuilder().setSeconds(newExpiry))
-                .setTreasury(treasury)
-                .setAutoRenewAccount(autoRenewAccount)
-                .setSymbol(symbol)
-                .setName(name)
-                .setKycKey(kycKey)
-                .setAdminKey(adminKey)
-                .setFreezeKey(freezeKey)
-                .setSupplyKey(supplyKey)
-                .setWipeKey(wipeKey)
+                .token(id)
+                .memo(memo)
+                .expiry(Timestamp.newBuilder().seconds(newExpiry))
+                .treasury(treasury)
+                .autoRenewAccount(autoRenewAccount)
+                .symbol(symbol)
+                .name(name)
+                .kycKey(kycKey)
+                .adminKey(adminKey)
+                .freezeKey(freezeKey)
+                .supplyKey(supplyKey)
+                .wipeKey(wipeKey)
                 .build();
         setTxn();
     }
 
     private void setTxn() {
         txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now)))
-                .setTokenUpdate(op)
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now)))
+                .tokenUpdate(op)
                 .build();
     }
 }

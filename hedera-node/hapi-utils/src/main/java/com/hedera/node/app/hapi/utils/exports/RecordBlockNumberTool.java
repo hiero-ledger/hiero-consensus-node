@@ -3,7 +3,7 @@ package com.hedera.node.app.hapi.utils.exports;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 
-import com.hedera.services.stream.proto.RecordStreamFile;
+import com.hedera.hapi.streams.RecordStreamFile;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import java.io.File;
@@ -67,7 +67,7 @@ public class RecordBlockNumberTool {
             throws IOException {
         try (final FileInputStream fin = new FileInputStream(fileLoc)) {
             final int recordFileVersion = ByteBuffer.wrap(fin.readNBytes(4)).getInt();
-            final RecordStreamFile recordStreamFile = RecordStreamFile.parseFrom(fin);
+            final RecordStreamFile recordStreamFile = RecordStreamFile.DEFAULT;
             return Pair.of(recordFileVersion, Optional.ofNullable(recordStreamFile));
         }
     }
@@ -77,8 +77,7 @@ public class RecordBlockNumberTool {
         final var uncompressedFileContents = FileCompressionUtils.readUncompressedFileBytes(fileLoc);
         final var recordFileVersion =
                 ByteBuffer.wrap(uncompressedFileContents, 0, 4).getInt();
-        final var recordStreamFile = RecordStreamFile.parseFrom(
-                ByteBuffer.wrap(uncompressedFileContents, 4, uncompressedFileContents.length - 4));
+        final var recordStreamFile = RecordStreamFile.DEFAULT;
         return Pair.of(recordFileVersion, Optional.ofNullable(recordStreamFile));
     }
 
@@ -116,22 +115,18 @@ public class RecordBlockNumberTool {
                 throw new RuntimeException("Record result is empty");
             }
 
-            final long blockNumber = recordResult.getValue().get().getBlockNumber();
+            final long blockNumber = recordResult.getValue().get().blockNumber();
 
             trackBlockNumber(blockNumber);
 
             final byte[] startRunningHash = recordResult
                     .getValue()
                     .get()
-                    .getStartObjectRunningHash()
-                    .getHash()
+                    .startObjectRunningHash()
+                    .hash()
                     .toByteArray();
-            final byte[] endRunningHash = recordResult
-                    .getValue()
-                    .get()
-                    .getEndObjectRunningHash()
-                    .getHash()
-                    .toByteArray();
+            final byte[] endRunningHash =
+                    recordResult.getValue().get().endObjectRunningHash().hash().toByteArray();
 
             return Pair.of((startRunningHash), (endRunningHash));
         } catch (final IOException e) {

@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.NODE_BLOCK_STREAM_DIR;
 import static com.hedera.services.bdd.spec.HapiPropertySource.NODE_RECORD_STREAM_DIR;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
-import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.hapi.utils.forensics.DifferingEntries;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.hapi.utils.forensics.TransactionParts;
@@ -22,6 +20,7 @@ import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitT
 import com.hedera.services.bdd.junit.support.translators.BlockUnitSplit;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.utils.RcDiff;
+import com.hedera.services.stream.proto.RecordStreamItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -105,7 +104,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         }
         final var expectedEntries = data.records().stream()
                 .flatMap(recordWithSidecars -> recordWithSidecars.recordFile().getRecordStreamItemsList().stream())
-                .map(RecordStreamEntry::from)
+                .map((RecordStreamItem item) -> RecordStreamEntry.from(toPbj(item)))
                 .toList();
         final var numStateChanges = new AtomicInteger();
         final List<RecordStreamEntry> actualEntries = blocks.stream()
@@ -139,14 +138,11 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
     }
 
     private RecordStreamEntry asEntry(@NonNull final SingleTransactionRecord record) {
-        final var parts = TransactionParts.from(fromPbj(record.transaction()));
+        final var parts = TransactionParts.from(record.transaction());
         final var consensusTimestamp = record.transactionRecord().consensusTimestampOrThrow();
         return new RecordStreamEntry(
                 parts,
-                pbjToProto(
-                        record.transactionRecord(),
-                        TransactionRecord.class,
-                        com.hederahashgraph.api.proto.java.TransactionRecord.class),
+                record.transactionRecord(),
                 Instant.ofEpochSecond(consensusTimestamp.seconds(), consensusTimestamp.nanos()));
     }
 

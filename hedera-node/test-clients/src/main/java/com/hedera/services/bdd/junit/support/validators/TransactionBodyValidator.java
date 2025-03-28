@@ -3,12 +3,14 @@ package com.hedera.services.bdd.junit.support.validators;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBody;
 import static com.hedera.node.app.hapi.utils.CommonUtils.functionOf;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCreate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
 
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordWithSidecars;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -32,8 +34,8 @@ public class TransactionBodyValidator implements RecordStreamValidator {
             final var items = recordWithSidecars.recordFile().getRecordStreamItemsList();
             for (final var item : items) {
                 try {
-                    final var txnBody = extractTransactionBody(item.getTransaction());
-                    final var function = functionOf(txnBody);
+                    final var txnBody = fromPbj(extractTransactionBody(toPbj(item.getTransaction())));
+                    final var function = fromPbj(functionOf(toPbj(txnBody)));
                     final var receipt = item.getRecord().getReceipt();
                     if (function == ContractCreate && receipt.getStatus() == SUCCESS) {
                         final var createdId = receipt.getContractID();
@@ -48,7 +50,7 @@ public class TransactionBodyValidator implements RecordStreamValidator {
                                     "Contract create transaction does not have admin key set to self manage");
                         }
                     }
-                } catch (InvalidProtocolBufferException | UnknownHederaFunctionality e) {
+                } catch (UnknownHederaFunctionality | ParseException e) {
                     log.error("Unable to parse and classify item {}", item, e);
                     throw new IllegalStateException(e);
                 }

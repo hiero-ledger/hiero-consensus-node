@@ -30,7 +30,6 @@ import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
@@ -294,10 +293,7 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
         }
         // FUTURE: lifetime parameter is not being used by the function below, in order to avoid making changes
         // to mono-service passed a default lifetime of 3 months here
-        final var meta = TOKEN_OPS_USAGE_UTILS.tokenMintUsageFrom(
-                CommonPbjConverters.fromPbj(feeContext.body()),
-                CommonPbjConverters.fromPbj(subType),
-                THREE_MONTHS_IN_SECONDS);
+        final var meta = TOKEN_OPS_USAGE_UTILS.tokenMintUsageFrom(feeContext.body(), subType, THREE_MONTHS_IN_SECONDS);
 
         calculator.addBytesPerTransaction(meta.getBpt());
         calculator.addRamByteSeconds(meta.getRbs());

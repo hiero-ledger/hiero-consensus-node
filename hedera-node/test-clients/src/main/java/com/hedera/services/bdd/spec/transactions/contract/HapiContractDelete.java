@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -65,7 +67,10 @@ public class HapiContractDelete extends HapiTxnOp<HapiContractDelete> {
     protected long feeFor(HapiSpec spec, Transaction txn, int numPayerSigs) throws Throwable {
         return spec.fees()
                 .forActivityBasedOp(
-                        HederaFunctionality.ContractDelete, scFees::getContractDeleteTxFeeMatrices, txn, numPayerSigs);
+                        HederaFunctionality.ContractDelete,
+                        (txBody, sigValObj) -> fromPbj(scFees.getContractDeleteTxFeeMatrices(toPbj(txBody), sigValObj)),
+                        txn,
+                        numPayerSigs);
     }
 
     @Override

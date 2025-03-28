@@ -16,8 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
-import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
@@ -373,7 +373,7 @@ class EthTxDataTest {
 
     @Test
     void parsingErrors() {
-        final var wrongData = Hex.encode(ByteString.copyFromUtf8("wrong").toByteArray());
+        final var wrongData = Hex.encode(Bytes.wrap("wrong").toByteArray());
         final var negativeInteger = Integers.toBytes(Long.MIN_VALUE);
 
         // invalid nonce

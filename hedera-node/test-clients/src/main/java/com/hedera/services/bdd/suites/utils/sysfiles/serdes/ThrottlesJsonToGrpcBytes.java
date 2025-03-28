@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.utils.sysfiles.serdes;
 
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -29,7 +31,8 @@ public class ThrottlesJsonToGrpcBytes implements SysFileSerde<String> {
     public String fromRawFile(byte[] bytes) {
         try {
             var defs = ThrottleDefinitions.parseFrom(bytes);
-            var pojo = com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ThrottleDefinitions.fromProto(defs);
+            var pojo = com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ThrottleDefinitions.fromProto(
+                    toPbj(defs));
             return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(pojo);
         } catch (InvalidProtocolBufferException | JsonProcessingException e) {
             throw new IllegalArgumentException("Unusable raw throttle definitions!", e);
@@ -38,7 +41,9 @@ public class ThrottlesJsonToGrpcBytes implements SysFileSerde<String> {
 
     @Override
     public byte[] toRawFile(String styledFile, @Nullable String interpolatedSrcDir) {
-        return toPojo(styledFile).toProto().toByteArray();
+        return com.hedera.hapi.node.transaction.ThrottleDefinitions.PROTOBUF
+                .toBytes(toPojo(styledFile).toProto())
+                .toByteArray();
     }
 
     @Override
@@ -47,7 +52,9 @@ public class ThrottlesJsonToGrpcBytes implements SysFileSerde<String> {
         for (var bucket : pojo.getBuckets()) {
             bucket.asThrottleMapping(believedNetworkSize);
         }
-        return pojo.toProto().toByteArray();
+        return com.hedera.hapi.node.transaction.ThrottleDefinitions.PROTOBUF
+                .toBytes(pojo.toProto())
+                .toByteArray();
     }
 
     private com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ThrottleDefinitions toPojo(String styledFile) {

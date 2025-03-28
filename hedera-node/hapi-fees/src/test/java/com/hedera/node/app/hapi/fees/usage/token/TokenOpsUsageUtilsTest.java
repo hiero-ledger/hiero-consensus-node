@@ -1,17 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.token;
 
+import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON;
+import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
+import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
+import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
+import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
+import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
 import static com.hedera.node.app.hapi.fees.test.IdUtils.asAccount;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
-import static com.hederahashgraph.api.proto.java.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
-import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
-import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.base.TokenType;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.token.TokenBurnTransactionBody;
+import com.hedera.hapi.node.token.TokenCreateTransactionBody;
+import com.hedera.hapi.node.token.TokenMintTransactionBody;
+import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
+import com.hedera.hapi.node.transaction.CustomFee;
+import com.hedera.hapi.node.transaction.FixedFee;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.test.IdUtils;
 import com.hedera.node.app.hapi.fees.test.KeyUtils;
 import com.hedera.node.app.hapi.fees.usage.token.meta.TokenBurnMeta;
@@ -20,20 +33,7 @@ import com.hedera.node.app.hapi.fees.usage.token.meta.TokenMintMeta;
 import com.hedera.node.app.hapi.fees.usage.token.meta.TokenPauseMeta;
 import com.hedera.node.app.hapi.fees.usage.token.meta.TokenUnpauseMeta;
 import com.hedera.node.app.hapi.fees.usage.token.meta.TokenWipeMeta;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.CustomFee;
-import com.hederahashgraph.api.proto.java.Duration;
-import com.hederahashgraph.api.proto.java.FixedFee;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TokenBurnTransactionBody;
-import com.hederahashgraph.api.proto.java.TokenCreateTransactionBody;
-import com.hederahashgraph.api.proto.java.TokenID;
-import com.hederahashgraph.api.proto.java.TokenMintTransactionBody;
-import com.hederahashgraph.api.proto.java.TokenType;
-import com.hederahashgraph.api.proto.java.TokenWipeAccountTransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionID;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -112,7 +112,7 @@ class TokenOpsUsageUtilsTest {
     void tokenWipeFungibleCommonWorks() {
         final var txn = givenTokenWipeWith(FUNGIBLE_COMMON);
 
-        final TokenWipeMeta tokenWipeMeta = TOKEN_OPS_USAGE_UTILS.tokenWipeUsageFrom(txn.getTokenWipe());
+        final TokenWipeMeta tokenWipeMeta = TOKEN_OPS_USAGE_UTILS.tokenWipeUsageFrom(txn.tokenWipe());
 
         assertEquals(0, tokenWipeMeta.getSerialNumsCount());
         assertEquals(56, tokenWipeMeta.getTransferRecordDb());
@@ -122,7 +122,7 @@ class TokenOpsUsageUtilsTest {
     void tokenWipeNonFungibleUniqueWorks() {
         final var txn = givenTokenWipeWith(NON_FUNGIBLE_UNIQUE);
 
-        final TokenWipeMeta tokenWipeMeta = TOKEN_OPS_USAGE_UTILS.tokenWipeUsageFrom(txn.getTokenWipe());
+        final TokenWipeMeta tokenWipeMeta = TOKEN_OPS_USAGE_UTILS.tokenWipeUsageFrom(txn.tokenWipe());
 
         assertEquals(1, tokenWipeMeta.getSerialNumsCount());
         assertEquals(80, tokenWipeMeta.getTransferRecordDb());
@@ -207,81 +207,82 @@ class TokenOpsUsageUtilsTest {
             final boolean withAutoRenewAccount,
             final boolean withInitialSupply) {
         final var builder = TokenCreateTransactionBody.newBuilder()
-                .setTokenType(type)
-                .setExpiry(Timestamp.newBuilder().setSeconds(expiry))
-                .setSymbol(symbol)
-                .setMemo(memo)
-                .setName(name)
-                .setKycKey(kycKey)
-                .setAdminKey(adminKey)
-                .setFreezeKey(freezeKey)
-                .setSupplyKey(supplyKey)
-                .setWipeKey(wipeKey);
+                .tokenType(type)
+                .expiry(Timestamp.newBuilder().seconds(expiry))
+                .symbol(symbol)
+                .memo(memo)
+                .name(name)
+                .kycKey(kycKey)
+                .adminKey(adminKey)
+                .freezeKey(freezeKey)
+                .supplyKey(supplyKey)
+                .wipeKey(wipeKey);
         if (withInitialSupply) {
-            builder.setInitialSupply(1000L);
+            builder.initialSupply(1000L);
         }
         if (withCustomFeesKey) {
-            builder.setFeeScheduleKey(customFeeKey);
+            builder.feeScheduleKey(customFeeKey);
         }
         if (withCustomFees) {
-            builder.addCustomFees(CustomFee.newBuilder()
-                    .setFeeCollectorAccountId(IdUtils.asAccount("0.0.1234"))
-                    .setFixedFee(FixedFee.newBuilder().setAmount(123)));
+            builder.customFees(CustomFee.newBuilder()
+                    .feeCollectorAccountId(IdUtils.asAccount("0.0.1234"))
+                    .fixedFee(FixedFee.newBuilder().amount(123))
+                    .build());
         }
         if (withAutoRenewAccount) {
-            builder.setAutoRenewAccount(autoRenewAccount)
-                    .setAutoRenewPeriod(Duration.newBuilder().setSeconds(autoRenewPeriod));
+            builder.autoRenewAccount(autoRenewAccount)
+                    .autoRenewPeriod(Duration.newBuilder().seconds(autoRenewPeriod));
         }
         final var txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now)))
-                .setTokenCreation(builder)
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now)))
+                .tokenCreation(builder)
                 .build();
         return txn;
     }
 
     private TransactionBody givenTokenWipeWith(final TokenType type) {
         final var op =
-                TokenWipeAccountTransactionBody.newBuilder().setToken(tokenId).setAccount(accountID);
+                TokenWipeAccountTransactionBody.newBuilder().token(tokenId).account(accountID);
         if (type == FUNGIBLE_COMMON) {
-            op.setAmount(100);
+            op.amount(100);
         } else {
-            op.addAllSerialNumbers(List.of(1L));
+            op.serialNumbers(List.of(1L));
         }
         final var txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now)))
-                .setTokenWipe(op.build())
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now)))
+                .tokenWipe(op.build())
                 .build();
         return txn;
     }
 
     private TransactionBody givenTokenBurnWith(final TokenType type) {
-        final var op = TokenBurnTransactionBody.newBuilder().setToken(tokenId);
+        final var op = TokenBurnTransactionBody.newBuilder().token(tokenId);
         if (type == FUNGIBLE_COMMON) {
-            op.setAmount(100);
+            op.amount(100);
         } else {
-            op.addAllSerialNumbers(List.of(1L));
+            op.serialNumbers(List.of(1L));
         }
         final var txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now)))
-                .setTokenBurn(op.build())
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now)))
+                .tokenBurn(op.build())
                 .build();
         return txn;
     }
 
     private TransactionBody givenTokenMintWith(final TokenType type) {
-        final var op = TokenMintTransactionBody.newBuilder().setToken(tokenId);
+        final var op = TokenMintTransactionBody.newBuilder().token(tokenId);
         if (type == FUNGIBLE_COMMON) {
-            op.setAmount(100);
+            op.amount(100);
         } else {
-            op.addAllMetadata(List.of(ByteString.copyFromUtf8("NFT meta1"), ByteString.copyFromUtf8("NFT meta2")));
+            op.metadata(List.of(Bytes.wrap("NFT meta1"), Bytes.wrap("NFT meta2")));
         }
         final var txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now)))
-                .setTokenMint(op.build())
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now)))
+                .tokenMint(op.build())
                 .build();
         return txn;
     }

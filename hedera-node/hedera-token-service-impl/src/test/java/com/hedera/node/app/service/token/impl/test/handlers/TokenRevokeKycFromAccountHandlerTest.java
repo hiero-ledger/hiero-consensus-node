@@ -75,7 +75,7 @@ class TokenRevokeKycFromAccountHandlerTest {
                     .transactionID(TransactionID.newBuilder().accountID(PBJ_PAYER_ID))
                     .tokenRevokeKyc(TokenRevokeKycTransactionBody.newBuilder()
                             .token((TokenID) null)
-                            .account(AccountID.newBuilder().accountNum(MISC_ACCOUNT.getAccountNum()))
+                            .account(AccountID.newBuilder().accountNum(MISC_ACCOUNT.accountNum()))
                             .build())
                     .build();
             given(pureChecksContext.body()).willReturn(txn);
@@ -126,7 +126,7 @@ class TokenRevokeKycFromAccountHandlerTest {
                 .tokenId(TOKEN_10)
                 .tokenType(TokenType.FUNGIBLE_COMMON)
                 .treasuryAccountId(TREASURY_ACCOUNT_9876)
-                .wipeKey(TOKEN_WIPE_KT.asPbjKey())
+                .wipeKey(TOKEN_WIPE_KT.asKey())
                 .totalSupply(1000L)
                 .build();
 

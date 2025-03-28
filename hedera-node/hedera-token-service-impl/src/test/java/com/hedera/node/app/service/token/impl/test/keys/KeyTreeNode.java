@@ -4,7 +4,7 @@ package com.hedera.node.app.service.token.impl.test.keys;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toList;
 
-import com.hederahashgraph.api.proto.java.Key;
+import com.hedera.hapi.node.base.Key;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Predicate;

@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.utils;
 
-import com.google.protobuf.InvalidProtocolBufferException;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
+
 import com.hedera.node.app.hapi.utils.CommonUtils;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import java.util.HashSet;
 import java.util.Set;
@@ -12,12 +15,12 @@ public class AccountClassifier {
 
     public void incorporate(final RecordStreamItem item) {
         try {
-            final var txn = CommonUtils.extractTransactionBody(item.getTransaction());
+            final var txn = fromPbj(CommonUtils.extractTransactionBody(toPbj(item.getTransaction())));
             if (txn.hasContractCreateInstance()) {
                 final var createdContract = item.getRecord().getReceipt().getContractID();
                 contractAccounts.add(createdContract.getContractNum());
             }
-        } catch (final InvalidProtocolBufferException e) {
+        } catch (final ParseException e) {
             throw new IllegalStateException(e);
         }
     }

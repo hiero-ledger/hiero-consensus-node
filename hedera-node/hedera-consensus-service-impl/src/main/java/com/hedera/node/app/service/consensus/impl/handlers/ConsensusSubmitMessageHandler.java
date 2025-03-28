@@ -40,7 +40,6 @@ import com.hedera.hapi.node.transaction.CustomFeeLimit;
 import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.consensus.impl.handlers.customfee.ConsensusCustomFeeAssessor;
@@ -265,7 +264,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
         final var submitMessage = txn.consensusSubmitMessageOrThrow();
         final var payer = txn.transactionIDOrElse(TransactionID.DEFAULT).accountIDOrElse(AccountID.DEFAULT);
         final var topicId = submitMessage.topicIDOrElse(TopicID.DEFAULT);
-        final var message = CommonPbjConverters.asBytes(submitMessage.message());
+        final var message = asBytes(submitMessage.message());
 
         // This line will be uncommented once there is PBJ fix to make copyBuilder() public
         final var topicBuilder = topic.copyBuilder();
@@ -277,7 +276,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
 
         final var boas = new ByteArrayOutputStream();
         try (final var out = new ObjectOutputStream(boas)) {
-            out.writeObject(CommonPbjConverters.asBytes(runningHash));
+            out.writeObject(asBytes(runningHash));
             out.writeLong(RUNNING_HASH_VERSION);
             out.writeLong(payer.shardNum());
             out.writeLong(payer.realmNum());
@@ -300,6 +299,12 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
             topicBuilder.runningHash(runningHash);
         }
         return topicBuilder.build();
+    }
+
+    private static @NonNull byte[] asBytes(@NonNull Bytes b) {
+        final var buf = new byte[Math.toIntExact(b.length())];
+        b.getBytes(0, buf);
+        return buf;
     }
 
     /**

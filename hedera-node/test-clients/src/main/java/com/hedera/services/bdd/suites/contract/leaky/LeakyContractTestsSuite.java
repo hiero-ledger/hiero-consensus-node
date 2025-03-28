@@ -119,6 +119,7 @@ import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFo
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.ADMIN_KEY;
 import static com.hedera.services.bdd.suites.utils.contracts.AddressResult.hexedAddress;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.stream.proto.ContractActionType.CALL;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
@@ -616,7 +617,7 @@ public class LeakyContractTestsSuite {
             txnLog.info(
                     "Contract call result FeeBuilder size = {}, fee = {}, result is"
                             + " [self-reported size = {}, '{}']",
-                    () -> FeeBuilder.getContractFunctionSize(result),
+                    () -> FeeBuilder.getContractFunctionSize(toPbj(result)),
                     rcd::getTransactionFee,
                     result.getContractCallResult()::size,
                     result::getContractCallResult);

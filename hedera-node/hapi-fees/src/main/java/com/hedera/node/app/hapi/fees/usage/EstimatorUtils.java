@@ -3,17 +3,17 @@ package com.hedera.node.app.hapi.fees.usage;
 
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_BODY_SIZE;
 
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.SubType;
-import com.hederahashgraph.api.proto.java.TransactionBody;
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.transaction.TransactionBody;
 
 public interface EstimatorUtils {
     /* A century of seconds */
     long MAX_ENTITY_LIFETIME = 100L * 365L * 24L * 60L * 60L;
 
     default long baseBodyBytes(TransactionBody txn) {
-        return (long) BASIC_TX_BODY_SIZE + txn.getMemoBytes().size();
+        return (long) BASIC_TX_BODY_SIZE + txn.memo().getBytes().length;
     }
 
     default long nonDegenerateDiv(long dividend, int divisor) {
@@ -21,7 +21,7 @@ public interface EstimatorUtils {
     }
 
     default long relativeLifetime(TransactionBody txn, long expiry) {
-        long effectiveNow = txn.getTransactionID().getTransactionValidStart().getSeconds();
+        long effectiveNow = txn.transactionID().transactionValidStart().seconds();
         return relativeLifetime(effectiveNow, expiry);
     }
 

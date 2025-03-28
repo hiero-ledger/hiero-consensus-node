@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.sysfiles.serdes;
 
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCall;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoGetAccountBalance;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenAssociateToAccount;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenCreate;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenMint;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.TransactionGetReceipt;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_ACCOUNT_BALANCE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_RECEIPT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.transaction.ThrottleBucket;
+import com.hedera.hapi.node.transaction.ThrottleDefinitions;
+import com.hedera.hapi.node.transaction.ThrottleGroup;
 import com.hedera.node.app.hapi.utils.TestUtils;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.ThrottleBucket;
-import com.hederahashgraph.api.proto.java.ThrottleDefinitions;
-import com.hederahashgraph.api.proto.java.ThrottleGroup;
 import java.io.IOException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -30,52 +30,50 @@ class ThrottlesJsonToProtoSerdeTest {
 
     private ThrottleDefinitions expected() {
         return ThrottleDefinitions.newBuilder()
-                .addThrottleBuckets(aBucket())
-                .addThrottleBuckets(bBucket())
-                .addThrottleBuckets(cBucket())
-                .addThrottleBuckets(dBucket())
+                .throttleBuckets(aBucket(), bBucket(), cBucket(), dBucket())
                 .build();
     }
 
     private ThrottleBucket aBucket() {
         return ThrottleBucket.newBuilder()
-                .setName("A")
-                .setBurstPeriodMs(2_000)
-                .addThrottleGroups(from(10000, List.of(CryptoTransfer, CryptoCreate)))
-                .addThrottleGroups(from(12, List.of(ContractCall)))
-                .addThrottleGroups(from(3000, List.of(TokenMint)))
+                .name("A")
+                .burstPeriodMs(2_000)
+                .throttleGroups(
+                        from(10000, List.of(CRYPTO_TRANSFER, CRYPTO_CREATE)),
+                        from(12, List.of(CONTRACT_CALL)),
+                        from(3000, List.of(TOKEN_MINT)))
                 .build();
     }
 
     private ThrottleBucket bBucket() {
         return ThrottleBucket.newBuilder()
-                .setName("B")
-                .setBurstPeriodMs(2_000)
-                .addThrottleGroups(from(10, List.of(ContractCall)))
+                .name("B")
+                .burstPeriodMs(2_000)
+                .throttleGroups(from(10, List.of(CONTRACT_CALL)))
                 .build();
     }
 
     private ThrottleBucket cBucket() {
         return ThrottleBucket.newBuilder()
-                .setName("C")
-                .setBurstPeriodMs(3_000)
-                .addThrottleGroups(from(2, List.of(CryptoCreate)))
-                .addThrottleGroups(from(100, List.of(TokenCreate, TokenAssociateToAccount)))
+                .name("C")
+                .burstPeriodMs(3_000)
+                .throttleGroups(
+                        from(2, List.of(CRYPTO_CREATE)), from(100, List.of(TOKEN_CREATE, TOKEN_ASSOCIATE_TO_ACCOUNT)))
                 .build();
     }
 
     private ThrottleBucket dBucket() {
         return ThrottleBucket.newBuilder()
-                .setName("D")
-                .setBurstPeriodMs(4_000)
-                .addThrottleGroups(from(1_000_000, List.of(CryptoGetAccountBalance, TransactionGetReceipt)))
+                .name("D")
+                .burstPeriodMs(4_000)
+                .throttleGroups(from(1_000_000, List.of(CRYPTO_GET_ACCOUNT_BALANCE, TRANSACTION_GET_RECEIPT)))
                 .build();
     }
 
     private ThrottleGroup from(final int opsPerSec, final List<HederaFunctionality> functions) {
         return ThrottleGroup.newBuilder()
-                .setMilliOpsPerSec(1_000 * opsPerSec)
-                .addAllOperations(functions)
+                .milliOpsPerSec(1_000 * opsPerSec)
+                .operations(functions)
                 .build();
     }
 }

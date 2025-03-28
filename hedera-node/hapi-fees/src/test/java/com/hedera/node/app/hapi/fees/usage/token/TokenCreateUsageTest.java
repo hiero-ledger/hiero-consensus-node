@@ -11,23 +11,23 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.mock;
 import static org.mockito.BDDMockito.verify;
 
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TokenType;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.token.TokenCreateTransactionBody;
+import com.hedera.hapi.node.transaction.CustomFee;
+import com.hedera.hapi.node.transaction.FixedFee;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.test.IdUtils;
 import com.hedera.node.app.hapi.fees.test.KeyUtils;
 import com.hedera.node.app.hapi.fees.usage.EstimatorFactory;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.CustomFee;
-import com.hederahashgraph.api.proto.java.Duration;
-import com.hederahashgraph.api.proto.java.FixedFee;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.SubType;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TokenCreateTransactionBody;
-import com.hederahashgraph.api.proto.java.TokenType;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -106,8 +106,7 @@ class TokenCreateUsageTest {
         assertEquals(A_USAGES_MATRIX, actual);
         // and:
         verify(base).addBpt(expectedBytes);
-        verify(base)
-                .addRbs((expectedBytes + tokenOpsUsage.bytesNeededToRepr(op.getCustomFeesList())) * autoRenewPeriod);
+        verify(base).addRbs((expectedBytes + tokenOpsUsage.bytesNeededToRepr(op.customFees())) * autoRenewPeriod);
         verify(base).addNetworkRbs(BASIC_ENTITY_ID_SIZE * USAGE_PROPERTIES.legacyReceiptStorageSecs());
     }
 
@@ -170,8 +169,7 @@ class TokenCreateUsageTest {
         assertEquals(A_USAGES_MATRIX, actual);
         // and:
         verify(base).addBpt(expectedBytes);
-        verify(base)
-                .addRbs((expectedBytes + tokenOpsUsage.bytesNeededToRepr(op.getCustomFeesList())) * autoRenewPeriod);
+        verify(base).addRbs((expectedBytes + tokenOpsUsage.bytesNeededToRepr(op.customFees())) * autoRenewPeriod);
         verify(base).addNetworkRbs(BASIC_ENTITY_ID_SIZE * USAGE_PROPERTIES.legacyReceiptStorageSecs());
     }
 
@@ -246,23 +244,24 @@ class TokenCreateUsageTest {
     private void givenExpiryBasedOp(
             final long newExpiry, final TokenType type, final boolean withCustomFeesKey, final boolean withCustomFees) {
         final var builder = TokenCreateTransactionBody.newBuilder()
-                .setTokenType(type)
-                .setExpiry(Timestamp.newBuilder().setSeconds(newExpiry))
-                .setSymbol(symbol)
-                .setMemo(memo)
-                .setName(name)
-                .setKycKey(kycKey)
-                .setAdminKey(adminKey)
-                .setFreezeKey(freezeKey)
-                .setSupplyKey(supplyKey)
-                .setWipeKey(wipeKey);
+                .tokenType(type)
+                .expiry(Timestamp.newBuilder().seconds(newExpiry))
+                .symbol(symbol)
+                .memo(memo)
+                .name(name)
+                .kycKey(kycKey)
+                .adminKey(adminKey)
+                .freezeKey(freezeKey)
+                .supplyKey(supplyKey)
+                .wipeKey(wipeKey);
         if (withCustomFeesKey) {
-            builder.setFeeScheduleKey(customFeeKey);
+            builder.feeScheduleKey(customFeeKey);
         }
         if (withCustomFees) {
-            builder.addCustomFees(CustomFee.newBuilder()
-                    .setFeeCollectorAccountId(IdUtils.asAccount("0.0.1234"))
-                    .setFixedFee(FixedFee.newBuilder().setAmount(123)));
+            builder.customFees(CustomFee.newBuilder()
+                    .feeCollectorAccountId(IdUtils.asAccount("0.0.1234"))
+                    .fixedFee(FixedFee.newBuilder().amount(123))
+                    .build());
         }
         op = builder.build();
         setTxn();
@@ -270,26 +269,26 @@ class TokenCreateUsageTest {
 
     private void givenAutoRenewBasedOp() {
         op = TokenCreateTransactionBody.newBuilder()
-                .setAutoRenewAccount(autoRenewAccount)
-                .setMemo(memo)
-                .setAutoRenewPeriod(Duration.newBuilder().setSeconds(autoRenewPeriod))
-                .setSymbol(symbol)
-                .setName(name)
-                .setKycKey(kycKey)
-                .setAdminKey(adminKey)
-                .setFreezeKey(freezeKey)
-                .setSupplyKey(supplyKey)
-                .setWipeKey(wipeKey)
-                .setInitialSupply(1)
+                .autoRenewAccount(autoRenewAccount)
+                .memo(memo)
+                .autoRenewPeriod(Duration.newBuilder().seconds(autoRenewPeriod))
+                .symbol(symbol)
+                .name(name)
+                .kycKey(kycKey)
+                .adminKey(adminKey)
+                .freezeKey(freezeKey)
+                .supplyKey(supplyKey)
+                .wipeKey(wipeKey)
+                .initialSupply(1)
                 .build();
         setTxn();
     }
 
     private void setTxn() {
         txn = TransactionBody.newBuilder()
-                .setTransactionID(TransactionID.newBuilder()
-                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now)))
-                .setTokenCreation(op)
+                .transactionID(TransactionID.newBuilder()
+                        .transactionValidStart(Timestamp.newBuilder().seconds(now)))
+                .tokenCreation(op)
                 .build();
     }
 }
