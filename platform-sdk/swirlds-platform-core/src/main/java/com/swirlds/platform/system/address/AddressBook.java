@@ -26,6 +26,7 @@ import org.hiero.consensus.model.node.NodeId;
  * The Address of every known member of the swirld. The getters are public and the setters aren't, so it is read-only
  * for apps. When enableEventStreaming is set to be true, the memo field is required and should be unique.
  */
+@Deprecated(forRemoval = true) // the removal of this class is ongoing
 public class AddressBook implements Iterable<Address>, SelfSerializable, Hashable {
 
     /**
