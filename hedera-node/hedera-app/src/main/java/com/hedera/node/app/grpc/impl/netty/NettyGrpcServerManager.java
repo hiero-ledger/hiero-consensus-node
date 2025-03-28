@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.grpc.GrpcServerManager;
+import com.hedera.node.app.grpc.impl.GrpcLoggingInterceptor;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
@@ -347,6 +348,12 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         } catch (final Exception unexpected) {
             logger.info("Unexpected exception initializing Netty", unexpected);
         }
+
+        if (builder != null) {
+            // attach logging interceptor
+            builder.intercept(new GrpcLoggingInterceptor());
+        }
+
         return builder;
     }
 
