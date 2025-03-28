@@ -31,4 +31,12 @@ public interface ConsensusRoundsHolder {
      * @return the collected consensus rounds
      */
     Map<Long, ConsensusRound> getCollectedRounds();
+
+    /**
+     * Get filtered consensus rounds by specified consensus round numbers.
+     *
+     * @param commonConsensusRoundNums the consensus round numbers collection to use as a filter
+     * @return the filtered consensus rounds
+     */
+    List<ConsensusRound> getFilteredConsensusRounds(final Set<Long> commonConsensusRoundNums);
 }

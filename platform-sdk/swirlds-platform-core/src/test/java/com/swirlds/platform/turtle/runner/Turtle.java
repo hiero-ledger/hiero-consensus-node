@@ -17,13 +17,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -159,30 +157,24 @@ public class Turtle {
      * At the end of the validation, the specified commonly collected items are cleared to keep memory usage low.
      */
     public void validateConsensusRounds() {
-        final Set<Long> commonConsensusRounds = getCommonlyCollectedConsensusRounds();
+        final Set<Long> commonConsensusRoundNums = getCommonConsensusRoundNums();
 
-        final TurtleNode node1 = nodes.getFirst();
-        final List<ConsensusRound> consensusRoundsForNode1 =
-                node1.getConsensusRoundsHolder().getCollectedRounds().entrySet().stream()
-                        .filter(e -> commonConsensusRounds.contains(e.getKey()))
-                        .map(Map.Entry::getValue)
-                        .collect(Collectors.toList());
+        if (!commonConsensusRoundNums.isEmpty()) {
+            final TurtleNode node1 = nodes.getFirst();
+            final List<ConsensusRound> consensusRoundsForNode1 =
+                    node1.getConsensusRoundsHolder().getFilteredConsensusRounds(commonConsensusRoundNums);
 
-        if (!commonConsensusRounds.isEmpty()) {
             for (int i = 1; i < nodes.size(); i++) {
                 final TurtleNode otherNode = nodes.get(i);
                 final List<ConsensusRound> consensusRoundsForOtherNode =
-                        otherNode.getConsensusRoundsHolder().getCollectedRounds().entrySet().stream()
-                                .filter(e -> commonConsensusRounds.contains(e.getKey()))
-                                .map(Map.Entry::getValue)
-                                .collect(Collectors.toList());
+                        otherNode.getConsensusRoundsHolder().getFilteredConsensusRounds(commonConsensusRoundNums);
 
                 consensusRoundValidator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
 
-                otherNode.getConsensusRoundsHolder().clear(commonConsensusRounds);
+                otherNode.getConsensusRoundsHolder().clear(commonConsensusRoundNums);
             }
 
-            node1.getConsensusRoundsHolder().clear(commonConsensusRounds);
+            node1.getConsensusRoundsHolder().clear(commonConsensusRoundNums);
         }
     }
 
@@ -191,7 +183,7 @@ public class Turtle {
      *
      * @return the set of round numbers that represent rounds that reached consensus in all nodes
      */
-    private Set<Long> getCommonlyCollectedConsensusRounds() {
+    private Set<Long> getCommonConsensusRoundNums() {
         final Set<Long> commonRoundNumbers = new HashSet<>(
                 nodes.getFirst().getConsensusRoundsHolder().getCollectedRounds().keySet());
         for (int i = 1; i < nodes.size(); i++) {
