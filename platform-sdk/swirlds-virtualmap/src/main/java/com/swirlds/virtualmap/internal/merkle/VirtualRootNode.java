@@ -84,7 +84,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -262,16 +261,6 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
     private final AtomicBoolean shouldBeFlushed = new AtomicBoolean(false);
 
     /**
-     * Flush threshold. If greater than zero, then this virtual root will be flushed to disk, if
-     * its estimated size exceeds the threshold. If this virtual root is explicitly requested to flush,
-     * the threshold is not taken into consideration.
-     *
-     * <p>By default, the threshold is set to {@link VirtualMapConfig#copyFlushThreshold()}. The
-     * threshold is inherited by all copies.
-     */
-    private final AtomicLong flushThreshold = new AtomicLong();
-
-    /**
      * This latch is used to implement {@link #waitUntilFlushed()}.
      */
     private final CountDownLatch flushLatch = new CountDownLatch(1);
@@ -344,7 +333,6 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
         // Hasher is required during reconnects
         this.hasher = new VirtualHasher<>();
         this.virtualMapConfig = virtualMapConfig;
-        this.flushThreshold.set(virtualMapConfig.copyFlushThreshold());
         // All other fields are initialized in postInit()
     }
 
@@ -365,7 +353,6 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
         this.fastCopyVersion = 0;
         this.hasher = new VirtualHasher<>();
         this.virtualMapConfig = requireNonNull(virtualMapConfig);
-        this.flushThreshold.set(virtualMapConfig.copyFlushThreshold());
         this.keySerializer = requireNonNull(keySerializer);
         this.valueSerializer = requireNonNull(valueSerializer);
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
@@ -396,7 +383,6 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
         this.fullyReconnectedState = null;
         this.maxSizeReachedTriggeringWarning = source.maxSizeReachedTriggeringWarning;
         this.pipeline = source.pipeline;
-        this.flushThreshold.set(source.flushThreshold.get());
         this.statistics = source.statistics;
         this.virtualMapConfig = source.virtualMapConfig;
 
@@ -426,7 +412,6 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
             cache = new VirtualNodeCache<>(virtualMapConfig);
         }
         this.state = requireNonNull(state);
-        updateShouldBeFlushed();
         requireNonNull(dataSourceBuilder);
         if (dataSource == null) {
             dataSource = dataSourceBuilder.build(state.getLabel(), true);
@@ -1051,40 +1036,11 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
     }
 
     /**
-     * Sets flush threshold for this virtual root. When a copy of this virtual root is created,
-     * it inherits the threshold value.
-     *
-     * If this virtual root is explicitly marked to flush using {@link #enableFlush()}, changing
-     * flush threshold doesn't have any effect.
-     *
-     * @param value The flush threshold, in bytes
-     */
-    public void setFlushThreshold(long value) {
-        flushThreshold.set(value);
-        updateShouldBeFlushed();
-    }
-
-    /**
-     * Gets flush threshold for this virtual root.
-     *
-     * @return The flush threshold, in bytes
-     */
-    long getFlushThreshold() {
-        return flushThreshold.get();
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
     public boolean shouldBeFlushed() {
-        // Check if this copy was explicitly marked to flush
-        if (shouldBeFlushed.get()) {
-            return true;
-        }
-        // Otherwise check its size and compare against flush threshold
-        final long threshold = flushThreshold.get();
-        return (threshold > 0) && (estimatedSize() >= threshold);
+        return shouldBeFlushed.get();
     }
 
     /**
@@ -1093,17 +1049,6 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
     @Override
     public boolean isFlushed() {
         return flushed.get();
-    }
-
-    /**
-     * If flush threshold isn't set for this virtual root, marks the root to flush based on
-     * {@link VirtualMapConfig#flushInterval()} setting.
-     */
-    private void updateShouldBeFlushed() {
-        if (flushThreshold.get() <= 0) {
-            // If copy size flush threshold is not set, use flush interval
-            this.shouldBeFlushed.set(fastCopyVersion != 0 && fastCopyVersion % virtualMapConfig.flushInterval() == 0);
-        }
     }
 
     /**
@@ -1182,20 +1127,39 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
     }
 
     @Override
-    public long estimatedSize() {
-        final long estimatedDirtyLeavesCount = cache.estimatedDirtyLeavesCount();
-        final long estimatedLeavesSize = estimatedDirtyLeavesCount
+    public long estimatedSizeInMemory() {
+        return estimatedSize(cache.allLeavesCount(), cache.allHashesCount(), cache.allLeafPathsCount());
+    }
+
+    @Override
+    public long estimatedDataSize() {
+        return estimatedSize(cache.latestLeavesCount(), cache.latestHashesCount(), cache.latestLeafPathsCount());
+    }
+
+    private long estimatedSize(final long leavesCount, final long hashesCount, final long leafPathsCount) {
+        final long estimatedLeavesSize = leavesCount
                 * (Long.BYTES // path
                         + DigestType.SHA_384.digestLength() // hash
                         + keySerializer.getTypicalSerializedSize() // key
                         + valueSerializer.getTypicalSerializedSize()); // value
-
-        final long estimatedInternalsCount = cache.estimatedHashesCount();
-        final long estimatedInternalsSize = estimatedInternalsCount
+        final long estimatedHashesSize = hashesCount
                 * (Long.BYTES // path
                         + DigestType.SHA_384.digestLength()); // hash
+        final long estimatedLeafPathsSize = leafPathsCount
+                * (keySerializer.getTypicalSerializedSize() // key
+                        + Long.BYTES); // path
+        return estimatedLeavesSize + estimatedHashesSize + estimatedLeafPathsSize;
+    }
 
-        return estimatedInternalsSize + estimatedLeavesSize;
+    @Override
+    public void compact() {
+        if (flushed.get()) {
+            throw new IllegalStateException("Cannot compact a flushed copy");
+        }
+        if (merged.get()) {
+            throw new IllegalStateException("Cannot compact a merged copy");
+        }
+        cache.compact();
     }
 
     // Serialization implementation
@@ -1741,7 +1705,7 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
         statistics.setSize(state.size());
 
         final VirtualLeafRecord<K, V> newLeaf = new VirtualLeafRecord<>(leafPath, key, value);
-        cache.putLeaf(newLeaf);
+        cache.putLeaf(newLeaf, true);
     }
 
     @Override

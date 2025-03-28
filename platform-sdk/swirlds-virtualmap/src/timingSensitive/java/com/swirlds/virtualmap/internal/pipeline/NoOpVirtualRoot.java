@@ -72,6 +72,9 @@ public final class NoOpVirtualRoot<K extends VirtualKey, V extends VirtualValue>
     }
 
     @Override
+    public void compact() {}
+
+    @Override
     public boolean isHashed() {
         return false;
     }

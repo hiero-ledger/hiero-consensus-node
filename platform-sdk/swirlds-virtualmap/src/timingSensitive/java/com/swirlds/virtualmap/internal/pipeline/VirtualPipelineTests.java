@@ -132,23 +132,7 @@ class VirtualPipelineTests {
                 assertTrue(copy.isImmutable(), "mutable copy should not be merged. Copy #" + copy.getCopyIndex());
             }
 
-            if (oldestUndestroyedFound) {
-                // The oldest undestroyed copy has been found, and it's older than this copy
-                if (copy.shouldBeFlushed()) {
-                    assertFalse(copy.isFlushed(), "only the oldest copy can be flushed. Copy #" + copy.getCopyIndex());
-                } else {
-                    if ((copy.isDestroyed() || copy.isDetached()) && copy.isImmutable()) {
-                        final DummyVirtualRoot<VirtualKey, VirtualValue> next =
-                                index + 1 < copies.size() ? copies.get(index + 1) : null;
-                        if (next != null && next.isImmutable()) {
-                            interruptOnTimeout(
-                                    2_000,
-                                    copy::waitUntilMerged,
-                                    "copy should quickly become merged. Copy #" + copy.getCopyIndex());
-                        }
-                    }
-                }
-            } else {
+            if (!oldestUndestroyedFound) {
                 // The oldest undestroyed copy has not yet been encountered
                 if (copy.isDestroyed() || copy.isDetached()) {
                     if (copy.isImmutable()) {
@@ -643,7 +627,7 @@ class VirtualPipelineTests {
         for (int i = 0; i < copyCount; i++) {
             DummyVirtualRoot<VirtualKey, VirtualValue> copy = copies.get(i);
             // Every 11th copy should be flushed
-            copy.setEstimatedSize(config.copyFlushThreshold() / 10 - 1);
+            copy.setEstimatedSizeInMemory(config.copyFlushThreshold() / 10 - 1);
         }
         // Release all copies to make them mergeable / flushable. Note that when the first copy is
         // released, a thread race between this thread and the pipeline thread starts. It may
@@ -678,7 +662,7 @@ class VirtualPipelineTests {
         for (int i = 0; i < copyCount; i++) {
             DummyVirtualRoot<VirtualKey, VirtualValue> copy = copies.get(i);
             // Set all copies small enough, so none of them should be flushed even after merge
-            copy.setEstimatedSize(config.copyFlushThreshold() / (copyCount + 1));
+            copy.setEstimatedSizeInMemory(config.copyFlushThreshold() / (copyCount + 1));
         }
         DummyVirtualRoot<VirtualKey, VirtualValue> last = copies.get(copies.size() - 1);
         DummyVirtualRoot<VirtualKey, VirtualValue> afterCopy = last.copy();
@@ -710,12 +694,11 @@ class VirtualPipelineTests {
             copies.get(i).release();
         }
 
-        copies.get(4).waitUntilMerged();
         for (int i = 0; i < copyCount; i++) {
             DummyVirtualRoot<VirtualKey, VirtualValue> copy = copies.get(i);
             assertFalse(copy.isFlushed(), "Copy should not yet be flushed");
             if ((i != 0) && (i < 5)) {
-                assertTrue(copy.isMerged(), "Copy should be merged by now " + copy.getCopyIndex());
+                assertFalse(copy.isMerged(), "Copy should not be merged yet " + copy.getCopyIndex());
             }
         }
 
@@ -762,44 +745,6 @@ class VirtualPipelineTests {
         copies.get(0).release();
     }
 
-    @Test
-    @Tag(TestComponentTags.VMAP)
-    @DisplayName("Merge Release Race")
-    void mergeReleaseRace() throws InterruptedException {
-        final int copyCount = 10;
-
-        // Copies 5 needs to be flushed
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = setupCopies(copyCount, i -> i == 5);
-
-        // Release 0-3
-        for (int i = 0; i < 4; i++) {
-            copies.get(i).release();
-        }
-
-        // Wait for a moment and let the pipeline catch up with all work
-        MILLISECONDS.sleep(20);
-
-        assertTrue(copies.get(3).isMerged(), "copy should be merged by now");
-        assertFalse(copies.get(4).isMerged(), "copy should not be merged");
-
-        // The next time isMerged() is called on copy 4, it will release itself.
-        // Simulates a race condition that is possible in the real world.
-        // This could cause a copy to be flushed before an older copy was merged.
-        copies.get(4).setReleaseInIsDetached(true);
-
-        // force the pipeline to iterate through the list
-        copies.get(5).release();
-
-        // release remaining, copy 4 destroyed itself (via setReleaseInIsDetached)
-        for (int i = 6; i < 9; i++) {
-            copies.get(i).release();
-        }
-
-        assertEventuallyTrue(() -> copies.get(5).isFlushed(), Duration.ofSeconds(1), "copy should have been flushed");
-
-        copies.get(9).release();
-    }
-
     /**
      * Measure the time that it takes to make another copy, assert that it is within 10ms of the expected time.
      */
@@ -833,7 +778,7 @@ class VirtualPipelineTests {
 
         final DummyVirtualRoot<VirtualKey, VirtualValue> originalCopy =
                 new DummyVirtualRoot<>("flushThrottle", config.getConfigData(VirtualMapConfig.class));
-        originalCopy.setEstimatedSize(100);
+        originalCopy.setEstimatedSizeInMemory(100);
         originalCopy.setShouldFlushPredicate(i -> i % 2 == 1); // flush odd copies
         copies.add(originalCopy);
 
