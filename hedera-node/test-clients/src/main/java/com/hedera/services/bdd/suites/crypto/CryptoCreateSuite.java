@@ -29,7 +29,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
@@ -37,7 +36,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withLongZeroAddress;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
-import static com.hedera.services.bdd.suites.HapiSuite.FALSE_VALUE;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -65,7 +63,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -261,28 +258,6 @@ public class CryptoCreateSuite {
                         .alias(evmAddress.get())
                         .via(creation)),
                 sourcing(() -> getTxnRecord(creation).logged()));
-    }
-
-    @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
-    final Stream<DynamicTest> createFailsIfMaxAutoAssocIsNegativeAndUnlimitedFlagDisabled() {
-        return hapiTest(
-                overriding("entities.unlimitedAutoAssociationsEnabled", FALSE_VALUE),
-                cryptoCreate(CIVILIAN)
-                        .balance(0L)
-                        .maxAutomaticTokenAssociations(-1)
-                        .hasKnownStatus(INVALID_MAX_AUTO_ASSOCIATIONS),
-                cryptoCreate(CIVILIAN)
-                        .balance(0L)
-                        .maxAutomaticTokenAssociations(-2)
-                        .hasPrecheck(INVALID_MAX_AUTO_ASSOCIATIONS),
-                cryptoCreate(CIVILIAN)
-                        .balance(0L)
-                        .maxAutomaticTokenAssociations(-1000)
-                        .hasPrecheck(INVALID_MAX_AUTO_ASSOCIATIONS),
-                cryptoCreate(CIVILIAN)
-                        .balance(0L)
-                        .maxAutomaticTokenAssociations(Integer.MIN_VALUE)
-                        .hasPrecheck(INVALID_MAX_AUTO_ASSOCIATIONS));
     }
 
     @HapiTest

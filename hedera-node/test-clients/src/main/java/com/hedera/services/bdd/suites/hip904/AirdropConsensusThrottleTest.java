@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip904;
 
-import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -60,8 +59,7 @@ public class AirdropConsensusThrottleTest {
     final AtomicInteger numAssociationsCounter = new AtomicInteger(0);
 
     @LeakyHapiTest(
-            requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},
-            overrides = {"tokens.airdrops.enabled", "entities.unlimitedAutoAssociationsEnabled"},
+            requirement = {THROTTLE_OVERRIDES},
             throttles = "testSystemFiles/mainnet-throttles.json")
     final Stream<DynamicTest> airdropsAreLimitedByConsThrottle() {
         return hapiTest(

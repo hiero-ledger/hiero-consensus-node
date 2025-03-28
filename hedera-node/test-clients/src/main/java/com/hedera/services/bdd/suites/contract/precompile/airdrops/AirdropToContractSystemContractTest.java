@@ -33,7 +33,6 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fra
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
@@ -63,7 +62,6 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -1110,7 +1108,7 @@ public class AirdropToContractSystemContractTest {
             }));
         }
 
-        @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+        @HapiTest
         @DisplayName(
                 "Airdrop token to a hollow account that would create pending airdrop then deploy a contract on the same address")
         public Stream<DynamicTest> airdropToHollowAccThenCreate2OnSameAddress(
@@ -1130,7 +1128,6 @@ public class AirdropToContractSystemContractTest {
                         spec,
                         // We need to disable the unlimited auto associations in order to create hollow account with
                         // maxAutoAssociations != -1
-                        overriding("entities.unlimitedAutoAssociationsEnabled", "false"),
                         sender.associateTokens(token),
                         uploadInitCode(create2Contract),
                         token.treasury().transferUnitsTo(sender, 1_000L, token),
@@ -1188,7 +1185,6 @@ public class AirdropToContractSystemContractTest {
                         // Check for receiver balance again
                         sourcing(() ->
                                 getAccountBalance(hollowCreationAddress.get()).hasTokenBalance(token.name(), 0L)));
-                overriding("entities.unlimitedAutoAssociationsEnabled", "true");
             }));
         }
     }

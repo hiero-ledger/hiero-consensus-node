@@ -18,8 +18,6 @@ import com.hedera.node.app.service.token.AliasUtils;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.config.data.AutoCreationConfig;
-import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -39,8 +37,6 @@ public class TransferContextImpl implements TransferContext {
     private int numAutoCreations;
     private int numLazyCreations;
     private final Map<Bytes, AccountID> resolutions = new LinkedHashMap<>();
-    private final AutoCreationConfig autoCreationConfig;
-    private final LazyCreationConfig lazyCreationConfig;
     private final TokensConfig tokensConfig;
     private final List<TokenAssociation> automaticAssociations = new ArrayList<>();
     private final List<AssessedCustomFee> assessedCustomFees = new ArrayList<>();
@@ -66,8 +62,6 @@ public class TransferContextImpl implements TransferContext {
         this.context = context;
         this.accountStore = context.storeFactory().writableStore(WritableAccountStore.class);
         this.autoAccountCreator = new AutoAccountCreator(context);
-        this.autoCreationConfig = context.configuration().getConfigData(AutoCreationConfig.class);
-        this.lazyCreationConfig = context.configuration().getConfigData(LazyCreationConfig.class);
         this.tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         this.enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments =
                 enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
@@ -90,8 +84,6 @@ public class TransferContextImpl implements TransferContext {
         this.syntheticBody = syntheticBody;
         this.accountStore = context.storeFactory().writableStore(WritableAccountStore.class);
         this.autoAccountCreator = new AutoAccountCreator(context);
-        this.autoCreationConfig = context.configuration().getConfigData(AutoCreationConfig.class);
-        this.lazyCreationConfig = context.configuration().getConfigData(LazyCreationConfig.class);
         this.tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         this.enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments =
                 enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
@@ -114,10 +106,8 @@ public class TransferContextImpl implements TransferContext {
         // if it is a serialized proto key, auto-create account
         if (AliasUtils.isOfEvmAddressSize(alias)) {
             // if it is an evm address create a hollow account
-            validateTrue(lazyCreationConfig.enabled(), NOT_SUPPORTED);
             numLazyCreations++;
         } else if (isSerializedProtoKey(alias)) {
-            validateTrue(autoCreationConfig.enabled(), NOT_SUPPORTED);
             numAutoCreations++;
         } else {
             // Only EVM addresses and key aliases are supported when creating a new account.

@@ -240,7 +240,7 @@ class TokenAssociateToAccountHandlerTest {
         void exceedsTokenAssociationLimitForAccount() {
             // There are 3 tokens already associated with the account we're putting in the transaction, so we
             // need maxTokensPerAccount to be at least 3
-            mockConfig(2000L, true, 3);
+            mockConfig(2000L, 3);
             final var txn = newAssociateTxn(toPbj(KNOWN_TOKEN_WITH_FREEZE));
             given(context.body()).willReturn(txn);
             given(context.storeFactory()).willReturn(storeFactory);
@@ -270,7 +270,7 @@ class TokenAssociateToAccountHandlerTest {
         void tokensAssociateToAccountWithNoTokenRels() {
             // Set maxTokensPerAccount to a value that will fail if areTokenAssociationsLimited
             // is incorrectly ignored
-            mockConfig(2000L, false, 4);
+            mockConfig(2000L, 4);
             given(context.storeFactory()).willReturn(storeFactory);
             given(storeFactory.readableStore(ReadableTokenStore.class)).willReturn(readableTokenStore);
 
@@ -470,13 +470,13 @@ class TokenAssociateToAccountHandlerTest {
         }
 
         private void mockContext(final long maxNumTokenRels, final long maxTokensPerAccount) {
-            mockConfig(maxNumTokenRels, false, (int) maxTokensPerAccount);
+            mockConfig(maxNumTokenRels, (int) maxTokensPerAccount);
 
             given(storeFactory.readableStore(ReadableTokenStore.class)).willReturn(readableTokenStore);
         }
 
         // The context passed in needs to be a mock
-        private void mockConfig(final long maxAggregateRels, final boolean limitedRels, final int maxRelsPerAccount) {
+        private void mockConfig(final long maxAggregateRels, final int maxRelsPerAccount) {
             lenient().when(storeFactory.readableStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
             final var config = mock(Configuration.class);
             lenient().when(context.configuration()).thenReturn(config);
@@ -486,7 +486,6 @@ class TokenAssociateToAccountHandlerTest {
             lenient().when(config.getConfigData(TokensConfig.class)).thenReturn(tokensConfig);
             final var entitiesConfig = mock(EntitiesConfig.class);
             lenient().when(config.getConfigData(EntitiesConfig.class)).thenReturn(entitiesConfig);
-            lenient().when(entitiesConfig.limitTokenAssociations()).thenReturn(limitedRels);
         }
     }
 }

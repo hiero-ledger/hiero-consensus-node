@@ -259,7 +259,6 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
     void failsIfAssociationLimitExceeded() {
         setUpTxnContext();
         final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("entities.limitTokenAssociations", "true")
                 .withValue("tokens.maxPerAccount", "0")
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(configOverride);
@@ -279,7 +278,6 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
     void failsIfAssociationAlreadyExists() {
         setUpTxnContext();
         final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("entities.limitTokenAssociations", "true")
                 .withValue("tokens.maxPerAccount", "10")
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(configOverride);
@@ -315,7 +313,6 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
         given(handleContext.body()).willReturn(txn);
 
         final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("entities.limitTokenAssociations", "true")
                 .withValue("tokens.maxPerAccount", "1")
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(configOverride);
@@ -345,7 +342,6 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
         given(handleContext.body()).willReturn(txn);
 
         final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("entities.limitTokenAssociations", "true")
                 .withValue("tokens.maxPerAccount", "10")
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(configOverride);

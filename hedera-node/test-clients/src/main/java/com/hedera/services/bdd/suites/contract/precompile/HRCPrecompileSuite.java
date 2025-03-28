@@ -526,7 +526,7 @@ public class HRCPrecompileSuite {
                                                         .withStatus(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)))))));
     }
 
-    @LeakyHapiTest(overrides = {"tokens.maxPerAccount", "entities.limitTokenAssociations"})
+    @LeakyHapiTest(overrides = {"tokens.maxPerAccount"})
     final Stream<DynamicTest> hrcTooManyTokenAssociateShouldFail() {
         final AtomicReference<String> fungibleTokenNum1 = new AtomicReference<>();
         final AtomicReference<String> fungibleTokenNum2 = new AtomicReference<>();
@@ -534,7 +534,6 @@ public class HRCPrecompileSuite {
 
         return hapiTest(
                 overriding("tokens.maxPerAccount", "2"),
-                overriding("entities.limitTokenAssociations", "true"),
                 newKeyNamed(MULTI_KEY),
                 newKeyNamed(RANDOM_KEY),
                 cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),

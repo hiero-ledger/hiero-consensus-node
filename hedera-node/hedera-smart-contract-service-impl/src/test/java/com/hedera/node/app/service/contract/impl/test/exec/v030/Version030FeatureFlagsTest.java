@@ -31,7 +31,7 @@ class Version030FeatureFlagsTest {
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(stack.isEmpty()).willReturn(true);
         given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
-        assertFalse(subject.isImplicitCreationEnabled(frame));
+        assertFalse(subject.isImplicitCreationEnabled());
         assertFalse(subject.isAllowCallsToNonContractAccountsEnabled(DEFAULT_CONTRACTS_CONFIG, null));
     }
 

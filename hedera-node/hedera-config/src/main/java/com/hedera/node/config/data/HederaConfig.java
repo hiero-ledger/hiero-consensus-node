@@ -30,8 +30,6 @@ public record HederaConfig(
                 int allowancesMaxTransactionLimit,
         @ConfigProperty(value = "allowances.maxAccountLimit", defaultValue = "100") @NetworkProperty
                 int allowancesMaxAccountLimit,
-        @ConfigProperty(value = "allowances.isEnabled", defaultValue = "true") @NetworkProperty
-                boolean allowancesIsEnabled,
         @ConfigProperty(defaultValue = "data/onboard/exportedAccount.txt") @NodeProperty String accountsExportPath,
         @ConfigProperty(defaultValue = "false") @NodeProperty boolean exportAccountsOnStartup,
         @ConfigProperty(value = "prefetch.queueCapacity", defaultValue = "70000") @NodeProperty

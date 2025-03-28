@@ -33,9 +33,7 @@ public interface TokenServiceApi {
 
     /**
      * Whether to free the alias when account is deleted or not.
-     * Aliases are always freed when we use ContractDeleteTransactionBody.
-     * Aliases are freed when we use CryptoDeleteTransactionBody based on the value of the
-     * accountsConfig#releaseAliasAfterDeletion
+     * Aliases are always freed when we use ContractDeleteTransactionBody and CryptoDeleteTransactionBody.
      */
     enum FreeAliasOnDeletion {
         /**
@@ -55,15 +53,13 @@ public interface TokenServiceApi {
      * @param obtainerId the id of the account to transfer the remaining hbar balance to
      * @param expiryValidator the expiry validator to use
      * @param recordBuilder the record builder to record the transfer in
-     * @param freeAliasOnDeletion whether to free the deleted account's alias (if any)
      * @throws HandleException if the account could not be deleted for some reason
      */
     void deleteAndTransfer(
             @NonNull AccountID deletedId,
             @NonNull AccountID obtainerId,
             @NonNull ExpiryValidator expiryValidator,
-            @NonNull DeleteCapableTransactionStreamBuilder recordBuilder,
-            @NonNull FreeAliasOnDeletion freeAliasOnDeletion);
+            @NonNull DeleteCapableTransactionStreamBuilder recordBuilder);
 
     /**
      * Validates the creation of a given staking election relative to the given account store, network info,

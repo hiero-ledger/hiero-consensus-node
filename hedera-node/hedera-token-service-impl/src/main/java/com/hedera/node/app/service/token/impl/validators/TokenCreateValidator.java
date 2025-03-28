@@ -32,7 +32,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -163,22 +162,18 @@ public class TokenCreateValidator {
      * associations.
      * These checks need to be done before the token is created and associated to treasury or any custom
      * fee collector accounts.
-     * @param entitiesConfig entities config
      * @param tokensConfig tokens config
      * @param account account to associate with
      * @param token token to associate with
      * @param tokenRelStore token relation store
      */
     public void validateAssociation(
-            @NonNull final EntitiesConfig entitiesConfig,
             @NonNull final TokensConfig tokensConfig,
             @NonNull final Account account,
             @NonNull final Token token,
             @NonNull final WritableTokenRelationStore tokenRelStore) {
         validateFalse(
-                entitiesConfig.limitTokenAssociations()
-                        && account.numberAssociations() + 1 > tokensConfig.maxPerAccount(),
-                TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED);
+                account.numberAssociations() + 1 > tokensConfig.maxPerAccount(), TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED);
 
         validateTrue(
                 tokenRelStore.get(account.accountId(), token.tokenId()) == null, TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT);

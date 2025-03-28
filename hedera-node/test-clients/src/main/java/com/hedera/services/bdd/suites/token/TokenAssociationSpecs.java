@@ -31,7 +31,7 @@ import static com.hedera.services.bdd.spec.transactions.token.HapiTokenAssociate
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
@@ -133,12 +133,12 @@ public class TokenAssociationSpecs {
                                 withSuccessivelyVariedBodyIds(), () -> tokenDissociate(DEFAULT_PAYER, "a", "b")));
     }
 
-    @LeakyHapiTest(overrides = {"tokens.maxPerAccount", "entities.limitTokenAssociations"})
+    @LeakyHapiTest(overrides = {"tokens.maxPerAccount"})
     final Stream<DynamicTest> canLimitMaxTokensPerAccountTransactions() {
         final String alice = "ALICE";
         final String treasury2 = "TREASURY_2";
         return hapiTest(
-                overridingTwo("tokens.maxPerAccount", "1", "entities.limitTokenAssociations", "true"),
+                overriding("tokens.maxPerAccount", "1"),
                 cryptoCreate(alice),
                 cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(treasury2),

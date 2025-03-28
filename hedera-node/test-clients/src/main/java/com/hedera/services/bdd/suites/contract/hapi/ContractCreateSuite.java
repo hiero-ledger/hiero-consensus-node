@@ -140,9 +140,6 @@ public class ContractCreateSuite {
             "f8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222";
     private static final String EXPECTED_DEPLOYER_ADDRESS = "4e59b44847b379578588920ca78fbf26c0b4956c";
     private static final String DEPLOYER = "DeployerContract";
-    public static final String ENTITIES_UNLIMITED_AUTO_ASSOCIATIONS_ENABLED =
-            "entities.unlimitedAutoAssociationsEnabled";
-    public static final String LEDGER_MAX_AUTO_ASSOCIATIONS = "ledger.maxAutoAssociations";
 
     private static final String FUNGIBLE_TOKEN = "fungible";
     private static final String MULTI_KEY = "multiKey";

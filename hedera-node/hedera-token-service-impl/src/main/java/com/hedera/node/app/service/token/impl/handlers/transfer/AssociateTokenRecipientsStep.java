@@ -36,7 +36,6 @@ import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.config.data.EntitiesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -173,10 +172,9 @@ public class AssociateTokenRecipientsStep extends BaseTokenHandler implements Tr
                 getIfUsableForAliasedId(accountId, accountStore, context.expiryValidator(), INVALID_ACCOUNT_ID);
         final var tokenRel = tokenRelStore.get(account.accountIdOrThrow(), tokenId);
         final var config = context.configuration();
-        final var entitiesConfig = config.getConfigData(EntitiesConfig.class);
 
         if (tokenRel == null && account.maxAutoAssociations() != 0) {
-            boolean validAssociations = hasUnlimitedAutoAssociations(account, entitiesConfig)
+            boolean validAssociations = hasUnlimitedAutoAssociations(account)
                     || account.usedAutoAssociations() < account.maxAutoAssociations();
             validateTrue(validAssociations, NO_REMAINING_AUTOMATIC_ASSOCIATIONS);
             validateFalse(token.hasKycKey(), ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN);
@@ -185,14 +183,10 @@ public class AssociateTokenRecipientsStep extends BaseTokenHandler implements Tr
             // We only charge auto-association fees inline if this is a user dispatch; for internal dispatches,
             // the contract service will take the auto-association costs from the remaining EVM gas
             if (context.savepointStack().getBaseBuilder(StreamBuilder.class).isUserDispatch()) {
-                final var unlimitedAssociationsEnabled =
-                        config.getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
-                // And the "sender pays" fee model only applies when using unlimited auto-associations
-                if (unlimitedAssociationsEnabled) {
-                    final var autoAssociationFee = associationFeeFor(context, PLACEHOLDER_SYNTHETIC_ASSOCIATION);
-                    if (!context.tryToChargePayer(autoAssociationFee)) {
-                        throw new HandleException(INSUFFICIENT_PAYER_BALANCE);
-                    }
+                // The "sender pays" fee model only applies when using unlimited auto-associations
+                final var autoAssociationFee = associationFeeFor(context, PLACEHOLDER_SYNTHETIC_ASSOCIATION);
+                if (!context.tryToChargePayer(autoAssociationFee)) {
+                    throw new HandleException(INSUFFICIENT_PAYER_BALANCE);
                 }
             }
             final var newRelation =

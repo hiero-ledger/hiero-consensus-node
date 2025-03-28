@@ -50,7 +50,7 @@ public class CustomCreate2Operation extends AbstractCustomCreateOperation {
         final var updater = (ProxyWorldUpdater) frame.getWorldUpdater();
         // A bit arbitrary maybe, but if implicit creation isn't enabled, we also
         // don't support finalizing hollow accounts as contracts, so return null
-        if (updater.isHollowAccount(alias) && !featureFlags.isImplicitCreationEnabled(frame)) {
+        if (updater.isHollowAccount(alias) && !featureFlags.isImplicitCreationEnabled()) {
             return null;
         }
         updater.setupInternalAliasedCreate(frame.getRecipientAddress(), alias);

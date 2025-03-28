@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip904;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
@@ -15,7 +14,6 @@ import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.r
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountBalance;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAutoCreatedAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -97,7 +95,6 @@ import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.EmbeddedReason;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.SigControl;
@@ -136,15 +133,12 @@ public class TokenAirdropTest extends TokenAirdropBase {
     static void beforeAll(@NonNull final TestLifecycle lifecycle) {
         lifecycle.overrideInClass(Map.of(
                 "tokens.airdrops.enabled", "false",
-                "tokens.airdrops.claim.enabled", "false",
-                "entities.unlimitedAutoAssociationsEnabled", "false"));
+                "tokens.airdrops.claim.enabled", "false"));
         // create some entities with disabled airdrops
         lifecycle.doAdhoc(setUpEntitiesPreHIP904());
         // enable airdrops
         lifecycle.doAdhoc(
-                overriding("tokens.airdrops.enabled", "true"),
-                overriding("tokens.airdrops.claim.enabled", "true"),
-                overriding("entities.unlimitedAutoAssociationsEnabled", "true"));
+                overriding("tokens.airdrops.enabled", "true"), overriding("tokens.airdrops.claim.enabled", "true"));
         lifecycle.doAdhoc(setUpTokensAndAllReceivers());
     }
 
@@ -1265,33 +1259,6 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     getAliasedAccountBalance(evmAddress).hasTokenBalance(FUNGIBLE_TOKEN, 10),
                     // Any new auto-creation needs to explicitly associate token. So it will be $0.1
                     validateChargedUsd("evmAddressReceiver", 0.1, 1));
-        }
-
-        // AIRDROP_19
-        @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
-        final Stream<DynamicTest>
-                airdropNFTToNonExistingEvmAddressWithoutAutoAssociationsResultingInPendingAirdropToHollowAccount() {
-            final var validAliasForAirdrop = "validAliasForAirdrop";
-            return defaultHapiSpec(
-                            "Send one NFT from EOA to EVM address without auto-associations resulting in the creation of Hollow account and pending airdrop")
-                    .given()
-                    .when(tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 7L).between(OWNER, validAliasForAirdrop))
-                            .payingWith(OWNER)
-                            .signedBy(OWNER)
-                            .via("EVM address NFT airdrop"))
-                    .then(
-                            getTxnRecord("EVM address NFT airdrop")
-                                    .hasPriority(recordWith()
-                                            .pendingAirdrops(
-                                                    includingNftPendingAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 7L)
-                                                            .between(OWNER, validAliasForAirdrop)))),
-                            // assert hollow account
-                            getAliasedAccountInfo(validAliasForAirdrop)
-                                    .isHollow()
-                                    .hasAlreadyUsedAutomaticAssociations(0)
-                                    .hasMaxAutomaticAssociations(0)
-                                    .hasNoTokenRelationship(NON_FUNGIBLE_TOKEN),
-                            validateChargedUsd("EVM address NFT airdrop", 0.1, 10));
         }
 
         @HapiTest
@@ -2556,9 +2523,6 @@ public class TokenAirdropTest extends TokenAirdropBase {
         }
 
         @HapiTest
-        @LeakyHapiTest(
-                requirement = PROPERTY_OVERRIDES,
-                overrides = {"entities.unlimitedAutoAssociationsEnabled"})
         @DisplayName("airdrop NFT to hollow account remains when we deploy a contract on it's address")
         final Stream<DynamicTest> nftToHollowAccountRemainsOnCreate2() {
             final var contract = "Create2Factory";
@@ -2568,8 +2532,6 @@ public class TokenAirdropTest extends TokenAirdropBase {
             final AtomicReference<String> expectedCreate2Address = new AtomicReference<>();
             final AtomicReference<byte[]> testContractInitcode = new AtomicReference<>();
             return hapiTest(flattened(
-                    // turning this off so when we create the contract it's with maxAutoAssociation value of 0
-                    overriding("entities.unlimitedAutoAssociationsEnabled", "false"),
                     newKeyNamed(adminKey),
                     uploadInitCode(contract),
                     contractCreate(contract)

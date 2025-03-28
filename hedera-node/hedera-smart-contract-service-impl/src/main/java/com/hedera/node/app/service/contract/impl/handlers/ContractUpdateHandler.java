@@ -168,7 +168,7 @@ public class ContractUpdateHandler implements TransactionHandler {
 
             final long newMaxAssociations = op.maxAutomaticTokenAssociationsOrThrow();
 
-            if (entitiesConfig.unlimitedAutoAssociationsEnabled() && newMaxAssociations < 0) {
+            if (newMaxAssociations < 0) {
                 validateTrue(newMaxAssociations == UNLIMITED_AUTOMATIC_ASSOCIATIONS, INVALID_MAX_AUTO_ASSOCIATIONS);
             } else {
                 validateFalse(newMaxAssociations < 0, INVALID_MAX_AUTO_ASSOCIATIONS);
@@ -179,7 +179,7 @@ public class ContractUpdateHandler implements TransactionHandler {
                         newMaxAssociations < contract.maxAutoAssociations(),
                         EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT);
                 validateFalse(
-                        entitiesConfig.limitTokenAssociations() && newMaxAssociations > tokensConfig.maxPerAccount(),
+                        newMaxAssociations > tokensConfig.maxPerAccount(),
                         REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT);
             }
         }

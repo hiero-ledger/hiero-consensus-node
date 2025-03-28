@@ -505,7 +505,6 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         givenTxnWith(txn);
 
         final var config = HederaTestConfigBuilder.create()
-                .withValue("entities.limitTokenAssociations", true)
                 .withValue("tokens.maxPerAccount", 11)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
@@ -750,9 +749,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         FeeContext feeContext = mock(FeeContext.class);
         FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
         FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("entities.unlimitedAutoAssociationsEnabled", true)
-                .getOrCreateConfig();
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
 
         TransactionBody cryptoUpdateTransaction = new CryptoUpdateBuilder()
                 .withPayer(id)

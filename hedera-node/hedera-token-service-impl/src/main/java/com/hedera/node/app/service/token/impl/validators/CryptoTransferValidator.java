@@ -92,8 +92,6 @@ public class CryptoTransferValidator {
         validateTrue(hbarTransfers.size() <= ledgerConfig.transfersMaxLen(), TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
 
         // Validate that allowances are enabled, or that no hbar transfers are an allowance transfer
-        final var allowancesEnabled = hederaConfig.allowancesIsEnabled();
-        validateTrue(allowancesEnabled || !isTransferWithApproval(hbarTransfers), NOT_SUPPORTED);
 
         // The loop below will validate the counts for token transfers (both fungible and non-fungible)
         final var tokenTransfers = op.tokenTransfers();
@@ -103,13 +101,11 @@ public class CryptoTransferValidator {
         for (final TokenTransferList tokenTransfer : tokenTransfers) {
             // Validate the fungible token transfer(s) (if present)
             final var fungibleTransfers = tokenTransfer.transfers();
-            validateTrue(allowancesEnabled || !isTransferWithApproval(fungibleTransfers), NOT_SUPPORTED);
             totalFungibleTransfers += fungibleTransfers.size();
 
             // Validate the nft transfer(s) (if present)
             final var nftTransfers = tokenTransfer.nftTransfers();
             validateTrue(nftsEnabled || nftTransfers.isEmpty(), NOT_SUPPORTED);
-            validateTrue(allowancesEnabled || !isNftTransferWithApproval(nftTransfers), NOT_SUPPORTED);
             totalNftTransfers += nftTransfers.size();
 
             // Verify that the current total number of (counted) fungible transfers does not exceed the limit
@@ -119,35 +115,6 @@ public class CryptoTransferValidator {
             // Verify that the current total number of (counted) nft transfers does not exceed the limit
             validateTrue(totalNftTransfers <= ledgerConfig.nftTransfersMaxLen(), BATCH_SIZE_LIMIT_EXCEEDED);
         }
-    }
-
-    /**
-     * Checks if any of the transfers is with approval flag set.
-     * @param transfers the transfers
-     * @return true if any of the transfers is with approval flag set, false otherwise
-     */
-    private boolean isTransferWithApproval(@NonNull final List<AccountAmount> transfers) {
-        for (final AccountAmount transfer : transfers) {
-            if (transfer.isApproval()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Checks if any of the nft transfers is with approval flag set.
-     * @param nftTransfers the nft transfers
-     * @return true if any of the nft transfers is with approval flag set, false otherwise
-     */
-    private boolean isNftTransferWithApproval(@NonNull final List<NftTransfer> nftTransfers) {
-        for (final NftTransfer nftTransfer : nftTransfers) {
-            if (nftTransfer.isApproval()) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     public static void validateTokenTransfers(

@@ -24,6 +24,7 @@ import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
 import java.util.List;
 import org.assertj.core.api.AssertionsForClassTypes;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +38,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class AssociateTokenRecipientsStepTest extends StepsBase {
+    private static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
+
     @Mock(strictness = Mock.Strictness.LENIENT)
     private HandleContext handleContext;
 
@@ -78,10 +81,7 @@ public class AssociateTokenRecipientsStepTest extends StepsBase {
         assertThat(writableTokenRelStore.get(spenderId, fungibleTokenId)).isNull();
         assertThat(writableTokenRelStore.get(spenderId, nonFungibleTokenId)).isNull();
 
-        final var modifiedConfiguration = HederaTestConfigBuilder.create()
-                .withValue("entities.unlimitedAutoAssociationsEnabled", false)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(modifiedConfiguration);
+        given(handleContext.configuration()).willReturn(DEFAULT_CONFIG);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(any())).willReturn(builder);
 
@@ -100,10 +100,7 @@ public class AssociateTokenRecipientsStepTest extends StepsBase {
         assertThat(writableTokenRelStore.get(spenderId, fungibleTokenId)).isNull();
         assertThat(writableTokenRelStore.get(spenderId, nonFungibleTokenId)).isNull();
 
-        final var modifiedConfiguration = HederaTestConfigBuilder.create()
-                .withValue("entities.unlimitedAutoAssociationsEnabled", false)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(modifiedConfiguration);
+        given(handleContext.configuration()).willReturn(DEFAULT_CONFIG);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(any())).willReturn(builder);
         given(builder.isUserDispatch()).willThrow(new HandleException(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
@@ -119,10 +116,7 @@ public class AssociateTokenRecipientsStepTest extends StepsBase {
         assertThat(writableTokenRelStore.get(spenderId, fungibleTokenId)).isNull();
         assertThat(writableTokenRelStore.get(spenderId, nonFungibleTokenId)).isNull();
 
-        final var modifiedConfiguration = HederaTestConfigBuilder.create()
-                .withValue("entities.unlimitedAutoAssociationsEnabled", true)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(modifiedConfiguration);
+        given(handleContext.configuration()).willReturn(DEFAULT_CONFIG);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(any())).willReturn(builder);
         given(builder.isUserDispatch()).willReturn(true);
@@ -141,10 +135,7 @@ public class AssociateTokenRecipientsStepTest extends StepsBase {
                 .accountId(ownerId)
                 .tokenId(nonFungibleTokenId)
                 .build());
-        final var modifiedConfiguration = HederaTestConfigBuilder.create()
-                .withValue("entities.unlimitedAutoAssociationsEnabled", true)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(modifiedConfiguration);
+        given(handleContext.configuration()).willReturn(DEFAULT_CONFIG);
         given(handleContext.savepointStack()).willReturn(stack);
 
         AssertionsForClassTypes.assertThatThrownBy(() -> subjectNFTWithApproval.doIn(transferContext))
