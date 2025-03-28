@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -105,9 +105,11 @@ public abstract class PlatformTest {
      * @param exists         true if the marker file should exist, false otherwise
      */
     protected void assertMarkerFile(@NonNull final String markerFileName, final boolean exists) {
-        assertEquals(
-                exists,
-                getMarkerFileDirectory().resolve(markerFileName).toFile().exists(),
-                "Marker file " + markerFileName + " should " + (exists ? "" : "not ") + "exist");
+        assertThat(exists)
+                .isEqualTo(getMarkerFileDirectory()
+                        .resolve(markerFileName)
+                        .toFile()
+                        .exists())
+                .withFailMessage("Marker file " + markerFileName + " should " + (exists ? "" : "not ") + "exist");
     }
 }

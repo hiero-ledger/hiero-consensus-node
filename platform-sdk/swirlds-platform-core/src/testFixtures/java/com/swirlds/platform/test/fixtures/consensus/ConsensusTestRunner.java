@@ -6,7 +6,7 @@ import com.swirlds.platform.test.fixtures.consensus.framework.TestInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
-import org.junit.jupiter.api.function.ThrowingConsumer;
+import org.assertj.core.api.ThrowingConsumer;
 
 public class ConsensusTestRunner {
     private ConsensusTestParams params;

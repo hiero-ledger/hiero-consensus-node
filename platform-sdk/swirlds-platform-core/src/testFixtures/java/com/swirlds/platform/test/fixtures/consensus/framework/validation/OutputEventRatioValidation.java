@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 
-public class EventRatioValidation implements ConsensusOutputValidation {
+/**
+ * Validate whether the actual ratios of consensus events and stale events fall within an
+ * expected configurable range.
+ */
+public class OutputEventRatioValidation implements ConsensusOutputValidation {
     /**
      * The minimum fraction of events (out of 1.0) that are expected to have reached consensus at
      * the end of the sequence.
@@ -27,7 +31,7 @@ public class EventRatioValidation implements ConsensusOutputValidation {
     /** Get the maximum ratio of expected stale events. */
     private double maximumStaleRatio;
 
-    private EventRatioValidation(
+    private OutputEventRatioValidation(
             final double minimumConsensusRatio,
             final double maximumConsensusRatio,
             final double minimumStaleRatio,
@@ -38,19 +42,19 @@ public class EventRatioValidation implements ConsensusOutputValidation {
         this.maximumStaleRatio = maximumStaleRatio;
     }
 
-    public static @NonNull EventRatioValidation blank() {
-        return new EventRatioValidation(0d, Double.MAX_VALUE, 0d, Double.MAX_VALUE);
+    public static @NonNull OutputEventRatioValidation blank() {
+        return new OutputEventRatioValidation(0d, Double.MAX_VALUE, 0d, Double.MAX_VALUE);
     }
 
-    public static @NonNull EventRatioValidation standard() {
-        return new EventRatioValidation(0.8, 1.0, 0.0, 0.01);
+    public static @NonNull OutputEventRatioValidation standard() {
+        return new OutputEventRatioValidation(0.8, 1.0, 0.0, 0.01);
     }
 
     /**
      * Set the minimum fraction of events (out of 1.0) that are expected to have reached consensus
      * at the end of the sequence. Default 0.8.
      */
-    public @NonNull EventRatioValidation setMinimumConsensusRatio(final double expectedConsensusRatio) {
+    public @NonNull OutputEventRatioValidation setMinimumConsensusRatio(final double expectedConsensusRatio) {
         this.minimumConsensusRatio = expectedConsensusRatio;
         return this;
     }
@@ -59,7 +63,7 @@ public class EventRatioValidation implements ConsensusOutputValidation {
      * Set the maximum fraction of events (out of 1.0) that are expected to have reached consensus
      * at the end of the sequence. Default 1.0.
      */
-    public @NonNull EventRatioValidation setMaximumConsensusRatio(final double maximumConsensusRatio) {
+    public @NonNull OutputEventRatioValidation setMaximumConsensusRatio(final double maximumConsensusRatio) {
         this.maximumConsensusRatio = maximumConsensusRatio;
         return this;
     }
@@ -69,13 +73,13 @@ public class EventRatioValidation implements ConsensusOutputValidation {
      *
      * @return this
      */
-    public @NonNull EventRatioValidation setMinimumStaleRatio(final double minimumStaleRatio) {
+    public @NonNull OutputEventRatioValidation setMinimumStaleRatio(final double minimumStaleRatio) {
         this.minimumStaleRatio = minimumStaleRatio;
         return this;
     }
 
     /** Set the maximum ratio of expected stale events. Default 0.01. */
-    public @NonNull EventRatioValidation setMaximumStaleRatio(final double maximumStaleRatio) {
+    public @NonNull OutputEventRatioValidation setMaximumStaleRatio(final double maximumStaleRatio) {
         this.maximumStaleRatio = maximumStaleRatio;
         return this;
     }
@@ -96,25 +100,27 @@ public class EventRatioValidation implements ConsensusOutputValidation {
         // Validate consensus ratio
         final double consensusRatio = ((double) numConsensus) / allEvents1.size();
 
-        assertTrue(
-                consensusRatio >= minimumConsensusRatio,
-                String.format(
+        assertThat(consensusRatio)
+                .withFailMessage(String.format(
                         "Consensus ratio %s is less than the expected minimum %s",
-                        consensusRatio, minimumConsensusRatio));
-        assertTrue(
-                consensusRatio <= maximumConsensusRatio,
-                String.format(
+                        consensusRatio, minimumConsensusRatio))
+                .isGreaterThanOrEqualTo(minimumConsensusRatio);
+        assertThat(consensusRatio)
+                .withFailMessage(String.format(
                         "Consensus ratio %s is more than the expected maximum %s",
-                        consensusRatio, maximumConsensusRatio));
+                        consensusRatio, maximumConsensusRatio))
+                .isLessThanOrEqualTo(maximumConsensusRatio);
 
         // Validate stale ratio
         final double staleRatio = ((double) output1.getStaleEvents().size()) / allEvents1.size();
 
-        assertTrue(
-                staleRatio >= minimumStaleRatio,
-                String.format("Stale ratio %s is less than the expected minimum %s", staleRatio, minimumStaleRatio));
-        assertTrue(
-                staleRatio <= maximumStaleRatio,
-                String.format("Stale ratio %s is more than the expected maximum %s", staleRatio, maximumStaleRatio));
+        assertThat(staleRatio)
+                .withFailMessage(String.format(
+                        "Stale ratio %s is less than the expected minimum %s", staleRatio, minimumStaleRatio))
+                .isGreaterThanOrEqualTo(minimumStaleRatio);
+        assertThat(staleRatio)
+                .withFailMessage(String.format(
+                        "Stale ratio %s is more than the expected maximum %s", staleRatio, maximumStaleRatio))
+                .isLessThanOrEqualTo(maximumStaleRatio);
     }
 }

@@ -2,6 +2,7 @@
 package com.swirlds.platform.turtle.runner;
 
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import java.nio.file.Path;
 import java.time.Duration;
 import org.junit.jupiter.api.Disabled;
@@ -37,9 +38,10 @@ class TurtleTests {
                 .withSimulationGranularity(Duration.ofMillis(10))
                 .withTimeReportingEnabled(true)
                 .withOutputDirectory(outputDirectory)
+                .withConsensusRoundValidator(new ConsensusRoundValidator())
                 .build();
 
         turtle.start();
-        turtle.simulateTime(Duration.ofMinutes(5));
+        turtle.simulateTimeAndValidate(Duration.ofMinutes(5L));
     }
 }

@@ -154,7 +154,7 @@ public class TurtleNode {
         final ComponentWiring<ConsensusRoundsHolder, Void> consensusRoundsHolderWiring =
                 new ComponentWiring<>(model, ConsensusRoundsHolder.class, TaskSchedulerConfiguration.parse("DIRECT"));
 
-        consensusRoundsHolder = new ConsensusRoundsListContainer();
+        consensusRoundsHolder = new ConsensusRoundsListContainer(nodeId);
         consensusRoundsHolderWiring.bind(consensusRoundsHolder);
 
         final InputWire<List<ConsensusRound>> consensusRoundsHolderInputWire =

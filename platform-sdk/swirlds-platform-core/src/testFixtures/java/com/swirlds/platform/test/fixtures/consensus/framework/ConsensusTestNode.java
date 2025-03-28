@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
@@ -99,7 +99,9 @@ public class ConsensusTestNode {
                 Objects.requireNonNull(getOutput().getConsensusRounds().peekLast())
                         .getSnapshot());
 
-        assertTrue(consensusTestNode.intake.getConsensusRounds().isEmpty(), "we should not have reached consensus yet");
+        assertThat(consensusTestNode.intake.getConsensusRounds())
+                .withFailMessage("we should not have reached consensus yet")
+                .isEmpty();
 
         return consensusTestNode;
     }
