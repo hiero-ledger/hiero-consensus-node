@@ -35,6 +35,8 @@ class DoubleAccumulatorConfigTest {
         assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
         assertThat(config.getAccumulator().applyAsDouble(2.0, 3.0)).isEqualTo(Double.max(2.0, 3.0), within(EPSILON));
         assertThat(config.getInitialValue()).isEqualTo(0.0, within(EPSILON));
+        assertThat(config.getLabelKeys()).isEmpty();
+        assertThat(config.getPredefinedLabels()).isEmpty();
     }
 
     @Test
@@ -73,6 +75,8 @@ class DoubleAccumulatorConfigTest {
         assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
         assertThat(config.getAccumulator().applyAsDouble(2.0, 3.0)).isEqualTo(Double.max(2.0, 3.0), within(EPSILON));
         assertThat(config.getInitialValue()).isEqualTo(0.0, within(EPSILON));
+        assertThat(config.getLabelKeys()).isEmpty();
+        assertThat(config.getPredefinedLabels()).isEmpty();
 
         assertThat(result.getCategory()).isEqualTo(CATEGORY);
         assertThat(result.getName()).isEqualTo(NAME);
@@ -81,6 +85,8 @@ class DoubleAccumulatorConfigTest {
         assertThat(result.getFormat()).isEqualTo(FORMAT);
         assertThat(result.getAccumulator()).isEqualTo(accumulator);
         assertThat(result.getInitialValue()).isEqualTo(Math.PI, within(EPSILON));
+        assertThat(result.getLabelKeys()).isEmpty();
+        assertThat(result.getPredefinedLabels()).isEmpty();
     }
 
     @Test
