@@ -33,7 +33,8 @@ public class EventMigrationUtilsTest {
             .build();
     /** An event whose parents are stored both in {@link GossipEvent} and in {@link EventCore} */
     private static final GossipEvent BOTH_PLACES_PARENTS = GossipEvent.newBuilder()
-            .eventCore(EventCore.newBuilder().parents(EVENT_CORE_PARENT_DESCRIPTOR).build())
+            .eventCore(
+                    EventCore.newBuilder().parents(EVENT_CORE_PARENT_DESCRIPTOR).build())
             .parents(GOSSIP_EVENT_PARENT_DESCRIPTOR)
             .build();
 

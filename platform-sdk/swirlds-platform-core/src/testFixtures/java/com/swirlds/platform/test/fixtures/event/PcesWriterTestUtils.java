@@ -110,9 +110,7 @@ public class PcesWriterTestUtils {
         for (final PlatformEvent event : events) {
             assertTrue(
                     eventsIterator.hasNext(),
-                    "Event with index %d was not found, %d events are expected"
-                            .formatted(index, events.size())
-            );
+                    "Event with index %d was not found, %d events are expected".formatted(index, events.size()));
             assertEquals(event, eventsIterator.next());
             index++;
         }

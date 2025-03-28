@@ -14,8 +14,6 @@ import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
