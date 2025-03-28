@@ -11,12 +11,15 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.OpProvider;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
@@ -45,6 +48,15 @@ public class ProviderRun extends UtilOp {
     private Supplier<TimeUnit> unitSupplier = () -> DEFAULT_UNIT;
     private IntSupplier totalOpsToSubmit = () -> DEFAULT_TOTAL_OPS_TO_SUBMIT;
     private boolean loggingOff = false;
+
+    private Optional<BiConsumer<EnumMap<ResponseCodeEnum, AtomicInteger>, EnumMap<ResponseCodeEnum, AtomicInteger>>>
+            statusCountAsserter = Optional.empty();
+
+    public ProviderRun assertStatusCounts(
+            BiConsumer<EnumMap<ResponseCodeEnum, AtomicInteger>, EnumMap<ResponseCodeEnum, AtomicInteger>> asserter) {
+        statusCountAsserter = Optional.of(asserter);
+        return this;
+    }
 
     private Map<HederaFunctionality, AtomicInteger> counts = new HashMap<>();
 
@@ -193,6 +205,10 @@ public class ProviderRun extends UtilOp {
                         Map.Entry::getKey, entry -> entry.getValue().get()));
         log.info("Final breakdown of *provided* ops: {}", finalCounts);
         log.info("Final breakdown of *resolved* statuses: {}", spec.finalizedStatusCounts());
+
+        statusCountAsserter.ifPresent(statusCountsBiConsumer -> statusCountsBiConsumer.accept(
+                (EnumMap<ResponseCodeEnum, AtomicInteger>) spec.precheckStatusCounts(),
+                (EnumMap<ResponseCodeEnum, AtomicInteger>) spec.finalizedStatusCounts()));
 
         return false;
     }
