@@ -15,6 +15,7 @@ import static com.swirlds.platform.gui.SwirldsGui.createConsole;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Console;
@@ -66,6 +67,8 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
     public final int sleepPeriod = 100;
 
     private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
+    private static final SemanticVersion semanticVersion =
+            SemanticVersion.newBuilder().major(1).build();
 
     /**
      * This is just for debugging: it allows the app to run in Eclipse. If the config.txt exists and lists a
@@ -155,6 +158,14 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
     @Override
     public BasicSoftwareVersion getSoftwareVersion() {
         return softwareVersion;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public SemanticVersion getSemanticVersion() {
+        return semanticVersion;
     }
 
     @Override

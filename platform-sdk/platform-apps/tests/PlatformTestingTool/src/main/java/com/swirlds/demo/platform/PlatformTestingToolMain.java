@@ -29,6 +29,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.units.UnitConstants;
@@ -303,6 +304,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     private long queriesSentPerSec = -1;
 
     private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
+    private static final SemanticVersion semanticVersion =
+            SemanticVersion.newBuilder().major(1).build();
 
     final PlatformTestingToolConsensusStateEventHandler consensusStateEventHandler;
 
@@ -896,6 +899,14 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     @Override
     public BasicSoftwareVersion getSoftwareVersion() {
         return softwareVersion;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public SemanticVersion getSemanticVersion() {
+        return semanticVersion;
     }
 
     private boolean timeToCheckBalances(final Instant consensusTimestamp) {

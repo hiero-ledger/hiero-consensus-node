@@ -555,6 +555,14 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         return version;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public SemanticVersion getSemanticVersion() {
+        return version.getPbjSemanticVersion();
+    }
+
     /*==================================================================================================================
     *
     * Initialization Step 1: Create a new state (either genesis or restart, once per node).

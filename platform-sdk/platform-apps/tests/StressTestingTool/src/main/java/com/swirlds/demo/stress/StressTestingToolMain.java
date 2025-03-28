@@ -19,6 +19,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.constructable.ClassConstructorPair;
@@ -47,6 +48,8 @@ import org.hiero.consensus.model.node.NodeId;
 public class StressTestingToolMain implements SwirldMain<StressTestingToolState> {
     private static final Logger logger = LogManager.getLogger(StressTestingToolMain.class);
     private static final BasicSoftwareVersion SOFTWARE_VERSION = new BasicSoftwareVersion(1);
+    private static final SemanticVersion semanticVersion =
+            SemanticVersion.newBuilder().major(1).build();
 
     static {
         try {
@@ -254,6 +257,14 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
     @Override
     public BasicSoftwareVersion getSoftwareVersion() {
         return SOFTWARE_VERSION;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public SemanticVersion getSemanticVersion() {
+        return semanticVersion;
     }
 
     @Override

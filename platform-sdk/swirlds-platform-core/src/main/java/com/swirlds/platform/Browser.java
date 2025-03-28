@@ -260,7 +260,7 @@ public class Browser {
             ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
             final HashedReservedSignedState reservedState = getInitialState(
                     recycleBin,
-                    appMain.getSoftwareVersion().getPbjSemanticVersion(),
+                    appMain.getSemanticVersion(),
                     appMain::newStateRoot,
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
@@ -273,7 +273,7 @@ public class Browser {
             // Initialize the address book
             final AddressBook addressBook = initializeAddressBook(
                     nodeId,
-                    appMain.getSoftwareVersion(),
+                    appMain.getSemanticVersion(),
                     initialState,
                     appDefinition.getConfigAddressBook(),
                     platformContext,
@@ -284,7 +284,7 @@ public class Browser {
             final PlatformBuilder builder = PlatformBuilder.create(
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
-                    appMain.getSoftwareVersion(),
+                    appMain.getSemanticVersion(),
                     initialState,
                     consensusStateEventHandler,
                     nodeId,

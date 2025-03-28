@@ -3,6 +3,7 @@ package com.swirlds.platform.system.address;
 
 import static com.swirlds.platform.util.BootstrapUtils.detectSoftwareUpgrade;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -14,7 +15,6 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.address.AddressBookInitializer;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -230,18 +230,16 @@ public class AddressBookUtils {
      */
     public static @NonNull AddressBook initializeAddressBook(
             @NonNull final NodeId selfId,
-            @NonNull final SoftwareVersion version,
+            @NonNull final SemanticVersion version,
             @NonNull final ReservedSignedState initialState,
             @NonNull final AddressBook bootstrapAddressBook,
             @NonNull final PlatformContext platformContext,
             @NonNull final ConsensusStateEventHandler<?> consensusStateEventHandler,
             @NonNull final PlatformStateFacade platformStateFacade) {
-        final boolean softwareUpgrade =
-                detectSoftwareUpgrade(version.getPbjSemanticVersion(), initialState.get(), platformStateFacade);
+        final boolean softwareUpgrade = detectSoftwareUpgrade(version, initialState.get(), platformStateFacade);
         // Initialize the address book from the configuration and platform saved state.
         final AddressBookInitializer addressBookInitializer = new AddressBookInitializer(
                 selfId,
-                version,
                 softwareUpgrade,
                 initialState.get(),
                 bootstrapAddressBook.copy(),

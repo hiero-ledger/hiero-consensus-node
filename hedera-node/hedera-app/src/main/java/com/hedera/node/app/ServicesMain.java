@@ -144,6 +144,14 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * {@inheritDoc}
      */
     @Override
+    public SemanticVersion getSemanticVersion() {
+        return hederaOrThrow().getSoftwareVersion().getPbjSemanticVersion();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void init(@NonNull final Platform platform, @NonNull final NodeId nodeId) {
         requireNonNull(platform);
         requireNonNull(nodeId);
@@ -344,7 +352,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final var platformBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
                         Hedera.SWIRLD_NAME,
-                        version,
+                        version.getPbjSemanticVersion(),
                         initialState,
                         consensusStateEventHandler,
                         selfId,
