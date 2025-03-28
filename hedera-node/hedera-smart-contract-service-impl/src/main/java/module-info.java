@@ -13,6 +13,7 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.fasterxml.jackson.databind;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
@@ -24,6 +25,7 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive org.hyperledger.besu.evm;
     requires transitive tuweni.bytes;
     requires transitive tuweni.units;
+    requires com.fasterxml.jackson.core;
     requires com.swirlds.base;
     requires com.swirlds.common;
     requires org.hiero.consensus.model;
@@ -32,6 +34,7 @@ module com.hedera.node.app.service.contract.impl {
     requires com.google.protobuf;
     requires org.apache.commons.lang3;
     requires org.bouncycastle.provider;
+    requires org.slf4j;
     requires static transitive com.github.spotbugs.annotations;
     requires static java.compiler;
 
