@@ -139,7 +139,7 @@ public class ReconnectController implements Runnable {
     /**
      * Provides a connection over which a reconnect learner has been already negotiated. This method should only be
      * called if {@link #acquireLearnerPermit()} has returned true previously. This method blocks until the reconnect is
-     * done.
+     * done. It also starts reconnect learner handling thread, if it wasn't started already.
      *
      * @param connection
      * 		the connection to use to execute the reconnect learner protocol

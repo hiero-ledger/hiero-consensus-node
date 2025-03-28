@@ -31,11 +31,6 @@ public class FallenBehindManagerImpl implements FallenBehindManager {
      */
     private final StatusActionSubmitter statusActionSubmitter;
 
-    /**
-     * Called when the status becomes fallen behind
-     */
-    private final Runnable fallenBehindCallback;
-
     private final ReconnectConfig config;
     private boolean previouslyFallenBehind;
 
@@ -43,20 +38,17 @@ public class FallenBehindManagerImpl implements FallenBehindManager {
             @NonNull final NodeId selfId,
             final int numNeighbors,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
-            @NonNull final Runnable fallenBehindCallback,
             @NonNull final ReconnectConfig config) {
         Objects.requireNonNull(selfId, "selfId");
 
         this.numNeighbors = numNeighbors;
 
         this.statusActionSubmitter = Objects.requireNonNull(statusActionSubmitter);
-        this.fallenBehindCallback =
-                Objects.requireNonNull(fallenBehindCallback, "fallenBehindCallback must not be null");
         this.config = Objects.requireNonNull(config, "config must not be null");
     }
 
     @Override
-    public synchronized void reportFallenBehind(final NodeId id) {
+    public synchronized void reportFallenBehind(@NonNull final NodeId id) {
         if (reportFallenBehind.add(id)) {
             checkAndNotifyFallingBehind();
         }
@@ -65,7 +57,6 @@ public class FallenBehindManagerImpl implements FallenBehindManager {
     private void checkAndNotifyFallingBehind() {
         if (!previouslyFallenBehind && hasFallenBehind()) {
             statusActionSubmitter.submitStatusAction(new FallenBehindAction());
-            fallenBehindCallback.run();
             previouslyFallenBehind = true;
         }
     }
@@ -111,5 +102,10 @@ public class FallenBehindManagerImpl implements FallenBehindManager {
     @Override
     public synchronized int numReportedFallenBehind() {
         return reportFallenBehind.size();
+    }
+
+    @Override
+    public void haltRequestedObserver(@NonNull String reason) {
+        throw new UnsupportedOperationException("Use SyncManagerImpl instead");
     }
 }
