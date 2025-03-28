@@ -4,7 +4,6 @@ package com.hedera.node.app.blocks.impl;
 import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
@@ -66,6 +65,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -159,6 +159,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @Nullable
     private volatile CompletableFuture<Void> fatalShutdownFuture = null;
 
+    @Nullable
+    private final AtomicBoolean systemEntitiesCreatedFlag;
+
     @Inject
     public BlockStreamManagerImpl(
             @NonNull final BlockHashSigner blockHashSigner,
@@ -168,7 +171,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
@@ -189,6 +193,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.blockHashManager = new BlockHashManager(config);
         this.runningHashManager = new RunningHashManager();
         this.lastNonEmptyRoundNumber = initialStateHash.roundNum();
+        this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
         final var hashFuture = initialStateHash.hashFuture();
         endRoundStateHashes.put(lastNonEmptyRoundNumber, hashFuture);
         log.info(
@@ -233,7 +238,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             boundaryStateChangeListener.setBoundaryTimestamp(blockTimestamp);
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
-            pendingWork = classifyPendingWork(blockStreamInfo, version);
+            pendingWork = classifyPendingWork(blockStreamInfo, version, systemEntitiesCreatedFlag);
             if (pendingWork == POST_UPGRADE_WORK && hintsEnabled) {
                 // On upgrade, we need to gossip the signatures for the freeze block
                 blockHashSigner
@@ -404,7 +409,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
             requireNonNull(fatalShutdownFuture).complete(null);
         }
-        return closesBlock || lastNonEmptyRoundNumber == 0;
+        return closesBlock;
     }
 
     @Override
@@ -508,12 +513,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     @VisibleForTesting
     static PendingWork classifyPendingWork(
-            @NonNull final BlockStreamInfo blockStreamInfo, @NonNull final SemanticVersion version) {
+            @NonNull final BlockStreamInfo blockStreamInfo,
+            @NonNull final SemanticVersion version,
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         requireNonNull(version);
         requireNonNull(blockStreamInfo);
-        if (EPOCH.equals(blockStreamInfo.lastHandleTimeOrElse(EPOCH))) {
-            return GENESIS_WORK;
-        } else if (impliesPostUpgradeWorkPending(blockStreamInfo, version)) {
+        if ((systemEntitiesCreatedFlag != null && systemEntitiesCreatedFlag.get())
+                && impliesPostUpgradeWorkPending(blockStreamInfo, version)) {
             return POST_UPGRADE_WORK;
         } else {
             return NONE;
@@ -541,7 +547,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
 
         // During freeze round, we should close the block regardless of other conditions
-        if (roundNumber == freezeRoundNumber) {
+        // or round number is 1 as round 1 is written to disk.
+        if (roundNumber == freezeRoundNumber || roundNumber == 1) {
             return true;
         }
 

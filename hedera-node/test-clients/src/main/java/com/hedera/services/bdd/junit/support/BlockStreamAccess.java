@@ -244,6 +244,16 @@ public enum BlockStreamAccess {
     }
 
     /**
+     * Checks if the given file is a block marker file.
+     *
+     * @param file the file
+     * @return true if the file is a block marker file, false otherwise
+     */
+    public static boolean isBlockMarkerFile(@NonNull final File file) {
+        return file.isFile() && file.getName().endsWith(".mf");
+    }
+
+    /**
      * Extracts the block number from the given file name.
      *
      * @param fileName the file name

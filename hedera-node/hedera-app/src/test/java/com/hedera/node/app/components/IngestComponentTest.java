@@ -13,6 +13,7 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.node.app.DaggerHederaInjectionComponent;
 import com.hedera.node.app.HederaInjectionComponent;
 import com.hedera.node.app.blocks.BlockHashSigner;
@@ -83,6 +84,9 @@ class IngestComponentTest {
 
     @Mock
     private PlatformStateFacade platformStateFacade;
+
+    @Mock
+    private EntityCounts entityCounts;
 
     private HederaInjectionComponent app;
 
@@ -158,6 +162,7 @@ class IngestComponentTest {
                 .hintsService(hintsService)
                 .historyService(historyService)
                 .platformStateFacade(platformStateFacade)
+                .entityCounts(entityCounts)
                 .build();
 
         final var state = new FakeState();

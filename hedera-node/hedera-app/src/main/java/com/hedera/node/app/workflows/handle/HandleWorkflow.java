@@ -3,7 +3,7 @@ package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
@@ -30,6 +30,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
@@ -247,11 +248,15 @@ public class HandleWorkflow {
                     case RECORDS -> blockRecordManager
                             .consTimeOfLastHandledTxn()
                             .equals(Instant.EPOCH);
-                    case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
+                    case BLOCKS, BOTH -> systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get();
                 };
         if (isGenesis) {
             final var genesisEventTime = round.iterator().next().getConsensusTimestamp();
-            logger.info("Doing genesis setup before {}", genesisEventTime);
+            var entitycounts = state.getReadableStates(EntityIdService.NAME)
+                    .<EntityCounts>getSingleton(ENTITY_COUNTS_KEY)
+                    .get();
+            logger.info(
+                    "Doing genesis setup before {} {} {}", genesisEventTime, systemEntitiesCreatedFlag, entitycounts);
             systemTransactions.doGenesisSetup(genesisEventTime, state);
             if (streamMode != RECORDS) {
                 blockStreamManager.confirmPendingWorkFinished();

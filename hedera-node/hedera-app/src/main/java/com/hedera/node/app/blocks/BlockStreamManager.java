@@ -34,10 +34,6 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
          */
         NONE,
         /**
-         * Genesis work is pending.
-         */
-        GENESIS_WORK,
-        /**
          * Post-upgrade work is pending.
          */
         POST_UPGRADE_WORK

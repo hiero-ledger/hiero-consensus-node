@@ -44,7 +44,6 @@ import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
-import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.config.ConfigProvider;
@@ -69,6 +68,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -162,13 +162,6 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void classifiesPendingGenesisWorkByIntervalTime() {
-        assertSame(
-                BlockStreamManager.PendingWork.GENESIS_WORK,
-                BlockStreamManagerImpl.classifyPendingWork(BlockStreamInfo.DEFAULT, SemanticVersion.DEFAULT));
-    }
-
-    @Test
     void classifiesPriorVersionHasPostUpgradeWorkWithDifferentVersionButIntervalTime() {
         assertSame(
                 POST_UPGRADE_WORK,
@@ -178,7 +171,8 @@ class BlockStreamManagerImplTest {
                                         SemanticVersion.newBuilder().major(1).build())
                                 .lastHandleTime(new Timestamp(1234567, 890))
                                 .build(),
-                        CREATION_VERSION));
+                        CREATION_VERSION,
+                        new AtomicBoolean(true)));
     }
 
     @Test
@@ -190,7 +184,8 @@ class BlockStreamManagerImplTest {
                                 .creationSoftwareVersion(CREATION_VERSION)
                                 .lastHandleTime(new Timestamp(1234567, 890))
                                 .build(),
-                        CREATION_VERSION));
+                        CREATION_VERSION,
+                        new AtomicBoolean(true)));
     }
 
     @Test
@@ -204,7 +199,8 @@ class BlockStreamManagerImplTest {
                                 .lastIntervalProcessTime(new Timestamp(1234567, 890))
                                 .lastHandleTime(new Timestamp(1234567, 890))
                                 .build(),
-                        CREATION_VERSION));
+                        CREATION_VERSION,
+                        new AtomicBoolean(true)));
     }
 
     @Test
@@ -218,7 +214,8 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE);
+                TEST_PLATFORM_STATE_FACADE,
+                new AtomicBoolean(true));
         assertSame(Instant.EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
@@ -239,7 +236,8 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE);
+                TEST_PLATFORM_STATE_FACADE,
+                new AtomicBoolean(true));
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
 
@@ -781,15 +779,15 @@ class BlockStreamManagerImplTest {
         subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
 
         // First round (not mod 2)
-        given(round.getRoundNum()).willReturn(1L);
+        given(round.getRoundNum()).willReturn(3L);
         subject.startRound(round, state);
-        subject.endRound(state, 1L);
+        subject.endRound(state, 3L);
         verify(aWriter, never()).closeBlock();
 
         // Second round (mod 2)
-        given(round.getRoundNum()).willReturn(2L);
+        given(round.getRoundNum()).willReturn(4L);
         subject.startRound(round, state);
-        subject.endRound(state, 2L);
+        subject.endRound(state, 4L);
         verify(aWriter).closeBlock();
     }
 
@@ -814,7 +812,8 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE);
+                TEST_PLATFORM_STATE_FACADE,
+                new AtomicBoolean(true));
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
         given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
         infoRef.set(blockStreamInfo);

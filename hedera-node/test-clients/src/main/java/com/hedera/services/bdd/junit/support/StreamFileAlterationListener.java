@@ -3,11 +3,12 @@ package com.hedera.services.bdd.junit.support;
 
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.isRecordFile;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.isSidecarFile;
-import static com.hedera.services.bdd.junit.support.BlockStreamAccess.isBlockFile;
+import static com.hedera.services.bdd.junit.support.BlockStreamAccess.isBlockMarkerFile;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
@@ -96,8 +97,20 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
     }
 
     private void exposeBlock(@NonNull final File file) {
+        // Get Block file path using marker file path
+        final var markerFilePath = file.toPath();
+        final var blockFileName = file.getName().replace(".mf", "");
+
+        // Check for compressed file first (.blk.gz)
+        final var compressedBlockFilePath = markerFilePath.resolveSibling(blockFileName + ".blk.gz");
+        final var uncompressedBlockFilePath = markerFilePath.resolveSibling(blockFileName + ".blk");
+
+        // Determine which block file exists - compressed or uncompressed
+        final var blockFilePath =
+                Files.exists(compressedBlockFilePath) ? compressedBlockFilePath : uncompressedBlockFilePath;
+
         final var block =
-                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(file.toPath()).getFirst();
+                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blockFilePath).getFirst();
         listeners.forEach(l -> {
             try {
                 l.onNewBlock(block);
@@ -123,15 +136,14 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
 
     private FileType typeOf(final File file) {
         // Ignore empty files, which are likely to be in the process of being written
-        if (file.length() == 0L) {
+        if (isBlockMarkerFile(file)) {
+            return FileType.BLOCK_FILE;
+        } else if (file.length() == 0L) {
             return FileType.OTHER;
-        }
-        if (isRecordFile(file.getName())) {
+        } else if (isRecordFile(file.getName())) {
             return FileType.RECORD_STREAM_FILE;
         } else if (isSidecarFile(file.getName())) {
             return FileType.SIDE_CAR_FILE;
-        } else if (isBlockFile(file)) {
-            return FileType.BLOCK_FILE;
         } else {
             return FileType.OTHER;
         }
