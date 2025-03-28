@@ -215,7 +215,7 @@ public class DisabledLongTermExecutionScheduleTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> scheduleDeleteUpdateWorks() throws Exception {
+    final Stream<DynamicTest> scheduleNodeDeleteNotSupportedWhenNotInWhitelist() throws Exception {
         return hapiTest(
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
                 nodeCreate("test")
