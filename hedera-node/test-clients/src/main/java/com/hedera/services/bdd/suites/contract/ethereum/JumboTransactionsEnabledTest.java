@@ -98,6 +98,11 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
 
+                // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),
+                // so we can't toggle it via overriding(). Instead, we need to upgrade to the config version.
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
+
                 // send jumbo payload to non jumbo endpoint
                 contractCall(CONTRACT, FUNCTION, jumboPayload)
                         .gas(1_000_000L)
