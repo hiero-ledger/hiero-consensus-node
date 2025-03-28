@@ -232,7 +232,8 @@ public class TestingEventBuilder {
      *
      * @param numberOfSystemTransactions the number of system transactions
      * @return this instance
-     * @deprecated
+     * @deprecated system transaction are no longer in the consensus domain, so this method just adds app transactions
+     * at the moment. it should be removed and cannot be relied upon.
      */
     @Deprecated
     public @NonNull TestingEventBuilder setSystemTransactionCount(final int numberOfSystemTransactions) {
