@@ -17,7 +17,6 @@ import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -33,7 +32,6 @@ import org.junit.jupiter.api.Tag;
 public class BlockNodeSimulatorSuite {
 
     @HapiTest
-    @Disabled
     final Stream<DynamicTest> nominalStreamingBlocksNoErrors() {
         return hapiTest(
                 waitUntilNextBlock().withBackgroundTraffic(true),
@@ -49,7 +47,6 @@ public class BlockNodeSimulatorSuite {
     }
 
     @HapiTest
-    @Disabled
     final Stream<DynamicTest> node0BlockInternalError() {
         AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
         AtomicReference<Instant> startTime = new AtomicReference<>();
@@ -81,7 +78,6 @@ public class BlockNodeSimulatorSuite {
     }
 
     @HapiTest
-    @Disabled
     final Stream<DynamicTest> node0BlockTimeout() {
         AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
         AtomicReference<Instant> startTime = new AtomicReference<>();
@@ -113,7 +109,6 @@ public class BlockNodeSimulatorSuite {
     }
 
     @HapiTest
-    @Disabled
     final Stream<DynamicTest> node0BlockOutOfOrder() {
         AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
         AtomicReference<Instant> startTime = new AtomicReference<>();
@@ -145,7 +140,6 @@ public class BlockNodeSimulatorSuite {
     }
 
     @HapiTest
-    @Disabled
     final Stream<DynamicTest> node0BlockBadStateProof() {
         AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
         AtomicReference<Instant> startTime = new AtomicReference<>();
@@ -177,7 +171,6 @@ public class BlockNodeSimulatorSuite {
     }
 
     @HapiTest
-    @Disabled
     final Stream<DynamicTest> node0BlockBehind() {
         AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
         AtomicReference<Instant> startTime = new AtomicReference<>();
@@ -209,7 +202,6 @@ public class BlockNodeSimulatorSuite {
     }
 
     @HapiTest
-    @Disabled
     final Stream<DynamicTest> node0BlockPersistenceFailed() {
         AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
         AtomicReference<Instant> startTime = new AtomicReference<>();
@@ -241,7 +233,6 @@ public class BlockNodeSimulatorSuite {
     }
 
     @HapiTest
-    @Disabled
     final Stream<DynamicTest> node0BlockSuccess() {
         AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
         AtomicReference<Instant> startTime = new AtomicReference<>();

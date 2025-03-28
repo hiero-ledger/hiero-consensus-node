@@ -177,6 +177,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
         }
     }
 
+    @Override
+    public void performPreBlockProofActions() {
+        throw new UnsupportedOperationException("FileBlockItemWriter does not support pre-block proof actions");
+    }
+
     /**
      * Get the path for a block file with the block number.
      *

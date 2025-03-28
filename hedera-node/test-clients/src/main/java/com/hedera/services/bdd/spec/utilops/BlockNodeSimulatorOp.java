@@ -106,14 +106,14 @@ public class BlockNodeSimulatorOp extends UtilOp {
                 break;
             case START_SIMULATOR:
                 if (!controller.isSimulatorShutdown(nodeIndex)) {
-                    log.error("Cannot restart simulator {} because it has not been shut down", nodeIndex);
+                    log.error("Cannot start simulator {} because it has not been shut down", nodeIndex);
                     return false;
                 }
                 try {
                     controller.startSimulator(nodeIndex);
-                    log.info("Restarted simulator {}", nodeIndex);
+                    log.info("Started simulator {}", nodeIndex);
                 } catch (IOException e) {
-                    log.error("Failed to restart simulator {}", nodeIndex, e);
+                    log.error("Failed to start simulator {}", nodeIndex, e);
                     return false;
                 }
                 break;
@@ -123,14 +123,14 @@ public class BlockNodeSimulatorOp extends UtilOp {
                 break;
             case START_ALL_SIMULATORS:
                 if (!controller.areAnySimulatorsShutdown()) {
-                    log.error("Cannot restart simulators because none have been shut down");
+                    log.error("Cannot start simulators because none have been shut down");
                     return false;
                 }
                 try {
                     controller.startAllSimulators();
-                    log.info("Restarted all previously shutdown simulators");
+                    log.info("Started all previously shutdown simulators");
                 } catch (IOException e) {
-                    log.error("Failed to restart simulators", e);
+                    log.error("Failed to start simulators", e);
                     return false;
                 }
                 break;
@@ -236,21 +236,21 @@ public class BlockNodeSimulatorOp extends UtilOp {
     }
 
     /**
-     * Creates a builder for restarting a specific block node simulator immediately.
+     * Creates a builder for starting a specific block node simulator immediately.
      *
      * @param nodeIndex the index of the block node simulator (0-based)
      * @return a builder for the operation
      */
-    public static StartBuilder restartImmediately(int nodeIndex) {
+    public static StartBuilder startImmediately(int nodeIndex) {
         return new StartBuilder(nodeIndex);
     }
 
     /**
-     * Creates a builder for restarting all previously shutdown block node simulators.
+     * Creates a builder for starting all previously shutdown block node simulators.
      *
      * @return a builder for the operation
      */
-    public static StartAllBuilder restartAll() {
+    public static StartAllBuilder startAll() {
         return new StartAllBuilder();
     }
 

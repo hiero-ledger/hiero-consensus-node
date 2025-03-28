@@ -67,6 +67,7 @@ public class BlockNodeSimulatorController {
 
     /**
      * Send an EndOfStream response immediately to all active streams on all simulated block nodes.
+     * This will end all active streams with the specified response code.
      *
      * @param responseCode the response code to send
      * @param blockNumber the block number to include in the response
@@ -91,6 +92,7 @@ public class BlockNodeSimulatorController {
 
     /**
      * Send an EndOfStream response immediately to all active streams on a specific simulated block node.
+     * This will end all active streams with the specified response code.
      *
      * @param index the index of the simulated block node (0-based)
      * @param responseCode the response code to send
@@ -116,6 +118,7 @@ public class BlockNodeSimulatorController {
 
     /**
      * Send a SkipBlock response immediately to all active streams on all simulated block nodes.
+     * This will instruct all active streams to skip the specified block.
      *
      * @param blockNumber the block number to skip
      */
@@ -128,6 +131,7 @@ public class BlockNodeSimulatorController {
 
     /**
      * Send a SkipBlock response immediately to all active streams on a specific simulated block node.
+     * This will instruct all active streams to skip the specified block.
      *
      * @param index the index of the simulated block node (0-based)
      * @param blockNumber the block number to skip
@@ -144,6 +148,7 @@ public class BlockNodeSimulatorController {
 
     /**
      * Send a ResendBlock response immediately to all active streams on all simulated block nodes.
+     * This will instruct all active streams to resend the specified block.
      *
      * @param blockNumber the block number to resend
      */
@@ -156,6 +161,7 @@ public class BlockNodeSimulatorController {
 
     /**
      * Send a ResendBlock response immediately to all active streams on a specific simulated block node.
+     * This will instruct all active streams to resend the specified block.
      *
      * @param index the index of the simulated block node (0-based)
      * @param blockNumber the block number to resend
