@@ -2,24 +2,36 @@
 package com.hedera.services.bdd.suites.hip423;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.PropertySource.asAccount;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.ED_25519_KEY;
+import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.GOSSIP_ENDPOINTS_IPS;
+import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.SERVICES_ENDPOINTS_IPS;
+import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SCHEDULE_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULED_TRANSACTION_NOT_IN_WHITELIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_EXPIRY_NOT_CONFIGURABLE;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.keys.KeyShape;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -177,5 +189,44 @@ public class DisabledLongTermExecutionScheduleTest {
                 scheduleCreate(BASIC_XFER, cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 1)))
                         .expiringAt(10)
                         .hasKnownStatus(SCHEDULE_EXPIRY_NOT_CONFIGURABLE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> scheduleNodeCreateNotSupportedWhenNotInWhitelist() {
+        return hapiTest(
+                scheduleCreate("schedule", nodeCreate("test")).hasKnownStatus(SCHEDULED_TRANSACTION_NOT_IN_WHITELIST));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> scheduleNodeUpdateNotSupportedWhenNotInWhitelist() throws Exception {
+        return hapiTest(
+                newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
+                nodeCreate("test")
+                        .description("hello")
+                        .gossipCaCertificate(
+                                generateX509Certificates(2).getFirst().getEncoded())
+                        .grpcCertificateHash("hash".getBytes())
+                        .accountId(asAccount(asEntityString(100)))
+                        .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
+                        .serviceEndpoint(SERVICES_ENDPOINTS_IPS)
+                        .adminKey(ED_25519_KEY),
+                scheduleCreate("schedule", nodeUpdate("test").description("hello2"))
+                        .hasKnownStatus(SCHEDULED_TRANSACTION_NOT_IN_WHITELIST));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> scheduleNodeDeleteNotSupportedWhenNotInWhitelist() throws Exception {
+        return hapiTest(
+                newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
+                nodeCreate("test")
+                        .description("hello")
+                        .gossipCaCertificate(
+                                generateX509Certificates(2).getFirst().getEncoded())
+                        .grpcCertificateHash("hash".getBytes())
+                        .accountId(asAccount(asEntityString(100)))
+                        .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
+                        .serviceEndpoint(SERVICES_ENDPOINTS_IPS)
+                        .adminKey(ED_25519_KEY),
+                scheduleCreate("payerOnly", nodeDelete("test")).hasKnownStatus(SCHEDULED_TRANSACTION_NOT_IN_WHITELIST));
     }
 }

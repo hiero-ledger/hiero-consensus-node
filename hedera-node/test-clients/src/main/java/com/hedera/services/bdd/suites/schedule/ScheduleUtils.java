@@ -156,6 +156,12 @@ public final class ScheduleUtils {
             scheduleBuilder.setScheduleDelete(txn.getScheduleDelete());
         } else if (txn.hasCryptoApproveAllowance()) {
             scheduleBuilder.setCryptoApproveAllowance(txn.getCryptoApproveAllowance());
+        } else if (txn.hasNodeCreate()) {
+            scheduleBuilder.setNodeCreate(txn.getNodeCreate());
+        } else if (txn.hasNodeDelete()) {
+            scheduleBuilder.setNodeDelete(txn.getNodeDelete());
+        } else if (txn.hasNodeUpdate()) {
+            scheduleBuilder.setNodeUpdate(txn.getNodeUpdate());
         }
         return scheduleBuilder.build();
     }

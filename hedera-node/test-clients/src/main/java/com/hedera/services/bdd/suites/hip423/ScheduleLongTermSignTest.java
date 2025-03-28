@@ -17,13 +17,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_ALREA
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
 @HapiTestLifecycle
@@ -34,17 +30,6 @@ public class ScheduleLongTermSignTest {
     private static final String PAYING_ACCOUNT = "payingAccount";
     private static final String RECEIVER = "receiver";
     private static final String SENDER = "sender";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of(
-                "scheduling.longTermEnabled",
-                "true",
-                "scheduling.whitelist",
-                "ConsensusSubmitMessage,CryptoTransfer,TokenMint,TokenBurn,"
-                        + "CryptoCreate,CryptoUpdate,FileUpdate,SystemDelete,SystemUndelete,"
-                        + "Freeze,ContractCall,ContractCreate,ContractUpdate,ContractDelete"));
-    }
 
     @HapiTest
     final Stream<DynamicTest> scheduleSignWhenAllSigPresent() {
