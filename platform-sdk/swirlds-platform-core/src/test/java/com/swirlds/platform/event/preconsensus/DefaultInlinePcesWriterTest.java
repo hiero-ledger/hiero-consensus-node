@@ -57,7 +57,7 @@ class DefaultInlinePcesWriterTest {
 
     @Test
     void standardOperationTest() throws Exception {
-        final Random random = RandomUtils.getRandomPrintSeed();
+        final Random random = RandomUtils.getRandomPrintSeed(-5497227373264870019L);
 
         final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(platformContext, random);
 
@@ -72,9 +72,12 @@ class DefaultInlinePcesWriterTest {
         final DefaultInlinePcesWriter writer = new DefaultInlinePcesWriter(platformContext, fileManager, selfId);
 
         writer.beginStreamingNewEvents();
-        for (PlatformEvent event : events) {
+        for (final PlatformEvent event : events) {
             writer.writeEvent(event);
         }
+
+        // forces the writer to close the current file so that we can verify the stream
+        writer.registerDiscontinuity(1L);
 
         PcesWriterTestUtils.verifyStream(selfId, events, platformContext, 0, ancientMode);
     }
@@ -102,8 +105,6 @@ class DefaultInlinePcesWriterTest {
 
         writer.beginStreamingNewEvents();
 
-        final Collection<PlatformEvent> rejectedEvents = new HashSet<>();
-
         long lowerBound = ancientMode.selectIndicator(0, 1);
         final Iterator<PlatformEvent> iterator = events.iterator();
         while (iterator.hasNext()) {
@@ -117,7 +118,6 @@ class DefaultInlinePcesWriterTest {
             if (event.getAncientIndicator(ancientMode) < lowerBound) {
                 // Although it's not common, it's actually possible that the generator will generate
                 // an event that is ancient (since it isn't aware of what we consider to be ancient)
-                rejectedEvents.add(event);
                 iterator.remove();
             }
         }
@@ -135,7 +135,8 @@ class DefaultInlinePcesWriterTest {
             }
         }
 
-        rejectedEvents.add(ancientEvent);
+        // forces the writer to close the current file so that we can verify the stream
+        writer.registerDiscontinuity(1L);
 
         PcesWriterTestUtils.verifyStream(selfId, events, platformContext, 0, ancientMode);
     }
