@@ -51,7 +51,7 @@ public class VersionCompareHandshake implements ProtocolRunnable {
         final SemanticVersion peerVersion = connection.getDis().readPbjRecord(SemanticVersion.PROTOBUF);
         if (SEMANTIC_VERSION_COMPARATOR.compare(version, peerVersion) != 0) {
             final String message = String.format(
-                    "Incompatible versions. Self version is '%s', peer version is '%s'", version.major(), peerVersion);
+                    "Incompatible versions. Self version is '%s', peer version is '%s'", version, peerVersion);
             if (throwOnMismatch) {
                 throw new HandshakeException(message);
             } else {
