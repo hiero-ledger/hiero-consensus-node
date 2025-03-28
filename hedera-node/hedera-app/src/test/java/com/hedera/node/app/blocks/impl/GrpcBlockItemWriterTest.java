@@ -40,11 +40,11 @@ class GrpcBlockItemWriterTest {
     void testWriteItemBeforeOpen() {
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
-        final var proof = new BlockProof.Builder().blockSignature(bytes).siblingHashes(new ArrayList<>());
-        final var blockProof = BlockItem.PROTOBUF.toBytes(
-                BlockItem.newBuilder().blockProof(proof).build());
+        final var proof = BlockItem.newBuilder()
+                .blockProof(BlockProof.newBuilder().blockSignature(bytes).siblingHashes(new ArrayList<>()))
+                .build();
 
-        assertThatThrownBy(() -> subject.writePbjItem(blockProof), "Cannot write item before opening a block")
+        assertThatThrownBy(() -> subject.writePbjItem(proof), "Cannot write item before opening a block")
                 .isInstanceOf(IllegalStateException.class);
     }
 

@@ -80,6 +80,11 @@ public class StandardWiringModel extends TraceableWiringModel {
     private final Duration healthLogPeriod;
 
     /**
+     * How long between two consecutive reports when the system is healthy.
+     */
+    private final Duration healthyReportThreshold;
+
+    /**
      * Constructor.
      *
      * @param builder the builder for this model, contains all needed configuration
@@ -104,6 +109,7 @@ public class StandardWiringModel extends TraceableWiringModel {
 
         healthLogThreshold = builder.getHealthLogThreshold();
         healthLogPeriod = builder.getHealthLogPeriod();
+        healthyReportThreshold = builder.getHealthyReportThreshold();
         healthMonitorScheduler = healthMonitorSchedulerBuilder.build();
         healthMonitorInputWire = healthMonitorScheduler.buildInputWire("check system health");
         buildHeartbeatWire(builder.getHealthMonitorPeriod()).solderTo(healthMonitorInputWire);
@@ -186,7 +192,8 @@ public class StandardWiringModel extends TraceableWiringModel {
             anchor.start();
         }
 
-        healthMonitor = new HealthMonitor(metrics, time, schedulers, healthLogThreshold, healthLogPeriod);
+        healthMonitor = new HealthMonitor(
+                metrics, time, schedulers, healthLogThreshold, healthLogPeriod, healthyReportThreshold);
         healthMonitorInputWire.bind(healthMonitor::checkSystemHealth);
 
         markAsStarted();

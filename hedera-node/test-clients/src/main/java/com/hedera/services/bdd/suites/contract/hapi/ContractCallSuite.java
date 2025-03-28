@@ -89,7 +89,7 @@ import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSu
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.ECDSA_KEY;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
 import static com.hedera.services.bdd.suites.regression.factories.HollowAccountCompletedFuzzingFactory.CONTRACT;
-import static com.hedera.services.bdd.suites.utils.ECDSAKeysUtils.randomHeadlongAddress;
+import static com.hedera.services.bdd.suites.utils.EvmAddressUtils.randomHeadlongAddress;
 import static com.hedera.services.bdd.suites.utils.contracts.SimpleBytesResult.bigIntResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;

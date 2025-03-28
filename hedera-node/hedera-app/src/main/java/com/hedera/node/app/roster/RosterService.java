@@ -13,7 +13,6 @@ import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;

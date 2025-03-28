@@ -22,7 +22,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
@@ -55,16 +54,13 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
-import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -265,8 +261,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     nodeDelete("2"),
                     validateCandidateRoster(
                             NodeSelector.allNodes(), DabEnabledUpgradeTest::validateNodeId5MultipartEdits),
-                    upgradeToNextConfigVersion(
-                            ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(4L)), FakeNmt.addNode(5L)),
+                    upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(4L)), FakeNmt.addNode(5L)),
                     // Validate that nodeId2 and nodeId5 have their new fee collector account IDs,
                     // since those were updated before the prepare upgrade
                     cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L))
@@ -285,11 +280,12 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
      */
     private SpecOperation prepareFakeUpgradeAndWaitForNextHintsConstruction() {
         return doingContextual(spec -> {
-                    final var node0 = (SubProcessNode) spec.targetNetworkOrThrow().getRequiredNode(byNodeId(0));
-                    final int n = node0.numApplicationLogLinesWith("Completed hinTS scheme");
-                    allRunFor(spec, prepareFakeUpgrade());
-                    node0.minLogsFuture("Completed hinTS scheme", n + 1).orTimeout(HINTS_CONSTRUCTION_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
-                });
+            final var node0 = (SubProcessNode) spec.targetNetworkOrThrow().getRequiredNode(byNodeId(0));
+            final int n = node0.numApplicationLogLinesWith("Completed hinTS scheme");
+            allRunFor(spec, prepareFakeUpgrade());
+            node0.minLogsFuture("Completed hinTS scheme", n + 1)
+                    .orTimeout(HINTS_CONSTRUCTION_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
+        });
     }
 
     /**

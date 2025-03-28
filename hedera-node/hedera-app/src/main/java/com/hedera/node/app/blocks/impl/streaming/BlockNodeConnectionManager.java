@@ -3,15 +3,22 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.protoc.BlockItemSet;
+import com.hedera.hapi.block.BlockItemSet;
+import com.hedera.hapi.block.PublishStreamRequest;
+import com.hedera.hapi.block.PublishStreamResponse;
 import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
-import com.hedera.hapi.block.protoc.PublishStreamRequest;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
+import io.helidon.common.tls.Tls;
+import io.helidon.webclient.grpc.GrpcClient;
+import io.helidon.webclient.grpc.GrpcClientMethodDescriptor;
+import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
+import io.helidon.webclient.grpc.GrpcServiceClient;
+import io.helidon.webclient.grpc.GrpcServiceDescriptor;
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -69,7 +76,7 @@ public class BlockNodeConnectionManager {
      * Attempts to establish connections to block nodes based on priority and configuration.
      */
     private void establishConnections() {
-        logger.info("Establishing connections to block nodes");
+        logger.debug("Establishing connections to block nodes");
 
         List<BlockNodeConfig> availableNodes = blockNodeConfigurations.getAllNodes().stream()
                 .filter(node -> !activeConnections.containsKey(node))
@@ -79,14 +86,36 @@ public class BlockNodeConnectionManager {
     }
 
     private void connectToNode(@NonNull BlockNodeConfig node) {
-        logger.info("Connecting to block node {}:{}", node.address(), node.port());
+        logger.debug("Connecting to block node {}:{}", node.address(), node.port());
         try {
-            BlockNodeConnection connection = new BlockNodeConnection(node, this);
+            GrpcClient client = GrpcClient.builder()
+                    .tls(Tls.builder().enabled(false).build())
+                    .baseUri(new URI("http://" + node.address() + ":" + node.port()))
+                    .protocolConfig(GrpcClientProtocolConfig.builder()
+                            .abortPollTimeExpired(false)
+                            .pollWaitTime(Duration.ofSeconds(30))
+                            .build())
+                    .keepAlive(true)
+                    .build();
+
+            GrpcServiceClient grpcServiceClient = client.serviceClient(GrpcServiceDescriptor.builder()
+                    .serviceName(BlockStreamServiceGrpc.SERVICE_NAME)
+                    .putMethod(
+                            GRPC_END_POINT,
+                            GrpcClientMethodDescriptor.bidirectional(
+                                            BlockStreamServiceGrpc.SERVICE_NAME, GRPC_END_POINT)
+                                    .requestType(PublishStreamRequest.class)
+                                    .responseType(PublishStreamResponse.class)
+                                    .marshallerSupplier(new RequestResponseMarshaller.Supplier())
+                                    .build())
+                    .build());
+
+            BlockNodeConnection connection = new BlockNodeConnection(node, grpcServiceClient, this);
             connection.establishStream();
             synchronized (connectionLock) {
                 activeConnections.put(node, connection);
             }
-            logger.info("Successfully connected to block node {}:{}", node.address(), node.port());
+            logger.debug("Successfully connected to block node {}:{}", node.address(), node.port());
         } catch (Exception e) {
             logger.error("Failed to connect to block node {}:{}", node.address(), node.port(), e);
         }
@@ -97,12 +126,12 @@ public class BlockNodeConnectionManager {
             BlockNodeConnection connection = activeConnections.remove(node);
             if (connection != null) {
                 connection.close();
-                logger.info("Disconnected from block node {}:{}", node.address(), node.port());
+                logger.debug("Disconnected from block node {}:{}", node.address(), node.port());
             }
         }
     }
 
-    private void streamBlockToConnections(@NonNull BlockState block) {
+    public void streamBlockToConnections(@NonNull BlockState block) {
         long blockNumber = block.blockNumber();
         // Get currently active connections
         List<BlockNodeConnection> connectionsToStream;
@@ -113,35 +142,15 @@ public class BlockNodeConnectionManager {
         }
 
         if (connectionsToStream.isEmpty()) {
-            logger.info("No active connections to stream block {}", blockNumber);
+            logger.debug("No active connections to stream block {}", blockNumber);
             return;
         }
 
-        logger.info("Streaming block {} to {} active connections", blockNumber, connectionsToStream.size());
+        logger.debug("Streaming block {} to {} active connections", blockNumber, connectionsToStream.size());
 
         // Create all batches once
-        List<PublishStreamRequest> batchRequests = new ArrayList<>();
-        final int blockItemBatchSize = blockNodeConfigurations.getBlockItemBatchSize();
-        for (int i = 0; i < block.itemBytes().size(); i += blockItemBatchSize) {
-            int end = Math.min(i + blockItemBatchSize, block.itemBytes().size());
-            List<Bytes> batch = block.itemBytes().subList(i, end);
-            List<com.hedera.hapi.block.stream.protoc.BlockItem> protocBlockItems = new ArrayList<>();
-            batch.forEach(batchItem -> {
-                try {
-                    protocBlockItems.add(
-                            com.hedera.hapi.block.stream.protoc.BlockItem.parseFrom(batchItem.toByteArray()));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-
-            // Create BlockItemSet by adding all items at once
-            BlockItemSet itemSet =
-                    BlockItemSet.newBuilder().addAllBlockItems(protocBlockItems).build();
-
-            batchRequests.add(
-                    PublishStreamRequest.newBuilder().setBlockItems(itemSet).build());
-        }
+        List<PublishStreamRequest> batchRequests =
+                createPublishStreamRequests(block, blockNodeConfigurations.getBlockItemBatchSize());
 
         // Stream prepared batches to each connection
         for (BlockNodeConnection connection : connectionsToStream) {
@@ -150,7 +159,7 @@ public class BlockNodeConnectionManager {
                 for (PublishStreamRequest request : batchRequests) {
                     connection.sendRequest(request);
                 }
-                logger.info(
+                logger.debug(
                         "Sent block {} to stream observer for Block Node {}:{}",
                         blockNumber,
                         connectionNodeConfig.address(),
@@ -164,6 +173,24 @@ public class BlockNodeConnectionManager {
                         e);
             }
         }
+    }
+
+    public static @NonNull List<PublishStreamRequest> createPublishStreamRequests(
+            @NonNull final BlockState block, final int blockItemBatchSize) {
+        final int totalItems = block.items().size();
+        // Pre-calculate the expected number of batch requests
+        final int expectedBatchCount = (totalItems + blockItemBatchSize - 1) / blockItemBatchSize;
+        List<PublishStreamRequest> batchRequests = new ArrayList<>(expectedBatchCount);
+        for (int i = 0; i < totalItems; i += blockItemBatchSize) {
+            int end = Math.min(i + blockItemBatchSize, totalItems);
+            List<BlockItem> blockItemsBatch = block.items().subList(i, end);
+
+            // Create BlockItemSet by adding all items at once
+            batchRequests.add(PublishStreamRequest.newBuilder()
+                    .blockItems(new BlockItemSet(blockItemsBatch))
+                    .build());
+        }
+        return batchRequests;
     }
 
     /**
@@ -192,8 +219,8 @@ public class BlockNodeConnectionManager {
 
         retryExecutor.execute(() -> {
             try {
-                activeConnections.put(connection.getNodeConfig(), connection);
                 retry(connection::establishStream, INITIAL_RETRY_DELAY);
+                activeConnections.put(connection.getNodeConfig(), connection);
             } catch (Exception e) {
                 final var node = connection.getNodeConfig();
                 logger.error("Failed to re-establish stream to block node {}:{}: {}", node.address(), node.port(), e);
@@ -218,7 +245,7 @@ public class BlockNodeConnectionManager {
             try {
                 // Apply jitter: use a random value between 50-100% of the calculated delay
                 final long jitteredDelayMs = delay.toMillis() / 2 + random.nextLong(delay.toMillis() / 2 + 1);
-                logger.info("Retrying in {} ms", jitteredDelayMs);
+                logger.debug("Retrying in {} ms", jitteredDelayMs);
                 Thread.sleep(jitteredDelayMs);
                 action.get();
                 return;
@@ -239,7 +266,7 @@ public class BlockNodeConnectionManager {
             if (!awaitTermination) {
                 logger.error("Failed to shut down streaming executor within 10 seconds");
             } else {
-                logger.info("Successfully shut down streaming executor");
+                logger.debug("Successfully shut down streaming executor");
             }
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
@@ -258,11 +285,12 @@ public class BlockNodeConnectionManager {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
         establishConnections();
 
+        final var deadline = Instant.now().plus(timeout);
         scheduler.scheduleAtFixedRate(
                 () -> {
                     if (!activeConnections.isEmpty()) {
                         future.complete(true);
-                    } else if (Instant.now().isAfter(Instant.now().plus(timeout))) {
+                    } else if (Instant.now().isAfter(deadline)) {
                         future.complete(false);
                     }
                 },

@@ -65,7 +65,6 @@ import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.remote.RemoteNetwork;
-import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.fees.FeesAndRatesProvider;

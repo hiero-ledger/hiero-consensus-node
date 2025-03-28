@@ -30,7 +30,6 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
-import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
@@ -42,8 +41,6 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
-import com.hedera.node.app.hints.schemas.V059HintsSchema;
-import com.hedera.node.app.hints.schemas.V060HintsSchema;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.ids.EntityIdService;
@@ -271,7 +268,8 @@ public class HandleWorkflow {
             recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
         }
         try {
-            reconcileTssState(state, boundaryStateChangeListener.lastConsensusTimeOrThrow(), round.getConsensusTimestamp());
+            reconcileTssState(
+                    state, boundaryStateChangeListener.lastConsensusTimeOrThrow(), round.getConsensusTimestamp());
         } catch (Exception e) {
             logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
         }
@@ -478,10 +476,10 @@ public class HandleWorkflow {
             // we must ensure that even if the last scheduled execution time is followed by the maximum
             // number of child transactions, the last child's assigned time will be strictly before the
             // first of the next consensus time's possible preceding children; that is, strictly before
-            // (now + separationNanos) - (maxAfter + maxBefore + 1)
+            // (now + separationNanos - reservedSystemTxnNanos) - (maxAfter + maxBefore + 1)
             final var lastUsableTime = consensusNow.plusNanos(schedulingConfig.consTimeSeparationNanos()
-                    - consensusConfig.handleMaxPrecedingRecords()
-                    - (consensusConfig.handleMaxFollowingRecords() + 1));
+                    - schedulingConfig.reservedSystemTxnNanos()
+                    - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
             // The first possible time for the next execution is strictly after the last execution time
             // consumed for the triggering user transaction; plus the maximum number of preceding children
             var nextTime = boundaryStateChangeListener
@@ -652,8 +650,6 @@ public class HandleWorkflow {
                 if (parentTxn.type() == POST_UPGRADE_TRANSACTION) {
                     logger.info("Doing post-upgrade setup @ {}", parentTxn.consensusNow());
                     systemTransactions.doPostUpgradeSetup(dispatch);
-                    // Only for 0.59.0 we need to update the entity ID store entity counts
-                    systemTransactions.initializeEntityCounts(dispatch);
                     if (streamMode != RECORDS) {
                         blockStreamManager.confirmPendingWorkFinished();
                     }
@@ -870,13 +866,19 @@ public class HandleWorkflow {
                         crsWritableStates,
                         null,
                         crsWorkTime,
-                        () -> hintsService.executeCrsWork(new WritableHintsStoreImpl(crsWritableStates), crsWorkTime, isActive));
+                        () -> hintsService.executeCrsWork(
+                                new WritableHintsStoreImpl(crsWritableStates), crsWorkTime, isActive));
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 doStreamingKVChanges(
                         hintsWritableStates,
                         null,
                         boundaryTimestamp,
-                        () -> hintsService.reconcile(activeRosters, new WritableHintsStoreImpl(hintsWritableStates), boundaryTimestamp, tssConfig, isActive));
+                        () -> hintsService.reconcile(
+                                activeRosters,
+                                new WritableHintsStoreImpl(hintsWritableStates),
+                                boundaryTimestamp,
+                                tssConfig,
+                                isActive));
             }
             if (tssConfig.historyEnabled()) {
                 final Bytes currentMetadata = tssConfig.hintsEnabled()

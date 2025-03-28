@@ -330,6 +330,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
+    public void writePbjItem(@NonNull BlockItem item) {
+        throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
+    }
+
+    @Override
     public void closeCompleteBlock() {
         if (state.ordinal() < State.OPEN.ordinal()) {
             throw new IllegalStateException("Cannot close a FileBlockItemWriter that is not open");

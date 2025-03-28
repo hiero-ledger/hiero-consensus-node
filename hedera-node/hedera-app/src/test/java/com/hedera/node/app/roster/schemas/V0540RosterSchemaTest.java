@@ -18,7 +18,6 @@ import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.WritableRosterStore;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StartupNetworks;

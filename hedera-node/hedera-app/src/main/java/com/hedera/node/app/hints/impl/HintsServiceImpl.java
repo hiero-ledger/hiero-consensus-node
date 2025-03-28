@@ -123,7 +123,11 @@ public class HintsServiceImpl implements HintsService {
     }
 
     @Override
-    public void manageRosterAdoption(@NonNull final WritableHintsStore hintsStore, @NonNull final Roster previousRoster, @NonNull final Bytes adoptedRosterHash, final boolean forceHandoff) {
+    public void manageRosterAdoption(
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Roster previousRoster,
+            @NonNull final Bytes adoptedRosterHash,
+            final boolean forceHandoff) {
         requireNonNull(hintsStore);
         requireNonNull(previousRoster);
         requireNonNull(adoptedRosterHash);

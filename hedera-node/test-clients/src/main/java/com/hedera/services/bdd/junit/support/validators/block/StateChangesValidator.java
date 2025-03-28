@@ -307,7 +307,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                     lastStateChanges = changes;
                     lastStateChangesTime = at;
                     applyStateChanges(i, item.stateChangesOrThrow(), (newVerificationKey) -> {
-                        logger.info("Found new active verification key inside block #{}", block.items().getFirst().blockHeaderOrThrow().number());
+                        logger.info(
+                                "Found new active verification key inside block #{}",
+                                block.items().getFirst().blockHeaderOrThrow().number());
                         verificationKey.set(newVerificationKey);
                     });
                 }
@@ -480,7 +482,10 @@ public class StateChangesValidator implements BlockStreamValidator {
         return hashesByName(sb.toString());
     }
 
-    private void applyStateChanges(long number, @NonNull final StateChanges stateChanges, @NonNull final Consumer<Bytes> onNewVerificationKey) {
+    private void applyStateChanges(
+            long number,
+            @NonNull final StateChanges stateChanges,
+            @NonNull final Consumer<Bytes> onNewVerificationKey) {
         for (final var stateChange : stateChanges.stateChanges()) {
             final var stateName = stateNameOf(stateChange.stateId());
             final var delimIndex = stateName.indexOf('.');
@@ -512,21 +517,27 @@ public class StateChangesValidator implements BlockStreamValidator {
                                     "Chain of trust verification failed for " + construction);
                         }
                     }
-                    if (hintsLibrary != null && stateChange.stateId() == STATE_ID_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal()) {
+                    if (hintsLibrary != null
+                            && stateChange.stateId() == STATE_ID_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal()) {
                         final var construction = (HintsConstruction) singleton;
-                        logger.info("Found active construction #{} in block #{} (scheme? {}) targeting {} from source {}",
+                        logger.info(
+                                "Found active construction #{} in block #{} (scheme? {}) targeting {} from source {}",
                                 construction.constructionId(),
                                 number,
                                 construction.hasHintsScheme(),
                                 construction.targetRosterHash(),
                                 construction.sourceRosterHash());
                         if (construction.hasHintsScheme()) {
-                            onNewVerificationKey.accept(construction.hintsSchemeOrThrow().preprocessedKeysOrThrow().verificationKey());
+                            onNewVerificationKey.accept(construction
+                                    .hintsSchemeOrThrow()
+                                    .preprocessedKeysOrThrow()
+                                    .verificationKey());
                         }
                     }
                     if (stateChange.stateId() == STATE_ID_NEXT_HINTS_CONSTRUCTION.protoOrdinal()) {
                         final var construction = (HintsConstruction) singleton;
-                        logger.info("Found next construction #{} in block #{} (scheme? {}) targeting {} from source {}",
+                        logger.info(
+                                "Found next construction #{} in block #{} (scheme? {}) targeting {} from source {}",
                                 construction.constructionId(),
                                 number,
                                 construction.hasHintsScheme(),
@@ -535,7 +546,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                     }
                     if (stateChange.stateId() == STATE_ID_ROSTER_STATE.protoOrdinal()) {
                         final var rosterState = (RosterState) singleton;
-                        logger.info("New roster state in block #{} ({}, {}) with candidate {}",
+                        logger.info(
+                                "New roster state in block #{} ({}, {}) with candidate {}",
                                 number,
                                 rosterState.roundRosterPairs().getFirst(),
                                 rosterState.roundRosterPairs().getLast(),
