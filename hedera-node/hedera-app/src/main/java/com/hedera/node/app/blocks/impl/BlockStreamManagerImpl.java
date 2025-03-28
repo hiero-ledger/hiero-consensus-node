@@ -115,21 +115,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private StreamingTreeHasher outputTreeHasher;
     private BlockStreamManagerTask worker;
     private final boolean hintsEnabled;
-    // If not null, the part of the block preceding a possible first transaction
-    @Nullable
-    private PreTxnItems preTxnItems;
-
-    /**
-     * Represents the part of a block preceding a possible first transaction; we defer writing this part until
-     * we know the timestamp of the first transaction.
-     * <p>
-     * <b>Important:</b> This first timestamp may be different from the first platform-assigned user transaction
-     * time because of synthetic preceding transactions.
-     *
-     * @param headerBuilder   the block header builder
-     * @param postHeaderItems the post-header items
-     */
-    private record PreTxnItems(@NonNull BlockHeader.Builder headerBuilder, @NonNull List<BlockItem> postHeaderItems) {}
 
     /**
      * Represents a block pending completion by the block hash signature needed for its block proof.
@@ -228,8 +213,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Writer will be null when beginning a new block
         if (writer == null) {
             writer = writerSupplier.get();
-            // This iterator is never empty; c.f. DefaultTransactionHandler#handleConsensusRound()
-            blockTimestamp = round.iterator().next().getConsensusTimestamp();
+            blockTimestamp = round.getConsensusTimestamp();
             boundaryStateChangeListener.setBoundaryTimestamp(blockTimestamp);
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
@@ -254,17 +238,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .number(blockNumber)
                     .hashAlgorithm(SHA2_384)
                     .softwareVersion(platformStateFacade.creationSemanticVersionOf(state))
+                    .blockTimestamp(asTimestamp(blockTimestamp))
                     .hapiProtoVersion(hapiVersion);
-            preTxnItems = new PreTxnItems(header, new ArrayList<>());
+            worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
         }
         consensusTimeLastRound = round.getConsensusTimestamp();
-    }
-
-    @Override
-    public void setRoundFirstTransactionTime(@NonNull final Instant at) {
-        if (preTxnItems != null) {
-            flushPreUserItems(asTimestamp(at));
-        }
     }
 
     @Override
@@ -305,13 +283,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     public boolean endRound(@NonNull final State state, final long roundNum) {
         final boolean closesBlock = shouldCloseBlock(roundNum, roundsPerBlock);
         if (closesBlock) {
-            // If there were no user or node transactions in the block, this writes all
-            // the accumulated items starting from the header, sacrificing the benefits
-            // of concurrency; but performance impact is irrelevant when there are no
-            // transactions of any sort
-            if (preTxnItems != null) {
-                flushPreUserItems(null);
-            }
             // Flush all boundary state changes besides the BlockStreamInfo
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
@@ -409,11 +380,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void writeItem(@NonNull final BlockItem item) {
-        if (preTxnItems != null) {
-            preTxnItems.postHeaderItems().add(item);
-        } else {
-            worker.addItem(item);
-        }
+        worker.addItem(item);
     }
 
     @Override
@@ -483,19 +450,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 siblingHashes.removeFirst();
             }
         }
-    }
-
-    /**
-     * Flushes the pre-user items, with the given first user transaction time.
-     *
-     * @param firstUserTransactionTime the first user transaction time
-     */
-    private void flushPreUserItems(@Nullable final Timestamp firstUserTransactionTime) {
-        requireNonNull(preTxnItems);
-        final var header = preTxnItems.headerBuilder().firstTransactionConsensusTime(firstUserTransactionTime);
-        worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
-        preTxnItems.postHeaderItems().forEach(worker::addItem);
-        preTxnItems = null;
     }
 
     /**
