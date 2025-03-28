@@ -3,6 +3,7 @@ package com.swirlds.platform.event.orphan;
 
 import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -61,11 +62,11 @@ class OrphanBufferTests {
     /**
      * The number of events to be created for testing
      */
-    private static final long TEST_EVENT_COUNT = 10;
+    private static final long TEST_EVENT_COUNT = 10_000;
     /**
      * Number of possible nodes in the universe
      */
-    private static final int NODE_ID_COUNT = 4;
+    private static final int NODE_ID_COUNT = 100;
 
     /**
      * The average number of generations per round.
@@ -257,7 +258,7 @@ class OrphanBufferTests {
 
         // either events exit the pipeline in the orphan buffer and are never emitted, or they are emitted and exit
         // the pipeline at a later stage
-        assertThat(eventsExitedIntakePipeline.get() + emittedEventHashes.size()).isEqualTo(TEST_EVENT_COUNT);
+        assertEquals(TEST_EVENT_COUNT, eventsExitedIntakePipeline.get() + emittedEvents.size());
         assertThat(orphanBuffer.getCurrentOrphanCount()).isEqualTo(0);
     }
 
