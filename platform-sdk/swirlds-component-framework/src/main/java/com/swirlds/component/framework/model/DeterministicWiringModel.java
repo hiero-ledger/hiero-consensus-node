@@ -135,5 +135,6 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     @Override
     public void stop() {
         throwIfNotStarted();
+        heartbeatScheduler.stop();
     }
 }
