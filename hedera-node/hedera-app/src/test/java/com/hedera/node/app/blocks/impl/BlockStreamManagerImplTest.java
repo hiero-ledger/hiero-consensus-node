@@ -78,6 +78,8 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -251,6 +253,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
@@ -262,6 +265,17 @@ class BlockStreamManagerImplTest {
         assertFalse(subject.hasLedgerId());
 
         given(blockHashSigner.isReady()).willReturn(true);
+
+        // Immediately resolve to the expected ledger signature
+        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return null;
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
         // Start the round that will be block N
         subject.startRound(round, state);
         assertTrue(subject.hasLedgerId());
@@ -285,15 +299,6 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
 
-        // Immediately resolve to the expected ledger signature
-        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
-        doAnswer(invocationOnMock -> {
-                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
-                    consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
-                })
-                .when(mockSigningFuture)
-                .thenAcceptAsync(any());
         // End the round
         subject.endRound(state, ROUND_NO);
 
@@ -322,6 +327,9 @@ class BlockStreamManagerImplTest {
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
+        // Wait for the block proof future to complete
+        subject.getBlockRootHashFuture().join();
+
         // Assert the block proof was written
         final var proofItem = lastAItem.get();
         assertNotNull(proofItem);
@@ -340,6 +348,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         lenient().when(round.getRoundNum()).thenReturn(ROUND_NO);
@@ -381,6 +390,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         final AtomicReference<BlockHeader> writtenHeader = new AtomicReference<>();
         givenEndOfRoundSetup(writtenHeader);
@@ -420,6 +430,9 @@ class BlockStreamManagerImplTest {
         // End the round
         subject.endRound(state, ROUND_NO);
 
+        // Wait for the block proof future to complete
+        subject.getBlockRootHashFuture().join();
+
         final var header = writtenHeader.get();
         assertNotNull(header);
         assertEquals(N_BLOCK_NO, header.number());
@@ -434,6 +447,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         given(round.getRoundNum()).willReturn(ROUND_NO);
@@ -470,14 +484,16 @@ class BlockStreamManagerImplTest {
         verifyNoMoreInteractions(blockHashSigner);
     }
 
-    @Test
-    void alwaysEndsBlockOnFreezeRoundPerBlockAsExpected() throws ParseException {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void alwaysEndsBlockOnFreezeRoundPerBlockAsExpected(boolean hintsEnabled) throws ParseException {
         final var resultHashes = Bytes.fromHex("aa".repeat(48) + "bb".repeat(48) + "cc".repeat(48) + "dd".repeat(48));
         givenSubjectWith(
                 2,
                 2, // Use time-based blocks with 2 second period
                 blockStreamInfoWith(resultHashes, CREATION_VERSION),
                 platformStateWithFreezeTime(CONSENSUS_NOW),
+                hintsEnabled,
                 aWriter);
         givenEndOfRoundSetup();
         given(round.getRoundNum()).willReturn(ROUND_NO);
@@ -488,6 +504,17 @@ class BlockStreamManagerImplTest {
         subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
 
         given(blockHashSigner.isReady()).willReturn(true);
+
+        // Immediately resolve to the expected ledger signature
+        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return null;
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
         // Start the round that will be block N
         subject.startRound(round, state);
 
@@ -508,17 +535,11 @@ class BlockStreamManagerImplTest {
             subject.writeItem(FAKE_RECORD_FILE_ITEM);
         }
 
-        // Immediately resolve to the expected ledger signature
-        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
-        doAnswer(invocationOnMock -> {
-                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
-                    consumer.accept(FIRST_FAKE_SIGNATURE);
-                    return null;
-                })
-                .when(mockSigningFuture)
-                .thenAcceptAsync(any());
         // End the round
         subject.endRound(state, ROUND_NO);
+
+        // Wait for the block proof future to complete
+        subject.getBlockRootHashFuture().join();
 
         verify(aWriter).openBlock(N_BLOCK_NO);
 
@@ -545,14 +566,16 @@ class BlockStreamManagerImplTest {
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
-        // Assert the block proof was written
+        // Assert the block proof was not written
         final var proofItem = lastAItem.get();
         assertNotNull(proofItem);
         final var item = BlockItem.PROTOBUF.parse(proofItem);
-        assertTrue(item.hasBlockProof());
-        final var proof = item.blockProofOrThrow();
-        assertEquals(N_BLOCK_NO, proof.block());
-        assertEquals(FIRST_FAKE_SIGNATURE, proof.blockSignature());
+
+        if (hintsEnabled) {
+            assertFalse(item.hasBlockProof());
+        } else {
+            assertTrue(item.hasBlockProof());
+        }
     }
 
     @Test
@@ -564,6 +587,7 @@ class BlockStreamManagerImplTest {
                 0,
                 blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter,
                 bWriter);
         givenEndOfRoundSetup();
@@ -645,6 +669,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
@@ -681,6 +706,9 @@ class BlockStreamManagerImplTest {
         subject.startRound(round, state);
         subject.endRound(state, ROUND_NO);
 
+        // Wait for the block proof future to complete
+        subject.getBlockRootHashFuture().join();
+
         // Then block should be closed
         verify(aWriter).closeBlock();
     }
@@ -694,6 +722,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         given(round.getRoundNum()).willReturn(ROUND_NO);
@@ -714,7 +743,7 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void alwaysEndsBlockOnFreezeRoundEvenIfPeriodNotElapsed() throws ParseException {
+    void alwaysEndsBlockOnFreezeRoundEvenIfPeriodNotElapsed() {
         // Given a 2 second block period
         givenSubjectWith(
                 1,
@@ -722,6 +751,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(Instant.ofEpochSecond(1001)),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
@@ -748,6 +778,9 @@ class BlockStreamManagerImplTest {
         subject.startRound(round, state);
         subject.endRound(state, ROUND_NO);
 
+        // Wait for the block proof future to complete
+        subject.getBlockRootHashFuture().join();
+
         // Then block should be closed due to freeze, even though period not elapsed
         verify(aWriter).closeBlock();
     }
@@ -761,6 +794,7 @@ class BlockStreamManagerImplTest {
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
+                false,
                 aWriter);
         givenEndOfRoundSetup();
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
@@ -790,6 +824,10 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(2L);
         subject.startRound(round, state);
         subject.endRound(state, 2L);
+
+        // Wait for the block proof future to complete
+        subject.getBlockRootHashFuture().join();
+
         verify(aWriter).closeBlock();
     }
 
@@ -798,12 +836,14 @@ class BlockStreamManagerImplTest {
             final int blockPeriod,
             @NonNull final BlockStreamInfo blockStreamInfo,
             @NonNull final PlatformState platformState,
+            final boolean hintsEnabled,
             @NonNull final BlockItemWriter... writers) {
         final AtomicInteger nextWriter = new AtomicInteger(0);
         final var config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.roundsPerBlock", roundsPerBlock)
                 .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
+                .withValue("tss.hintsEnabled", hintsEnabled)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
         subject = new BlockStreamManagerImpl(
