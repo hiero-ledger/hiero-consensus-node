@@ -3,7 +3,6 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsService;
-import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
@@ -77,8 +76,8 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
-        delegate.initSigningForNextScheme(hintsStore);
+    public void manageRosterAdoption(@NonNull final WritableHintsStore hintsStore, @NonNull final Roster previousRoster, @NonNull final Bytes adoptedRosterHash, final boolean forceHandoff) {
+        delegate.manageRosterAdoption(hintsStore, previousRoster, adoptedRosterHash, forceHandoff);
     }
 
     @Override

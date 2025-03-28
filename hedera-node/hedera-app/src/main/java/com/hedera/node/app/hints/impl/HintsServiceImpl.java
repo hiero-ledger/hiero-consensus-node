@@ -8,7 +8,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
-import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
@@ -84,7 +83,9 @@ public class HintsServiceImpl implements HintsService {
                     controller.advanceConstruction(now, hintsStore, isActive);
                 }
             }
-            case HANDOFF -> hintsStore.updateForHandoff(activeRosters);
+            case HANDOFF -> {
+                // No-op, changes happen at the point of adopting the new roster
+            }
         }
     }
 
@@ -122,9 +123,12 @@ public class HintsServiceImpl implements HintsService {
     }
 
     @Override
-    public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
+    public void manageRosterAdoption(@NonNull final WritableHintsStore hintsStore, @NonNull final Roster previousRoster, @NonNull final Bytes adoptedRosterHash, final boolean forceHandoff) {
         requireNonNull(hintsStore);
-        component.signingContext().setConstruction(requireNonNull(hintsStore.getNextConstruction()));
+        requireNonNull(previousRoster);
+        requireNonNull(adoptedRosterHash);
+        hintsStore.updateForHandoff(adoptedRosterHash, previousRoster, forceHandoff);
+        component.signingContext().setConstruction(requireNonNull(hintsStore.getActiveConstruction()));
     }
 
     @Override

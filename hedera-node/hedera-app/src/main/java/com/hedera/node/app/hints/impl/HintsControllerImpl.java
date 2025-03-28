@@ -439,7 +439,8 @@ public class HintsControllerImpl implements HintsController {
                     .findFirst();
             maybeWinningOutputs.ifPresent(keys -> {
                 construction = hintsStore.setHintsScheme(construction.constructionId(), keys, nodePartyIds);
-                log.info("Completed hinTS Scheme for construction #{}", construction.constructionId());
+                // WARNING - DabEnabledUpgradeTest scans for this exact log
+                log.info("Completed hinTS scheme for construction #{}", construction.constructionId());
                 // If this just completed the active construction, update the signing context
                 if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
                     context.setConstruction(construction);

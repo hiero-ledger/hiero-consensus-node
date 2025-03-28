@@ -41,11 +41,15 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of {@link WritableHintsStore}.
  */
 public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements WritableHintsStore {
+    private static final Logger log = LogManager.getLogger(WritableHintsStoreImpl.class);
+
     private static final Comparator<NodePartyId> NODE_PARTY_ID_COMPARATOR =
             Comparator.comparingLong(NodePartyId::nodeId);
 
@@ -141,20 +145,42 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     @Override
-    public void updateForHandoff(@NonNull final ActiveRosters activeRosters) {
-        if (activeRosters.phase() != HANDOFF) {
-            throw new IllegalArgumentException("Not in handoff phase");
+    public void updateForHandoff(
+            @NonNull final Bytes adoptedRosterHash,
+            @NonNull final Roster previousRoster,
+            final boolean forceHandoff) {
+        requireNonNull(adoptedRosterHash);
+        final var upcomingConstruction = requireNonNull(nextConstruction.get());
+        // It is pointless to adopt any incomplete construction
+        if (!upcomingConstruction.hasHintsScheme()) {
+            if (forceHandoff) {
+                log.warn(
+                        "Ignoring forced handoff to incomplete construction #{}",
+                        upcomingConstruction.constructionId());
+            }
+            return;
         }
-        if (requireNonNull(nextConstruction.get()).targetRosterHash().equals(activeRosters.currentRosterHash())) {
-            // The next construction is becoming the active one; so purge obsolete votes now
-            purgeVotes(requireNonNull(activeConstruction.get()), activeRosters::findRelatedRoster);
-            // If the active construction's party size was different than the current roster's, purge its hinTS keys
-            final int newActiveSize = partySizeForRoster(activeRosters.currentRoster());
-            purgeHintsKeysIfNotForPartySize(
-                    newActiveSize, requireNonNull(activeConstruction.get()), activeRosters::findRelatedRoster);
-            activeConstruction.put(nextConstruction.get());
-            nextConstruction.put(HintsConstruction.DEFAULT);
+        final boolean handoffMatches = upcomingConstruction.targetRosterHash().equals(adoptedRosterHash);
+        if (!handoffMatches) {
+            if (forceHandoff) {
+                log.warn(
+                        "Forcing handoff to construction #{} with different target roster",
+                        upcomingConstruction.constructionId());
+            } else {
+                throw new IllegalStateException("Cannot handoff to construction #"
+                        + upcomingConstruction.constructionId() + " with different target roster (constructed for '"
+                        + upcomingConstruction.targetRosterHash() + " but incoming is '" + adoptedRosterHash + "')");
+            }
         }
+        log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
+        // The next construction is becoming the active one; so purge obsolete votes now
+        purgeVotes(requireNonNull(activeConstruction.get()), ignore -> previousRoster);
+        // If the active construction's party size was different than the current roster's, purge its hinTS keys
+        final int newActiveSize = partySizeForRoster(previousRoster);
+        purgeHintsKeysIfNotForPartySize(
+                newActiveSize, requireNonNull(activeConstruction.get()), ignore -> previousRoster);
+        activeConstruction.put(upcomingConstruction);
+        nextConstruction.put(HintsConstruction.DEFAULT);
     }
 
     @Override

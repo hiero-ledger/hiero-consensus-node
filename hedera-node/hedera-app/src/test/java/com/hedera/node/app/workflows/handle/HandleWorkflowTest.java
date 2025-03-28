@@ -15,6 +15,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
@@ -71,6 +72,9 @@ class HandleWorkflowTest {
 
     @Mock
     private NetworkInfo networkInfo;
+
+    @Mock
+    private BlockHashSigner blockHashSigner;
 
     @Mock
     private StakePeriodChanges stakePeriodChanges;
@@ -232,8 +236,8 @@ class HandleWorkflowTest {
                 hintsService,
                 historyService,
                 congestionMetrics,
-                softwareVersionFactory,
                 () -> PlatformStatus.ACTIVE,
+                blockHashSigner,
                 null);
     }
 }

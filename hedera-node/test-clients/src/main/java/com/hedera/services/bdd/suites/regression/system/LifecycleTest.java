@@ -123,7 +123,7 @@ public interface LifecycleTest {
      * issues a {@code PREPARE_UPGRADE}, and awaits writing of the <i>execute_immediate.mf</i>.
      * @return the operation
      */
-    default HapiSpecOperation prepareFakeUpgrade() {
+    default SpecOperation prepareFakeUpgrade() {
         return blockingOrder(
                 buildUpgradeZipFrom(FAKE_ASSETS_LOC),
                 // Upload it to file 0.0.150; need sourcing() here because the operation reads contents eagerly

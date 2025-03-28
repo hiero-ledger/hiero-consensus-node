@@ -313,7 +313,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                     block.proofBuilder(),
                                     pendingWriter,
                                     block.siblingHashesIfUseful()));
-                            log.info("  - Recovered pending block #{}, gossiping partial signature", block.number());
+                            log.info("Recovered pending block #{}, gossiping partial signature", block.number());
                             blockHashes.add(blockHash);
                         } catch (Exception e) {
                             log.warn("Failed to recover pending block #{}", block.number(), e);

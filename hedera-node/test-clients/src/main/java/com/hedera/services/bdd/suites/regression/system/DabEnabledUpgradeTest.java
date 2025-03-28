@@ -21,7 +21,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
@@ -46,15 +49,22 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
+import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -95,6 +105,7 @@ import org.junit.jupiter.api.TestReporter;
 public class DabEnabledUpgradeTest implements LifecycleTest {
     private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
     private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
+    private static final Duration HINTS_CONSTRUCTION_TIMEOUT = Duration.ofSeconds(30);
 
     // To test BirthRoundStateMigration, use,
     //    Map.of("event.useBirthRoundAncientThreshold", "true")
@@ -126,7 +137,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 // Now do the first upgrade
                 getVersionInfo().exposingServicesVersionTo(startVersion::set),
-                prepareFakeUpgrade(),
+                prepareFakeUpgradeAndWaitForNextHintsConstruction(),
                 validateCandidateRoster(DabEnabledUpgradeTest::hasClassicRosterMetadata),
                 upgradeToNextConfigVersion(),
                 assertGetVersionInfoMatches(startVersion::get));
@@ -139,7 +150,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 recordStreamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeDelete("1"),
-                prepareFakeUpgrade(),
+                prepareFakeUpgradeAndWaitForNextHintsConstruction(),
                 validateCandidateRoster(
                         addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 2L, 3L)),
                 upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(1))),
@@ -164,7 +175,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 recordStreamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeDelete("3"),
-                prepareFakeUpgrade(),
+                prepareFakeUpgradeAndWaitForNextHintsConstruction(),
                 validateCandidateRoster(
                         addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 2L)),
                 upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(3))),
@@ -185,7 +196,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                         .description(CLASSIC_NODE_NAMES[4])
                         .withAvailableSubProcessPorts()
                         .gossipCaCertificate(VALID_CERT),
-                prepareFakeUpgrade(),
+                prepareFakeUpgradeAndWaitForNextHintsConstruction(),
                 // node4 was not active before this the upgrade, so it could not have written a config.txt
                 validateCandidateRoster(exceptNodeIds(4L), addressBook -> assertThat(nodeIdsFrom(addressBook))
                         .contains(4L)),
@@ -248,14 +259,14 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
             return hapiTest(
                     recordStreamMustIncludePassFrom(selectedItems(
                             EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
-                    prepareFakeUpgrade(),
+                    prepareFakeUpgradeAndWaitForNextHintsConstruction(),
                     // Now make some changes that should not be incorporated in this upgrade
                     nodeDelete("5"),
                     nodeDelete("2"),
                     validateCandidateRoster(
                             NodeSelector.allNodes(), DabEnabledUpgradeTest::validateNodeId5MultipartEdits),
                     upgradeToNextConfigVersion(
-                            ENV_OVERRIDES, FakeNmt.removeNode(NodeSelector.byNodeId(4L)), FakeNmt.addNode(5L)),
+                            ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(4L)), FakeNmt.addNode(5L)),
                     // Validate that nodeId2 and nodeId5 have their new fee collector account IDs,
                     // since those were updated before the prepare upgrade
                     cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L))
@@ -267,6 +278,18 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L))
                             .setNode(classicFeeCollectorIdLiteralFor(0)));
         }
+    }
+
+    /**
+     * Returns an operation that prepares a fake upgrade and waits until another hinTS construction is completed.
+     */
+    private SpecOperation prepareFakeUpgradeAndWaitForNextHintsConstruction() {
+        return doingContextual(spec -> {
+                    final var node0 = (SubProcessNode) spec.targetNetworkOrThrow().getRequiredNode(byNodeId(0));
+                    final int n = node0.numApplicationLogLinesWith("Completed hinTS scheme");
+                    allRunFor(spec, prepareFakeUpgrade());
+                    node0.minLogsFuture("Completed hinTS scheme", n + 1).orTimeout(HINTS_CONSTRUCTION_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
+                });
     }
 
     /**
