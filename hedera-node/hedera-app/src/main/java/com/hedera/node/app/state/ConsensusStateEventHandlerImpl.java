@@ -62,7 +62,7 @@ public class ConsensusStateEventHandlerImpl implements ConsensusStateEventHandle
         long roundNum = round.getRoundNum();
         if(!rounds.contains(roundNum) && hedera.appContext.selfNodeInfoSupplier().get().accountId().hasAccountNum() &&
         hedera.appContext.selfNodeInfoSupplier().get().accountId().accountNum() == 3 ) {
-            logger.info(STATE_HASH.getMarker(), hedera.platformStateFacade.getInfoString(state, 1));
+//            logger.info(STATE_HASH.getMarker(), hedera.platformStateFacade.getInfoString(state, 1));
             rounds.add(roundNum);
         }
 

@@ -389,6 +389,10 @@ public class NewStateRoot implements MerkleNodeState {
         }
     }
 
+    public void commit() {
+        writableStatesMap.values().forEach(NewStateRoot.MerkleWritableStates::commit2);
+    }
+
     /**
      * Base class implementation for states based on MerkleTree
      */
@@ -646,6 +650,16 @@ public class NewStateRoot implements MerkleNodeState {
                 ((WritableQueueStateBase) q).commit();
             }
             readableStatesMap.remove(serviceName);
+        }
+
+        public void commit2() {
+            for (final ReadableSingletonState s : singletonInstances.values()) {
+                ((WritableSingletonStateBase) s).commit();
+            }
+            for (final ReadableQueueState q : queueInstances.values()) {
+                ((WritableQueueStateBase) q).commit();
+            }
+//            readableStatesMap.remove(serviceName);
         }
 
         /**

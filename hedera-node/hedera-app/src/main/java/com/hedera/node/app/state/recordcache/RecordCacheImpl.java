@@ -337,9 +337,9 @@ public class RecordCacheImpl implements HederaRecordCache {
         if (!transactionReceipts.isEmpty()) {
             queue.add(new TransactionReceiptEntries(new ArrayList<>(transactionReceipts)));
         }
-        if (states instanceof CommittableWritableStates committable) {
-            committable.commit();
-        }
+//        if (states instanceof CommittableWritableStates committable) {
+//            committable.commit();
+//        }
     }
 
     @NonNull

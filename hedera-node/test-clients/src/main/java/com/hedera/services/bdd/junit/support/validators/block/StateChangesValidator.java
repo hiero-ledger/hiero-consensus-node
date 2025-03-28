@@ -291,7 +291,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 startOfStateHash =
                         CRYPTO.digestTreeSync(stateToBeCopied.getRoot()).getBytes();
 
-                logger.error(EXCEPTION.getMarker(), "Block: {}\n Full info: {}", block, platformStateFacade.getInfoString(stateToBeCopied, 5));
+                 logger.error(EXCEPTION.getMarker(), "Block: {}\n Full info: {}", block, platformStateFacade.getInfoString(stateToBeCopied, 5));
             }
             final StreamingTreeHasher inputTreeHasher = new NaiveStreamingTreeHasher();
             final StreamingTreeHasher outputTreeHasher = new NaiveStreamingTreeHasher();

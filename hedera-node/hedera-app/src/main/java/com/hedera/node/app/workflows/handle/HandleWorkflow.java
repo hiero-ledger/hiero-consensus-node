@@ -272,25 +272,25 @@ public class HandleWorkflow {
         } finally {
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
-//            recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
+            recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
 
-            if (streamMode != RECORDS) {
-                requireNonNull(state);
-                requireNonNull(round.getConsensusTimestamp());
-                final var states = state.getWritableStates(NAME);
-                final var queue = states.<TransactionReceiptEntries>getQueue(TXN_RECEIPT_QUEUE);
-
-                final RecordCacheImpl recordCacheImpl = (RecordCacheImpl) recordCache;
-                recordCacheImpl.purgeExpiredReceiptEntries(queue, round.getConsensusTimestamp());
-                if (!recordCacheImpl.transactionReceipts.isEmpty()) {
-                    queue.add(new TransactionReceiptEntries(new ArrayList<>(recordCacheImpl.transactionReceipts)));
-                }
-                if (states instanceof CommittableWritableStates committable) {
-                    committable.commit();
-                }
-
-                blockStreamManager.writeItem(boundaryStateChangeListener.flushChanges());
-            }
+//            if (streamMode != RECORDS) {
+//                requireNonNull(state);
+//                requireNonNull(round.getConsensusTimestamp());
+//                final var states = state.getWritableStates(NAME);
+//                final var queue = states.<TransactionReceiptEntries>getQueue(TXN_RECEIPT_QUEUE);
+//
+//                final RecordCacheImpl recordCacheImpl = (RecordCacheImpl) recordCache;
+//                recordCacheImpl.purgeExpiredReceiptEntries(queue, round.getConsensusTimestamp());
+//                if (!recordCacheImpl.transactionReceipts.isEmpty()) {
+//                    queue.add(new TransactionReceiptEntries(new ArrayList<>(recordCacheImpl.transactionReceipts)));
+//                }
+//                if (states instanceof CommittableWritableStates committable) {
+//                    committable.commit();
+//                }
+//
+//                blockStreamManager.writeItem(boundaryStateChangeListener.flushChanges());
+//            }
         }
     }
 

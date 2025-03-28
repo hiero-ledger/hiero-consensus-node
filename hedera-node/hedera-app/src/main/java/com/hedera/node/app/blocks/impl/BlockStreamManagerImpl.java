@@ -24,6 +24,7 @@ import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.node.app.NewStateRoot;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -34,6 +35,7 @@ import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
+import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
@@ -50,6 +52,7 @@ import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.WritableQueueStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
@@ -308,6 +311,24 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final boolean closesBlock = shouldCloseBlock(roundNum, roundsPerBlock);
 
         if (closesBlock) {
+//            final var upgradeData150Queue = state.getWritableStates(FileService.NAME).getQueue("UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=150]]");
+//            if(upgradeData150Queue instanceof WritableQueueStateBase queueStateBase) {
+//                queueStateBase.commit();
+//            }
+
+//            final var fileService = state.getWritableStates(FileService.NAME);
+//            if(fileService instanceof CommittableWritableStates committableWritableStates) {
+//                committableWritableStates.commit();
+//            }
+
+//            final var recordCache = state.getWritableStates(RecordCacheService.NAME);
+//            if(recordCache instanceof CommittableWritableStates committableWritableStates) {
+//                committableWritableStates.commit();
+//            }
+
+            final NewStateRoot newStateRoot = (NewStateRoot) state;
+            newStateRoot.commit();
+
             // If there were no user or node transactions in the block, this writes all
             // the accumulated items starting from the header, sacrificing the benefits
             // of concurrency; but performance impact is irrelevant when there are no
