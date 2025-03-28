@@ -284,7 +284,7 @@ public class Browser {
             final PlatformBuilder builder = PlatformBuilder.create(
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
-                    appMain.getSoftwareVersion(),
+                    appMain.getSemanticVersion(),
                     initialState,
                     consensusStateEventHandler,
                     nodeId,

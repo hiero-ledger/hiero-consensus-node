@@ -10,6 +10,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStat
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -44,7 +45,6 @@ import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -71,7 +71,7 @@ public final class PlatformBuilder {
     private static final Logger logger = LogManager.getLogger(PlatformBuilder.class);
 
     private final String appName;
-    private final SoftwareVersion softwareVersion;
+    private final SemanticVersion softwareVersion;
     private final ReservedSignedState initialState;
 
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
@@ -154,7 +154,7 @@ public final class PlatformBuilder {
     public static PlatformBuilder create(
             @NonNull final String appName,
             @NonNull final String swirldName,
-            @NonNull final SoftwareVersion softwareVersion,
+            @NonNull final SemanticVersion softwareVersion,
             @NonNull final ReservedSignedState initialState,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final NodeId selfId,
@@ -190,7 +190,7 @@ public final class PlatformBuilder {
     private PlatformBuilder(
             @NonNull final String appName,
             @NonNull final String swirldName,
-            @NonNull final SoftwareVersion softwareVersion,
+            @NonNull final SemanticVersion softwareVersion,
             @NonNull final ReservedSignedState initialState,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final NodeId selfId,
@@ -442,7 +442,7 @@ public final class PlatformBuilder {
                 currentRoster,
                 selfId,
                 x -> statusActionSubmitterAtomicReference.get().submitStatusAction(x),
-                softwareVersion.getPbjSemanticVersion(),
+                softwareVersion,
                 consensusStateEventHandler,
                 platformStateFacade);
 

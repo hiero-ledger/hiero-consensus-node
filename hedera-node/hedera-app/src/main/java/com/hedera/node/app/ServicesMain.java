@@ -352,7 +352,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final var platformBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
                         Hedera.SWIRLD_NAME,
-                        version,
+                        version.getPbjSemanticVersion(),
                         initialState,
                         consensusStateEventHandler,
                         selfId,
