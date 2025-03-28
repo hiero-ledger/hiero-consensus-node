@@ -184,7 +184,7 @@ public final class IngestChecker {
      * Runs all the ingest checks on a {@link Transaction}
      *
      * @param state the {@link State} to use
-     * @param serializedTransaction the {@link Bytes} of the {@link Transaction} to check
+     * @param serializedTransaction the {@link Transaction} to check
      * @param configuration the {@link Configuration} to use
      * @return the {@link TransactionInfo} with the extracted information
      * @throws PreCheckException if a check fails
@@ -234,7 +234,7 @@ public final class IngestChecker {
         dispatcher.dispatchPureChecks(pureChecksContext);
 
         // 5. Get payer account
-        final var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        final var storeFactory = new ReadableStoreFactory(state);
         final var payer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
         final var payerKey = payer.key();
         // There should, absolutely, be a key for this account. If there isn't, then something is wrong in

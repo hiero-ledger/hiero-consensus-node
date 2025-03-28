@@ -17,6 +17,7 @@ import static com.hedera.node.app.service.token.impl.test.handlers.staking.EndOf
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
@@ -56,9 +57,11 @@ class StakeInfoHelperTest {
     void setup() {
         entityIdStore = new WritableEntityIdStore(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_KEY,
-                new WritableSingletonStateBase<>(ENTITY_ID_STATE_KEY, () -> null, c -> {}),
+                new WritableSingletonStateBase<>(
+                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build(), c -> {}),
                 ENTITY_COUNTS_KEY,
-                new WritableSingletonStateBase<>(ENTITY_COUNTS_KEY, () -> null, c -> {}))));
+                new WritableSingletonStateBase<>(
+                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build(), c -> {}))));
     }
 
     @ParameterizedTest

@@ -43,14 +43,15 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class JumboTransactionsEnabledTest implements LifecycleTest {
 
-    private static String CONTRACT = "CalldataSize";
-    private static String FUNCTION = "callme";
+    private static final String CONTRACT = "CalldataSize";
+    private static final String FUNCTION = "callme";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                uploadInitCode(CONTRACT),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE)
+                cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS), 
+                uploadInitCode(CONTRACT), 
                 contractCreate(CONTRACT));
     }
 
@@ -60,12 +61,17 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     public Stream<DynamicTest> jumboTransactionDisabled() {
 
         final var jumboPayload = new byte[10 * 1024];
-        return hapiTest(ethereumCall(CONTRACT, FUNCTION, jumboPayload)
-                .markAsJumboTxn()
-                .type(EthTxData.EthTransactionType.EIP1559)
-                .gasLimit(1_000_000L)
-                // gRPC request terminated immediately
-                .orUnavailableStatus());
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                ethereumCall(CONTRACT, FUNCTION, jumboPayload)
+                        .payingWith(RELAYER)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .markAsJumboTxn()
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .gasLimit(1_000_000L)
+                        // gRPC request terminated immediately
+                        .orUnavailableStatus());
     }
 
     @HapiTest
@@ -75,6 +81,9 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         final var jumboPayload = new byte[10 * 1024];
         final var tooBigPayload = new byte[130 * 1024 + 1];
         return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+
                 // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),
                 // so we can't toggle it via overriding(). Instead, we need to upgrade to the config version.
                 prepareFakeUpgrade(),
@@ -88,20 +97,21 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
                 // send too big payload to jumbo endpoint
                 ethereumCall(CONTRACT, FUNCTION, tooBigPayload)
+                        .payingWith(RELAYER)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
                         .markAsJumboTxn()
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .gasLimit(1_000_000L)
                         // gRPC request terminated immediately
                         .orUnavailableStatus(),
 
-                // send jumbo payload to jumbo endpoint
-                ethereumCall(CONTRACT, FUNCTION, jumboPayload)
-                        .markAsJumboTxn()
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L)
-                        // Ethereum call should pass
-                        // (TRANSACTION_OVERSIZE will be returned on ingest until we merge the ingest checks)
-                        .hasPrecheckFrom(OK, TRANSACTION_OVERSIZE));
+            // send jumbo payload to jumbo endpoint
+            ethereumCall(CONTRACT, FUNCTION, jumboPayload)
+                .payingWith(RELAYER)
+                .signingWith(SECP_256K1_SOURCE_KEY)
+                .markAsJumboTxn()
+                .type(EthTxData.EthTransactionType.EIP1559)
+                .gasLimit(1_000_000L));
     }
 
     @HapiTest
