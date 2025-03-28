@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
+import com.hedera.hapi.platform.event.EventDescriptor;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -89,7 +91,13 @@ class CommonPcesWriterTest {
     @Test
     void testPrepareOutputStreamCreatesNewFile() throws IOException {
         PlatformEvent mockEvent = mock(PlatformEvent.class);
-        when(mockEvent.getAncientIndicator(any())).thenReturn(150L);
+        when(mockEvent.getDescriptor()).thenReturn(new EventDescriptorWrapper(
+                EventDescriptor
+                        .newBuilder()
+                        .birthRound(150)
+                        .generation(150)
+                        .build()
+        ));
 
         boolean fileClosed = commonPcesWriter.prepareOutputStream(mockEvent);
         assertFalse(fileClosed, "A new file should have been created but not closed.");

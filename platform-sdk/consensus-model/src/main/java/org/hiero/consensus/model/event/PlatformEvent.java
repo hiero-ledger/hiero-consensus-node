@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
-import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndLogIfInterrupted;
-
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.event.EventCore;
@@ -20,11 +17,13 @@ import java.util.concurrent.CountDownLatch;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.crypto.Hashable;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.model.utility.TypedIterator;
+import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 
 /**
  * A class used to hold information about an event throughout its lifecycle.
@@ -443,18 +442,5 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     @Override
     public void setHash(final Hash hash) {
         metadata.setHash(hash);
-    }
-
-    /**
-     * Get the value used to determine if this event is ancient or not. Will be the event's generation prior to
-     * migration, and the event's birth round after migration.
-     *
-     * @return the value used to determine if this event is ancient or not
-     */
-    public long getAncientIndicator(@NonNull final AncientMode ancientMode) {
-        return switch (ancientMode) {
-            case GENERATION_THRESHOLD -> getGeneration();
-            case BIRTH_ROUND_THRESHOLD -> getBirthRound();
-        };
     }
 }

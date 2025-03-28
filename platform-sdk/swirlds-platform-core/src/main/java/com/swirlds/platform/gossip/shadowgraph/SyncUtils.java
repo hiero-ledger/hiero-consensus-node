@@ -464,7 +464,7 @@ public final class SyncUtils {
         final long minimumSearchThreshold =
                 Math.max(myEventWindow.getExpiredThreshold(), theirEventWindow.getAncientThreshold());
         return s ->
-                s.getEvent().getAncientIndicator(ancientMode) >= minimumSearchThreshold && !knownShadows.contains(s);
+                ancientMode.selectIndicator(s.getEvent()) >= minimumSearchThreshold && !knownShadows.contains(s);
     }
 
     /**

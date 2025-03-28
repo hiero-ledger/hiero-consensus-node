@@ -61,13 +61,7 @@ public class DefaultStaleEventDetector implements StaleEventDetector {
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
 
-        final ToLongFunction<EventDescriptorWrapper> getAncientIdentifier;
-        if (ancientMode == BIRTH_ROUND_THRESHOLD) {
-            getAncientIdentifier = ed -> ed.eventDescriptor().birthRound();
-        } else {
-            getAncientIdentifier = ed -> ed.eventDescriptor().generation();
-        }
-        selfEvents = new StandardSequenceMap<>(0, 1024, true, getAncientIdentifier);
+        selfEvents = new StandardSequenceMap<>(0, 1024, true, ancientMode::selectIndicator);
 
         metrics = new StaleEventDetectorMetrics(platformContext);
     }

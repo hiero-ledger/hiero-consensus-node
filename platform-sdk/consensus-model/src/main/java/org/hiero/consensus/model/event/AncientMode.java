@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
+import com.hedera.hapi.platform.event.EventDescriptor;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 
@@ -31,6 +33,39 @@ public enum AncientMode {
         return switch (this) {
             case GENERATION_THRESHOLD -> generationIndicator;
             case BIRTH_ROUND_THRESHOLD -> birthRoundIndicator;
+        };
+    }
+
+    /**
+     * Depending on the ancient mode, select the appropriate indicator.
+     *
+     * @param event the event to use for the selection
+     * @return the selected indicator
+     */
+    public long selectIndicator(@NonNull final PlatformEvent event) {
+        return selectIndicator(event.getDescriptor());
+    }
+
+    /**
+     * Depending on the ancient mode, select the appropriate indicator.
+     *
+     * @param eventDescriptor the event descriptor to use for the selection
+     * @return the selected indicator
+     */
+    public long selectIndicator(@NonNull final EventDescriptorWrapper eventDescriptor) {
+        return selectIndicator(eventDescriptor.eventDescriptor());
+    }
+
+    /**
+     * Depending on the ancient mode, select the appropriate indicator.
+     *
+     * @param eventDescriptor the event descriptor to use for the selection
+     * @return the selected indicator
+     */
+    public long selectIndicator(@NonNull final EventDescriptor eventDescriptor) {
+        return switch (this) {
+            case GENERATION_THRESHOLD -> eventDescriptor.generation();
+            case BIRTH_ROUND_THRESHOLD -> eventDescriptor.birthRound();
         };
     }
 
