@@ -149,7 +149,11 @@ class StatsSigningTestingToolStateTest {
         final var bytes = signedTransaction ? getSignedApplicationTransaction() : getUnsignedApplicationTransaction();
 
         final var eventCore = mock(EventCore.class);
-        final var gossipEvent = new GossipEvent(eventCore, null, List.of(bytes));
+        final var gossipEvent = GossipEvent.newBuilder()
+                .eventCore(eventCore)
+                .transactions(bytes)
+                .build();
+
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         event = new PlatformEvent(gossipEvent);
 
@@ -167,7 +171,10 @@ class StatsSigningTestingToolStateTest {
 
         final var stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
         final var eventCore = mock(EventCore.class);
-        final var gossipEvent = new GossipEvent(eventCore, null, List.of(stateSignatureTransactionBytes));
+        final var gossipEvent = GossipEvent.newBuilder()
+                .eventCore(eventCore)
+                .transactions(stateSignatureTransactionBytes)
+                .build();
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         event = new PlatformEvent(gossipEvent);
 
@@ -186,13 +193,11 @@ class StatsSigningTestingToolStateTest {
         final var stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
 
         final var eventCore = mock(EventCore.class);
-        final var gossipEvent = new GossipEvent(
-                eventCore,
-                null,
-                List.of(
-                        stateSignatureTransactionBytes,
-                        stateSignatureTransactionBytes,
-                        stateSignatureTransactionBytes));
+        final var gossipEvent = GossipEvent.newBuilder()
+                .eventCore(eventCore)
+                .transactions(List.of(
+                        stateSignatureTransactionBytes, stateSignatureTransactionBytes, stateSignatureTransactionBytes))
+                .build();
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         event = new PlatformEvent(gossipEvent);
 
@@ -211,7 +216,10 @@ class StatsSigningTestingToolStateTest {
         final var stateSignatureTransactionBytes =
                 StateSignatureTransaction.PROTOBUF.toBytes(stateSignatureTransaction);
         final var eventCore = mock(EventCore.class);
-        final var gossipEvent = new GossipEvent(eventCore, null, List.of(stateSignatureTransactionBytes));
+        final var gossipEvent = GossipEvent.newBuilder()
+                .eventCore(eventCore)
+                .transactions(stateSignatureTransactionBytes)
+                .build();
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         event = new PlatformEvent(gossipEvent);
 

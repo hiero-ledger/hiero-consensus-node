@@ -106,9 +106,13 @@ public class PcesWriterTestUtils {
 
         // Verify that the events were written correctly
         final PcesMultiFileIterator eventsIterator = pcesFiles.getEventIterator(0, 0);
+        int index = 0;
         for (final PlatformEvent event : events) {
-            assertTrue(eventsIterator.hasNext());
+            assertTrue(
+                    eventsIterator.hasNext(),
+                    "Event with index %d was not found, %d events are expected".formatted(index, events.size()));
             assertEquals(event, eventsIterator.next());
+            index++;
         }
         assertFalse(eventsIterator.hasNext(), "There should be no more events");
         assertEquals(truncatedFileCount, eventsIterator.getTruncatedFileCount());

@@ -70,8 +70,10 @@ message EventCore {
    * The list of parents SHALL include zero or one self parents, and zero or more other parents.<br/>
    * The first element of the list SHALL be the self parent, if one exists.<br/>
    * The list of parents SHALL NOT include more than one parent from the same creator.
+   * <p>
+   * This field is deprecated and can be removed in release 0.62
    */
-  repeated EventDescriptor parents = 4;
+  repeated EventDescriptor parents = 4 [deprecated = true];
 
   /**
    * The event specification version.<br/>

@@ -24,6 +24,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
+import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -91,7 +92,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -99,6 +102,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -287,10 +292,7 @@ public class HandleWorkflow {
         boolean userTransactionsHandled = false;
         for (final var event : round) {
             if (streamMode != RECORDS) {
-                final var headerItem = BlockItem.newBuilder()
-                        .eventHeader(new EventHeader(event.getEventCore(), event.getSignature()))
-                        .build();
-                blockStreamManager.writeItem(headerItem);
+                writeEventHeader(event);
             }
             final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
             if (creator == null) {
@@ -349,6 +351,42 @@ public class HandleWorkflow {
         if (userTransactionsHandled && streamMode != BLOCKS) {
             blockRecordManager.endRound(state);
         }
+    }
+
+    /**
+     * Writes an event header to the block stream. The event header contains:
+     * 1. The event core data
+     * 2. References to parent events (either as event descriptors or indices)
+     * 3. A boolean, which if true, the middle bit of the event's signature is set.
+     * <p>
+     * The method first tracks the event hash in the block stream manager, then builds a list of parent
+     * event references. For each parent event, it either:
+     * - Uses the full event descriptor if the parent is not in the current block
+     * - Uses an index reference if the parent is in the current block
+     *
+     * @param event the consensus event to write the header for
+     */
+    private void writeEventHeader(ConsensusEvent event) {
+        blockStreamManager.trackEventHash(event.getHash());
+        List<ParentEventReference> parents = new ArrayList<>();
+        final Iterator<EventDescriptorWrapper> iterator = event.allParentsIterator();
+        while (iterator.hasNext()) {
+            final EventDescriptorWrapper parent = iterator.next();
+            Optional<Integer> parentHash = blockStreamManager.getEventIndex(parent.hash());
+            if (parentHash.isEmpty()) {
+                parents.add(ParentEventReference.newBuilder()
+                        .eventDescriptor(parent.eventDescriptor())
+                        .build());
+            } else {
+                parents.add(ParentEventReference.newBuilder()
+                        .index(parentHash.get())
+                        .build());
+            }
+        }
+        final BlockItem headerItem = BlockItem.newBuilder()
+                .eventHeader(new EventHeader(event.getEventCore(), parents, isMiddleBitSet(event.getSignature())))
+                .build();
+        blockStreamManager.writeItem(headerItem);
     }
 
     /**
@@ -901,5 +939,17 @@ public class HandleWorkflow {
                 .<BlockInfo>getSingleton(BLOCK_INFO_STATE_KEY)
                 .get();
         return !requireNonNull(blockInfo).migrationRecordsStreamed() ? POST_UPGRADE_TRANSACTION : ORDINARY_TRANSACTION;
+    }
+
+    /**
+     * Checks if the middle bit of the signature is set.
+     * The middle bit is determined by checking the LSB of the second of two middle bytes in the signature.
+     *
+     * @param signature the signature to check
+     * @return true if the middle bit is set, false otherwise
+     */
+    private static boolean isMiddleBitSet(@NonNull final Bytes signature) {
+        final int sigLen = (int) signature.length();
+        return ((signature.getByte((sigLen / 2)) & 1) == 1);
     }
 }
