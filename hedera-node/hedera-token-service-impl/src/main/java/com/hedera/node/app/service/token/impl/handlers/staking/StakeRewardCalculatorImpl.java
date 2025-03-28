@@ -12,15 +12,12 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * This class manages calculations of staking rewards.
  */
 @Singleton
 public class StakeRewardCalculatorImpl implements StakeRewardCalculator {
-    private static final Logger logger = LogManager.getLogger(StakeRewardCalculatorImpl.class);
 
     private final StakePeriodManager stakePeriodManager;
 
