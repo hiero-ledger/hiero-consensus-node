@@ -15,9 +15,9 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.WritableRosterStore;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StartupNetworks;
@@ -25,6 +25,7 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableStates;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +48,6 @@ class V0540RosterSchemaTest {
     private static final Roster ROSTER = new Roster(NETWORK.nodeMetadata().stream()
             .map(NodeMetadata::rosterEntryOrThrow)
             .toList());
-    private static final AddressBook ADDRESS_BOOK = new AddressBook(List.of());
 
     @Mock
     private MigrationContext ctx;
@@ -65,7 +65,7 @@ class V0540RosterSchemaTest {
     private Function<WritableStates, WritableRosterStore> rosterStoreFactory;
 
     @Mock
-    private Runnable onAdopt;
+    private BiConsumer<Roster, Bytes> onAdopt;
 
     @Mock
     private Predicate<Roster> canAdopt;

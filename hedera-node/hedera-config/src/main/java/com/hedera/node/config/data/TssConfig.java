@@ -8,7 +8,7 @@ import com.swirlds.config.api.ConfigProperty;
 import java.time.Duration;
 
 /**
- *
+ * @param forceHandoffs adopt the next TSS constructions even if the new roster is an override with unexpected hash
  */
 @ConfigData("tss")
 public record TssConfig(
@@ -21,4 +21,5 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "data/keys/tss") @NodeProperty String tssKeysPath,
         @ConfigProperty(defaultValue = "1024") @NetworkProperty int initialCrsParties,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean hintsEnabled,
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean historyEnabled) {}
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean historyEnabled,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean forceHandoffs) {}

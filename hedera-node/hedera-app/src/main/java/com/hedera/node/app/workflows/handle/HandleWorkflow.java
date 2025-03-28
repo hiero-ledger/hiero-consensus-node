@@ -33,6 +33,7 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
@@ -81,7 +82,6 @@ import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -94,7 +94,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -139,8 +138,8 @@ public class HandleWorkflow {
     private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final ScheduleService scheduleService;
     private final CongestionMetrics congestionMetrics;
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
     private final CurrentPlatformStatus currentPlatformStatus;
+    private final BlockHashSigner blockHashSigner;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -177,8 +176,8 @@ public class HandleWorkflow {
             @NonNull final HintsService hintsService,
             @NonNull final HistoryService historyService,
             @NonNull final CongestionMetrics congestionMetrics,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
+            @NonNull final BlockHashSigner blockHashSigner,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
@@ -209,8 +208,8 @@ public class HandleWorkflow {
                 .streamMode();
         this.hintsService = requireNonNull(hintsService);
         this.historyService = requireNonNull(historyService);
-        this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus);
+        this.blockHashSigner = requireNonNull(blockHashSigner);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
     }
 
@@ -260,8 +259,6 @@ public class HandleWorkflow {
             requireNonNull(systemEntitiesCreatedFlag).set(true);
         }
 
-        reconcileTssState(
-                configProvider.getConfiguration().getConfigData(TssConfig.class), state, round.getConsensusTimestamp());
         recordCache.resetRoundReceipts();
         try {
             handleEvents(state, round, stateSignatureTxnCallback);
@@ -269,6 +266,12 @@ public class HandleWorkflow {
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
             recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
+        }
+        try {
+            reconcileTssState(
+                    state, boundaryStateChangeListener.lastConsensusTimeOrThrow(), round.getConsensusTimestamp());
+        } catch (Exception e) {
+            logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
         }
     }
 
@@ -839,28 +842,43 @@ public class HandleWorkflow {
     }
 
     /**
-     * Reconciles the state of the TSS system with the active rosters in the given state at the current time.
+     * Reconciles the state of the TSS system with the active rosters in the given state at the given timestamps.
+     * Notice that when TSS is enabled but the signer is not yet ready, <b>only</b> the round timestamp advances,
+     * since we don't create block boundaries until we can sign them.
      *
-     * @param tssConfig the TSS configuration
      * @param state the state to use when reconciling the TSS system state with the active rosters
-     * @param now the current consensus time
+     * @param boundaryTimestamp the current boundary state changes timestamp
+     * @param roundTimestamp the current round timestamp
      */
     private void reconcileTssState(
-            @NonNull final TssConfig tssConfig, @NonNull final State state, @NonNull final Instant now) {
+            @NonNull final State state,
+            @NonNull final Instant boundaryTimestamp,
+            @NonNull final Instant roundTimestamp) {
+        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var activeRosters = ActiveRosters.from(rosterStore);
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
-                final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
-                final var hintsStore = new WritableHintsStoreImpl(hintsWritableStates);
+                final var crsWritableStates = state.getWritableStates(HintsService.NAME);
+                final var crsWorkTime = blockHashSigner.isReady() ? boundaryTimestamp : roundTimestamp;
                 doStreamingKVChanges(
-                        hintsWritableStates, null, now, () -> hintsService.executeCrsWork(hintsStore, now, isActive));
+                        crsWritableStates,
+                        null,
+                        crsWorkTime,
+                        () -> hintsService.executeCrsWork(
+                                new WritableHintsStoreImpl(crsWritableStates), crsWorkTime, isActive));
+                final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 doStreamingKVChanges(
                         hintsWritableStates,
                         null,
-                        now,
-                        () -> hintsService.reconcile(activeRosters, hintsStore, now, tssConfig, isActive));
+                        boundaryTimestamp,
+                        () -> hintsService.reconcile(
+                                activeRosters,
+                                new WritableHintsStoreImpl(hintsWritableStates),
+                                boundaryTimestamp,
+                                tssConfig,
+                                isActive));
             }
             if (tssConfig.historyEnabled()) {
                 final Bytes currentMetadata = tssConfig.hintsEnabled()
@@ -872,9 +890,9 @@ public class HandleWorkflow {
                 doStreamingKVChanges(
                         historyWritableStates,
                         null,
-                        now,
+                        boundaryTimestamp,
                         () -> historyService.reconcile(
-                                activeRosters, currentMetadata, historyStore, now, tssConfig, isActive));
+                                activeRosters, currentMetadata, historyStore, boundaryTimestamp, tssConfig, isActive));
             }
         }
     }

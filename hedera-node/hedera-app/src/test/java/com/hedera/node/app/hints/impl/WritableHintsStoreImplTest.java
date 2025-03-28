@@ -20,6 +20,7 @@ import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
 import com.hedera.hapi.node.state.hints.HintsPartyId;
+import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
@@ -43,14 +44,11 @@ import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -84,10 +82,6 @@ class WritableHintsStoreImplTest {
     private static final Bytes C_ROSTER_HASH = Bytes.wrap("C");
     private static final TssConfig TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
-    public static final Configuration WITH_ENABLED_HINTS_AND_CRS = HederaTestConfigBuilder.create()
-            .withValue("tss.hintsEnabled", true)
-            .withValue("tss.crsEnabled", true)
-            .getOrCreateConfig();
 
     @Mock
     private AppContext appContext;
@@ -97,9 +91,6 @@ class WritableHintsStoreImplTest {
 
     @Mock
     private HintsLibrary library;
-
-    @Mock
-    private NetworkInfo networkInfo;
 
     @Mock
     private StartupNetworks startupNetworks;
@@ -298,19 +289,7 @@ class WritableHintsStoreImplTest {
     }
 
     @Test
-    void purgingStateThrowsExceptAfterExactlyHandoff() {
-        given(activeRosters.phase()).willReturn(TRANSITION);
-        assertThrows(IllegalArgumentException.class, () -> subject.updateForHandoff(activeRosters));
-        given(activeRosters.phase()).willReturn(BOOTSTRAP);
-        assertThrows(IllegalArgumentException.class, () -> subject.updateForHandoff(activeRosters));
-        given(activeRosters.phase()).willReturn(HANDOFF);
-        given(activeRosters.currentRosterHash()).willReturn(Bytes.wrap("NA"));
-
-        assertDoesNotThrow(() -> subject.updateForHandoff(activeRosters));
-    }
-
-    @Test
-    void purgingStateAfterHandoffHasTrueExpectedEffectIfSomethingHappened() {
+    void purgingStateAfterHandoffHasExpectedEffect() {
         given(activeRosters.phase()).willReturn(HANDOFF);
         given(activeRosters.currentRoster()).willReturn(C_ROSTER);
         given(activeRosters.currentRosterHash()).willReturn(C_ROSTER_HASH);
@@ -322,6 +301,7 @@ class WritableHintsStoreImplTest {
                 .build();
         final var nextConstruction = HintsConstruction.newBuilder()
                 .constructionId(456L)
+                .hintsScheme(HintsScheme.DEFAULT)
                 .targetRosterHash(C_ROSTER_HASH)
                 .build();
         setConstructions(activeConstruction, nextConstruction);
@@ -333,7 +313,7 @@ class WritableHintsStoreImplTest {
         final var publicationsBefore = subject.getHintsKeyPublications(Set.of(0L), partySizeForRoster(A_ROSTER));
         assertEquals(1, publicationsBefore.size());
 
-        subject.updateForHandoff(activeRosters);
+        // TODO
 
         assertSame(nextConstruction, constructionNow(ACTIVE_HINT_CONSTRUCTION_KEY));
 

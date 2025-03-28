@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
+import com.hedera.node.internal.network.PendingProof;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -53,7 +54,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void closeBlock() {
+    public void closeCompleteBlock() {
         if (currentBlock == null) {
             throw new IllegalStateException("Received close block before opening block");
         }
@@ -74,5 +75,10 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
             // Clean up the block state after streaming
             blockStates.remove(blockNumber);
         }
+    }
+
+    @Override
+    public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
+        // No-op for now
     }
 }

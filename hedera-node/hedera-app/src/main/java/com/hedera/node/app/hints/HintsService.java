@@ -70,9 +70,24 @@ public interface HintsService extends Service, BlockHashSigner {
     Bytes activeVerificationKeyOrThrow();
 
     /**
-     * Initializes hinTS signing from the next construction in the given {@link ReadableHintsStore}.
+     * Sets the current roster for the network.
+     * @param roster the roster
      */
-    void initSigningForNextScheme(@NonNull ReadableHintsStore hintsStore);
+    void initCurrentRoster(@NonNull Roster roster);
+
+    /**
+     * Initializes hinTS signing from the next construction in the given {@link WritableHintsStore}.
+     *
+     * @param hintsStore the hints store
+     * @param previousRoster the previous roster
+     * @param adoptedRosterHash the adopted roster hash
+     * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
+     */
+    void manageRosterAdoption(
+            @NonNull WritableHintsStore hintsStore,
+            @NonNull Roster previousRoster,
+            @NonNull Bytes adoptedRosterHash,
+            boolean forceHandoff);
 
     /**
      * Takes any actions needed to advance the state of the {@link HintsService} toward

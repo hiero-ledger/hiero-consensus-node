@@ -178,11 +178,11 @@ public class HintsControllerImpl implements HintsController {
         if (hintsStore.getCrsState().stage() != COMPLETED || construction.hasHintsScheme()) {
             return;
         }
-        if (construction.hasPreprocessingStartTime() && isActive) {
-            final var crs = hintsStore.getCrsState().crs();
-            if (!votes.containsKey(selfId) && preprocessingVoteFuture == null) {
-                preprocessingVoteFuture =
-                        startPreprocessingVoteFuture(asInstant(construction.preprocessingStartTimeOrThrow()), crs);
+        if (construction.hasPreprocessingStartTime()) {
+            if (isActive && !votes.containsKey(selfId) && preprocessingVoteFuture == null) {
+                preprocessingVoteFuture = startPreprocessingVoteFuture(
+                        asInstant(construction.preprocessingStartTimeOrThrow()),
+                        hintsStore.getCrsState().crs());
             }
         } else {
             final var crs = hintsStore.getCrsState().crs();
@@ -439,7 +439,8 @@ public class HintsControllerImpl implements HintsController {
                     .findFirst();
             maybeWinningOutputs.ifPresent(keys -> {
                 construction = hintsStore.setHintsScheme(construction.constructionId(), keys, nodePartyIds);
-                log.info("Completed hinTS Scheme for construction #{}", construction.constructionId());
+                // WARNING - DabEnabledUpgradeTest scans for this exact log
+                log.info("Completed hinTS scheme for construction #{}", construction.constructionId());
                 // If this just completed the active construction, update the signing context
                 if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
                     context.setConstruction(construction);

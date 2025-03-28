@@ -9,9 +9,11 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.roster.schemas.RosterTransplantSchema;
 import com.hedera.node.app.roster.schemas.V0540RosterSchema;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.assertj.core.api.Assertions;
@@ -31,7 +33,7 @@ class RosterServiceTest {
     private Supplier<State> stateSupplier;
 
     @Mock
-    private Runnable onAdopt;
+    private BiConsumer<Roster, Bytes> onAdopt;
 
     private RosterService rosterService;
 

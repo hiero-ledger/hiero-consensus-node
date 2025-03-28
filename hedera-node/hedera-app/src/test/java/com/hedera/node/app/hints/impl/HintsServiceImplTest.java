@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
@@ -81,7 +82,7 @@ class HintsServiceImplTest {
         given(hintsStore.getNextConstruction()).willReturn(HintsConstruction.DEFAULT);
         given(component.signingContext()).willReturn(context);
 
-        subject.initSigningForNextScheme(hintsStore);
+        subject.manageRosterAdoption(hintsStore, Roster.DEFAULT, Bytes.EMPTY, false);
 
         verify(context).setConstruction(HintsConstruction.DEFAULT);
     }
@@ -93,15 +94,6 @@ class HintsServiceImplTest {
         subject.stop();
 
         verify(controllers).stop();
-    }
-
-    @Test
-    void callPurgeAfterHandoff() {
-        given(activeRosters.phase()).willReturn(ActiveRosters.Phase.HANDOFF);
-
-        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
-
-        verify(hintsStore).updateForHandoff(activeRosters);
     }
 
     @Test

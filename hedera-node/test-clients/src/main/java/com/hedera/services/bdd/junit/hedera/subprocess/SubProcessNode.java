@@ -246,17 +246,22 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
         metadata = metadata.withNewAccountId(accountId);
     }
 
-    private boolean swirldsLogContains(@NonNull final String text) {
-        try (var lines = Files.lines(getExternalPath(SWIRLDS_LOG))) {
-            return lines.anyMatch(line -> line.contains(text));
+    /**
+     * Returns the number of lines in the application log that contain the given text.
+     * @param text the text to search for
+     * @return the number of lines that contain the text
+     */
+    public int numApplicationLogLinesWith(@NonNull final String text) {
+        try (var lines = Files.lines(getExternalPath(APPLICATION_LOG))) {
+            return (int) lines.filter(line -> line.contains(text)).count();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    private int numApplicationLogLinesWith(@NonNull final String text) {
-        try (var lines = Files.lines(getExternalPath(APPLICATION_LOG))) {
-            return (int) lines.filter(line -> line.contains(text)).count();
+    private boolean swirldsLogContains(@NonNull final String text) {
+        try (var lines = Files.lines(getExternalPath(SWIRLDS_LOG))) {
+            return lines.anyMatch(line -> line.contains(text));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
