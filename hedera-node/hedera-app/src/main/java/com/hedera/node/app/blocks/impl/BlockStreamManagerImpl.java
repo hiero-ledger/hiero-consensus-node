@@ -94,6 +94,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
+    private final boolean streamToBlockNodes;
 
     // The status of pending work
     private PendingWork pendingWork = NONE;
@@ -183,6 +184,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
         this.blockPeriod = blockStreamConfig.blockPeriod();
         this.hashCombineBatchSize = blockStreamConfig.hashCombineBatchSize();
+        this.streamToBlockNodes = blockStreamConfig.streamToBlockNodes();
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
@@ -366,6 +368,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     writer,
                     new MerkleSiblingHash(false, inputHash),
                     new MerkleSiblingHash(false, rightParent)));
+
+            if (streamToBlockNodes) {
+                // Perform any pre-block proof actions
+                writer.performPreBlockProofActions();
+            }
+
             // Update in-memory state to prepare for the next block
             lastBlockHash = blockHash;
             writer = null;

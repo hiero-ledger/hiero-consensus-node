@@ -3,10 +3,8 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
@@ -14,13 +12,11 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
-import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.VersionedConfigImpl;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,22 +35,20 @@ class BlockNodeConnectionManagerTest {
     private LogCaptor logCaptor;
 
     @Mock
-    ConfigProvider mockConfigProvider;
+    private Supplier<Void> mockSupplier;
 
     @Mock
-    private Supplier<Void> mockSupplier;
+    BlockNodeConfigExtractorImpl blockNodeConfigExtractorImpl;
 
     @Mock
     BlockNodeConnection mockConnection;
 
+    @Mock
+    BlockStreamStateManager mockStateManager;
+
     @BeforeEach
     public void setUp() {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("blockStream.writerMode", "FILE_AND_GRPC")
-                .withValue("blockStream.blockNodeConnectionFileDir", "./src/test/resources/bootstrap")
-                .getOrCreateConfig();
-        given(mockConfigProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        blockNodeConnectionManager = new BlockNodeConnectionManager(mockConfigProvider);
+        blockNodeConnectionManager = new BlockNodeConnectionManager(blockNodeConfigExtractorImpl, mockStateManager);
     }
 
     @Test
@@ -89,16 +83,16 @@ class BlockNodeConnectionManagerTest {
 
     @Test
     void testScheduleReconnect() throws InterruptedException {
-        // Configure mock connection to return a non-null node config
-        when(mockConnection.getNodeConfig()).thenReturn(BlockNodeConfig.DEFAULT);
+        when(mockConnection.getNodeConfig()).thenReturn(new BlockNodeConfig("localhost", 8080));
+        when(mockConnection.getIsActiveLock()).thenReturn(new ReentrantLock());
 
         blockNodeConnectionManager.scheduleReconnect(mockConnection);
+        verify(mockConnection, times(0)).establishStream();
 
-        verifyNoInteractions(mockConnection); // there should be no immediate attempt to establish a stream
+        final var initialDelay = BlockNodeConnectionManager.INITIAL_RETRY_DELAY;
+        Thread.sleep(initialDelay.plusMillis(100));
 
-        Thread.sleep(BlockNodeConnectionManager.INITIAL_RETRY_DELAY.plusMillis(100));
-
-        assertThat(logCaptor.infoLogs()).containsAnyElementsOf(generateExpectedRetryLogs(Duration.ofSeconds(1L)));
+        assertThat(logCaptor.infoLogs()).containsAnyElementsOf(generateExpectedRetryLogs(initialDelay));
         verify(mockConnection, times(1)).establishStream();
     }
 
