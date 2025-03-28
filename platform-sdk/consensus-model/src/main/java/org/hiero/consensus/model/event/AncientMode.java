@@ -26,20 +26,6 @@ public enum AncientMode {
     /**
      * Depending on the ancient mode, select the appropriate indicator.
      *
-     * @param generationIndicator the indicator to use if in generation mode
-     * @param birthRoundIndicator the indicator to use if in birth round mode
-     * @return the selected indicator
-     */
-    public long selectIndicator(final long generationIndicator, final long birthRoundIndicator) {
-        return switch (this) {
-            case GENERATION_THRESHOLD -> generationIndicator;
-            case BIRTH_ROUND_THRESHOLD -> birthRoundIndicator;
-        };
-    }
-
-    /**
-     * Depending on the ancient mode, select the appropriate indicator.
-     *
      * @param event the event to use for the selection
      * @return the selected indicator
      */
