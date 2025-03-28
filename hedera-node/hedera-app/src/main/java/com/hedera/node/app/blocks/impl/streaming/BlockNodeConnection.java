@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.blockNodeName;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
 import com.hedera.hapi.block.protoc.PublishStreamRequest;
 import com.hedera.hapi.block.protoc.PublishStreamResponse;
+import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
@@ -25,7 +27,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-    private final BlockNodeConfig node;
+    private final BlockNodeConfig nodeConf;
     private ManagedChannel channel;
     private final BlockNodeConnectionManager manager;
     private StreamObserver<PublishStreamRequest> requestObserver;
@@ -33,44 +35,110 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private final Object isActiveLock = new Object();
     private volatile boolean isActive = false;
 
+    /**
+     * Construct a new BlockNodeConnection.
+     *
+     * @param nodeConfig the configuration for the block node
+     * @param manager the connection manager for block node connections
+     */
     public BlockNodeConnection(BlockNodeConfig nodeConfig, BlockNodeConnectionManager manager) {
-        this.node = nodeConfig;
-        this.manager = manager;
+        this.nodeConf = requireNonNull(nodeConfig, "nodeConfig must not be null");
+        this.manager = requireNonNull(manager, "manager must not be null");
+
+        logger.info("BlockNodeConnection INITIALIZED");
     }
 
-    public Void establishStream() {
-        this.channel = ManagedChannelBuilder.forAddress(node.address(), node.port())
+    public void establishStream() {
+        if (requestObserver != null) {
+            logger.info("Stream is already established for block node {}", blockNodeName(nodeConf));
+            return;
+        }
+
+        this.channel = ManagedChannelBuilder.forAddress(nodeConf.address(), nodeConf.port())
                 .usePlaintext() // 🔥🔥 For development only! change to use TLS in production 🔥🔥
                 .build();
         BlockStreamServiceGrpc.BlockStreamServiceStub stub = BlockStreamServiceGrpc.newStub(channel);
-        synchronized (isActiveLock) {
-            requestObserver = stub.publishBlockStream(this);
-            isActive = true;
+        if (stub != null) {
+            synchronized (isActiveLock) {
+                requestObserver = stub.publishBlockStream(this);
+                isActive = true;
+                logger.info("BlockNodeConnection {} INITIALIZED", blockNodeName(nodeConf));
+            }
+        } else {
+            logger.warn("Failed to create stub for block node {}", blockNodeName(nodeConf));
         }
-        return null;
     }
 
     private void handleAcknowledgement(PublishStreamResponse.Acknowledgement acknowledgement) {
         if (acknowledgement.hasBlockAck()) {
             logger.info(
-                    "Block acknowledgment received for a full block: {}",
+                    "Block acknowledgement received for block {}",
                     acknowledgement.getBlockAck().getBlockNumber());
+            manager.handleBlockAck(this, acknowledgement.getBlockAck());
+        } else if (logger.isWarnEnabled()) {
+            logger.warn("Acknowledgement of unknown type received: {}", acknowledgement);
         }
     }
 
-    private void handleStreamFailure() {
+    private void handleStreamFailure(Throwable t) {
         synchronized (isActiveLock) {
             isActive = false;
-            removeFromActiveConnections(node);
         }
+
+        final Status status = Status.fromThrowable(t);
+        logger.error("Error in block stream to node {}: ({})", blockNodeName(getNodeConfig()), status, t);
+
+        manager.handleConnectionError(this, t);
+    }
+
+    @Override
+    public void onNext(PublishStreamResponse response) {
+        if (response.hasAcknowledgement()) {
+            handleAcknowledgement(response.getAcknowledgement());
+        } else if (response.hasEndStream()) {
+            handleEndOfStream(response.getEndStream());
+        } else if (response.hasSkipBlock()) {
+            logger.info(
+                    "Received SkipBlock from Block Node {}  Block #{}",
+                    blockNodeName(nodeConf),
+                    response.getSkipBlock().getBlockNumber());
+        } else if (response.hasResendBlock()) {
+            logger.info(
+                    "Received ResendBlock from Block Node {}  Block #{}",
+                    blockNodeName(nodeConf),
+                    response.getResendBlock().getBlockNumber());
+        }
+    }
+
+    @Override
+    public void onError(Throwable throwable) {
+        handleStreamFailure(throwable);
+    }
+
+    @Override
+    public void onCompleted() {
+        handleGracefulClose();
     }
 
     private void handleEndOfStream(PublishStreamResponse.EndOfStream endOfStream) {
-        logger.info("Error returned from block node at block number {}: {}", endOfStream.getBlockNumber(), endOfStream);
+        isActive = false;
+        logger.info(
+                "Received end of stream status {} for block number {}",
+                endOfStream.getStatus(),
+                endOfStream.getBlockNumber());
+
+        if (!endOfStream.getStatus().equals(PublishStreamResponseCode.STREAM_ITEMS_SUCCESS)) {
+            manager.handleStreamError(this, endOfStream);
+        } else {
+            manager.handleEndOfStreamSuccess(this, endOfStream.getBlockNumber());
+        }
     }
 
-    private void removeFromActiveConnections(BlockNodeConfig node) {
-        manager.handleConnectionError(node);
+    private void handleGracefulClose() {
+        isActive = false;
+        logger.info("Received end of stream for block node {}", blockNodeName(nodeConf));
+
+        manager.handleEndOfStreamSuccess(this);
     }
 
     /**
@@ -83,16 +151,15 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         synchronized (isActiveLock) {
             if (isActive) {
                 requestObserver.onNext(request);
+            } else {
+                logger.error("Cannot send request to block node {}: connection is not active", blockNodeName(nodeConf));
+                throw new IllegalStateException("Connection is not active for node " + blockNodeName(nodeConf));
             }
         }
     }
 
-    private void scheduleReconnect() {
-        manager.scheduleReconnect(this);
-    }
-
     /**
-     * If connection is active it closes it, otherwise does nothing.
+     * Idempotent operation that closes this connection (if active)
      */
     public void close() {
         synchronized (isActiveLock) {
@@ -125,47 +192,11 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     }
 
     /**
-     * Returns the block node configuration this connection.
+     * Returns the block node configuration for this connection.
      *
      * @return the block node configuration
      */
     public BlockNodeConfig getNodeConfig() {
-        return node;
-    }
-
-    @Override
-    public void onNext(PublishStreamResponse response) {
-        if (response.hasAcknowledgement()) {
-            handleAcknowledgement(response.getAcknowledgement());
-        } else if (response.hasEndStream()) {
-            handleEndOfStream(response.getEndStream());
-        } else if (response.hasSkipBlock()) {
-            logger.info(
-                    "Received SkipBlock from Block Node {}:{}  Block #{}",
-                    node.address(),
-                    node.port(),
-                    response.getSkipBlock().getBlockNumber());
-        } else if (response.hasResendBlock()) {
-            logger.info(
-                    "Received ResendBlock from Block Node {}:{}  Block #{}",
-                    node.address(),
-                    node.port(),
-                    response.getResendBlock().getBlockNumber());
-        }
-    }
-
-    @Override
-    public void onError(Throwable throwable) {
-        Status status = Status.fromThrowable(throwable);
-        logger.error(
-                "Error in block node stream {}:{}: {} {}", node.address(), node.port(), status, throwable.getMessage());
-        handleStreamFailure();
-        scheduleReconnect();
-    }
-
-    @Override
-    public void onCompleted() {
-        logger.info("Stream completed for block node {}:{}", node.address(), node.port());
-        handleStreamFailure();
+        return nodeConf;
     }
 }

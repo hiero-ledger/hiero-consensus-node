@@ -2,11 +2,14 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -63,7 +66,6 @@ class BlockNodeConnectionTest {
     NettyChannelBuilder nettyChannelBuilder;
 
     private ManagedChannel channel;
-    private io.grpc.ClientCall clientCall;
 
     // Keep static mocks as class fields
     private MockedStatic<ManagedChannelBuilder> mockedChannel;
@@ -71,7 +73,6 @@ class BlockNodeConnectionTest {
 
     @BeforeEach
     public void setUp() throws InterruptedException {
-        // Basic setup that's needed for all tests
         lenient().when(nodeConfig.address()).thenReturn("localhost");
         lenient().when(nodeConfig.port()).thenReturn(12345);
 
@@ -97,13 +98,6 @@ class BlockNodeConnectionTest {
         blockNodeConnection = new BlockNodeConnection(nodeConfig, blockNodeConnectionManager);
     }
 
-    private void setupGrpcMocks() {
-        // Setup for tests that need gRPC functionality
-        mockedGrpc.when(() -> BlockStreamServiceGrpc.newStub(channel)).thenReturn(grpcStub);
-
-        when(grpcStub.publishBlockStream(any())).thenReturn(requestObserver);
-    }
-
     @AfterEach
     void tearDown() {
         if (mockedChannel != null) {
@@ -116,8 +110,13 @@ class BlockNodeConnectionTest {
 
     @Test
     void testNewBlockNodeConnection() {
+        setupGrpcMocks();
+
         assertEquals(nodeConfig, blockNodeConnection.getNodeConfig());
         assertFalse(blockNodeConnection.isActive());
+        blockNodeConnection.establishStream();
+        assertTrue(blockNodeConnection.isActive());
+        assertThat(logCaptor.infoLogs()).contains("BlockNodeConnection localhost:12345 INITIALIZED");
     }
 
     @Test
@@ -143,7 +142,10 @@ class BlockNodeConnectionTest {
     @Test
     void testSendRequest_NotActiveConnection() {
         assertFalse(blockNodeConnection.isActive());
-        blockNodeConnection.sendRequest(PublishStreamRequest.getDefaultInstance());
+
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> blockNodeConnection.sendRequest(PublishStreamRequest.getDefaultInstance()));
+
         verifyNoInteractions(requestObserver);
     }
 
@@ -183,9 +185,9 @@ class BlockNodeConnectionTest {
         final var responseObserver = captor.getValue();
         assertNotNull(responseObserver);
 
-        responseObserver.onNext(response);
+        blockNodeConnection.onNext(response);
 
-        assertThat(logCaptor.infoLogs()).contains("Block acknowledgment received for a full block: 1234");
+        assertThat(logCaptor.infoLogs()).contains("Block acknowledgement received for block 1234");
     }
 
     @Test
@@ -207,8 +209,7 @@ class BlockNodeConnectionTest {
         capturedObserver.onNext(response);
 
         assertThat(logCaptor.infoLogs())
-                .contains(
-                        "Error returned from block node at block number 1234: status: STREAM_ITEMS_TIMEOUT\nblock_number: 1234");
+                .contains("Received end of stream status STREAM_ITEMS_TIMEOUT for block number 1234");
     }
 
     @Test
@@ -223,9 +224,9 @@ class BlockNodeConnectionTest {
 
         capturedObserver.onCompleted();
 
-        assertThat(logCaptor.infoLogs()).contains("Stream completed for block node localhost:12345");
+        assertThat(logCaptor.infoLogs()).contains("Received end of stream for block node localhost:12345");
         assertFalse(blockNodeConnection.isActive());
-        verify(blockNodeConnectionManager).handleConnectionError(nodeConfig);
+        verify(blockNodeConnectionManager).handleEndOfStreamSuccess(blockNodeConnection);
     }
 
     @Test
@@ -240,13 +241,20 @@ class BlockNodeConnectionTest {
 
         capturedObserver.onError(new StatusRuntimeException(Status.ABORTED));
 
+        assertThat(logCaptor.errorLogs()).isNotEmpty();
         assertThat(logCaptor.errorLogs())
                 .matches(
                         logs -> logs.getFirst()
                                 .startsWith(
-                                        "Error in block node stream localhost:12345: Status{code=ABORTED, description=null, cause=null} ABORTED"));
+                                        "Error in block stream to node localhost:12345: (Status{code=ABORTED, description=null, cause=null}) io.grpc.StatusRuntimeException: ABORTED"));
         assertFalse(blockNodeConnection.isActive());
-        verify(blockNodeConnectionManager).handleConnectionError(nodeConfig);
-        verify(blockNodeConnectionManager).scheduleReconnect(blockNodeConnection);
+        verify(blockNodeConnectionManager).handleConnectionError(eq(blockNodeConnection), notNull());
+    }
+
+    private void setupGrpcMocks() {
+        // Setup for tests that need gRPC functionality
+        mockedGrpc.when(() -> BlockStreamServiceGrpc.newStub(channel)).thenReturn(grpcStub);
+
+        when(grpcStub.publishBlockStream(any())).thenReturn(requestObserver);
     }
 }
