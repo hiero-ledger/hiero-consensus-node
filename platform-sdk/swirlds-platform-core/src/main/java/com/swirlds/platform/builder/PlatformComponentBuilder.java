@@ -17,6 +17,8 @@ import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.PlatformSigner;
+import com.swirlds.platform.event.DefaultFutureEventBuffer;
+import com.swirlds.platform.event.FutureEventBuffer;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
@@ -136,6 +138,7 @@ public class PlatformComponentBuilder {
     private StateSigner stateSigner;
     private TransactionHandler transactionHandler;
     private LatestCompleteStateNotifier latestCompleteStateNotifier;
+    private FutureEventBuffer futureEventBuffer;
 
     private SwirldsPlatform swirldsPlatform;
 
@@ -1247,5 +1250,34 @@ public class PlatformComponentBuilder {
             latestCompleteStateNotifier = new DefaultLatestCompleteStateNotifier();
         }
         return latestCompleteStateNotifier;
+    }
+
+    /**
+     * Builds the {@link FutureEventBuffer} if it has not yet been built and returns it.
+     *
+     * @return the future event buffer
+     */
+    @NonNull
+    public FutureEventBuffer buildFutureEventBuffer() {
+        if (futureEventBuffer == null) {
+            futureEventBuffer = new DefaultFutureEventBuffer(blocks.platformContext());
+        }
+        return futureEventBuffer;
+    }
+
+    /**
+     * Provide a future event buffer in place of the platform's default future event buffer.
+     *
+     * @param futureEventBuffer the future event buffer to use
+     * @return this builder
+     */
+    @NonNull
+    public PlatformComponentBuilder withFutureEventBuffer(@NonNull final FutureEventBuffer futureEventBuffer) {
+        throwIfAlreadyUsed();
+        if (this.futureEventBuffer != null) {
+            throw new IllegalStateException("Future event buffer has already been set");
+        }
+        this.futureEventBuffer = Objects.requireNonNull(futureEventBuffer);
+        return this;
     }
 }
