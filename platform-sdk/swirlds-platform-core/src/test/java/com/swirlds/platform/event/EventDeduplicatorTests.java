@@ -194,7 +194,7 @@ class EventDeduplicatorTests {
                 final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
                         ? minimumRoundNonAncient
                         : minimumGenerationNonAncient;
-                if(ancientMode.selectIndicator(duplicateEvent.getDescriptor()) < ancientThreshold){
+                if (ancientMode.selectIndicator(duplicateEvent.getDescriptor()) < ancientThreshold) {
                     ancientEventCount++;
                 }
 

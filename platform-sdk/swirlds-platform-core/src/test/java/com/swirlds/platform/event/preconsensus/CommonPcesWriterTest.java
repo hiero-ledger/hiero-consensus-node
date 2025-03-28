@@ -1,23 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import com.hedera.hapi.platform.event.EventDescriptor;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.platform.event.EventDescriptor;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.IOException;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,13 +90,11 @@ class CommonPcesWriterTest {
     @Test
     void testPrepareOutputStreamCreatesNewFile() throws IOException {
         PlatformEvent mockEvent = mock(PlatformEvent.class);
-        when(mockEvent.getDescriptor()).thenReturn(new EventDescriptorWrapper(
-                EventDescriptor
-                        .newBuilder()
+        when(mockEvent.getDescriptor())
+                .thenReturn(new EventDescriptorWrapper(EventDescriptor.newBuilder()
                         .birthRound(150)
                         .generation(150)
-                        .build()
-        ));
+                        .build()));
 
         boolean fileClosed = commonPcesWriter.prepareOutputStream(mockEvent);
         assertFalse(fileClosed, "A new file should have been created but not closed.");

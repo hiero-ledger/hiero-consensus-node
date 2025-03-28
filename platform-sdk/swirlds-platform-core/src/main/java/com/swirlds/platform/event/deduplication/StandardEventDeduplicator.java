@@ -96,9 +96,7 @@ public class StandardEventDeduplicator implements EventDeduplicator {
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
         this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
-        this.observedEvents = new StandardSequenceMap<>(
-                    0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
-
+        this.observedEvents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
     }
 
     /**

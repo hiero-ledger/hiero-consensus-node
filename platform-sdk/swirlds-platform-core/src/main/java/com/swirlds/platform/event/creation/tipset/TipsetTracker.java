@@ -66,7 +66,6 @@ public class TipsetTracker {
 
         tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, ancientMode::selectIndicator);
 
-
         ancientEventLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
         this.ancientMode = Objects.requireNonNull(ancientMode);

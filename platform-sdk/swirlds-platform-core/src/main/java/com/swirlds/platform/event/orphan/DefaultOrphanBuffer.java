@@ -90,11 +90,8 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
         this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
-        missingParentMap = new StandardSequenceMap<>(
-                0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
-        eventsWithParents = new StandardSequenceSet<>(
-                0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
-
+        missingParentMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
+        eventsWithParents = new StandardSequenceSet<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
     }
 
     /**

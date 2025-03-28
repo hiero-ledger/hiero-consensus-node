@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
-import com.hedera.hapi.platform.event.EventDescriptor;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
+
+import com.hedera.hapi.platform.event.EventDescriptor;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * The strategy used to determine if an event is ancient. There are currently two types: one bound by generations and

@@ -69,8 +69,8 @@ public class PcesMutableFile {
                     + descriptor.getFileType().selectIndicator(event) + " to file " + descriptor);
         }
         writer.writeEvent(event.getGossipEvent());
-        highestAncientIdentifierInFile =
-                Math.max(highestAncientIdentifierInFile, descriptor.getFileType().selectIndicator(event));
+        highestAncientIdentifierInFile = Math.max(
+                highestAncientIdentifierInFile, descriptor.getFileType().selectIndicator(event));
     }
 
     /**

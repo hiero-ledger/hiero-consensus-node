@@ -55,11 +55,7 @@ public class SimpleLinker {
      */
     public SimpleLinker(@NonNull final AncientMode ancientMode) {
         this.ancientMode = ancientMode;
-        this.parentDescriptorMap = new StandardSequenceMap<>(
-                0,
-                INITIAL_CAPACITY,
-                true,
-                ancientMode::selectIndicator);
+        this.parentDescriptorMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
     }
 
     /**
