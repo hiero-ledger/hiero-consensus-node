@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.state.PlatformStateModifier;
@@ -344,12 +345,17 @@ class PbjConverterTest {
     }
 
     private static ConsensusSnapshot randomSnapshot(final Randotron randotron) {
-        return new ConsensusSnapshot(
-                nextInt(),
-                asList(randomHash().getBytes(), randomHash().getBytes()),
-                asList(new MinimumJudgeInfo(nextInt(), nextInt()), new MinimumJudgeInfo(nextInt(), nextInt())),
-                nextInt(),
-                toPbjTimestamp(randomInstant(randotron)));
+        final var judges = asList(
+                new JudgeId(0L, randomHash().getBytes()),
+                new JudgeId(1L, randomHash().getBytes()));
+        return ConsensusSnapshot.newBuilder()
+                .round(nextInt())
+                .judgeIds(judges)
+                .minimumJudgeInfoList(
+                        asList(new MinimumJudgeInfo(nextInt(), nextInt()), new MinimumJudgeInfo(nextInt(), nextInt())))
+                .nextConsensusNumber(nextInt())
+                .consensusTimestamp(toPbjTimestamp(randomInstant(randotron)))
+                .build();
     }
 
     private static SemanticVersion randomSoftwareVersion() {

@@ -84,7 +84,8 @@ public class CrsPublicationHandlerTest {
                         .build());
         lenient()
                 .when(handleContext.creatorInfo())
-                .thenReturn(new NodeInfoImpl(0L, asAccount(0L, 0L, 3L), 10L, List.of(), Bytes.wrap("test"), List.of()));
+                .thenReturn(new NodeInfoImpl(
+                        0L, asAccount(0L, 0L, 3L), 10L, List.of(), Bytes.wrap("test"), List.of(), false));
         lenient().when(rosterStore.getActiveRoster()).thenReturn(createRoster());
         subject = new CrsPublicationHandler(controllers);
     }

@@ -56,4 +56,16 @@ public interface Savepoint extends BuilderSink {
             @NonNull StreamBuilder.TransactionCustomizer customizer,
             @NonNull StreamMode streamMode,
             boolean isBaseBuilder);
+
+    /**
+     * Tracks the given amount of fees collected into node accounts in this savepoint.
+     * @param amount the amount to track
+     */
+    void trackCollectedNodeFee(long amount);
+
+    /**
+     * The total fees collected into node accounts and not rolled back in this savepoint.
+     * @return the total fees collected
+     */
+    long getNodeFeesCollected();
 }

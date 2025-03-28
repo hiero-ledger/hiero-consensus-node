@@ -80,7 +80,6 @@ import org.junit.jupiter.api.Tag;
 // The only way an eth account to create a token is the admin key to be of a contractId type.
 @Tag(SMART_CONTRACT)
 public class CreatePrecompileSuite {
-    public static final String ACCOUNT_2 = "account2";
     public static final String CONTRACT_ADMIN_KEY = "contractAdminKey";
     public static final String ACCOUNT_TO_ASSOCIATE = "account3";
     public static final String ACCOUNT_TO_ASSOCIATE_KEY = "associateKey";

@@ -43,6 +43,7 @@ import "services/state/throttles/throttle_usage_snapshots.proto";
 import "services/state/token/account.proto";
 import "services/state/token/account_pending_airdrop.proto";
 import "services/state/token/network_staking_rewards.proto";
+import "services/state/token/node_rewards.proto";
 import "services/state/token/nft.proto";
 import "services/state/token/staking_node_info.proto";
 import "services/state/token/token.proto";
@@ -454,6 +455,11 @@ enum StateIdentifier {
     STATE_ID_CRS_PUBLICATIONS = 49;
 
     /**
+     * A state identifier for the node rewards
+     */
+    STATE_ID_NODE_REWARDS = 50;
+
+    /**
      * A state identifier for the round receipts queue.
      */
     STATE_ID_TRANSACTION_RECEIPTS_QUEUE = 126;
@@ -682,6 +688,13 @@ message SingletonUpdateChange {
          * A change to the CRS State singleton.
          */
         com.hedera.hapi.node.state.hints.CRSState crs_state_value = 17;
+
+        /**
+         * A change to the node rewards singleton.
+         * <p>
+         * Node rewards SHALL be updated for every non-empty block.
+         */
+        proto.NodeRewards node_rewards_value = 18;
     }
 }
 

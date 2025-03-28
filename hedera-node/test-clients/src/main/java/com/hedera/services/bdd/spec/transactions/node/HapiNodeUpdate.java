@@ -9,6 +9,7 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusUp
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
+import com.google.protobuf.BoolValue;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.BytesValue;
 import com.google.protobuf.StringValue;
@@ -47,6 +48,7 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
 
     private Optional<AccountID> newAccountAlias = Optional.empty();
     private Optional<String> newDescription = Optional.empty();
+    private Optional<Boolean> declineReward = Optional.empty();
     private List<ServiceEndpoint> newGossipEndpoints = Collections.emptyList();
     private List<ServiceEndpoint> newServiceEndpoints = Collections.emptyList();
 
@@ -76,6 +78,11 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
 
     public HapiNodeUpdate description(@NonNull final String description) {
         this.newDescription = Optional.of(description);
+        return this;
+    }
+
+    public HapiNodeUpdate declineReward(final boolean decline) {
+        this.declineReward = Optional.of(decline);
         return this;
     }
 
@@ -166,6 +173,7 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
                             newAccountAlias.ifPresent(builder::setAccountId);
                             newDescription.ifPresent(s -> builder.setDescription(StringValue.of(s)));
                             newAdminKey.ifPresent(builder::setAdminKey);
+                            builder.setDeclineReward(BoolValue.of(declineReward.orElse(false)));
                             builder.addAllGossipEndpoint(newGossipEndpoints.stream()
                                     .map(CommonPbjConverters::fromPbj)
                                     .toList());

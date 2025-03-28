@@ -206,6 +206,8 @@ class HandleWorkflowTest {
                 .withValue("tss.historyEnabled", "false")
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        given(boundaryStateChangeListener.lastConsensusTimeOrThrow()).willReturn(NOW);
+        given(round.getConsensusTimestamp()).willReturn(NOW);
         subject = new HandleWorkflow(
                 networkInfo,
                 stakePeriodChanges,
@@ -234,6 +236,7 @@ class HandleWorkflowTest {
                 congestionMetrics,
                 softwareVersionFactory,
                 () -> PlatformStatus.ACTIVE,
+                null,
                 null);
     }
 }

@@ -11,7 +11,10 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_KEY;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
+import static com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema.ROSTER_KEY;
+import static com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema.ROSTER_STATES_KEY;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -40,13 +43,24 @@ import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.roster.RosterState;
+import com.hedera.hapi.node.state.roster.RoundRosterPair;
+import com.hedera.hapi.node.state.token.NodeActivity;
+import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.platform.event.EventTransaction;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -54,12 +68,15 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -130,9 +147,6 @@ class BlockStreamManagerImplTest {
     @Mock
     private CompletableFuture<Bytes> mockSigningFuture;
 
-    @Mock
-    private ConsensusEvent consensusEvent;
-
     private WritableStates writableStates;
 
     @Mock
@@ -151,8 +165,11 @@ class BlockStreamManagerImplTest {
     private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
     private final AtomicReference<PlatformState> stateRef = new AtomicReference<>();
     private final AtomicReference<BlockStreamInfo> infoRef = new AtomicReference<>();
+    private final AtomicReference<NodeRewards> nodeRewardsRef = new AtomicReference<>();
+    private final AtomicReference<RosterState> rosterStateRef = new AtomicReference<>();
 
     private WritableSingletonStateBase<BlockStreamInfo> blockStreamInfoState;
+    private WritableSingletonStateBase<NodeRewards> nodeRewardsState;
 
     private BlockStreamManagerImpl subject;
 
@@ -248,6 +265,7 @@ class BlockStreamManagerImplTest {
         givenSubjectWith(
                 1,
                 0,
+                true,
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
@@ -270,6 +288,8 @@ class BlockStreamManagerImplTest {
         assertSame(NONE, subject.pendingWork());
         // We don't fail hard on duplicate calls to confirm post-upgrade work
         assertDoesNotThrow(() -> subject.confirmPendingWorkFinished());
+        assertEquals(0, subject.getRoundsThisStakingPeriod());
+        assertEquals(0, subject.getMissedJudgeCounts().size());
 
         // Assert the internal state of the subject has changed as expected and the writer has been opened
         verify(boundaryStateChangeListener).setBoundaryTimestamp(CONSENSUS_NOW);
@@ -296,6 +316,8 @@ class BlockStreamManagerImplTest {
                 .thenAcceptAsync(any());
         // End the round
         subject.endRound(state, ROUND_NO);
+        assertEquals(1, subject.getRoundsThisStakingPeriod());
+        assertEquals(1, subject.getMissedJudgeCounts().size());
 
         verify(aWriter).openBlock(N_BLOCK_NO);
 
@@ -322,6 +344,16 @@ class BlockStreamManagerImplTest {
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
+        final var actualNodeRewards = nodeRewardsRef.get();
+        final var expectedNodeRewards = NodeRewards.newBuilder()
+                .nodeActivities(List.of(NodeActivity.newBuilder()
+                        .numMissedJudgeRounds(1L)
+                        .nodeId(1L)
+                        .build()))
+                .numRoundsInStakingPeriod(1)
+                .build();
+        assertEquals(expectedNodeRewards, actualNodeRewards);
+
         // Assert the block proof was written
         final var proofItem = lastAItem.get();
         assertNotNull(proofItem);
@@ -337,6 +369,7 @@ class BlockStreamManagerImplTest {
         givenSubjectWith(
                 1,
                 0,
+                false,
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
@@ -378,6 +411,7 @@ class BlockStreamManagerImplTest {
         givenSubjectWith(
                 1,
                 0,
+                false,
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
@@ -431,6 +465,7 @@ class BlockStreamManagerImplTest {
         givenSubjectWith(
                 2,
                 0,
+                false,
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
@@ -476,6 +511,7 @@ class BlockStreamManagerImplTest {
         givenSubjectWith(
                 2,
                 2, // Use time-based blocks with 2 second period
+                false,
                 blockStreamInfoWith(resultHashes, CREATION_VERSION),
                 platformStateWithFreezeTime(CONSENSUS_NOW),
                 aWriter);
@@ -562,6 +598,7 @@ class BlockStreamManagerImplTest {
         givenSubjectWith(
                 1,
                 0,
+                false,
                 blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
                 platformStateWithFreezeTime(null),
                 aWriter,
@@ -642,6 +679,7 @@ class BlockStreamManagerImplTest {
         givenSubjectWith(
                 1,
                 2,
+                false,
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
@@ -691,6 +729,7 @@ class BlockStreamManagerImplTest {
         givenSubjectWith(
                 1,
                 2,
+                false,
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
@@ -719,6 +758,7 @@ class BlockStreamManagerImplTest {
         givenSubjectWith(
                 1,
                 2,
+                false,
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(Instant.ofEpochSecond(1001)),
@@ -758,6 +798,7 @@ class BlockStreamManagerImplTest {
         givenSubjectWith(
                 2,
                 0,
+                false,
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
@@ -796,6 +837,7 @@ class BlockStreamManagerImplTest {
     private void givenSubjectWith(
             final int roundsPerBlock,
             final int blockPeriod,
+            final boolean nodeRewardsEnabled,
             @NonNull final BlockStreamInfo blockStreamInfo,
             @NonNull final PlatformState platformState,
             @NonNull final BlockItemWriter... writers) {
@@ -804,6 +846,7 @@ class BlockStreamManagerImplTest {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.roundsPerBlock", roundsPerBlock)
                 .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
+                .withValue("nodes.nodeRewardsEnabled", nodeRewardsEnabled)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
         subject = new BlockStreamManagerImpl(
@@ -817,9 +860,42 @@ class BlockStreamManagerImplTest {
                 TEST_PLATFORM_STATE_FACADE);
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
         given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
+        lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(readableStates);
+        given(state.getReadableStates(RosterService.NAME)).willReturn(readableStates);
+        lenient().when(state.getWritableStates(TokenService.NAME)).thenReturn(writableStates);
         infoRef.set(blockStreamInfo);
         stateRef.set(platformState);
         blockStreamInfoState = new WritableSingletonStateBase<>(BLOCK_STREAM_INFO_KEY, infoRef::get, infoRef::set);
+        nodeRewardsState = new WritableSingletonStateBase<>(NODE_REWARDS_KEY, nodeRewardsRef::get, nodeRewardsRef::set);
+        nodeRewardsRef.set(NodeRewards.newBuilder().build());
+        rosterStateRef.set(RosterState.newBuilder()
+                .roundRosterPairs(RoundRosterPair.newBuilder()
+                        .roundNumber(0)
+                        .activeRosterHash(Bytes.wrap("ACTIVE"))
+                        .build())
+                .build());
+        lenient()
+                .when(readableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY))
+                .thenReturn(
+                        new WritableSingletonStateBase<>(NODE_REWARDS_KEY, nodeRewardsRef::get, nodeRewardsRef::set));
+        given(readableStates.<RosterState>getSingleton(ROSTER_STATES_KEY))
+                .willReturn(
+                        new WritableSingletonStateBase<>(ROSTER_STATES_KEY, rosterStateRef::get, rosterStateRef::set));
+        final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
+                        WritableRosterStore.ROSTER_KEY)
+                .build();
+        rosters.put(
+                ProtoBytes.newBuilder().value(Bytes.wrap("ACTIVE")).build(),
+                Roster.newBuilder()
+                        .rosterEntries(List.of(
+                                RosterEntry.newBuilder().nodeId(0L).build(),
+                                RosterEntry.newBuilder().nodeId(1L).build()))
+                        .build());
+        given(readableStates.<ProtoBytes, Roster>get(ROSTER_KEY)).willReturn(rosters);
+        lenient()
+                .when(writableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY))
+                .thenReturn(
+                        new WritableSingletonStateBase<>(NODE_REWARDS_KEY, nodeRewardsRef::get, nodeRewardsRef::set));
     }
 
     private void givenEndOfRoundSetup() {
@@ -848,6 +924,8 @@ class BlockStreamManagerImplTest {
         lenient().when(state.getWritableStates(BlockStreamService.NAME)).thenReturn(writableStates);
         lenient().when(state.getReadableStates(BlockStreamService.NAME)).thenReturn(readableStates);
         lenient().when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
+        lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(readableStates);
+        lenient().when(state.getWritableStates(TokenService.NAME)).thenReturn(writableStates);
         lenient()
                 .when(writableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY))
                 .thenReturn(blockStreamInfoState);
@@ -855,11 +933,18 @@ class BlockStreamManagerImplTest {
                 .when(readableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY))
                 .thenReturn(blockStreamInfoState);
         lenient()
+                .when(writableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY))
+                .thenReturn(nodeRewardsState);
+        lenient()
+                .when(readableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY))
+                .thenReturn(nodeRewardsState);
+        lenient()
                 .when(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
                 .thenReturn(new WritableSingletonStateBase<>(PLATFORM_STATE_KEY, stateRef::get, stateRef::set));
         lenient()
                 .doAnswer(invocationOnMock -> {
                     blockStreamInfoState.commit();
+                    nodeRewardsState.commit();
                     return null;
                 })
                 .when((CommittableWritableStates) writableStates)
@@ -882,6 +967,9 @@ class BlockStreamManagerImplTest {
     private PlatformState platformStateWithFreezeTime(@Nullable final Instant freezeTime) {
         return PlatformState.newBuilder()
                 .creationSoftwareVersion(CREATION_VERSION)
+                .consensusSnapshot(ConsensusSnapshot.newBuilder()
+                        .judgeIds(List.of(new JudgeId(0, Bytes.wrap("test"))))
+                        .build())
                 .freezeTime(freezeTime == null ? null : asTimestamp(freezeTime))
                 .build();
     }

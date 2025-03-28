@@ -18,6 +18,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.hapi.node.token.TokenClaimAirdropTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenAirdropHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenClaimAirdropHandler;
@@ -77,7 +78,7 @@ class CryptoTransferHandlerTestBase extends StepsBase {
     @BeforeEach
     public void setUp() {
         super.setUp();
-        validator = new CryptoTransferValidator();
+        validator = new CryptoTransferValidator(new AppEntityIdFactory(configuration));
         tokenAirdropValidator = new TokenAirdropValidator();
         subject = new CryptoTransferHandler(validator);
         tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator);

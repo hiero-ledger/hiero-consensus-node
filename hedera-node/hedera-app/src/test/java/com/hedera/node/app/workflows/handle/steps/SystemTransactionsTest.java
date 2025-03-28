@@ -176,7 +176,7 @@ class SystemTransactionsTest {
         verifyUpdateDispatch(filesConfig.hapiPermissions(), serializedPermissionOverrides());
         verifyUpdateDispatch(filesConfig.throttleDefinitions(), serializedThrottleOverrides());
         verifyUpdateDispatch(filesConfig.feeSchedules(), serializedFeeSchedules());
-        verify(stack, times(5)).commitFullStack();
+        verify(stack, times(6)).commitFullStack();
     }
 
     @Test
@@ -194,7 +194,7 @@ class SystemTransactionsTest {
         subject.doPostUpgradeSetup(dispatch);
 
         verify(fileService).updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), eq(readableNodeStore));
-        verify(stack, times(1)).commitFullStack();
+        verify(stack, times(2)).commitFullStack();
 
         final var infoLogs = logCaptor.infoLogs();
         assertThat(infoLogs.size()).isEqualTo(5);
@@ -225,7 +225,7 @@ class SystemTransactionsTest {
         subject.doPostUpgradeSetup(dispatch);
 
         verify(fileService).updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), eq(readableNodeStore));
-        verify(stack, times(1)).commitFullStack();
+        verify(stack, times(2)).commitFullStack();
 
         final var errorLogs = logCaptor.errorLogs();
         assertThat(errorLogs.size()).isEqualTo(4);

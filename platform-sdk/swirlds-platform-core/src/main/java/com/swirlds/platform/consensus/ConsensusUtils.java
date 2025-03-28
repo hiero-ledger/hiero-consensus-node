@@ -8,9 +8,6 @@ import com.swirlds.platform.crypto.CryptoConstants;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Collection;
-import java.util.List;
-import org.hiero.consensus.model.crypto.Hash;
 
 /** Various utility methods used by {@link com.swirlds.platform.ConsensusImpl} */
 public final class ConsensusUtils {
@@ -67,12 +64,5 @@ public final class ConsensusUtils {
             }
         }
         return whitening;
-    }
-
-    /**
-     * @return a list of all base hashes of the provided events
-     */
-    public static @NonNull List<Bytes> getHashBytes(@NonNull final Collection<EventImpl> events) {
-        return events.stream().map(EventImpl::getBaseHash).map(Hash::getBytes).toList();
     }
 }

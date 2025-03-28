@@ -144,4 +144,12 @@ message NodeUpdateTransactionBody {
      * If set, this field MUST NOT be set to an empty `KeyList`.
      */
     proto.Key admin_key = 8;
+
+    /**
+     * A boolean indicating that this node has chosen to decline node rewards
+     * distributed at the end of staking period.
+     * <p>
+     * This node SHALL NOT receive reward if this value is set, and `true`.
+     */
+    google.protobuf.BoolValue decline_reward = 9;
 }

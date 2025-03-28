@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.BDDMockito.given;
 
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
-import com.swirlds.platform.state.service.schemas.V059RosterLifecycleTransitionSchema;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import org.junit.jupiter.api.Test;
@@ -27,8 +26,7 @@ class PlatformStateServiceTest {
         given(registry.register(captor.capture())).willReturn(registry);
         PLATFORM_STATE_SERVICE.registerSchemas(registry);
         final var schemas = captor.getAllValues();
-        assertEquals(2, schemas.size());
+        assertEquals(1, schemas.size());
         assertInstanceOf(V0540PlatformStateSchema.class, schemas.getFirst());
-        assertInstanceOf(V059RosterLifecycleTransitionSchema.class, schemas.getLast());
     }
 }
