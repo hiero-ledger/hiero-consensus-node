@@ -441,6 +441,12 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         return metadata.getHash();
     }
 
+    @NonNull
+    @Override
+    public Iterator<EventDescriptorWrapper> allParentsIterator() {
+        return new TypedIterator<>(metadata.getAllParents().iterator());
+    }
+
     @Override
     public void setHash(final Hash hash) {
         metadata.setHash(hash);
