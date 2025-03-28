@@ -18,8 +18,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -49,9 +47,9 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE)
-                cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS), 
-                uploadInitCode(CONTRACT), 
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),
+                uploadInitCode(CONTRACT),
                 contractCreate(CONTRACT));
     }
 
@@ -105,13 +103,13 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         // gRPC request terminated immediately
                         .orUnavailableStatus(),
 
-            // send jumbo payload to jumbo endpoint
-            ethereumCall(CONTRACT, FUNCTION, jumboPayload)
-                .payingWith(RELAYER)
-                .signingWith(SECP_256K1_SOURCE_KEY)
-                .markAsJumboTxn()
-                .type(EthTxData.EthTransactionType.EIP1559)
-                .gasLimit(1_000_000L));
+                // send jumbo payload to jumbo endpoint
+                ethereumCall(CONTRACT, FUNCTION, jumboPayload)
+                        .payingWith(RELAYER)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .markAsJumboTxn()
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .gasLimit(1_000_000L));
     }
 
     @HapiTest
