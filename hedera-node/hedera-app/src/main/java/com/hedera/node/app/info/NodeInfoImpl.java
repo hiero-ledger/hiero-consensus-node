@@ -17,7 +17,8 @@ public record NodeInfoImpl(
         long weight,
         List<ServiceEndpoint> gossipEndpoints,
         @Nullable Bytes sigCertBytes,
-        @NonNull List<ServiceEndpoint> hapiEndpoints)
+        @NonNull List<ServiceEndpoint> hapiEndpoints,
+        boolean declineReward)
         implements NodeInfo {
     @NonNull
     public static NodeInfo fromRosterWithCurrentMetadata(
@@ -28,7 +29,8 @@ public record NodeInfoImpl(
                 rosterEntry.weight(),
                 rosterEntry.gossipEndpoint(),
                 rosterEntry.gossipCaCertificate(),
-                node.serviceEndpoint());
+                node.serviceEndpoint(),
+                node.declineReward());
     }
 
     @NonNull
@@ -40,6 +42,7 @@ public record NodeInfoImpl(
                 rosterEntry.weight(),
                 rosterEntry.gossipEndpoint(),
                 rosterEntry.gossipCaCertificate(),
-                List.of());
+                List.of(),
+                true);
     }
 }

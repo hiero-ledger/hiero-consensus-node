@@ -136,4 +136,13 @@ message Node {
      * This field is REQUIRED and MUST NOT be set to an empty `KeyList`.
      */
     proto.Key admin_key = 10;
+
+    /**
+     * A flag indicating this node declines node rewards distributed at
+     * the end of staking period.
+     * <p>
+     * If this field is set, then this node SHALL NOT receive any node rewards
+     * distributed at the end of the staking period.
+     */
+    bool decline_reward = 11;
 }

@@ -74,6 +74,12 @@ public interface NodeInfo {
     List<ServiceEndpoint> hapiEndpoints();
 
     /**
+     * Declines node reward if true
+     * @return if node declines rewards
+     */
+    boolean declineReward();
+
+    /**
      * The gossip X.509 certificate of this node.
      * @return the gossip X.509 certificate
      * @throws IllegalStateException if the certificate could not be extracted

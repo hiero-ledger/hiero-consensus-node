@@ -47,6 +47,11 @@ public record TestNode(
             public List<ServiceEndpoint> hapiEndpoints() {
                 return List.of();
             }
+
+            @Override
+            public boolean declineReward() {
+                return false;
+            }
         };
     }
 }

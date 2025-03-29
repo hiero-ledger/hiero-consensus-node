@@ -89,7 +89,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     private final KVStateChangeListener kvStateChangeListener;
 
     @Nullable
-    private final BoundaryStateChangeListener roundStateChangeListener;
+    private final BoundaryStateChangeListener boundaryStateChangeListener;
 
     private final StreamMode streamMode;
 
@@ -150,7 +150,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @param state                    the state
      * @param maxBuildersBeforeUser    the maximum number of preceding builders to create
      * @param maxBuildersAfterUser     the maximum number of following builders to create
-     * @param roundStateChangeListener the listener for the round state changes
+     * @param boundaryStateChangeListener the listener for the round state changes
      * @param kvStateChangeListener    the listener for the key-value state changes
      * @param streamMode               the stream mode
      */
@@ -158,12 +158,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             @NonNull final State state,
             final int maxBuildersBeforeUser,
             final int maxBuildersAfterUser,
-            @NonNull final BoundaryStateChangeListener roundStateChangeListener,
+            @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final KVStateChangeListener kvStateChangeListener,
             @NonNull final StreamMode streamMode) {
         this.state = requireNonNull(state);
         this.kvStateChangeListener = requireNonNull(kvStateChangeListener);
-        this.roundStateChangeListener = requireNonNull(roundStateChangeListener);
+        this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         builderSink = new BuilderSinkImpl(maxBuildersBeforeUser, maxBuildersAfterUser + 1);
         presetIdsAllowed = true;
         noncesToSkipPerPresetId = maxBuildersBeforeUser + maxBuildersAfterUser;
@@ -195,7 +195,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         this.state = requireNonNull(parent);
         this.builderSink = null;
         this.kvStateChangeListener = null;
-        this.roundStateChangeListener = null;
+        this.boundaryStateChangeListener = null;
         setupFirstSavepoint(category);
         baseBuilder = peek().createBuilder(reversingBehavior, category, customizer, streamMode, true);
         presetIdsAllowed = false;
@@ -239,7 +239,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @throws NullPointerException if called on the root stack
      */
     public void commitFullStack() {
-        commitFullStack(baseBuilder);
+        commitTransaction(baseBuilder);
     }
 
     /**
@@ -250,27 +250,16 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      */
     public void commitTransaction(@NonNull final StreamBuilder builder) {
         requireNonNull(builder);
-        commitFullStack(builder);
-    }
-
-    /**
-     * Commits all state changes captured in this stack; and captures the details for
-     * the block stream, correlated to state changes preceding the first transaction.
-     */
-    public void commitSystemStateChanges() {
-        commitFullStack(baseBuilder);
-    }
-
-    /**
-     * Commits all state changes captured in this stack; if this is the root stack, also
-     * captures the key/value changes in the given stream builder.
-     */
-    private void commitFullStack(@NonNull final StreamBuilder builder) {
         if (streamMode != RECORDS && kvStateChangeListener != null) {
             kvStateChangeListener.reset();
         }
         while (!stack.isEmpty()) {
-            stack.pop().commit();
+            final var savepoint = stack.pop();
+            // If this is a root stack, track the collected node fees for the block
+            if (boundaryStateChangeListener != null && stack.isEmpty()) {
+                boundaryStateChangeListener.trackCollectedNodeFees(savepoint.getNodeFeesCollected());
+            }
+            savepoint.commit();
         }
         if (streamMode != RECORDS && kvStateChangeListener != null) {
             builder.stateChanges(kvStateChangeListener.getStateChanges());
@@ -499,14 +488,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     /**
-     * Returns the top savepoint without removing it from the stack. Used only by the {@link WritableStatesStack},
-     * not part of the public API.
+     * Returns the top savepoint without removing it from the stack.
      *
      * @return the top savepoint
      * @throws IllegalStateException if the stack has been committed already
      */
-    @NonNull
-    Savepoint peek() {
+    public @NonNull Savepoint peek() {
         if (stack.isEmpty()) {
             throw new IllegalStateException("The stack has already been committed");
         }
@@ -626,7 +613,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         }
         BlockRecordSource blockRecordSource = null;
         if (streamMode != RECORDS) {
-            requireNonNull(roundStateChangeListener).setBoundaryTimestamp(lastAssignedConsenusTime);
+            requireNonNull(boundaryStateChangeListener).setBoundaryTimestamp(lastAssignedConsenusTime);
             blockRecordSource = new BlockRecordSource(outputs);
         }
         final var recordSource = streamMode != BLOCKS ? new LegacyListRecordSource(records, receipts) : null;

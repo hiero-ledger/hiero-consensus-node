@@ -28,12 +28,18 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_B
 
 import com.hedera.node.app.hapi.utils.fee.FeeObject;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
+@HapiTestLifecycle
 public class RecordCreationSuite {
     private static final long SLEEP_MS = 1_000L;
     private static final String BEFORE = "before";
@@ -47,6 +53,13 @@ public class RecordCreationSuite {
     private static final String THIS_IS_OK_IT_S_FINE_IT_S_WHATEVER = "This is ok, it's fine, it's whatever.";
     private static final String TO_ACCOUNT = asEntityString(3);
     private static final String TXN_ID = "txnId";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "nodes.nodeRewardsEnabled", "false",
+                "nodes.preserveMinNodeRewardBalance", "false"));
+    }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> submittingNodeStillPaidIfServiceFeesOmitted() {

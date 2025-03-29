@@ -168,7 +168,8 @@ public class EndOfStakingPeriodUpdaterTest {
         given(context.writableStore(WritableStakingInfoStore.class)).willReturn(stakingInfoStore);
 
         // Create staking reward store (with data)
-        final var backingValue = new AtomicReference<>(new NetworkStakingRewards(true, totalStakeRewardStart, 0, 0));
+        final var backingValue =
+                new AtomicReference<>(new NetworkStakingRewards(true, totalStakeRewardStart, 0, 0, Timestamp.DEFAULT));
         WritableSingletonState<NetworkStakingRewards> stakingRewardsState =
                 new WritableSingletonStateBase<>(STAKING_NETWORK_REWARDS_KEY, backingValue::get, backingValue::set);
         final var states = mock(WritableStates.class);

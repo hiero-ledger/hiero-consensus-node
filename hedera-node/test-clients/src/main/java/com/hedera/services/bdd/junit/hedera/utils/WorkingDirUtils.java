@@ -403,10 +403,11 @@ public class WorkingDirUtils {
                     final var cert = certs.get(nodeId);
                     final var metadata = NodeMetadata.newBuilder()
                             .rosterEntry(new RosterEntry(nodeId, weight, cert, gossipEndpoints));
+                    final var nodeAccount = toPbj(HapiPropertySource.asAccount(parts[9]));
                     if (onlyRoster == OnlyRoster.NO) {
                         metadata.node(new Node(
                                 nodeId,
-                                toPbj(HapiPropertySource.asAccount(parts[9])),
+                                nodeAccount,
                                 "node" + (nodeId + 1),
                                 gossipEndpoints,
                                 List.of(),
@@ -415,7 +416,8 @@ public class WorkingDirUtils {
                                 Bytes.EMPTY,
                                 weight,
                                 false,
-                                CLASSIC_ADMIN_KEY));
+                                CLASSIC_ADMIN_KEY,
+                                false));
                     }
                     return metadata.build();
                 })

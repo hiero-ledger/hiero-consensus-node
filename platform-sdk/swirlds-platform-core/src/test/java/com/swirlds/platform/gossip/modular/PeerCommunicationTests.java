@@ -29,6 +29,7 @@ import java.util.stream.IntStream;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class PeerCommunicationTests {
@@ -208,6 +209,8 @@ public class PeerCommunicationTests {
     }
 
     @Test
+    // Flaky, c.f. https://github.com/hiero-ledger/hiero-consensus-node/issues/18549
+    @Disabled
     public void testFullyConnected() throws Exception {
 
         loadAddressBook(MAX_NODES);

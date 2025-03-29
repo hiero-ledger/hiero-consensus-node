@@ -103,6 +103,7 @@ public class NodeCreateHandler implements TransactionHandler {
                 .serviceEndpoint(op.serviceEndpoint())
                 .gossipCaCertificate(op.gossipCaCertificate())
                 .grpcCertificateHash(op.grpcCertificateHash())
+                .declineReward(op.declineReward())
                 .adminKey(op.adminKey());
         final var node = nodeBuilder.nodeId(getNextNodeID(nodeStore)).build();
 

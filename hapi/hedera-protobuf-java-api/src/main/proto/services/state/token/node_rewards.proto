@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package proto;
+
+/*-
+ * ‌
+ * Hedera Token Services Protobuf
+ * ​
+ * Copyright (C) 2018 - 2023 Hedera Hashgraph, LLC
+ * ​
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * ‍
+ */
+
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A record of node rewards status.<br/>
+ * This is used to record the number of "active" nodes in a staking
+ * period based on number of judges each node created in that period.
+ * It also records the number of rounds so far in the staking period.
+ *
+ * A Node SHALL be considered "active" if it produced "judges" according
+ * to the consensus algorithm in a percentage of rounds, during the
+ * staking period, greater than the network configuration value for
+ * `nodes.activeRoundsPercent`.
+ */
+message NodeRewards {
+  /**
+   * A number of rounds so far, in this staking period.
+   */
+  uint64 num_rounds_in_staking_period = 1;
+
+  /**
+   * The fees collected by node accounts in this period.
+   */
+  uint64 node_fees_collected = 2;
+
+  /**
+   * A list of node activities.<br/>
+   * This records the number of rounds when each node created
+   * judges for the consensus algorithm.
+   * <p>
+   * This list SHALL contain one entry for each node participating
+   * in consensus during this staking period.
+   */
+  repeated NodeActivity node_activities = 3;
+}
+
+/**
+ * A record of judge rounds missed by a single node.<br/>
+ * This records, for a single node, the number of rounds so far, during this staking
+ * period that missed creating judges. This is used to determine if the node is
+ * "active" or not.
+ *
+ * This message SHALL NOT record the total number of rounds in a staking
+ * period.<br/>
+ * This message SHALL record a count of rounds for a single node that missed creating judges.
+ */
+message NodeActivity {
+  /**
+   * A node identifier.
+   */
+  uint64 node_id = 1;
+
+  /**
+   * A count of rounds.<br/>
+   * This is the count of rounds so far, in this staking period in which the node identified
+   * by `node_id` did not create judges.
+   */
+  uint64 num_missed_judge_rounds = 2;
+}

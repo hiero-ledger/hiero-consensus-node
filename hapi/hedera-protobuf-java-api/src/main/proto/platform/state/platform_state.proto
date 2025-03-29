@@ -132,7 +132,7 @@ message ConsensusSnapshot {
      * This list SHALL be ordered by creator ID.<br/>
      * This list MUST be deterministically ordered.
      */
-    repeated bytes judge_hashes = 2;
+    repeated bytes judge_hashes = 2 [deprecated = true];
 
     /**
      * A list of minimum judge information entries.<br/>
@@ -163,6 +163,26 @@ message ConsensusSnapshot {
      */
     proto.Timestamp consensus_timestamp = 5;
 
+    /*
+     * A list of judge creator ids and its hashes in a round.<br/>
+     */
+    repeated JudgeId judge_ids = 6;
+}
+
+/**
+ * A judge information that includes the creator node ID and the
+ * SHA-384 hash value of the judge.
+ */
+message JudgeId {
+    /**
+     * The creator node ID who created this judge.
+     */
+    uint64 creator_id = 1;
+
+    /**
+     * SHA-384 hash value of this judge
+     */
+    bytes judge_hash = 2;
 }
 
 /**

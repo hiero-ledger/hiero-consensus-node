@@ -740,6 +740,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             case ENTITY_NUMBER_VALUE -> new EntityNumber(singletonUpdateChange.entityNumberValueOrThrow());
             case EXCHANGE_RATE_SET_VALUE -> singletonUpdateChange.exchangeRateSetValueOrThrow();
             case NETWORK_STAKING_REWARDS_VALUE -> singletonUpdateChange.networkStakingRewardsValueOrThrow();
+            case NODE_REWARDS_VALUE -> singletonUpdateChange.nodeRewardsValueOrThrow();
             case BYTES_VALUE -> new ProtoBytes(singletonUpdateChange.bytesValueOrThrow());
             case STRING_VALUE -> new ProtoString(singletonUpdateChange.stringValueOrThrow());
             case RUNNING_HASHES_VALUE -> singletonUpdateChange.runningHashesValueOrThrow();

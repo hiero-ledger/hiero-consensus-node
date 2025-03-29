@@ -77,8 +77,6 @@ import org.hiero.consensus.model.hashgraph.Round;
 public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
 
-    private static final String FATAL_SHUTDOWN_BASE_MSG = "Waiting for fatal shutdown of block stream to complete";
-
     private final int roundsPerBlock;
     private final Duration blockPeriod;
     private final int hashCombineBatchSize;
@@ -92,6 +90,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final PlatformStateFacade platformStateFacade;
 
+    private final Lifecycle lifecycle;
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
 
@@ -168,14 +167,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final Lifecycle lifecycle) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
-        this.platformStateFacade = platformStateFacade;
-        requireNonNull(configProvider);
+        this.platformStateFacade = requireNonNull(platformStateFacade);
+        this.lifecycle = requireNonNull(lifecycle);
         final var config = configProvider.getConfiguration();
         this.hintsEnabled = config.getConfigData(TssConfig.class).hintsEnabled();
         this.hapiVersion = hapiVersionFrom(config);
@@ -245,6 +245,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockHashManager.startBlock(blockStreamInfo, lastBlockHash);
             runningHashManager.startBlock(blockStreamInfo);
 
+            lifecycle.onOpenBlock(state);
             inputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             outputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             blockNumber = blockStreamInfo.blockNumber() + 1;
@@ -312,6 +313,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (preTxnItems != null) {
                 flushPreUserItems(null);
             }
+            lifecycle.onCloseBlock(state);
             // Flush all boundary state changes besides the BlockStreamInfo
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();

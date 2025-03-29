@@ -668,7 +668,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
 
     private void givenReadableStakingRewardsStore() {
         final AtomicReference<NetworkStakingRewards> backingValue =
-                new AtomicReference<>(new NetworkStakingRewards(true, 100000L, 50000L, 1000L));
+                new AtomicReference<>(new NetworkStakingRewards(true, 100000L, 50000L, 1000L, Timestamp.DEFAULT));
         final var stakingRewardsState = new ReadableSingletonStateBase<>(NETWORK_REWARDS, backingValue::get);
         given(readableStates.getSingleton(NETWORK_REWARDS)).willReturn((ReadableSingletonState) stakingRewardsState);
         readableRewardsStore = new ReadableNetworkStakingRewardsStoreImpl(readableStates);
@@ -676,7 +676,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
 
     private void givenWritableStakingRewardsStore() {
         final AtomicReference<NetworkStakingRewards> backingValue =
-                new AtomicReference<>(new NetworkStakingRewards(true, 100000L, 50000L, 1000L));
+                new AtomicReference<>(new NetworkStakingRewards(true, 100000L, 50000L, 1000L, Timestamp.DEFAULT));
         final var stakingRewardsState =
                 new WritableSingletonStateBase<>(NETWORK_REWARDS, backingValue::get, backingValue::set);
         given(writableStates.getSingleton(NETWORK_REWARDS)).willReturn((WritableSingletonState) stakingRewardsState);
