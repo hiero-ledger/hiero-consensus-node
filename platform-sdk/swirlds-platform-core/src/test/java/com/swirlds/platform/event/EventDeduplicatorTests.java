@@ -191,14 +191,11 @@ class EventDeduplicatorTests {
                         .build());
                 duplicateEvent.setHash(platformEvent.getHash());
 
-                if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-                    if (duplicateEvent.getDescriptor().eventDescriptor().birthRound() < minimumRoundNonAncient) {
-                        ancientEventCount++;
-                    }
-                } else {
-                    if (duplicateEvent.getDescriptor().eventDescriptor().generation() < minimumGenerationNonAncient) {
-                        ancientEventCount++;
-                    }
+                final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
+                        ? minimumRoundNonAncient
+                        : minimumGenerationNonAncient;
+                if (ancientMode.selectIndicator(duplicateEvent.getDescriptor()) < ancientThreshold) {
+                    ancientEventCount++;
                 }
 
                 validateEmittedEvent(

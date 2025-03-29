@@ -242,12 +242,10 @@ class OrphanBufferTests {
             latestConsensusRound += maybeAdvanceRound.apply(random);
             final AncientMode ancientMode =
                     useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
+            final long ancientThreshold =
+                    useBirthRoundForAncient ? Math.max(1, latestConsensusRound - 26 + 1) : minimumGenerationNonAncient;
             final EventWindow eventWindow = new EventWindow(
-                    latestConsensusRound,
-                    ancientMode.selectIndicator(
-                            minimumGenerationNonAncient, Math.max(1, latestConsensusRound - 26 + 1)),
-                    1 /* ignored in this context */,
-                    ancientMode);
+                    latestConsensusRound, ancientThreshold, 1 /* ignored in this context */, ancientMode);
             unorphanedEvents.addAll(orphanBuffer.setEventWindow(eventWindow));
 
             for (final PlatformEvent unorphanedEvent : unorphanedEvents) {

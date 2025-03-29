@@ -219,9 +219,9 @@ public class TipsetWeightCalculator {
                             EXCEPTION.getMarker(),
                             "When looking at possible parents, we should never "
                                     + "consider ancient parents that are not self parents. "
-                                    + "Parent ID = {}, parent generation = {}, minimum generation non-ancient = {}",
+                                    + "Parent ID = {}, parent ancient threshold = {}, minimum threshold non-ancient = {}",
                             parent.creator(),
-                            parent.eventDescriptor().generation(),
+                            tipsetTracker.getEventWindow().getAncientMode().selectIndicator(parent.eventDescriptor()),
                             tipsetTracker.getEventWindow());
                 }
                 continue;
