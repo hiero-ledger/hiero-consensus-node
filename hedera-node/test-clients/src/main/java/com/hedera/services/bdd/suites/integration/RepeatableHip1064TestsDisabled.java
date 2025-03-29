@@ -2,8 +2,6 @@
 package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
-import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
-import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -21,7 +19,6 @@ import static com.hedera.services.bdd.suites.integration.RepeatableHip1064Tests.
 
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
-import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -32,13 +29,8 @@ import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Tag;
 
-@Order(7)
-@Tag(INTEGRATION)
 @HapiTestLifecycle
-@TargetEmbeddedMode(REPEATABLE)
 public class RepeatableHip1064TestsDisabled {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
