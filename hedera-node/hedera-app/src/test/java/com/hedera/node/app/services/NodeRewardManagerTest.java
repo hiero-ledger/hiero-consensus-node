@@ -2,7 +2,6 @@
 package com.hedera.node.app.services;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.blocks.impl.BlockStreamManagerImplTest.CREATION_VERSION;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
@@ -17,6 +16,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -68,6 +68,8 @@ import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
 class NodeRewardManagerTest {
+    private static final SemanticVersion CREATION_VERSION = new SemanticVersion(1, 2, 3, "alpha.1", "2");
+
     @Mock(strictness = Mock.Strictness.LENIENT)
     private ConfigProvider configProvider;
 
@@ -114,7 +116,7 @@ class NodeRewardManagerTest {
     void testOnOpenBlockClearsAndLoadsState() {
         NodeRewards initialRewards = NodeRewards.newBuilder()
                 .numRoundsInStakingPeriod(10)
-                .feesCollectedByRewardEligibleNodes(1000)
+                .nodeFeesCollected(1000)
                 .nodeActivities(Collections.singletonList(NodeActivity.newBuilder()
                         .nodeId(101L)
                         .numMissedJudgeRounds(2)

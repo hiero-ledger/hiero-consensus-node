@@ -95,12 +95,17 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     }
 
     /**
+     * Resets the node fees collected in this block.
+     */
+    public void resetCollectedNodeFees() {
+        nodeFeesCollected = 0;
+    }
+
+    /**
      * Returns the node fees collected in this block.
      */
-    public long getAndResetNodeFeesThisBlock() {
-        final long collected = nodeFeesCollected;
-        nodeFeesCollected = 0;
-        return collected;
+    public long nodeFeesCollected() {
+        return nodeFeesCollected;
     }
 
     /**

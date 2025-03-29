@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.support;
 
 import static java.util.Comparator.comparing;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -24,6 +25,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +46,26 @@ public enum BlockStreamAccess {
 
     private static final String UNCOMPRESSED_FILE_EXT = ".blk";
     private static final String COMPRESSED_FILE_EXT = UNCOMPRESSED_FILE_EXT + ".gz";
+
+    public static void main(String[] args) {
+        final var blockNo = 795;
+        final var node0BlockLoc = Paths.get(
+                "/Users/michaeltinker/AlsoDev/hedera-services/hedera-node/test-clients/build/hapi-test/node0/data/blockStreams/block-0.0.3/000000000000000000000000000000000%d.blk.gz"
+                        .formatted(blockNo));
+        final var node3BlockLoc = Paths.get(
+                "/Users/michaeltinker/AlsoDev/hedera-services/hedera-node/test-clients/build/hapi-test/node3/data/blockStreams/block-0.0.6/000000000000000000000000000000000%d.blk.gz"
+                        .formatted(blockNo));
+        final var block0 = BLOCK_STREAM_ACCESS.blockFrom(node0BlockLoc);
+        final var block3 = BLOCK_STREAM_ACCESS.blockFrom(node3BlockLoc);
+        final var items0 = block0.items();
+        final var items3 = block3.items();
+        assertEquals(items0.size(), items3.size());
+        for (int i = 0, n = items0.size(); i < n; i++) {
+            final var item0 = items0.get(i);
+            final var item3 = items3.get(i);
+            assertEquals(item0, item3);
+        }
+    }
 
     /**
      * Reads all files matching the block file pattern from the given path and returns them in

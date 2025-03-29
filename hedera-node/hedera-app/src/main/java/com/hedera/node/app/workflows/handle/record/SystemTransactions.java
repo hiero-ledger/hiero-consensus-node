@@ -365,8 +365,7 @@ public class SystemTransactions {
         if (autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext)) {
             dispatch.stack().commitFullStack();
         }
-        // Dispatch node updates for all the nodes whose node account's account number is less
-        // than 100, with decline_reward set to true
+        // (FUTURE) Remove this 0.61-specific code initiating all system node accounts to decline rewards
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nodeStore = dispatch.handleContext().storeFactory().readableStore(ReadableNodeStore.class);
         for (int i = 0; i < nodeStore.sizeOfState(); i++) {
@@ -374,15 +373,16 @@ public class SystemTransactions {
             final var nodeInfo = networkInfo.nodeInfo(i);
             if (nodeInfo != null && node != null && !node.deleted()) {
                 final var declineReward = nodeInfo.accountId().accountNumOrThrow() <= ledgerConfig.numSystemAccounts();
-                log.info(
-                        "Dispatching node update for node {} with node account id {} decline_reward set to {}",
-                        nodeInfo.nodeId(),
-                        nodeInfo.accountId(),
-                        declineReward);
-                systemContext.dispatchAdmin(b -> b.nodeUpdate(NodeUpdateTransactionBody.newBuilder()
-                        .nodeId(nodeInfo.nodeId())
-                        .declineReward(declineReward)
-                        .build()));
+                if (declineReward) {
+                    log.info(
+                            "Updating node{} with system node account {} to decline rewards",
+                            nodeInfo.nodeId(),
+                            nodeInfo.accountId());
+                    systemContext.dispatchAdmin(b -> b.nodeUpdate(NodeUpdateTransactionBody.newBuilder()
+                            .nodeId(nodeInfo.nodeId())
+                            .declineReward(true)
+                            .build()));
+                }
             }
         }
         dispatch.stack().commitFullStack();

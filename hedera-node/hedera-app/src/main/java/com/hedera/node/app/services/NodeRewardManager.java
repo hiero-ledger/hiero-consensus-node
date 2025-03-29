@@ -16,7 +16,6 @@ import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
@@ -53,7 +52,7 @@ import javax.inject.Singleton;
  * rewards to active nodes at the end of each staking period.
  */
 @Singleton
-public class NodeRewardManager implements BlockStreamManager.Lifecycle {
+public class NodeRewardManager {
     private final ConfigProvider configProvider;
     private final EntityIdFactory entityIdFactory;
     private final ExchangeRateManager exchangeRateManager;
@@ -66,7 +65,7 @@ public class NodeRewardManager implements BlockStreamManager.Lifecycle {
 
     @Inject
     public NodeRewardManager(
-            final ConfigProvider configProvider,
+            @NonNull final ConfigProvider configProvider,
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ExchangeRateManager exchangeRateManager) {
         this.configProvider = requireNonNull(configProvider);
@@ -74,16 +73,6 @@ public class NodeRewardManager implements BlockStreamManager.Lifecycle {
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
     }
 
-    @Override
-    public void onCloseBlock(@NonNull final State state, final long nodeFeesCollected) {
-        // If node rewards are enabled, we need to update the node rewards state with the current round and missed
-        // judge counts
-        if (configProvider.getConfiguration().getConfigData(NodesConfig.class).nodeRewardsEnabled()) {
-            updateNodeRewardState(state, nodeFeesCollected);
-        }
-    }
-
-    @Override
     public void onOpenBlock(@NonNull final State state) {
         // read the node rewards info from state at start of every block. So, we can commit the accumulated changes
         // at end of every block
@@ -94,6 +83,19 @@ public class NodeRewardManager implements BlockStreamManager.Lifecycle {
             nodeRewardInfo
                     .nodeActivities()
                     .forEach(activity -> missedJudgeCounts.put(activity.nodeId(), activity.numMissedJudgeRounds()));
+        }
+    }
+
+    /**
+     * Updates node rewards state at the end of a block given the collected node fees.
+     * @param state the state
+     * @param nodeFeesCollected the fees collected into node accounts in the block
+     */
+    public void onCloseBlock(@NonNull final State state, final long nodeFeesCollected) {
+        // If node rewards are enabled, we need to update the node rewards state with the current round and missed
+        // judge counts
+        if (configProvider.getConfiguration().getConfigData(NodesConfig.class).nodeRewardsEnabled()) {
+            updateNodeRewardState(state, nodeFeesCollected);
         }
     }
 
@@ -198,7 +200,7 @@ public class NodeRewardManager implements BlockStreamManager.Lifecycle {
             final long rewardAccountBalance = requireNonNull(accountStore.getAccountById(rewardsAccountId))
                     .tinybarBalance();
             final long prePaidRewards = nodesConfig.adjustNodeFees()
-                    ? nodeRewardStore.get().feesCollectedByRewardEligibleNodes() / currentRoster.size()
+                    ? nodeRewardStore.get().nodeFeesCollected() / currentRoster.size()
                     : 0L;
 
             final var targetPayInTinyCents = BigInteger.valueOf(nodesConfig.targetYearlyNodeRewardsUsd())
@@ -267,11 +269,11 @@ public class NodeRewardManager implements BlockStreamManager.Lifecycle {
                         .build())
                 .toList();
         final long newNodeFeesCollected =
-                requireNonNull(nodeRewardsState.get()).feesCollectedByRewardEligibleNodes() + nodeFeesCollected;
+                requireNonNull(nodeRewardsState.get()).nodeFeesCollected() + nodeFeesCollected;
         nodeRewardsState.put(NodeRewards.newBuilder()
                 .nodeActivities(nodeActivities)
                 .numRoundsInStakingPeriod(roundsThisStakingPeriod)
-                .feesCollectedByRewardEligibleNodes(newNodeFeesCollected)
+                .nodeFeesCollected(newNodeFeesCollected)
                 .build());
         ((CommittableWritableStates) writableTokenState).commit();
     }

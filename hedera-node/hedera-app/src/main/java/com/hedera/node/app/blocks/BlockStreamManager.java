@@ -49,21 +49,20 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      */
     interface Lifecycle {
         /**
-         * Called when a block is closed. This will allow any additional actions that need to take place
-         * at the end of the block.
-         *
-         * @param state             the state of the network at the end of the block
-         * @param nodeFeesCollected the fees collected by the node in the block
-         */
-        void onCloseBlock(@NonNull State state, long nodeFeesCollected);
-
-        /**
          * Called when a block is opened. This will allow any additional actions that need to take place
          * at the start of the block.
          *
          * @param state the state of the network at the start of the block
          */
         void onOpenBlock(@NonNull State state);
+
+        /**
+         * Called when a block is closed. This will allow any additional actions that need to take place
+         * at the end of the block.
+         *
+         * @param state the state of the network at the end of the block
+         */
+        void onCloseBlock(@NonNull State state);
     }
 
     /**

@@ -141,7 +141,7 @@ public class RepeatableHip1064Tests {
                 mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
                     assertEquals(2, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
-                    assertEquals(expectedNodeFees.get(), nodeRewards.feesCollectedByRewardEligibleNodes());
+                    assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
@@ -232,7 +232,7 @@ public class RepeatableHip1064Tests {
                 mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
                     assertEquals(2, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
-                    assertEquals(expectedNodeFees.get(), nodeRewards.feesCollectedByRewardEligibleNodes());
+                    assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
@@ -302,7 +302,7 @@ public class RepeatableHip1064Tests {
                 mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
                     assertEquals(2, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
-                    assertEquals(expectedNodeFees.get(), nodeRewards.feesCollectedByRewardEligibleNodes());
+                    assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()

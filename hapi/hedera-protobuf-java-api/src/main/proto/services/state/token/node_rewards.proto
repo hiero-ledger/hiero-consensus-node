@@ -44,9 +44,9 @@ message NodeRewards {
   uint64 num_rounds_in_staking_period = 1;
 
   /**
-   * The fees collected by reward-eligible node accounts in this period.
+   * The fees collected by node accounts in this period.
    */
-  uint64 fees_collected_by_reward_eligible_nodes = 2;
+  uint64 node_fees_collected = 2;
 
   /**
    * A list of node activities.<br/>

@@ -33,7 +33,6 @@ import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
-import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -91,9 +90,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final PlatformStateFacade platformStateFacade;
 
+    private final Lifecycle lifecycle;
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
-    private final NodeRewardManager nodeRewardManager;
 
     // The status of pending work
     private PendingWork pendingWork = NONE;
@@ -169,14 +168,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final NodeRewardManager nodeRewardManager) {
+            @NonNull final Lifecycle lifecycle) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
-        this.platformStateFacade = platformStateFacade;
-        this.nodeRewardManager = nodeRewardManager;
+        this.platformStateFacade = requireNonNull(platformStateFacade);
+        this.lifecycle = requireNonNull(lifecycle);
         final var config = configProvider.getConfiguration();
         this.hintsEnabled = config.getConfigData(TssConfig.class).hintsEnabled();
         this.hapiVersion = hapiVersionFrom(config);
@@ -246,7 +245,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockHashManager.startBlock(blockStreamInfo, lastBlockHash);
             runningHashManager.startBlock(blockStreamInfo);
 
-            nodeRewardManager.onOpenBlock(state);
+            lifecycle.onOpenBlock(state);
             inputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             outputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             blockNumber = blockStreamInfo.blockNumber() + 1;
@@ -314,6 +313,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (preTxnItems != null) {
                 flushPreUserItems(null);
             }
+            lifecycle.onCloseBlock(state);
             // Flush all boundary state changes besides the BlockStreamInfo
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
@@ -349,9 +349,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     asTimestamp(lastIntervalProcessTime),
                     asTimestamp(lastHandleTime)));
             ((CommittableWritableStates) writableState).commit();
-
-            final long nodeFeesCollected = boundaryStateChangeListener.getAndResetNodeFeesThisBlock();
-            nodeRewardManager.onCloseBlock(state, nodeFeesCollected);
 
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();

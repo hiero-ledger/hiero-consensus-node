@@ -132,7 +132,7 @@ class BoundaryStateChangeListenerTest {
     @Test
     void getAndResetNodeFees() {
         listener.trackCollectedNodeFees(100);
-        assertEquals(100, listener.getAndResetNodeFeesThisBlock());
+        assertEquals(100, listener.nodeFeesCollected());
     }
 
     @Test

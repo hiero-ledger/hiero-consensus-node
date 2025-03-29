@@ -629,10 +629,6 @@ public class HandleWorkflow {
                     //   will come before the base builder's changes in the block stream
                     final var writableTokenStates = state.getWritableStates(TokenService.NAME);
                     final var writableEntityIdStates = state.getWritableStates(EntityIdService.NAME);
-                    final int maxPrecedingRecords = parentTxn
-                            .config()
-                            .getConfigData(ConsensusConfig.class)
-                            .handleMaxPrecedingRecords();
                     final var schedulingConfig = parentTxn.config().getConfigData(SchedulingConfig.class);
                     doStreamingKVChanges(
                             writableTokenStates,
