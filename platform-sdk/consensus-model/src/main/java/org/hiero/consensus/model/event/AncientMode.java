@@ -30,7 +30,12 @@ public enum AncientMode {
      * @return the selected indicator
      */
     public long selectIndicator(@NonNull final PlatformEvent event) {
-        return selectIndicator(event.getDescriptor());
+        // an event may not have been hashes, and so its descriptor may not be available
+        // so we use the generation and birth round directly
+        return switch (this) {
+            case GENERATION_THRESHOLD -> event.getGeneration();
+            case BIRTH_ROUND_THRESHOLD -> event.getBirthRound();
+        };
     }
 
     /**
