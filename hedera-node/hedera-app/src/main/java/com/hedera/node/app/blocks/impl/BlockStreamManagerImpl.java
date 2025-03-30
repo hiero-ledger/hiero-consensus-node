@@ -298,39 +298,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                 .get())
                         .hasLastFrozenTime();
                 if (hasBeenFrozen) {
-                    final var path = blockDirFor(configProvider.getConfiguration(), networkInfo.selfNodeInfo());
-                    log.info(
-                            "Attempting to sign any pending blocks contiguous to #{} still on disk @ {}",
-                            blockNumber,
-                            path.toAbsolutePath());
-                    try {
-                        final var onDiskPendingBlocks = loadContiguousPendingBlocks(path, blockNumber);
-                        final List<Bytes> blockHashes = new ArrayList<>();
-                        onDiskPendingBlocks.forEach(block -> {
-                            try {
-                                final var pendingWriter = writerSupplier.get();
-                                pendingWriter.openBlock(block.number());
-                                block.items()
-                                        .forEach(item -> pendingWriter.writeItem(
-                                                BlockItem.PROTOBUF.toBytes(item).toByteArray()));
-                                final var blockHash = block.blockHash();
-                                pendingBlocks.add(new PendingBlock(
-                                        block.number(),
-                                        block.contentsPath(),
-                                        blockHash,
-                                        block.schemeIds(),
-                                        block.proofBuilder(),
-                                        pendingWriter,
-                                        block.siblingHashesIfUseful()));
-                                log.info("Recovered pending block #{}", block.number());
-                                blockHashes.add(blockHash);
-                            } catch (Exception e) {
-                                log.warn("Failed to recover pending block #{}", block.number(), e);
-                            }
-                        });
-                    } catch (Exception e) {
-                        log.warn("Failed to load pending blocks", e);
-                    }
+                    flushPendingBlocks();
                 }
                 attemptedPendingBlockSigning = true;
             }
@@ -344,6 +312,43 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             preTxnItems = new PreTxnItems(header, new ArrayList<>());
         }
         consensusTimeLastRound = round.getConsensusTimestamp();
+    }
+
+    /**
+     * Flushes the contents and proof context of any pending blocks to disk.
+     */
+    private void flushPendingBlocks() {
+        final var path = blockDirFor(configProvider.getConfiguration(), networkInfo.selfNodeInfo());
+        log.info(
+                "Attempting to sign any pending blocks contiguous to #{} still on disk @ {}",
+                blockNumber,
+                path.toAbsolutePath());
+        try {
+            final var onDiskPendingBlocks = loadContiguousPendingBlocks(path, blockNumber);
+            onDiskPendingBlocks.forEach(block -> {
+                try {
+                    final var pendingWriter = writerSupplier.get();
+                    pendingWriter.openBlock(block.number());
+                    block.items()
+                            .forEach(item -> pendingWriter.writeItem(
+                                    BlockItem.PROTOBUF.toBytes(item).toByteArray()));
+                    final var blockHash = block.blockHash();
+                    pendingBlocks.add(new PendingBlock(
+                            block.number(),
+                            block.contentsPath(),
+                            blockHash,
+                            block.schemeIds(),
+                            block.proofBuilder(),
+                            pendingWriter,
+                            block.siblingHashesIfUseful()));
+                    log.info("Recovered pending block #{}", block.number());
+                } catch (Exception e) {
+                    log.warn("Failed to recover pending block #{}", block.number(), e);
+                }
+            });
+        } catch (Exception e) {
+            log.warn("Failed to load pending blocks", e);
+        }
     }
 
     @Override

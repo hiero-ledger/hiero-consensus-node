@@ -28,8 +28,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The hinTS context that can be used to request hinTS signatures using the latest
@@ -38,7 +38,7 @@ import org.slf4j.LoggerFactory;
  */
 @Singleton
 public class HintsContext {
-    private static final Logger log = LoggerFactory.getLogger(HintsContext.class);
+    private static final Logger log = LogManager.getLogger(HintsContext.class);
 
     private static final Duration SIGNING_ATTEMPT_TIMEOUT = Duration.ofSeconds(10);
 
