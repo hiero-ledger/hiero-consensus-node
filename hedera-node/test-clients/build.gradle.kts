@@ -110,7 +110,12 @@ val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT30S")
 val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "0", "hapiTestSmartContract" to "0")
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
-    mapOf("hapiTestAdhoc" to "2", "hapiTestToken" to "3", "hapiTestSmartContract" to "4")
+    mapOf(
+        "hapiTestAdhoc" to "2",
+        "hapiTestCrypto" to "3",
+        "hapiTestToken" to "3",
+        "hapiTestSmartContract" to "4",
+    )
 
 tasks {
     prCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testSubprocess") } }
