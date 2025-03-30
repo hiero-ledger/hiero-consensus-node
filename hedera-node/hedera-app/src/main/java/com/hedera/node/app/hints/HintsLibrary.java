@@ -147,7 +147,7 @@ public interface HintsLibrary {
     /**
      * Checks an aggregate signature on a message verifies under a hinTS verification key, where
      * this is only true if the aggregate signature has weight exceeding the specified threshold
-     * or total weight stipulated in the verification key.
+     * of total weight stipulated in the verification key.
      *
      * @param signature            the aggregate signature
      * @param message              the message

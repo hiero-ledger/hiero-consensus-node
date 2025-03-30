@@ -68,11 +68,8 @@ import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
-import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -112,10 +109,10 @@ public class StateChangesValidator implements BlockStreamValidator {
     private static final int HASH_SIZE = 48;
     private static final int VISUALIZATION_HASH_DEPTH = 5;
     /**
-     * The probability that the validator will verify an intermediate block proof; we always verify the first and last.
+     * The probability that the validator will verify an intermediate block proof; we always verify the first and
+     * the last one that has an available block proof. (The blocks immediately preceding a freeze will not have proofs.)
      */
-    //    private static final double PROOF_VERIFICATION_PROB = 0.05;
-    private static final double PROOF_VERIFICATION_PROB = 1.00;
+    private static final double PROOF_VERIFICATION_PROB = 0.05;
 
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
     private static final Pattern CHILD_STATE_PATTERN = Pattern.compile("\\s+\\d+ \\w+\\s+(\\S+)\\s+.+\\s+(.+)");
@@ -499,14 +496,15 @@ public class StateChangesValidator implements BlockStreamValidator {
             requireNonNull(hintsLibrary);
             final var signature = proof.blockSignature();
             final var schemeUsed = proof.schemeUsedOrThrow();
-            logger.info(
-                    "Verifying signature for block #{} (start round #{}) under key from {}",
-                    number,
-                    firstRound,
-                    schemeUsed);
             final var vk = schemeUsed == LATEST_ACTIVE_SCHEME ? activeVk : requireNonNull(nextVk);
-            final var verified = hintsLibrary.verifyAggregate(signature, provenHash, vk, 1, 3);
-            assertTrue(verified, "Block proof signature verification failed for " + proof);
+            // Note the 1/4 fraction below; DabEnabledUpgradeTest is intentionally a chaotic churn
+            // of fast upgrades with heavy use of override networks, and there is a node removal
+            // step that happens without giving enough time for the next hinTS scheme to be
+            // completed, meaning a 1/3 threshold in the *actual* roster only accounts for
+            // 1/4 total weight in the out-of-date hinTS verification key,
+            assertTrue(
+                    hintsLibrary.verifyAggregate(signature, provenHash, vk, 1, 4),
+                    () -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);
         } else {
             final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
             assertEquals(expectedSignature, proof.blockSignature(), "Signature mismatch for " + proof);
@@ -577,12 +575,12 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
                 case MAP_UPDATE -> {
                     final var mapState = writableStates.get(stateKey);
-                    mapState.put(
-                            mapKeyFor(stateChange.mapUpdateOrThrow().keyOrThrow()),
-                            mapValueFor(stateChange.mapUpdateOrThrow().valueOrThrow()));
+                    final var key = mapKeyFor(stateChange.mapUpdateOrThrow().keyOrThrow());
+                    final var value = mapValueFor(stateChange.mapUpdateOrThrow().valueOrThrow());
+                    mapState.put(key, value);
                     entityChanges
                             .computeIfAbsent(stateName, k -> new HashSet<>())
-                            .add(mapKeyFor(stateChange.mapUpdateOrThrow().keyOrThrow()));
+                            .add(key);
                     stateChangesSummary.countMapUpdate(serviceName, stateKey);
                 }
                 case MAP_DELETE -> {
@@ -615,7 +613,7 @@ public class StateChangesValidator implements BlockStreamValidator {
      *
      * @param path the path to the network directory
      * @throws IllegalStateException if the genesis network JSON cannot be found
-     * @throws UncheckedIOException  if an I/O error occurs
+     * @throws UncheckedIOException if an I/O error occurs
      */
     private void unarchiveGenesisNetworkJson(@NonNull final Path path) {
         final var desiredPath = path.resolve(DiskStartupNetworks.GENESIS_NETWORK_JSON);
@@ -892,24 +890,5 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private static EntityIDPair pairFrom(@NonNull final TokenAssociation tokenAssociation) {
         return new EntityIDPair(tokenAssociation.accountId(), tokenAssociation.tokenId());
-    }
-
-    /**
-     * Load the address book from the given path, using {@link CryptoStatic#generateKeysAndCerts(AddressBook)}
-     * to set its gossip certificates to the same certificates used by nodes in a test network.
-     *
-     * @param path the path to the address book file
-     * @return the loaded address book
-     */
-    private static AddressBook loadLegacyBookWithGeneratedCerts(@NonNull final Path path) {
-        requireNonNull(path);
-        final var configFile = LegacyConfigPropertiesLoader.loadConfigFile(path.toAbsolutePath());
-        try {
-            final var addressBook = configFile.getAddressBook();
-            CryptoStatic.generateKeysAndCerts(addressBook);
-            return addressBook;
-        } catch (Exception e) {
-            throw new RuntimeException("Error generating keys and certs", e);
-        }
     }
 }
