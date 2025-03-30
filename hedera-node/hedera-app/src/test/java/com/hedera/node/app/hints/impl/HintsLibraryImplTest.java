@@ -2,6 +2,7 @@
 package com.hedera.node.app.hints.impl;
 
 import static com.hedera.node.app.hints.impl.HintsControllerImpl.decodeCrsUpdate;
+import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -14,7 +15,7 @@ import java.util.SortedMap;
 import java.util.SplittableRandom;
 import java.util.TreeMap;
 import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 class HintsLibraryImplTest {
@@ -74,13 +75,14 @@ class HintsLibraryImplTest {
         final var crs = decodedCrsUpdate.crs();
 
         final int numParties = 4;
-        final Map<Integer, Bytes> privateKeys = Map.of(
-                0, subject.newBlsPrivateKey(),
-                1, subject.newBlsPrivateKey(),
-                2, subject.newBlsPrivateKey());
+        // (FUTURE) Understand why this test doesn't pass with List.of(1, 2, 3)
+        final List<Integer> ids = List.of(0, 1, 2);
+        final Map<Integer, Bytes> privateKeys = IntStream.range(0, numParties)
+                .boxed()
+                .collect(toMap(Function.identity(), i -> subject.newBlsPrivateKey()));
 
         final SortedMap<Integer, Bytes> hintsKeys = new TreeMap<>();
-        final List<Integer> knownParties = List.of(0, 1, 2);
+        final List<Integer> knownParties = ids;
         for (final int partyId : knownParties) {
             hintsKeys.put(partyId, subject.computeHints(crs, privateKeys.get(partyId), partyId, numParties));
         }
@@ -96,10 +98,9 @@ class HintsLibraryImplTest {
         assertEquals(1288L, vk.length());
 
         final var message = Bytes.wrap("Hello World");
-        final List<Integer> signingParties = List.of(0, 1, 2);
+        final List<Integer> signingParties = ids;
         final var signatures = signingParties.stream()
-                .collect(Collectors.toMap(
-                        Function.identity(), partyId -> subject.signBls(message, privateKeys.get(partyId))));
+                .collect(toMap(Function.identity(), partyId -> subject.signBls(message, privateKeys.get(partyId))));
         signatures.forEach((partyId, s) -> assertTrue(subject.verifyBls(crs, s, message, ak, partyId)));
         final var sig = subject.aggregateSignatures(crs, ak, vk, signatures);
         assertTrue(subject.verifyAggregate(sig, message, vk, 1, 3));

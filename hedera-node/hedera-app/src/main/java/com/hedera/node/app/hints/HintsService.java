@@ -164,17 +164,15 @@ public interface HintsService extends Service, BlockHashSigner {
     }
 
     /**
-     * Returns the smallest power of 2 {@code M = 2^k} such that
-     * {@code numSigners + 1 <= M}. Equivalently, if
-     * {@code 2^(k-1) <= numSigners < 2^k},
-     * then the returned party size is {@code 2^k}.
+     * Returns the smallest power of 2 {@code M = 2^k} such that {@code numSigners + 1 < M}. Equivalently,
+     * if {@code 2^(k-1) <= numSigners + 1 < 2^k}, then the returned party size is {@code 2^k}.
      *
      * @param numSigners the number of signers (roster node count)
      * @return the party size
      */
     static int partySizeForRosterNodeCount(final int numSigners) {
-        // We want the smallest power of two >= (numSigners + 1)
-        final var candidate = numSigners + 1;
+        // We want the smallest power of two > (numSigners + 1)
+        final var candidate = numSigners + 2;
         if ((candidate & (candidate - 1)) == 0) {
             return candidate;
         }
