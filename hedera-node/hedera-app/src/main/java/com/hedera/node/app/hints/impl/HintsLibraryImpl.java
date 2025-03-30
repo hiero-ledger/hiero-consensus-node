@@ -44,7 +44,7 @@ public class HintsLibraryImpl implements HintsLibrary {
     }
 
     @Override
-    public Bytes newBlsKeyPair() {
+    public Bytes newBlsPrivateKey() {
         final byte[] randomBytes = new byte[32];
         RANDOM.nextBytes(randomBytes);
         final var key = BRIDGE.generateSecretKey(randomBytes);

@@ -86,6 +86,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SplittableRandom;
 import java.util.TreeMap;
@@ -103,6 +104,7 @@ import org.junit.jupiter.api.Assertions;
  */
 public class StateChangesValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(StateChangesValidator.class);
+    private static final long DEFAULT_HINTS_THRESHOLD_DENOMINATOR = 3;
     private static final SplittableRandom RANDOM = new SplittableRandom(System.currentTimeMillis());
     private static final MerkleCryptography CRYPTO = TestMerkleCryptoFactory.getInstance();
 
@@ -117,6 +119,7 @@ public class StateChangesValidator implements BlockStreamValidator {
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
     private static final Pattern CHILD_STATE_PATTERN = Pattern.compile("\\s+\\d+ \\w+\\s+(\\S+)\\s+.+\\s+(.+)");
 
+    private final long hintsThresholdDenominator;
     private final Hash genesisStateHash;
     private final Path pathToNode0SwirldsLog;
     private final Bytes expectedRootHash;
@@ -149,14 +152,17 @@ public class StateChangesValidator implements BlockStreamValidator {
                 .resolve(workingDirFor(0, "hapi"))
                 .toAbsolutePath()
                 .normalize();
+        // 3 if debugging most PR checks, 4 if debugging the HAPI (Restart) check
+        final long hintsThresholdDenominator = 3;
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
-                        "58b708e687f3364a6978f015fe8cb589510539f125cc1926b1012d4e7257c1015af0f3aca65af453f8d9d05793bf4a03"),
+                        "680a568cd0e5eb03c249f0f1ec9969a4d64778aedcf257dbfbb93f4fb718035e64231dc9e7a1829e0383c6a256621f74"),
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
                 HintsEnabled.YES,
-                HistoryEnabled.NO);
+                HistoryEnabled.NO,
+                hintsThresholdDenominator);
         final var blocks =
                 BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-0.0.3"));
         validator.validateBlocks(blocks);
@@ -200,15 +206,18 @@ public class StateChangesValidator implements BlockStreamValidator {
             final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
             final var genesisConfigTxt = node0.metadata().workingDirOrThrow().resolve("genesis-config.txt");
             Files.writeString(genesisConfigTxt, subProcessNetwork.genesisConfigTxt());
-            final var isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
-            final var isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
+            final boolean isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
+            final boolean isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
             return new StateChangesValidator(
                     rootHash,
                     node0.getExternalPath(SWIRLDS_LOG),
                     node0.getExternalPath(APPLICATION_PROPERTIES),
                     node0.getExternalPath(DATA_CONFIG_DIR),
                     isHintsEnabled ? HintsEnabled.YES : HintsEnabled.NO,
-                    isHistoryEnabled ? HistoryEnabled.YES : HistoryEnabled.NO);
+                    isHistoryEnabled ? HistoryEnabled.YES : HistoryEnabled.NO,
+                    Optional.ofNullable(System.getProperty("hapi.spec.hintsThresholdDenominator"))
+                            .map(Long::parseLong)
+                            .orElse(DEFAULT_HINTS_THRESHOLD_DENOMINATOR));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -220,9 +229,11 @@ public class StateChangesValidator implements BlockStreamValidator {
             @NonNull final Path pathToOverrideProperties,
             @NonNull final Path pathToUpgradeSysFilesLoc,
             @NonNull final HintsEnabled hintsEnabled,
-            @NonNull final HistoryEnabled historyEnabled) {
+            @NonNull final HistoryEnabled historyEnabled,
+            final long hintsThresholdDenominator) {
         this.expectedRootHash = requireNonNull(expectedRootHash);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
+        this.hintsThresholdDenominator = hintsThresholdDenominator;
 
         System.setProperty(
                 "hedera.app.properties.path",
@@ -497,13 +508,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             final var signature = proof.blockSignature();
             final var schemeUsed = proof.schemeUsedOrThrow();
             final var vk = schemeUsed == LATEST_ACTIVE_SCHEME ? activeVk : requireNonNull(nextVk);
-            // Note the 1/4 fraction below; DabEnabledUpgradeTest is intentionally a chaotic churn
-            // of fast upgrades with heavy use of override networks, and there is a node removal
-            // step that happens without giving enough time for the next hinTS scheme to be
-            // completed, meaning a 1/3 threshold in the *actual* roster only accounts for
-            // 1/4 total weight in the out-of-date hinTS verification key,
             assertTrue(
-                    hintsLibrary.verifyAggregate(signature, provenHash, vk, 1, 4),
+                    hintsLibrary.verifyAggregate(signature, provenHash, vk, 1, hintsThresholdDenominator),
                     () -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);
         } else {
             final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
