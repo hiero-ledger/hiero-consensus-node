@@ -204,9 +204,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final CompletableFuture<Void> onFirstActive = new CompletableFuture<>();
 
     /**
-     * False until any the node has attempted to sign any blocks pending TSS signature still on disk.
+     * False until any the node has attempted to recover any blocks pending TSS signature still on disk.
      */
-    private boolean attemptedPendingBlockSigning = false;
+    private boolean recoveredPendingBlocks = false;
 
     @Inject
     public BlockStreamManagerImpl(
@@ -296,15 +296,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             inputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             outputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             blockNumber = blockStreamInfo.blockNumber() + 1;
-            if (hintsEnabled && !attemptedPendingBlockSigning) {
+            if (hintsEnabled && !recoveredPendingBlocks) {
                 final var hasBeenFrozen = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
                                 .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY)
                                 .get())
                         .hasLastFrozenTime();
                 if (hasBeenFrozen) {
-                    flushPendingBlocks();
+                    recoverPendingBlocks();
                 }
-                attemptedPendingBlockSigning = true;
+                recoveredPendingBlocks = true;
             }
 
             worker = new BlockStreamManagerTask();
@@ -321,7 +321,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     /**
      * Flushes the contents and proof context of any pending blocks to disk.
      */
-    private void flushPendingBlocks() {
+    private void recoverPendingBlocks() {
         final var path = blockDirFor(configProvider.getConfiguration(), networkInfo.selfNodeInfo());
         log.info(
                 "Attempting to sign any pending blocks contiguous to #{} still on disk @ {}",

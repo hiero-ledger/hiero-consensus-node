@@ -22,4 +22,6 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "1024") @NetworkProperty int initialCrsParties,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean hintsEnabled,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean historyEnabled,
+        // Must be true if enabling TSS while also using an override network,
+        // to give express consent for breaking the address book chain of trust
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean forceHandoffs) {}
