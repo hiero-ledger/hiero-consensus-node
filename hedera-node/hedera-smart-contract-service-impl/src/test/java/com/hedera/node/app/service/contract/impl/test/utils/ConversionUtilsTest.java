@@ -253,7 +253,8 @@ class ConversionUtilsTest {
     @Test
     void convertContractIdToBesuAddressTest() {
         final var actual = ConversionUtils.contractIDToBesuAddress(entityIdFactory, CALLED_CONTRACT_ID);
-        assertEquals(actual, asLongZeroAddress(entityIdFactory, Objects.requireNonNull(CALLED_CONTRACT_ID.contractNum())));
+        assertEquals(
+                actual, asLongZeroAddress(entityIdFactory, Objects.requireNonNull(CALLED_CONTRACT_ID.contractNum())));
 
         final var actual2 = ConversionUtils.contractIDToBesuAddress(entityIdFactory, VALID_CONTRACT_ADDRESS);
         assertEquals(actual2, pbjToBesuAddress(Objects.requireNonNull(VALID_CONTRACT_ADDRESS.evmAddress())));
@@ -288,12 +289,14 @@ class ConversionUtilsTest {
 
     @Test
     void isLongZeroAddressTest() {
-        assertThat(isLongZeroAddress(entityIdFactory, LONG_ZERO_ADDRESS_BYTES.toByteArray())).isTrue();
+        assertThat(isLongZeroAddress(entityIdFactory, LONG_ZERO_ADDRESS_BYTES.toByteArray()))
+                .isTrue();
     }
 
     @Test
     void isLongZeroAddressWrongTest() {
-        assertThat(isLongZeroAddress(entityIdFactory, NON_LONG_ZERO_ADDRESS_BYTES.toByteArray())).isFalse();
+        assertThat(isLongZeroAddress(entityIdFactory, NON_LONG_ZERO_ADDRESS_BYTES.toByteArray()))
+                .isFalse();
     }
 
     @Test
