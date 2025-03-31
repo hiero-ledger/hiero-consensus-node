@@ -16,11 +16,11 @@ import com.hedera.node.app.workflows.query.annotations.UserQueries;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.node.config.types.Profile;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -408,17 +408,34 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             @NonNull final IngestWorkflow ingestWorkflow,
             @NonNull final QueryWorkflow queryWorkflow,
             @NonNull final Metrics metrics) {
-        final int maxMessageSize = configProvider
+
+        final var maxTxnSize = configProvider
                 .getConfiguration()
                 .getConfigData(HederaConfig.class)
                 .transactionMaxBytes();
-        final var bufferThreadLocal = ThreadLocal.withInitial(() -> BufferedData.allocate(maxMessageSize + 1));
-        final var dataBufferMarshaller = new DataBufferMarshaller(maxMessageSize, bufferThreadLocal::get);
+        final var isJumboEnabled = configProvider
+                .getConfiguration()
+                .getConfigData(JumboTransactionsConfig.class)
+                .isEnabled();
+        final var jumboMaxTxnSize = isJumboEnabled
+                ? configProvider
+                        .getConfiguration()
+                        .getConfigData(JumboTransactionsConfig.class)
+                        .maxTxnSize()
+                : maxTxnSize;
+
+        // set buffer capacity to be big enough to hold the largest transaction
+        final var bufferCapacity = isJumboEnabled ? jumboMaxTxnSize + 1 : maxTxnSize + 1;
+        // set capacity and max transaction size for both normal and jumbo transactions
+        final var dataBufferMarshaller = new DataBufferMarshaller(bufferCapacity, maxTxnSize);
+        final var jumboBufferMarshaller = new DataBufferMarshaller(bufferCapacity, jumboMaxTxnSize);
         return rpcServiceDefinitions
                 .get()
                 .map(d -> {
-                    final var builder =
-                            new GrpcServiceBuilder(d.basePath(), ingestWorkflow, queryWorkflow, dataBufferMarshaller);
+                    // create builder
+                    final var builder = new GrpcServiceBuilder(
+                            d.basePath(), ingestWorkflow, queryWorkflow, dataBufferMarshaller, jumboBufferMarshaller);
+                    // add methods to builder
                     d.methods().stream().filter(methodFilter).forEach(m -> {
                         if (Transaction.class.equals(m.requestType())) {
                             builder.transaction(m.path());
@@ -426,7 +443,8 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                             builder.query(m.path());
                         }
                     });
-                    return builder.build(metrics, maxMessageSize);
+                    // build service
+                    return builder.build(metrics, configProvider);
                 })
                 .collect(Collectors.toUnmodifiableSet());
     }
