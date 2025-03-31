@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io;
 
-import com.swirlds.common.AutoCloseableNonThrowing;
+import com.swirlds.base.utility.AutoCloseableNonThrowing;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;

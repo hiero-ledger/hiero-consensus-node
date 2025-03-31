@@ -1,34 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
-import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
+import static org.assertj.core.api.Assertions.fail;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.junit.jupiter.api.Assertions;
 
-public class InputEventsValidation {
-    /**
-     * Validate that the events are added in a different order
-     */
-    public static void validateEventsAreInDifferentOrder(
-            @NonNull final ConsensusOutput output1, @NonNull final ConsensusOutput output2) {
-        assertBaseEventLists(
-                "Verifying input events are not equal", output1.getAddedEvents(), output2.getAddedEvents(), false);
-    }
-
-    /**
-     * Verify that ALL base events fed into consensus are exactly identical this will check only pre-consensus data, for
-     * non-consensus events, the consensus data does not have to match
-     */
-    public static void validateInputsAreTheSame(
-            @NonNull final ConsensusOutput output1, @NonNull final ConsensusOutput output2) {
-        assertBaseEventLists(
-                "Verifying sorted input events are equal",
-                output1.sortedAddedEvents(),
-                output2.sortedAddedEvents(),
-                true);
-    }
+public class TestFixtureValidationUtils {
 
     /**
      * Assert that base events for equality. This does not check any consensus data, only pre-consensus. If the equality
@@ -39,14 +18,14 @@ public class InputEventsValidation {
      * @param l2 the second list of events
      * @param shouldBeEqual true if we expect lists have equal events, false if we expect unequal
      */
-    private static void assertBaseEventLists(
+    static void assertBaseEventLists(
             @NonNull final String description,
             @NonNull final List<PlatformEvent> l1,
             @NonNull final List<PlatformEvent> l2,
             final boolean shouldBeEqual) {
 
         if (l1.size() != l2.size()) {
-            Assertions.fail(String.format("Length of event lists are unequal: %d vs %d", l1.size(), l2.size()));
+            fail(String.format("Length of event lists are unequal: %d vs %d", l1.size(), l2.size()));
         }
 
         for (int index = 0; index < l1.size(); index++) {
@@ -65,7 +44,7 @@ public class InputEventsValidation {
                         + "\n"
                         + "at index: "
                         + index;
-                Assertions.fail(sb);
+                fail(sb);
             }
             if (!shouldBeEqual && !equals) {
                 // events are not equal, and they are not expected to be, we can stop checking
@@ -74,8 +53,7 @@ public class InputEventsValidation {
         }
         if (!shouldBeEqual) {
             // events are not expected to be equal, but we have gone through the whole list without finding a mismatch
-            Assertions.fail(
-                    String.format("Events are added in exactly the same order. Number of events: %d", l1.size()));
+            fail(String.format("Events are added in exactly the same order. Number of events: %d", l1.size()));
         }
     }
 }

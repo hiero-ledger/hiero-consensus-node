@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.test.fixtures;
+package org.hiero.consensus.utility.test.fixtures;
 
 import java.util.Random;
 

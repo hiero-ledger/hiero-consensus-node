@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.utility;
+package org.hiero.consensus.utility;
 
 import static com.swirlds.base.units.UnitConstants.BYTES_PER_INT;
 import static com.swirlds.base.units.UnitConstants.BYTES_PER_LONG;
@@ -153,7 +153,7 @@ public final class ByteUtils {
                 if (index >= data.length) {
                     break;
                 }
-                result += (data[index] & 0xff) << (8 * (1 - offset));
+                result += (short) ((data[index] & 0xff) << (8 * (1 - offset)));
             }
             return result;
         }

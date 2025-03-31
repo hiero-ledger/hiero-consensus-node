@@ -31,6 +31,7 @@ jobs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
       xts-tag-commit-author: ${{ steps.check-tags-exist.outputs.xts-tag-commit-author }}
+      xts-tag-commit-email: ${{ steps.check-tags-exist.outputs.xts-tag-commit-email }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
@@ -94,6 +95,7 @@ jobs:
             echo "xts-tag-exists=true" >> $GITHUB_OUTPUT
             echo "xts-tag-commit=${XTS_COMMIT}" >> $GITHUB_OUTPUT
             echo "xts-tag-commit-author=${AUTHOR_NAME} <${AUTHOR_EMAIL}>" >> $GITHUB_OUTPUT
+            echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> $GITHUB_OUTPUT
             echo "### XTS-Candidate commit found" >>  $GITHUB_STEP_SUMMARY
             echo "xts-tag-commit=${XTS_COMMIT}" >> $GITHUB_STEP_SUMMARY
 
@@ -441,6 +443,22 @@ jobs:
             "event_action": "trigger"
           }'
 
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+          EMAIL: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-email }}
+        run: |
+          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list"  -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" '.members[] | select(.profile.email == $email) | .name')
+          if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
+            echo "No Slack user found for email: ${EMAIL}"
+            SLACK_USER_ID="No matching slack user found"
+          else
+            echo "Found slack user for email: ${EMAIL}"
+            SLACK_USER_ID="<@${SLACK_USER_ID}>"
+          fi
+          echo "slack-user-id=${SLACK_USER_ID}" >> $GITHUB_OUTPUT
+
       - name: Report failure (slack)
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
@@ -538,6 +556,14 @@ jobs:
                         {
                           "type": "mrkdwn",
                           "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Slack user*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
                         },
                         {
                           "type": "mrkdwn",
