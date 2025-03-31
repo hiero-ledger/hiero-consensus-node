@@ -124,6 +124,9 @@ class BlockStreamManagerImplTest {
     private BoundaryStateChangeListener boundaryStateChangeListener;
 
     @Mock
+    private BlockStreamManager.Lifecycle lifecycle;
+
+    @Mock
     private BlockItemWriter aWriter;
 
     @Mock
@@ -221,7 +224,8 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE);
+                TEST_PLATFORM_STATE_FACADE,
+                lifecycle);
         assertSame(Instant.EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
@@ -243,7 +247,8 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE);
+                TEST_PLATFORM_STATE_FACADE,
+                lifecycle);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
 
@@ -826,7 +831,8 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE);
+                TEST_PLATFORM_STATE_FACADE,
+                lifecycle);
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
         given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
         infoRef.set(blockStreamInfo);

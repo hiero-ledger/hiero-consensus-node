@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.utility;
+package org.hiero.consensus.utility;
 
 import static com.swirlds.base.units.UnitConstants.BYTES_PER_INT;
 import static com.swirlds.base.units.UnitConstants.BYTES_PER_LONG;
 import static com.swirlds.base.units.UnitConstants.BYTES_PER_SHORT;
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.common.utility.ByteUtils.byteArrayToInt;
-import static com.swirlds.common.utility.ByteUtils.byteArrayToLong;
-import static com.swirlds.common.utility.ByteUtils.byteArrayToShort;
-import static com.swirlds.common.utility.ByteUtils.intToByteArray;
-import static com.swirlds.common.utility.ByteUtils.longToByteArray;
-import static com.swirlds.common.utility.ByteUtils.reverseByteArray;
-import static com.swirlds.common.utility.ByteUtils.shortToByteArray;
+import static org.hiero.consensus.utility.ByteUtils.byteArrayToInt;
+import static org.hiero.consensus.utility.ByteUtils.byteArrayToLong;
+import static org.hiero.consensus.utility.ByteUtils.byteArrayToShort;
+import static org.hiero.consensus.utility.ByteUtils.intToByteArray;
+import static org.hiero.consensus.utility.ByteUtils.longToByteArray;
+import static org.hiero.consensus.utility.ByteUtils.reverseByteArray;
+import static org.hiero.consensus.utility.ByteUtils.shortToByteArray;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 

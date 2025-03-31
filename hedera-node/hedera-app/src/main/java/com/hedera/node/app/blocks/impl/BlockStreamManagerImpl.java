@@ -104,6 +104,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final PlatformStateFacade platformStateFacade;
 
+    private final Lifecycle lifecycle;
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
 
@@ -217,14 +218,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final Lifecycle lifecycle) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.networkInfo = requireNonNull(networkInfo);
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
-        this.platformStateFacade = platformStateFacade;
+        this.platformStateFacade = requireNonNull(platformStateFacade);
+        this.lifecycle = requireNonNull(lifecycle);
         this.configProvider = requireNonNull(configProvider);
         final var config = configProvider.getConfiguration();
         this.hintsEnabled = config.getConfigData(TssConfig.class).hintsEnabled();
@@ -289,6 +292,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockHashManager.startBlock(blockStreamInfo, lastBlockHash);
             runningHashManager.startBlock(blockStreamInfo);
 
+            lifecycle.onOpenBlock(state);
             inputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             outputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             blockNumber = blockStreamInfo.blockNumber() + 1;
@@ -403,6 +407,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (preTxnItems != null) {
                 flushPreUserItems(null);
             }
+            lifecycle.onCloseBlock(state);
             // Flush all boundary state changes besides the BlockStreamInfo
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();

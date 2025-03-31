@@ -26,6 +26,7 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
+import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -62,6 +63,9 @@ class HandleWorkflowTest {
 
     @Mock
     private HintsService hintsService;
+
+    @Mock
+    private BlockHashSigner blockHashSigner;
 
     @Mock
     private HistoryService historyService;
@@ -142,7 +146,7 @@ class HandleWorkflowTest {
     private CongestionMetrics congestionMetrics;
 
     @Mock
-    private BlockHashSigner signer;
+    private NodeRewardManager nodeRewardManager;
 
     private HandleWorkflow subject;
 
@@ -199,6 +203,8 @@ class HandleWorkflowTest {
                 .withValue("tss.historyEnabled", "false")
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        given(boundaryStateChangeListener.lastConsensusTimeOrThrow()).willReturn(NOW);
+        given(round.getConsensusTimestamp()).willReturn(NOW);
         subject = new HandleWorkflow(
                 networkInfo,
                 stakePeriodChanges,
@@ -226,7 +232,8 @@ class HandleWorkflowTest {
                 historyService,
                 congestionMetrics,
                 () -> PlatformStatus.ACTIVE,
-                signer,
-                null);
+                blockHashSigner,
+                null,
+                nodeRewardManager);
     }
 }
