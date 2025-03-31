@@ -320,7 +320,7 @@ public final class PcesTestFilesGenerator {
          * @return This Builder instance.
          */
         @NonNull
-        public Builder withDefaultOriginRange(final @NonNull Range range) {
+        public Builder withOriginRange(final @NonNull Range range) {
             this.originRange = range;
             return this;
         }

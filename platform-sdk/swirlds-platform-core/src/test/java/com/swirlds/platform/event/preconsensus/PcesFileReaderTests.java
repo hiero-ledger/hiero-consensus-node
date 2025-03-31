@@ -43,7 +43,7 @@ class PcesFileReaderTests {
     /**
      * Default range for the origin value.
      */
-    public static final Range DEFAULT_ORIGIN_RANGE = new Range(1, 1000);
+    public static final Range ORIGIN_RANGE = new Range(1, 1000);
 
     /**
      * Temporary directory provided by JUnit
@@ -300,7 +300,7 @@ class PcesFileReaderTests {
     void startAtFirstFileDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
                 .discontinue()
-                .withDefaultOriginRange(DEFAULT_ORIGIN_RANGE)
+                .withOriginRange(ORIGIN_RANGE)
                 .build()
                 .generate();
 
@@ -338,7 +338,7 @@ class PcesFileReaderTests {
         // Scenario 4: choose an origin that is incompatible with all state files. This will cause all
         // remaining
         // files to be deleted.
-        final long startingRound4 = DEFAULT_ORIGIN_RANGE.start() - 1;
+        final long startingRound4 = ORIGIN_RANGE.start() - 1;
         final PcesFileTracker fileTracker4 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound4, false, ancientMode);
 
@@ -359,7 +359,7 @@ class PcesFileReaderTests {
         final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
                 .skipAtStart()
                 .discontinue()
-                .withDefaultOriginRange(DEFAULT_ORIGIN_RANGE)
+                .withOriginRange(ORIGIN_RANGE)
                 .build()
                 .generate();
 
@@ -402,7 +402,7 @@ class PcesFileReaderTests {
         // Scenario 4: choose an origin that is incompatible with all state files. This will cause all
         // remaining
         // files to be deleted.
-        final long startingRound4 = DEFAULT_ORIGIN_RANGE.start() - 1;
+        final long startingRound4 = ORIGIN_RANGE.start() - 1;
         final PcesFileTracker fileTracker4 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound4, false, ancientMode);
         assertIteratorEquality(
@@ -420,7 +420,7 @@ class PcesFileReaderTests {
     void startAtDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
                 .discontinue()
-                .withDefaultOriginRange(DEFAULT_ORIGIN_RANGE)
+                .withOriginRange(ORIGIN_RANGE)
                 .build()
                 .generate();
 
@@ -464,7 +464,7 @@ class PcesFileReaderTests {
         // Scenario 4: choose an origin that is incompatible with all state files. This will cause all
         // remaining
         // files to be deleted.
-        final long startingRound4 = DEFAULT_ORIGIN_RANGE.start() - 1;
+        final long startingRound4 = ORIGIN_RANGE.start() - 1;
         final PcesFileTracker fileTracker4 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound4, false, ancientMode);
         assertIteratorEquality(
@@ -483,7 +483,7 @@ class PcesFileReaderTests {
 
         final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
                 .discontinue()
-                .withDefaultOriginRange(DEFAULT_ORIGIN_RANGE)
+                .withOriginRange(ORIGIN_RANGE)
                 .build()
                 .generate();
         // Note that the file at index 0 is not the first file in the stream,
@@ -525,7 +525,7 @@ class PcesFileReaderTests {
         // Scenario 4: choose an origin that is incompatible with all state files. This will cause all
         // remaining
         // files to be deleted.
-        final long startingRound4 = 0;
+        final long startingRound4 = ORIGIN_RANGE.start() - 1;
         final PcesFileTracker fileTracker4 =
                 PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, startingRound4, false, ancientMode);
         assertIteratorEquality(
