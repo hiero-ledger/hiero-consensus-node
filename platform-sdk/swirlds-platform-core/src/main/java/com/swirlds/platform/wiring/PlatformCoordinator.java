@@ -5,6 +5,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.transformers.RoutableData;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
+import com.swirlds.platform.event.FutureEventBuffer;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.creation.EventCreationManager;
@@ -64,6 +65,7 @@ public class PlatformCoordinator {
     private final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring;
     private final ComponentWiring<BranchReporter, Void> branchReporterWiring;
     private final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring;
+    private final ComponentWiring<FutureEventBuffer, List<PlatformEvent>> futureEventBufferWiring;
 
     /**
      * Constructor
@@ -86,6 +88,7 @@ public class PlatformCoordinator {
      * @param branchDetectorWiring                   the branch detector wiring
      * @param branchReporterWiring                   the branch reporter wiring
      * @param pcesInlineWriterWiring                 the inline PCES writer wiring
+     * @param futureEventBufferWiring                the future event buffer wiring
      */
     public PlatformCoordinator(
             @NonNull final Runnable flushTheEventHasher,
@@ -112,7 +115,8 @@ public class PlatformCoordinator {
             @NonNull final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring,
             @NonNull final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
             @NonNull final ComponentWiring<BranchReporter, Void> branchReporterWiring,
-            @Nullable final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring) {
+            @Nullable final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring,
+            @NonNull final ComponentWiring<FutureEventBuffer, List<PlatformEvent>> futureEventBufferWiring) {
 
         this.flushTheEventHasher = Objects.requireNonNull(flushTheEventHasher);
         this.internalEventValidatorWiring = Objects.requireNonNull(internalEventValidatorWiring);
@@ -132,6 +136,7 @@ public class PlatformCoordinator {
         this.branchDetectorWiring = Objects.requireNonNull(branchDetectorWiring);
         this.branchReporterWiring = Objects.requireNonNull(branchReporterWiring);
         this.pcesInlineWriterWiring = pcesInlineWriterWiring;
+        this.futureEventBufferWiring = Objects.requireNonNull(futureEventBufferWiring);
     }
 
     /**
@@ -153,6 +158,7 @@ public class PlatformCoordinator {
         if (pcesInlineWriterWiring != null) {
             pcesInlineWriterWiring.flush();
         }
+        futureEventBufferWiring.flush();
         gossipWiring.flush();
         consensusEngineWiring.flush();
         applicationTransactionPrehandlerWiring.flush();

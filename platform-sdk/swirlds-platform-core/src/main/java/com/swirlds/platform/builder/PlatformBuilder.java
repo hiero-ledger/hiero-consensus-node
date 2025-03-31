@@ -465,6 +465,7 @@ public final class PlatformBuilder {
                     .withHealthMonitorPeriod(wiringConfig.healthMonitorHeartbeatPeriod())
                     .withHealthLogThreshold(wiringConfig.healthLogThreshold())
                     .withHealthLogPeriod(wiringConfig.healthLogPeriod())
+                    .withHealthyReportThreshold(wiringConfig.healthyReportThreshold())
                     .build();
         }
 

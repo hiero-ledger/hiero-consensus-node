@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.stream;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -10,7 +10,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.stream.MultiStream;
 import com.swirlds.common.stream.RunningEventHashOverride;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -19,6 +18,7 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
