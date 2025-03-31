@@ -51,9 +51,9 @@ public class ConsensusRoundsListContainer implements ConsensusRoundsHolder {
     }
 
     @Override
-    public List<ConsensusRound> getFilteredConsensusRounds(Set<Long> commonConsensusRoundNums) {
+    public List<ConsensusRound> getFilteredConsensusRounds(@NonNull final Set<Long> roundNums) {
         return collectedRounds.entrySet().stream()
-                .filter(e -> commonConsensusRoundNums.contains(e.getKey()))
+                .filter(e -> roundNums.contains(e.getKey()))
                 .map(Map.Entry::getValue)
                 .toList();
     }
