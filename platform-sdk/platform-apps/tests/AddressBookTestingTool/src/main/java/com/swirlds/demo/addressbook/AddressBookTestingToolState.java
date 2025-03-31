@@ -14,7 +14,6 @@ package com.swirlds.demo.addressbook;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.common.utility.ByteUtils;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
@@ -26,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.utility.ByteUtils;
 
 /**
  * State for the AddressBookTestingTool.
