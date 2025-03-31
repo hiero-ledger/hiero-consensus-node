@@ -3,18 +3,21 @@ package com.hedera.services.bdd.suites.contract.ethereum;
 
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -29,14 +32,13 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -124,15 +126,14 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 jumboEthCall(payload, RELAYER).noLogging().hasPrecheck(BUSY));
     }
 
-    // fix this test
-    @Disabled
     @Order(4)
     @DisplayName("Privileged account is exempt from bytes throttles")
     @LeakyHapiTest(overrides = {"jumboTransactions.isEnabled", "jumboTransactions.maxBytesPerSec"})
     public Stream<DynamicTest> privilegedAccountIsExemptFromThrottles() {
         final var payloadSize = 127 * 1024;
-        final var bytesPerSec = 130 * 1024;
+        final var bytesPerSec = 60 * 1024;
         final var payload = new byte[payloadSize];
+        final var initialNonce = new AtomicLong(0);
         return hapiTest(
                 overridingTwo(
                         "jumboTransactions.isEnabled",
@@ -140,13 +141,15 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         "jumboTransactions.maxBytesPerSec",
                         String.valueOf(bytesPerSec)),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoCreate("payer").keyShape(SigControl.ED25519_ON).balance(ONE_HUNDRED_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                cryptoUpdate("payer").key(SECP_256K1_SOURCE_KEY),
-                jumboEthCall(payload, "payer").noLogging(),
-                sleepFor(1_000),
-                jumboEthCall(payload, "payer").noLogging().deferStatusResolution(),
-                jumboEthCall(payload, "payer").noLogging());
+                withOpContext((spec, op) -> allRunFor(
+                        spec,
+                        getAccountInfo(DEFAULT_PAYER).exposingEthereumNonceTo(initialNonce::set),
+                        ethereumCall(CONTRACT, FUNCTION, payload)
+                                .nonce(initialNonce.get())
+                                .markAsJumboTxn()
+                                .gasLimit(1_000_000L)
+                                .noLogging())));
     }
 
     private static HapiEthereumCall jumboEthCall(byte[] payload, String payer) {
