@@ -249,10 +249,12 @@ public class HandleWorkflow {
                             .equals(Instant.EPOCH);
                     case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
                 };
+        boolean systemTransactionsDispatched = false;
         if (isGenesis) {
             final var genesisEventTime = round.iterator().next().getConsensusTimestamp();
             logger.info("Doing genesis setup before {}", genesisEventTime);
             systemTransactions.doGenesisSetup(genesisEventTime, state);
+            systemTransactionsDispatched = true;
             if (streamMode != RECORDS) {
                 blockStreamManager.confirmPendingWorkFinished();
             }
@@ -264,7 +266,7 @@ public class HandleWorkflow {
                 configProvider.getConfiguration().getConfigData(TssConfig.class), state, round.getConsensusTimestamp());
         recordCache.resetRoundReceipts();
         try {
-            handleEvents(state, round, stateSignatureTxnCallback);
+            handleEvents(state, round, systemTransactionsDispatched, stateSignatureTxnCallback);
         } finally {
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
@@ -278,13 +280,15 @@ public class HandleWorkflow {
      *
      * @param state the state to apply the effects to
      * @param round the round to apply the effects of
+     * @param systemTransactionsDispatched whether system transactions have been dispatched
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     private void handleEvents(
             @NonNull final State state,
             @NonNull final Round round,
+            final boolean systemTransactionsDispatched,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
-        boolean userTransactionsHandled = false;
+        boolean transactionsDispatched = systemTransactionsDispatched;
         for (final var event : round) {
             if (streamMode != RECORDS) {
                 final var headerItem = BlockItem.newBuilder()
@@ -322,13 +326,13 @@ public class HandleWorkflow {
             for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
                 final var platformTxn = it.next();
                 try {
-                    userTransactionsHandled |= handlePlatformTransaction(
+                    transactionsDispatched |= handlePlatformTransaction(
                             state,
                             creator,
                             platformTxn,
                             event.getSoftwareVersion(),
                             simplifiedStateSignatureTxnCallback,
-                            userTransactionsHandled);
+                            transactionsDispatched);
                 } catch (final Exception e) {
                     logger.fatal(
                             "Possibly CATASTROPHIC failure while running the handle workflow. "
@@ -346,7 +350,7 @@ public class HandleWorkflow {
         // implementation of ConsensusStateEventHandler#onSealConsensusRound(), since the BlockStreamManager cannot do
         // its
         // end-of-block work until the platform has finished all its state changes.
-        if (userTransactionsHandled && streamMode != BLOCKS) {
+        if (transactionsDispatched && streamMode != BLOCKS) {
             blockRecordManager.endRound(state);
         }
     }

@@ -10,8 +10,10 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContains;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -49,6 +51,9 @@ class IssHandlingTest implements LifecycleTest {
         final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
         return hapiTest(
                 getVersionInfo().exposingServicesVersionTo(startVersion::set),
+                // Wait long enough for node1 to have typically written round 1 snapshot
+                // to disk; restarting from this boundary snpshot can surface edge cases
+                sleepForSeconds(2),
                 // Reconnect node1 with an aberrant ledger.transfers.maxLen override
                 sourcing(() -> reconnectIssNode(
                         byNodeId(ISS_NODE_ID),
@@ -63,7 +68,12 @@ class IssHandlingTest implements LifecycleTest {
                         }))),
                 assertHgcaaLogContains(
                         NodeSelector.byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
-                // Submit a transaction within the normal allowed transfers.maxLen limit
+                // First assert there was no ISS caused by simply reconnecting
+                assertHgcaaLogDoesNotContain(
+                        NodeSelector.byNodeId(ISS_NODE_ID), "ISS detected", Duration.ofSeconds(30)),
+
+                // But now submit a transaction within the normal allowed transfers.maxLen limit, while
+                // _not_ within the artificial limit set on the reconnected node
                 cryptoTransfer(movingHbar(6L)
                                 .distributing(GENESIS, "0.0.3", "0.0.4", "0.0.5", "0.0.6", "0.0.7", "0.0.8"))
                         .signedBy(GENESIS),
