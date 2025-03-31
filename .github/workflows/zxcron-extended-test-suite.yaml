@@ -446,8 +446,8 @@ jobs:
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
         env:
-            SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
-            EMAIL: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-email }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+          EMAIL: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-email }}
         run: |
           SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list"  -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" '.members[] | select(.profile.email == $email) | .name')
           if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
