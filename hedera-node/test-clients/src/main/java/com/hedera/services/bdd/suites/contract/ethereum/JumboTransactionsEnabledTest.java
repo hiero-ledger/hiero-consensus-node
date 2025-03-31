@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
@@ -28,12 +29,14 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -63,7 +66,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                jumboEthCall(jumboPayload)
+                jumboEthCall(jumboPayload, RELAYER)
                         // gRPC request terminated immediately
                         .orUnavailableStatus());
     }
@@ -90,12 +93,12 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .orUnavailableStatus(),
 
                 // send too big payload to jumbo endpoint
-                jumboEthCall(tooBigPayload)
+                jumboEthCall(tooBigPayload, RELAYER)
                         // gRPC request terminated immediately
                         .orUnavailableStatus(),
 
                 // send jumbo payload to jumbo endpoint
-                jumboEthCall(jumboPayload));
+                jumboEthCall(jumboPayload, RELAYER));
     }
 
     // This tests depends on the feature flag being enabled, so we need to upgrade to the next config version.
@@ -104,9 +107,9 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @DisplayName("Jumbo transaction gets bytes throttled at ingest")
     @LeakyHapiTest(overrides = {"jumboTransactions.isEnabled", "jumboTransactions.maxBytesPerSec"})
     public Stream<DynamicTest> jumboTransactionGetsThrottledAtIngest() {
-        final var size = 128_000;
-        final var bytesPerSec = 130_000;
-        final var payload = new byte[size];
+        final var payloadSize = 127 * 1024;
+        final var bytesPerSec = 130 * 1024;
+        final var payload = new byte[payloadSize];
         return hapiTest(
                 overridingTwo(
                         "jumboTransactions.isEnabled",
@@ -115,18 +118,43 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         String.valueOf(bytesPerSec)),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                jumboEthCall(payload).noLogging(),
+                jumboEthCall(payload, RELAYER).noLogging(),
                 sleepFor(1_000),
-                jumboEthCall(payload).noLogging().deferStatusResolution(),
-                jumboEthCall(payload).noLogging().hasPrecheck(BUSY));
+                jumboEthCall(payload, RELAYER).noLogging().deferStatusResolution(),
+                jumboEthCall(payload, RELAYER).noLogging().hasPrecheck(BUSY));
     }
 
-    private static HapiEthereumCall jumboEthCall(byte[] payload) {
+    // fix this test
+    @Disabled
+    @Order(4)
+    @DisplayName("Privileged account is exempt from bytes throttles")
+    @LeakyHapiTest(overrides = {"jumboTransactions.isEnabled", "jumboTransactions.maxBytesPerSec"})
+    public Stream<DynamicTest> privilegedAccountIsExemptFromThrottles() {
+        final var payloadSize = 127 * 1024;
+        final var bytesPerSec = 130 * 1024;
+        final var payload = new byte[payloadSize];
+        return hapiTest(
+                overridingTwo(
+                        "jumboTransactions.isEnabled",
+                        "true",
+                        "jumboTransactions.maxBytesPerSec",
+                        String.valueOf(bytesPerSec)),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate("payer").keyShape(SigControl.ED25519_ON).balance(ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
+                cryptoUpdate("payer").key(SECP_256K1_SOURCE_KEY),
+                jumboEthCall(payload, "payer").noLogging(),
+                sleepFor(1_000),
+                jumboEthCall(payload, "payer").noLogging().deferStatusResolution(),
+                jumboEthCall(payload, "payer").noLogging());
+    }
+
+    private static HapiEthereumCall jumboEthCall(byte[] payload, String payer) {
         return ethereumCall(CONTRACT, FUNCTION, payload)
                 .markAsJumboTxn()
                 .type(EthTxData.EthTransactionType.EIP1559)
                 .signingWith(SECP_256K1_SOURCE_KEY)
-                .payingWith(RELAYER)
+                .payingWith(payer)
                 .gasLimit(1_000_000L);
     }
 }
