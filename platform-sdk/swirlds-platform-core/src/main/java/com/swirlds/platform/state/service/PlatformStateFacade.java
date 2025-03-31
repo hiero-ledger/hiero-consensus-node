@@ -360,11 +360,16 @@ public class PlatformStateFacade {
             final var hash = recordAccessor.findHash(virtualLeafBytes.path());
             String valueString = pair.right().toString();
             String hashString = hash == null ? "null" : hash.toString().substring(0, 16);
-            String trimmedValueString = valueString.length() > 16 ? valueString.substring(0, 16) : valueString;
+            Bytes bytes = Bytes.fromHex("001a");
+
+            String trimmedValueString =
+                    valueString.length() > 16 ? valueString.substring(0, 16) : valueString;
+            String finalValueString = bytes.equals(pair.left()) ? valueString : trimmedValueString;
+
             sb.append("k=")
                     .append(pair.left())
                     .append(";v=")
-                    .append(trimmedValueString)
+                    .append(finalValueString)
                     .append(";path=")
                     .append(virtualLeafBytes.path())
                     .append(";hash=")
