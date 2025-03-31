@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.model.utility.CommonUtils.fromPbjTimestamp;
 import static org.hiero.consensus.model.utility.CommonUtils.toPbjTimestamp;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.nextInt;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.randomInstant;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;

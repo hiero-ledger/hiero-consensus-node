@@ -151,6 +151,7 @@ module com.swirlds.platform.core {
     requires com.swirlds.merkle;
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
+    requires org.hiero.consensus.utility;
     requires org.hiero.event.creator.impl;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.dataformat.yaml;
