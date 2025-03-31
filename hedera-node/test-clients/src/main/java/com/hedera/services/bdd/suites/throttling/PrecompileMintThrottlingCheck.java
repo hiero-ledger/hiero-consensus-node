@@ -46,8 +46,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(TOKEN)
 public class PrecompileMintThrottlingCheck extends HapiSuite {
 
-    private static final Logger log = LogManager.getLogger(PrecompileMintThrottlingCheck.class);
-
     private static final Logger LOG = LogManager.getLogger(PrecompileMintThrottlingCheck.class);
     private final AtomicLong duration = new AtomicLong(10);
     private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
@@ -89,13 +87,13 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
                                     (successCount + revertCount) * ALLOWED_THROTTLE_NOISE_TOLERANCE;
 
                             // print results
-                            log.info("\n------------------------------\n");
-                            log.info("Total ops to be considered : {} ops", successCount + revertCount);
-                            log.info("Throttled ops              : {} ops", revertCount);
-                            log.info("Allowed tolerance          : {} ops\n", throttleTolerance);
+                            LOG.info("\n------------------------------\n");
+                            LOG.info("Total ops to be considered : {} ops", successCount + revertCount);
+                            LOG.info("Throttled ops              : {} ops", revertCount);
+                            LOG.info("Allowed tolerance          : {} ops\n", throttleTolerance);
                             // debug print
-                            log.info("Precheck status count map: {}", precheckStatusCountMap);
-                            log.info("Status count map: {}", statusCountMap);
+                            LOG.info("Precheck status count map: {}", precheckStatusCountMap);
+                            LOG.info("Status count map: {}", statusCountMap);
 
                             // assert throttling
                             assertTrue(
