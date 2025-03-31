@@ -12,16 +12,19 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.mock;
 
-import com.hederahashgraph.api.proto.java.SubType;
-import com.hederahashgraph.api.proto.java.TransactionBody;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class TxnUsageEstimatorTest {
     private final int numPayerKeys = 2;
     private final long networkRbs = 123;
-    private final SigUsage sigUsage =
-            new SigUsage(A_SIG_MAP.getSigPairCount(), A_SIG_MAP.getSerializedSize(), numPayerKeys);
+    private final SigUsage sigUsage = new SigUsage(
+            A_SIG_MAP.sigPair().size(),
+            (int) SignatureMap.PROTOBUF.toBytes(A_SIG_MAP).length(),
+            numPayerKeys);
     private final TransactionBody txn = TransactionBody.newBuilder().build();
 
     private EstimatorUtils utils;
@@ -46,12 +49,12 @@ class TxnUsageEstimatorTest {
                         sigUsage.numPayerKeys()))
                 .willReturn(A_USAGES_MATRIX);
         // and:
-        subject.addBpt(A_USAGE_VECTOR.getBpt())
-                .addVpt(A_USAGE_VECTOR.getVpt())
-                .addRbs(A_USAGE_VECTOR.getRbh() * HRS_DIVISOR)
-                .addSbs(A_USAGE_VECTOR.getSbh() * HRS_DIVISOR)
-                .addGas(A_USAGE_VECTOR.getGas())
-                .addTv(A_USAGE_VECTOR.getTv())
+        subject.addBpt(A_USAGE_VECTOR.bpt())
+                .addVpt(A_USAGE_VECTOR.vpt())
+                .addRbs(A_USAGE_VECTOR.rbh() * HRS_DIVISOR)
+                .addSbs(A_USAGE_VECTOR.sbh() * HRS_DIVISOR)
+                .addGas(A_USAGE_VECTOR.gas())
+                .addTv(A_USAGE_VECTOR.tv())
                 .addNetworkRbs(networkRbs);
 
         // when:
@@ -62,26 +65,28 @@ class TxnUsageEstimatorTest {
     }
 
     private UsageEstimate expectedEstimate() {
-        final var updatedUsageVector = A_USAGE_VECTOR.toBuilder()
-                .setBpt(2 * A_USAGE_VECTOR.getBpt())
-                .setVpt(2 * A_USAGE_VECTOR.getVpt())
-                .setGas(2 * A_USAGE_VECTOR.getGas())
-                .setTv(2 * A_USAGE_VECTOR.getTv());
+        final var updatedUsageVector = A_USAGE_VECTOR
+                .copyBuilder()
+                .bpt(2 * A_USAGE_VECTOR.bpt())
+                .vpt(2 * A_USAGE_VECTOR.vpt())
+                .gas(2 * A_USAGE_VECTOR.gas())
+                .tv(2 * A_USAGE_VECTOR.tv());
         final var base = new UsageEstimate(updatedUsageVector);
-        base.addRbs(2 * A_USAGE_VECTOR.getRbh() * HRS_DIVISOR);
-        base.addSbs(2 * A_USAGE_VECTOR.getSbh() * HRS_DIVISOR);
+        base.addRbs(2 * A_USAGE_VECTOR.rbh() * HRS_DIVISOR);
+        base.addSbs(2 * A_USAGE_VECTOR.sbh() * HRS_DIVISOR);
         return base;
     }
 
     private UsageEstimate baseEstimate() {
-        final var updatedUsageVector = A_USAGE_VECTOR.toBuilder()
-                .setBpt(A_USAGE_VECTOR.getBpt())
-                .setVpt(A_USAGE_VECTOR.getVpt())
-                .setGas(A_USAGE_VECTOR.getGas())
-                .setTv(A_USAGE_VECTOR.getTv());
+        final var updatedUsageVector = A_USAGE_VECTOR
+                .copyBuilder()
+                .bpt(A_USAGE_VECTOR.bpt())
+                .vpt(A_USAGE_VECTOR.vpt())
+                .gas(A_USAGE_VECTOR.gas())
+                .tv(A_USAGE_VECTOR.tv());
         final var base = new UsageEstimate(updatedUsageVector);
-        base.addRbs(A_USAGE_VECTOR.getRbh() * HRS_DIVISOR);
-        base.addSbs(A_USAGE_VECTOR.getSbh() * HRS_DIVISOR);
+        base.addRbs(A_USAGE_VECTOR.rbh() * HRS_DIVISOR);
+        base.addSbs(A_USAGE_VECTOR.sbh() * HRS_DIVISOR);
         return base;
     }
 

@@ -56,9 +56,6 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.node.state.throttles;
     exports com.hedera.hapi.node.state.congestion;
     exports com.hedera.hapi.platform.event;
-    exports com.hedera.services.stream.proto;
-    exports com.hederahashgraph.api.proto.java;
-    exports com.hederahashgraph.service.proto.java;
     exports com.hedera.hapi.util;
     exports com.hedera.hapi.block.stream;
     exports com.hedera.hapi.block.stream.input;
@@ -68,22 +65,12 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.block.stream.schema;
     exports com.hedera.hapi.node.state.tss;
     exports com.hedera.hapi.services.auxiliary.tss;
-    exports com.hedera.hapi.block.protoc;
-    exports com.hedera.hapi.block.stream.protoc;
-    exports com.hedera.hapi.block.stream.output.protoc;
     exports com.hedera.hapi.block;
-    exports com.hedera.hapi.services.auxiliary.tss.legacy;
     exports com.hedera.hapi.services.auxiliary.hints;
     exports com.hedera.hapi.services.auxiliary.history;
-    exports com.hedera.hapi.platform.event.legacy;
     exports com.hedera.hapi.node.state.entity;
 
     requires transitive com.hedera.pbj.runtime;
-    requires transitive com.google.common;
-    requires transitive com.google.protobuf;
-    requires transitive io.grpc.stub;
-    requires transitive io.grpc;
-    requires io.grpc.protobuf;
     requires org.antlr.antlr4.runtime;
     requires static transitive com.github.spotbugs.annotations;
 }

@@ -4,6 +4,7 @@ package com.hedera.services.bdd.spec.transactions.crypto;
 import static com.hedera.services.bdd.spec.PropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.*;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -234,7 +235,7 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
                         .setCurrentNumTokenRels(info.getTokenRelationshipsCount())
                         .setCurrentExpiry(info.getExpirationTime().getSeconds())
                         .setCurrentMemo(info.getMemo())
-                        .setCurrentKey(info.getKey())
+                        .setCurrentKey(toPbj(info.getKey()))
                         .setCurrentlyHasProxy(info.hasProxyAccountID())
                         .setCurrentMaxAutomaticAssociations(info.getMaxAutomaticTokenAssociations())
                         // We can't get this information from the query, so leave it empty
@@ -244,7 +245,7 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
                         .build();
                 var baseMeta = new BaseTransactionMeta(_txn.getMemoBytes().size(), 0);
                 var opMeta = new CryptoUpdateMeta(
-                        _txn.getCryptoUpdateAccount(),
+                        toPbj(_txn.getCryptoUpdateAccount()),
                         _txn.getTransactionID().getTransactionValidStart().getSeconds());
                 var accumulator = new UsageAccumulator();
                 // Once account auto-renew is enabled, we could instead leave the explicit auto-assoc lifetime at 0

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.keys;
 
-import com.hederahashgraph.api.proto.java.Key;
+import com.hedera.hapi.node.base.Key;
 import java.security.PrivateKey;
 import java.util.Map;
 

@@ -8,9 +8,9 @@ import static com.hedera.node.app.service.token.impl.test.keys.NodeFactory.ed255
 import static com.hedera.node.app.service.token.impl.test.keys.NodeFactory.list;
 import static com.hedera.node.app.service.token.impl.test.keys.NodeFactory.threshold;
 
-import com.google.protobuf.ByteString;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.TokenID;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.TokenID;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.stream.Stream;
 
 public interface KeysAndIds {
@@ -104,7 +104,7 @@ public interface KeysAndIds {
 
     String FIRST_TOKEN_SENDER_ID = "0.0.888";
     AccountID FIRST_TOKEN_SENDER = asAccount(FIRST_TOKEN_SENDER_ID);
-    ByteString FIRST_TOKEN_SENDER_LITERAL_ALIAS = ByteString.copyFromUtf8("firstTokenSender");
+    Bytes FIRST_TOKEN_SENDER_LITERAL_ALIAS = Bytes.wrap("firstTokenSender");
 
     String SECOND_TOKEN_SENDER_ID = "0.0.999";
     AccountID SECOND_TOKEN_SENDER = asAccount(SECOND_TOKEN_SENDER_ID);
@@ -128,18 +128,18 @@ public interface KeysAndIds {
         public static AccountID asAccount(String v) {
             long[] nativeParts = asDotDelimitedLongArray(v);
             return AccountID.newBuilder()
-                    .setShardNum(nativeParts[0])
-                    .setRealmNum(nativeParts[1])
-                    .setAccountNum(nativeParts[2])
+                    .shardNum(nativeParts[0])
+                    .realmNum(nativeParts[1])
+                    .accountNum(nativeParts[2])
                     .build();
         }
 
         public static TokenID asToken(String v) {
             long[] nativeParts = asDotDelimitedLongArray(v);
             return TokenID.newBuilder()
-                    .setShardNum(nativeParts[0])
-                    .setRealmNum(nativeParts[1])
-                    .setTokenNum(nativeParts[2])
+                    .shardNum(nativeParts[0])
+                    .realmNum(nativeParts[1])
+                    .tokenNum(nativeParts[2])
                     .build();
         }
 

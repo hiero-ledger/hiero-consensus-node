@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.fees;
 
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
 
 import com.hedera.node.app.hapi.fees.pricing.RequiredPriceTypes;
+import com.hedera.services.bdd.utils.CommonPbjConverters;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.FeeSchedule;
 import com.hederahashgraph.api.proto.java.SubType;
@@ -12,6 +14,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Helper class to avoid problems when restarting from a saved state from the last release, whose
@@ -24,7 +27,9 @@ public class ScheduleTypePatching {
             final var usableTfs = TransactionFeeSchedule.newBuilder();
             final var fn = tfs.getHederaFunctionality();
             usableTfs.mergeFrom(tfs);
-            final Set<SubType> requiredTypes = RequiredPriceTypes.requiredTypesFor(fn);
+            final Set<SubType> requiredTypes = RequiredPriceTypes.requiredTypesFor(toPbj(fn)).stream()
+                    .map(CommonPbjConverters::fromPbj)
+                    .collect(Collectors.toSet());
             ensurePatchedFeeScheduleHasRequiredTypes(tfs, usableTfs, requiredTypes);
             usableSchedule.addTransactionFeeSchedule(usableTfs);
         }

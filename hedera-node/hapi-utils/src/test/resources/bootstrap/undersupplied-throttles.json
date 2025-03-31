@@ -6,22 +6,22 @@
 	  "throttleGroups": [
 		{
 		  "operations": [
-			"CryptoTransfer",
-			"CryptoCreate",
-			"CryptoApproveAllowance",
-			"CryptoDeleteAllowance"
+			"CRYPTO_TRANSFER",
+			"CRYPTO_CREATE",
+			"CRYPTO_APPROVE_ALLOWANCE",
+			"CRYPTO_DELETE_ALLOWANCE"
 		  ],
 		  "opsPerSec": 10000
 		},
 		{
 		  "operations": [
-			"ContractCall"
+			"CONTRACT_CALL"
 		  ],
 		  "opsPerSec": 0
 		},
 		{
 		  "operations": [
-			"TokenMint"
+			"TOKEN_MINT"
 		  ],
 		  "opsPerSec": 3000
 		}

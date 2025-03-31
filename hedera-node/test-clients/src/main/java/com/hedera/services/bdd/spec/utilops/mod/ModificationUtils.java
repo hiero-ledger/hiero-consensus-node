@@ -2,11 +2,13 @@
 package com.hedera.services.bdd.spec.utilops.mod;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBody;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.GeneratedMessage;
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.SchedulableTransactionBody;
@@ -85,9 +87,9 @@ public class ModificationUtils {
         return transaction -> {
             final TransactionBody body;
             try {
-                body = extractTransactionBody(transaction);
-            } catch (InvalidProtocolBufferException e) {
-                throw new IllegalArgumentException(e);
+                body = fromPbj(extractTransactionBody(toPbj(transaction)));
+            } catch (ParseException e) {
+                throw new RuntimeException(e);
             }
             return modificationsFor(body, strategies);
         };

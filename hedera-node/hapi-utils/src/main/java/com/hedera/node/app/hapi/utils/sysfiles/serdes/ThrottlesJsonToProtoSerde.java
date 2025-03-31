@@ -2,7 +2,7 @@
 package com.hedera.node.app.hapi.utils.sysfiles.serdes;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hederahashgraph.api.proto.java.ThrottleDefinitions;
+import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import java.io.IOException;
 import java.io.InputStream;
 

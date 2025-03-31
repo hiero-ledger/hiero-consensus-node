@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Function;
 

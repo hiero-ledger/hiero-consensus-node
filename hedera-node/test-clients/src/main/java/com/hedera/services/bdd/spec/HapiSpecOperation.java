@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdWithAlias;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static java.util.Collections.EMPTY_LIST;
 import static java.util.stream.Collectors.toList;
 
@@ -29,6 +30,7 @@ import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
 import com.hedera.services.bdd.suites.HapiSuite;
+import com.hedera.services.bdd.utils.ByteStringUtils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.CustomFeeLimit;
 import com.hederahashgraph.api.proto.java.Duration;
@@ -345,14 +347,16 @@ public abstract class HapiSpecOperation implements SpecOperation {
         if (explicitProtoStructure == HapiSpecSetup.TxnProtoStructure.OLD) {
             return txnWithBodyBytesAndSigMap;
         }
-        ByteString bodyByteString = CommonUtils.extractTransactionBodyByteString(txnWithBodyBytesAndSigMap);
+        ByteString bodyByteString = ByteStringUtils.wrapUnsafely(
+                CommonUtils.extractTransactionBodyByteString(toPbj(txnWithBodyBytesAndSigMap))
+                        .toByteArray());
         if (unknownFieldLocation == UnknownFieldLocation.TRANSACTION_BODY) {
             bodyByteString = TransactionBody.parseFrom(bodyByteString).toBuilder()
                     .setUnknownFields(nonEmptyUnknownFields())
                     .build()
                     .toByteString();
         }
-        final SignatureMap sigMap = CommonUtils.extractSignatureMap(txnWithBodyBytesAndSigMap);
+        final SignatureMap sigMap = fromPbj(CommonUtils.extractSignatureMap(toPbj(txnWithBodyBytesAndSigMap)));
         final var wrapper =
                 SignedTransaction.newBuilder().setBodyBytes(bodyByteString).setSigMap(sigMap);
         if (unknownFieldLocation == UnknownFieldLocation.SIGNED_TRANSACTION) {
@@ -446,7 +450,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
     protected MoreObjects.ToStringHelper toStringHelper() {
         final MoreObjects.ToStringHelper helper = MoreObjects.toStringHelper(this);
         if (txnSubmitted != null) {
-            helper.add("sigs", FeeBuilder.getSignatureCount(txnSubmitted));
+            helper.add("sigs", FeeBuilder.getSignatureCount(toPbj(txnSubmitted)));
         }
         payer.ifPresent(a -> helper.add("payer", a));
         node.ifPresent(id -> helper.add("node", HapiPropertySource.asAccountString(id)));

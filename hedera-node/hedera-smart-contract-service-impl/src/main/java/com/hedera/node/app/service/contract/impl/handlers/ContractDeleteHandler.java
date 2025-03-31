@@ -9,7 +9,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OBTAINER_DOES_NOT_EXIST
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OBTAINER_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OBTAINER_SAME_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PERMANENT_REMOVAL_REQUIRES_SYSTEM_INITIATION;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumericContractId;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -132,7 +131,6 @@ public class ContractDeleteHandler implements TransactionHandler {
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(
-                        sigValueObj -> usageEstimator.getContractDeleteTxFeeMatrices(fromPbj(op), sigValueObj));
+                .legacyCalculate(sigValueObj -> usageEstimator.getContractDeleteTxFeeMatrices(op, sigValueObj));
     }
 }

@@ -4,7 +4,9 @@ package com.hedera.node.app.hapi.utils.forensics;
 import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.statusHistograms;
 import static com.hedera.node.app.hapi.utils.forensics.RecordParsers.parseV6RecordStreamEntriesIn;
 
-import com.hederahashgraph.api.proto.java.*;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.TransactionID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.EnumSet;
@@ -45,7 +47,7 @@ class RecordDumperDiagnostic {
     }
 
     private boolean wantThisFunction(@NonNull final HederaFunctionality function) {
-        if (function == HederaFunctionality.EthereumTransaction) return true;
+        if (function == HederaFunctionality.ETHEREUM_TRANSACTION) return true;
         return false;
     }
 
@@ -59,7 +61,7 @@ class RecordDumperDiagnostic {
 
     /* Basic dump of a transaction from a record */
     private void dumpTransaction(@NonNull final RecordStreamEntry record) {
-        final TransactionID id = record.transactionRecord().getTransactionID();
+        final TransactionID id = record.transactionRecord().transactionID();
         System.out.printf(
                 "====== %s - %s - %s - body:%n", record.consensusTime(), record.function(), record.finalStatus());
         System.out.println(record.body());
@@ -84,10 +86,10 @@ class RecordDumperDiagnostic {
     }
 
     private String formatId(@NonNull final TransactionID id) {
-        final var timestamp = id.getTransactionValidStart();
-        final var timestampStr = timestamp.getSeconds() + "." + timestamp.getNanos();
-        final var account = id.getAccountID();
-        final var accountStr = account.getShardNum() + "." + account.getRealmNum() + "." + account.getAccountNum();
+        final var timestamp = id.transactionValidStart();
+        final var timestampStr = timestamp.seconds() + "." + timestamp.nanos();
+        final var account = id.accountID();
+        final var accountStr = account.shardNum() + "." + account.realmNum() + "." + account.accountNum();
         return accountStr + "@" + timestampStr;
     }
 }

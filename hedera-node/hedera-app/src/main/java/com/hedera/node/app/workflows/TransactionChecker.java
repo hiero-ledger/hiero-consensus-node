@@ -16,7 +16,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN_FIELDS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_ID_FIELD_NOT_ALLOWED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -380,7 +379,7 @@ public class TransactionChecker {
 
         if (jumboTxnEnabled
                 && txInfo.serializedTransaction().length() > hederaConfig.transactionMaxBytes()
-                && !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))) {
+                && !allowedJumboHederaFunctionalities.contains(txInfo.functionality())) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
 

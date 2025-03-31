@@ -8,6 +8,8 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -276,9 +278,12 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
     protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
         final var ans = spec.fees()
                 .forActivityBasedOp(
-                        HederaFunctionality.ContractCall, scFees::getContractCallTxFeeMatrices, txn, numPayerKeys);
+                        HederaFunctionality.ContractCall,
+                        (txBody, sigValObj) -> fromPbj(scFees.getContractCallTxFeeMatrices(toPbj(txBody), sigValObj)),
+                        txn,
+                        numPayerKeys);
         final var additionalGasCost =
-                extractTransactionBody(txn).getContractCall().getGas()
+                extractTransactionBody(toPbj(txn)).contractCall().gas()
                         * spec.ratesProvider().currentTinybarGasPrice();
         return ans + additionalGasCost;
     }

@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.fee;
 
-import com.google.protobuf.InvalidProtocolBufferException;
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.transaction.ExchangeRate;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.hapi.utils.CommonUtils;
-import com.hederahashgraph.api.proto.java.ContractFunctionResult;
-import com.hederahashgraph.api.proto.java.ExchangeRate;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.ResponseType;
-import com.hederahashgraph.api.proto.java.Transaction;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionRecord;
+import com.hedera.pbj.runtime.ParseException;
 import java.math.BigInteger;
 import java.util.List;
 
@@ -39,14 +41,14 @@ public class FeeBuilder {
     public static final int BASIC_ACCOUNT_AMT_SIZE = BASIC_ENTITY_ID_SIZE + LONG_SIZE;
     public static final int BASIC_TX_ID_SIZE = BASIC_ENTITY_ID_SIZE + LONG_SIZE;
     public static final int EXCHANGE_RATE_SIZE = 2 * INT_SIZE + LONG_SIZE;
-    public static final int CRYPTO_ALLOWANCE_SIZE = BASIC_ENTITY_ID_SIZE + INT_SIZE + LONG_SIZE; // owner, spender ,
+    public static final long CRYPTO_ALLOWANCE_SIZE = BASIC_ENTITY_ID_SIZE + INT_SIZE + LONG_SIZE; // owner, spender ,
     // amount
-    public static final int TOKEN_ALLOWANCE_SIZE = BASIC_ENTITY_ID_SIZE + 2 * INT_SIZE + LONG_SIZE; // owner, tokenNum,
+    public static final long TOKEN_ALLOWANCE_SIZE = BASIC_ENTITY_ID_SIZE + 2 * INT_SIZE + LONG_SIZE; // owner, tokenNum,
     // spender num, amount
-    public static final int NFT_ALLOWANCE_SIZE = BASIC_ENTITY_ID_SIZE + 2 * INT_SIZE + BOOL_SIZE; // owner, tokenNum,
+    public static final long NFT_ALLOWANCE_SIZE = BASIC_ENTITY_ID_SIZE + 2 * INT_SIZE + BOOL_SIZE; // owner, tokenNum,
     // spender num, approvedForAll
 
-    public static final int NFT_DELETE_ALLOWANCE_SIZE = 2 * BASIC_ENTITY_ID_SIZE; // owner, tokenID
+    public static final long NFT_DELETE_ALLOWANCE_SIZE = 2 * BASIC_ENTITY_ID_SIZE; // owner, tokenID
 
     /** Fields included: status, exchangeRate. */
     public static final int BASIC_RECEIPT_SIZE = INT_SIZE + 2 * EXCHANGE_RATE_SIZE;
@@ -64,7 +66,7 @@ public class FeeBuilder {
     public static final long BASIC_QUERY_RES_HEADER = 2L * INT_SIZE + LONG_SIZE;
 
     public static final long BASIC_QUERY_HEADER = 212L;
-    public static final int BASIC_CONTRACT_CREATE_SIZE = BASIC_ENTITY_ID_SIZE + 6 * LONG_SIZE;
+    public static final long BASIC_CONTRACT_CREATE_SIZE = BASIC_ENTITY_ID_SIZE + 6 * LONG_SIZE;
     public static final long BASIC_CONTRACT_INFO_SIZE = 2L * BASIC_ENTITY_ID_SIZE + SOLIDITY_ADDRESS + BASIC_TX_ID_SIZE;
     /**
      * Fields included in size: receipt (basic size), transactionHash, consensusTimestamp,
@@ -91,15 +93,15 @@ public class FeeBuilder {
     public static long getComponentFeeInTinyCents(
             final FeeComponents componentCoefficients, final FeeComponents componentMetrics) {
 
-        final long bytesUsageFee = componentCoefficients.getBpt() * componentMetrics.getBpt();
-        final long verificationFee = componentCoefficients.getVpt() * componentMetrics.getVpt();
-        final long ramStorageFee = componentCoefficients.getRbh() * componentMetrics.getRbh();
-        final long storageFee = componentCoefficients.getSbh() * componentMetrics.getSbh();
-        final long evmGasFee = componentCoefficients.getGas() * componentMetrics.getGas();
-        final long txValueFee = Math.round((float) (componentCoefficients.getTv() * componentMetrics.getTv()) / 1000);
-        final long bytesResponseFee = componentCoefficients.getBpr() * componentMetrics.getBpr();
-        final long storageBytesResponseFee = componentCoefficients.getSbpr() * componentMetrics.getSbpr();
-        final long componentUsage = componentCoefficients.getConstant() * componentMetrics.getConstant();
+        final long bytesUsageFee = componentCoefficients.bpt() * componentMetrics.bpt();
+        final long verificationFee = componentCoefficients.vpt() * componentMetrics.vpt();
+        final long ramStorageFee = componentCoefficients.rbh() * componentMetrics.rbh();
+        final long storageFee = componentCoefficients.sbh() * componentMetrics.sbh();
+        final long evmGasFee = componentCoefficients.gas() * componentMetrics.gas();
+        final long txValueFee = Math.round((float) (componentCoefficients.tv() * componentMetrics.tv()) / 1000);
+        final long bytesResponseFee = componentCoefficients.bpr() * componentMetrics.bpr();
+        final long storageBytesResponseFee = componentCoefficients.sbpr() * componentMetrics.sbpr();
+        final long componentUsage = componentCoefficients.constant() * componentMetrics.constant();
 
         long totalComponentFee = componentUsage
                 + (bytesUsageFee
@@ -111,10 +113,10 @@ public class FeeBuilder {
                         + bytesResponseFee
                         + storageBytesResponseFee);
 
-        if (totalComponentFee < componentCoefficients.getMin()) {
-            totalComponentFee = componentCoefficients.getMin();
-        } else if (totalComponentFee > componentCoefficients.getMax()) {
-            totalComponentFee = componentCoefficients.getMax();
+        if (totalComponentFee < componentCoefficients.min()) {
+            totalComponentFee = componentCoefficients.min();
+        } else if (totalComponentFee > componentCoefficients.max()) {
+            totalComponentFee = componentCoefficients.max();
         }
         return Math.max(totalComponentFee > 0 ? 1 : 0, (totalComponentFee) / FEE_DIVISOR_FACTOR);
     }
@@ -137,9 +139,12 @@ public class FeeBuilder {
     public static FeeObject getFeeObject(
             final FeeData feeData, final FeeData feeMatrices, final ExchangeRate exchangeRate, final long multiplier) {
         // get the Network Fee
-        long networkFee = getComponentFeeInTinyCents(feeData.getNetworkdata(), feeMatrices.getNetworkdata());
-        long nodeFee = getComponentFeeInTinyCents(feeData.getNodedata(), feeMatrices.getNodedata());
-        long serviceFee = getComponentFeeInTinyCents(feeData.getServicedata(), feeMatrices.getServicedata());
+        long networkFee = getComponentFeeInTinyCents(
+                feeData.networkdataOrElse(FeeComponents.DEFAULT), feeMatrices.networkdataOrElse(FeeComponents.DEFAULT));
+        long nodeFee = getComponentFeeInTinyCents(
+                feeData.nodedataOrElse(FeeComponents.DEFAULT), feeMatrices.nodedataOrElse(FeeComponents.DEFAULT));
+        long serviceFee = getComponentFeeInTinyCents(
+                feeData.servicedataOrElse(FeeComponents.DEFAULT), feeMatrices.servicedataOrElse(FeeComponents.DEFAULT));
         // convert the Fee to tiny hbars
         networkFee = FeeBuilder.getTinybarsFromTinyCents(exchangeRate, networkFee) * multiplier;
         nodeFee = FeeBuilder.getTinybarsFromTinyCents(exchangeRate, nodeFee) * multiplier;
@@ -181,8 +186,8 @@ public class FeeBuilder {
      */
     public static long getCommonTransactionBodyBytes(final TransactionBody txBody) {
         int memoSize = 0;
-        if (txBody.getMemo() != null) {
-            memoSize = txBody.getMemoBytes().size();
+        if (txBody.memo() != null) {
+            memoSize = txBody.memo().getBytes().length;
         }
         return (long) BASIC_TX_BODY_SIZE + memoSize;
     }
@@ -198,7 +203,7 @@ public class FeeBuilder {
         if (key == null) {
             return 0;
         }
-        if (Key.getDefaultInstance().equals(key)) {
+        if (Key.DEFAULT.equals(key)) {
             return 0;
         }
 
@@ -218,12 +223,13 @@ public class FeeBuilder {
     public static int[] calculateKeysMetadata(final Key key, final int[] count) {
         int[] workingCount = count;
         if (key.hasKeyList()) {
-            final List<Key> keyList = key.getKeyList().getKeysList();
+            final List<Key> keyList = key.keyList().keys();
             for (final Key value : keyList) {
                 workingCount = calculateKeysMetadata(value, workingCount);
             }
         } else if (key.hasThresholdKey()) {
-            final List<Key> keyList = key.getThresholdKey().getKeys().getKeysList();
+            final List<Key> keyList =
+                    key.thresholdKey().keysOrElse(KeyList.DEFAULT).keys();
             workingCount[1]++;
             for (final Key value : keyList) {
                 workingCount = calculateKeysMetadata(value, workingCount);
@@ -241,7 +247,7 @@ public class FeeBuilder {
      * @return fee data
      */
     public static FeeData getCostForQueryByIdOnly() {
-        return FeeData.getDefaultInstance();
+        return FeeData.DEFAULT;
     }
 
     /**
@@ -252,8 +258,8 @@ public class FeeBuilder {
      */
     public static int getSignatureCount(final Transaction transaction) {
         try {
-            return CommonUtils.extractSignatureMap(transaction).getSigPairCount();
-        } catch (final InvalidProtocolBufferException ignored) {
+            return CommonUtils.extractSignatureMap(transaction).sigPair().size();
+        } catch (ParseException e) {
             return 0;
         }
     }
@@ -266,8 +272,10 @@ public class FeeBuilder {
      */
     public static int getSignatureSize(final Transaction transaction) {
         try {
-            return CommonUtils.extractSignatureMap(transaction).getSerializedSize();
-        } catch (final InvalidProtocolBufferException ignored) {
+            return (int) SignatureMap.PROTOBUF
+                    .toBytes(CommonUtils.extractSignatureMap(transaction))
+                    .length();
+        } catch (final Exception ignored) {
             return 0;
         }
     }
@@ -280,7 +288,7 @@ public class FeeBuilder {
      * @return tinyHbars
      */
     public static long getTinybarsFromTinyCents(final ExchangeRate exchangeRate, final long tinyCentsFee) {
-        return getAFromB(tinyCentsFee, exchangeRate.getHbarEquiv(), exchangeRate.getCentEquiv());
+        return getAFromB(tinyCentsFee, exchangeRate.hbarEquiv(), exchangeRate.centEquiv());
     }
 
     private static long getAFromB(final long bAmount, final int aEquiv, final int bEquiv) {
@@ -295,55 +303,55 @@ public class FeeBuilder {
     public static FeeData getFeeDataMatrices(
             final FeeComponents feeComponents, final int payerVpt, final long rbsNetwork) {
 
-        final long rbh = Math.max(feeComponents.getRbh() > 0 ? 1 : 0, feeComponents.getRbh() / HRS_DIVISOR);
-        final long sbh = Math.max(feeComponents.getSbh() > 0 ? 1 : 0, feeComponents.getSbh() / HRS_DIVISOR);
+        final long rbh = Math.max(feeComponents.rbh() > 0 ? 1 : 0, feeComponents.rbh() / HRS_DIVISOR);
+        final long sbh = Math.max(feeComponents.sbh() > 0 ? 1 : 0, feeComponents.sbh() / HRS_DIVISOR);
         final long rbhNetwork = Math.max(rbsNetwork > 0 ? 1 : 0, (rbsNetwork) / HRS_DIVISOR);
         final FeeComponents feeMatricesForTxService = FeeComponents.newBuilder()
-                .setConstant(FEE_MATRICES_CONST)
-                .setRbh(rbh)
-                .setSbh(sbh)
-                .setTv(feeComponents.getTv())
+                .constant(FEE_MATRICES_CONST)
+                .rbh(rbh)
+                .sbh(sbh)
+                .tv(feeComponents.tv())
                 .build();
 
         final FeeComponents feeMatricesForTxNetwork = FeeComponents.newBuilder()
-                .setConstant(FEE_MATRICES_CONST)
-                .setBpt(feeComponents.getBpt())
-                .setVpt(feeComponents.getVpt())
-                .setRbh(rbhNetwork)
+                .constant(FEE_MATRICES_CONST)
+                .bpt(feeComponents.bpt())
+                .vpt(feeComponents.vpt())
+                .rbh(rbhNetwork)
                 .build();
 
         final FeeComponents feeMatricesForTxNode = FeeComponents.newBuilder()
-                .setConstant(FEE_MATRICES_CONST)
-                .setBpt(feeComponents.getBpt())
-                .setVpt(payerVpt)
-                .setBpr(feeComponents.getBpr())
-                .setSbpr(feeComponents.getSbpr())
+                .constant(FEE_MATRICES_CONST)
+                .bpt(feeComponents.bpt())
+                .vpt(payerVpt)
+                .bpr(feeComponents.bpr())
+                .sbpr(feeComponents.sbpr())
                 .build();
 
         return FeeData.newBuilder()
-                .setNetworkdata(feeMatricesForTxNetwork)
-                .setNodedata(feeMatricesForTxNode)
-                .setServicedata(feeMatricesForTxService)
+                .networkdata(feeMatricesForTxNetwork)
+                .nodedata(feeMatricesForTxNode)
+                .servicedata(feeMatricesForTxService)
                 .build();
     }
 
     public static FeeData getQueryFeeDataMatrices(final FeeComponents feeComponents) {
 
-        final FeeComponents feeMatricesForTxService = FeeComponents.getDefaultInstance();
+        final FeeComponents feeMatricesForTxService = FeeComponents.DEFAULT;
 
-        final FeeComponents feeMatricesForTxNetwork = FeeComponents.getDefaultInstance();
+        final FeeComponents feeMatricesForTxNetwork = FeeComponents.DEFAULT;
 
         final FeeComponents feeMatricesForTxNode = FeeComponents.newBuilder()
-                .setConstant(FEE_MATRICES_CONST)
-                .setBpt(feeComponents.getBpt())
-                .setBpr(feeComponents.getBpr())
-                .setSbpr(feeComponents.getSbpr())
+                .constant(FEE_MATRICES_CONST)
+                .bpt(feeComponents.bpt())
+                .bpr(feeComponents.bpr())
+                .sbpr(feeComponents.sbpr())
                 .build();
 
         return FeeData.newBuilder()
-                .setNetworkdata(feeMatricesForTxNetwork)
-                .setNodedata(feeMatricesForTxNode)
-                .setServicedata(feeMatricesForTxService)
+                .networkdata(feeMatricesForTxNetwork)
+                .nodedata(feeMatricesForTxNode)
+                .servicedata(feeMatricesForTxService)
                 .build();
     }
 
@@ -353,13 +361,13 @@ public class FeeBuilder {
 
     public static int getBaseTransactionRecordSize(final TransactionBody txBody) {
         int txRecordSize = BASIC_TX_RECORD_SIZE;
-        if (txBody.getMemo() != null) {
-            txRecordSize = txRecordSize + txBody.getMemoBytes().size();
+        if (txBody.memo() != null) {
+            txRecordSize = txRecordSize + txBody.memo().getBytes().length;
         }
         // TransferList size
         if (txBody.hasCryptoTransfer()) {
             txRecordSize = txRecordSize
-                    + txBody.getCryptoTransfer().getTransfers().getAccountAmountsCount() * (BASIC_ACCOUNT_AMT_SIZE);
+                    + txBody.cryptoTransfer().transfers().accountAmounts().size() * (BASIC_ACCOUNT_AMT_SIZE);
         }
         return txRecordSize;
     }
@@ -376,46 +384,46 @@ public class FeeBuilder {
         return valueInSeconds == 0 ? 0 : Math.max(1, (valueInSeconds / HRS_DIVISOR));
     }
 
-    public static int getTransactionRecordSize(final TransactionRecord txRecord) {
+    public static long getTransactionRecordSize(final TransactionRecord txRecord) {
 
         if (txRecord == null) {
             return 0;
         }
 
-        int txRecordSize = BASIC_TX_RECORD_SIZE;
+        long txRecordSize = BASIC_TX_RECORD_SIZE;
 
         if (txRecord.hasContractCallResult()) {
-            txRecordSize = txRecordSize + getContractFunctionSize(txRecord.getContractCallResult());
+            txRecordSize = txRecordSize + getContractFunctionSize(txRecord.contractCallResult());
         } else if (txRecord.hasContractCreateResult()) {
-            txRecordSize = txRecordSize + getContractFunctionSize(txRecord.getContractCreateResult());
+            txRecordSize = txRecordSize + getContractFunctionSize(txRecord.contractCreateResult());
         }
         if (txRecord.hasTransferList()) {
             txRecordSize =
-                    txRecordSize + (txRecord.getTransferList().getAccountAmountsCount()) * (BASIC_ACCOUNT_AMT_SIZE);
+                    txRecordSize + (txRecord.transferList().accountAmounts().size()) * (BASIC_ACCOUNT_AMT_SIZE);
         }
 
         int memoBytesSize = 0;
-        if (txRecord.getMemo() != null) {
-            memoBytesSize = txRecord.getMemoBytes().size();
+        if (txRecord.memo() != null) {
+            memoBytesSize = txRecord.memo().getBytes().length;
         }
 
         return txRecordSize + memoBytesSize;
     }
 
-    public static int getContractFunctionSize(final ContractFunctionResult contFuncResult) {
+    public static long getContractFunctionSize(final ContractFunctionResult contFuncResult) {
 
-        int contResult = 0;
+        long contResult = 0;
 
-        if (contFuncResult.getContractCallResult() != null) {
-            contResult = contFuncResult.getContractCallResult().size();
+        if (contFuncResult.contractCallResult() != null) {
+            contResult = contFuncResult.contractCallResult().length();
         }
 
-        if (contFuncResult.getErrorMessage() != null) {
-            contResult = contResult + contFuncResult.getErrorMessageBytes().size();
+        if (contFuncResult.errorMessage() != null) {
+            contResult = contResult + contFuncResult.errorMessage().getBytes().length;
         }
 
-        if (contFuncResult.getBloom() != null) {
-            contResult = contResult + contFuncResult.getBloom().size();
+        if (contFuncResult.bloom() != null) {
+            contResult = contResult + contFuncResult.bloom().length();
         }
         contResult = contResult + LONG_SIZE + 2 * LONG_SIZE;
 

@@ -4,7 +4,7 @@ package com.hedera.node.app.hapi.fees.usage.util;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 
 import com.google.common.base.MoreObjects;
-import com.hederahashgraph.api.proto.java.UtilPrngTransactionBody;
+import com.hedera.hapi.node.util.UtilPrngTransactionBody;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
@@ -12,7 +12,7 @@ public class UtilPrngMeta {
     private final long msgBytesUsed;
 
     public UtilPrngMeta(UtilPrngTransactionBody txn) {
-        msgBytesUsed = txn.getRange() > 0 ? INT_SIZE : 0;
+        msgBytesUsed = txn.range() > 0 ? INT_SIZE : 0;
     }
 
     public UtilPrngMeta(UtilPrngMeta.Builder builder) {

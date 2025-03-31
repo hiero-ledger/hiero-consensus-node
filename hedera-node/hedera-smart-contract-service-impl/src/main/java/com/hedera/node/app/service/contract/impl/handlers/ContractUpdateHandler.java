@@ -11,7 +11,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCI
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MODIFYING_IMMUTABLE_CONTRACT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
@@ -22,11 +21,14 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.hapi.utils.keys.KeyUtils;
@@ -46,7 +48,6 @@ import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -312,17 +313,15 @@ public class ContractUpdateHandler implements TransactionHandler {
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGiven(fromPbj(op), sigValueObj, contract));
+                .legacyCalculate(sigValueObj -> usageGiven(op, sigValueObj, contract));
     }
 
     private FeeData usageGiven(
-            @NonNull com.hederahashgraph.api.proto.java.TransactionBody txn,
-            @NonNull SigValueObj sigUsage,
-            @Nullable Account contract) {
+            @NonNull TransactionBody txn, @NonNull SigValueObj sigUsage, @Nullable Account contract) {
         if (contract == null) {
             return CONSTANT_FEE_DATA;
         }
         return usageEstimator.getContractUpdateTxFeeMatrices(
-                txn, fromPbj(new com.hedera.hapi.node.base.Timestamp(contract.expirationSecond(), 0)), sigUsage);
+                txn, new Timestamp(contract.expirationSecond(), 0), sigUsage);
     }
 }

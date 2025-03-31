@@ -13,12 +13,14 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.node.app.hapi.utils.CommonUtils;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionID;
@@ -109,8 +111,8 @@ public class Issue305Spec {
 
     private TransactionID idOf(@NonNull final Transaction txn) {
         try {
-            return CommonUtils.extractTransactionBody(txn).getTransactionID();
-        } catch (InvalidProtocolBufferException e) {
+            return fromPbj(CommonUtils.extractTransactionBody(toPbj(txn))).getTransactionID();
+        } catch (ParseException e) {
             throw new IllegalArgumentException(e);
         }
     }

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.suites;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.keyFromFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;

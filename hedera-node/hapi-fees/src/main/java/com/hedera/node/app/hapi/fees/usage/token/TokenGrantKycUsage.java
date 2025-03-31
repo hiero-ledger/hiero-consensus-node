@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.token;
 
+import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.TransactionBody;
 
 public class TokenGrantKycUsage extends TokenTxnUsage<TokenGrantKycUsage> {
     private TokenGrantKycUsage(TransactionBody tokenGrantKycOp, TxnUsageEstimator usageEstimator) {

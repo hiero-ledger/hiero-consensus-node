@@ -8,16 +8,17 @@ import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.notGe
 import static com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
+import com.hedera.hapi.node.base.ResponseType;
 import com.hedera.hapi.node.file.FileGetContentsQuery;
 import com.hedera.hapi.node.file.FileGetContentsResponse;
 import com.hedera.hapi.node.file.FileGetContentsResponse.FileContents;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.file.ReadableFileStore;
@@ -28,8 +29,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.ResponseType;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -88,10 +87,7 @@ public class FileGetContentsHandler extends FileQueryBase {
         final var fileId = op.fileIDOrElse(FileID.DEFAULT);
         final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
         final FileContents fileContents = contentFile(fileId, fileStore, queryContext.configuration(), nodeStore);
-        return queryContext
-                .feeCalculator()
-                .legacyCalculate(sigValueObj ->
-                        usageGivenType(fileContents, CommonPbjConverters.fromPbjResponseType(responseType)));
+        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> usageGivenType(fileContents, responseType));
     }
 
     @Override
@@ -171,7 +167,7 @@ public class FileGetContentsHandler extends FileQueryBase {
          * answer flow (which will now fail downstream with an appropriate status code); so
          * just return the default {@code FeeData} here. */
         if (fileContents == null) {
-            return FeeData.getDefaultInstance();
+            return FeeData.DEFAULT;
         }
         return usageEstimator.getFileContentQueryFeeMatrices(
                 fileContents.contents().toByteArray().length, type);
