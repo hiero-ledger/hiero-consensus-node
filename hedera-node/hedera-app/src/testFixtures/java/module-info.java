@@ -12,6 +12,7 @@ module com.hedera.node.app.test.fixtures {
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api.test.fixtures;
     requires transitive com.swirlds.state.api;
+    requires transitive org.hiero.consensus.model;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.token;
     requires com.hedera.node.app.spi;

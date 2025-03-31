@@ -33,7 +33,7 @@ jobs:
       xts-tag-commit-author: ${{ steps.check-tags-exist.outputs.xts-tag-commit-author }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -188,7 +188,7 @@ jobs:
     if: ${{ needs.abbreviated-panel.result == 'success' || needs.extended-test-suite.result == 'success' || needs.hedera-node-jrs-panel.result == 'success' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -221,6 +221,149 @@ jobs:
           echo "### Commit Tagged for Promotion" >>  $GITHUB_STEP_SUMMARY
           echo "promotion-tag=${TAG}" >> $GITHUB_STEP_SUMMARY
 
+  report-success:
+    name: Report XTS execution success
+    runs-on: hiero-network-node-linux-medium
+    needs:
+      - abbreviated-panel
+      - extended-test-suite
+      - fetch-xts-candidate
+      - hedera-node-jrs-panel
+      - tag-for-promotion
+    if: ${{ (needs.abbreviated-panel.result == 'success' &&
+      needs.extended-test-suite.result == 'success' &&
+      needs.fetch-xts-candidate.result == 'success' &&
+      needs.hedera-node-jrs-panel.result == 'success' &&
+      needs.tag-for-promotion.result == 'success') &&
+      !cancelled() }}
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        with:
+          egress-policy: audit
+
+      - name: Report Success (slack)
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#00FF00",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": {
+                        "type": "plain_text",
+                        "text": ":tada: Hedera Services - eXtended Test Suite Passing Report",
+                        "emoji": true
+                      }
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*XTS Job Succeeded. Test panel status below*"
+                      },
+                      "fields": [
+                        {
+                          "type": "plain_text",
+                          "text": "Fetch XTS Candidate Tag"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.fetch-xts-candidate.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "Execute eXtended Test Suite"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.extended-test-suite.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "JRS Panel"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.abbreviated-panel.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "Hedera Node JRS Panel"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.hedera-node-jrs-panel.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "Tag as XTS-Passing"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.tag-for-promotion.result }}"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Workflow and Commit Information*\nFor a full list of executed tests see `Workflow run URL` below"
+                      },
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Source Commit*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Commit author*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow run ID*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": " ${{ github.run_id }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow run URL*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+
   report-failure:
     name: Report XTS execution failure
     runs-on: hiero-network-node-linux-medium
@@ -240,7 +383,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 

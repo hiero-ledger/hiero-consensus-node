@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -39,14 +40,19 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void writePbjItem(@NonNull Bytes bytes) {
+    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull Bytes bytes) {
         this.fileBlockItemWriter.writeItem(bytes.toByteArray());
-        this.grpcBlockItemWriter.writePbjItem(bytes);
+        this.grpcBlockItemWriter.writePbjItem(item);
     }
 
     @Override
     public void writeItem(@NonNull byte[] bytes) {
         throw new UnsupportedOperationException("writeItem is not supported in this implementation");
+    }
+
+    @Override
+    public void writePbjItem(@NonNull BlockItem item) {
+        throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
     }
 
     @Override
