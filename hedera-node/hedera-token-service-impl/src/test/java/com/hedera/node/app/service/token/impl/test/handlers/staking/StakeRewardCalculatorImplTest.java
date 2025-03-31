@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willCallRealMethod;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
@@ -16,7 +17,6 @@ import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeRewardCalculatorImpl;
 import java.time.Instant;
-import java.time.InstantSource;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,8 +49,6 @@ class StakeRewardCalculatorImplTest {
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private Account account;
-
-    private final InstantSource instantSource = InstantSource.system();
 
     private List<Long> rewardHistory;
 
@@ -149,6 +147,39 @@ class StakeRewardCalculatorImplTest {
         given(stakePeriodManager.effectivePeriod(todayNum - 2)).willReturn(todayNum - 2);
 
         final long reward = subject.estimatePendingRewards(account, stakingNodeInfo, stakingRewardsStore);
+
+        assertEquals(0, reward);
+    }
+
+    @Test
+    void withDeletedStakingNodeInfo() {
+        setUpMocks();
+
+        var deletedStakingNodeInfo = mock(StakingNodeInfo.class);
+        given(deletedStakingNodeInfo.deleted()).willReturn(true);
+
+        given(stakingInfoStore.getOriginalValue(0L)).willReturn(deletedStakingNodeInfo);
+        var reward = subject.computePendingReward(account, stakingInfoStore, stakingRewardsStore, consensusTime);
+
+        assertEquals(0, reward);
+    }
+
+    @Test
+    void withNullStakingNodeInfo() {
+        setUpMocks();
+
+        given(stakingInfoStore.getOriginalValue(0L)).willReturn(null);
+        var reward = subject.computePendingReward(account, stakingInfoStore, stakingRewardsStore, consensusTime);
+
+        assertEquals(0, reward);
+    }
+
+    @Test
+    void withNonRewardableConsensusTime() {
+        given(stakePeriodManager.effectivePeriod(account.stakePeriodStart())).willReturn(1L);
+        given(stakePeriodManager.isRewardable(1L, stakingRewardsStore)).willReturn(false);
+
+        var reward = subject.computePendingReward(account, stakingInfoStore, stakingRewardsStore, consensusTime);
 
         assertEquals(0, reward);
     }
