@@ -69,7 +69,6 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
             overrides = {"contracts.throttle.throttleByGas"},
             throttles = "testSystemFiles/mainnet-throttles.json")
     final Stream<DynamicTest> precompileNftMintsAreLimitedByConsThrottle() {
-        // final var statusCountMap = new AtomicReference<EnumMap<ResponseCodeEnum, AtomicInteger>>();
         return hapiTest(
                 overriding("contracts.throttle.throttleByGas", "false"),
                 runWithProvider(precompileMintsFactory())
