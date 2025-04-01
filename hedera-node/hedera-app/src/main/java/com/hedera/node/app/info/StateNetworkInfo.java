@@ -137,8 +137,11 @@ public class StateNetworkInfo implements NetworkInfo {
      * @return a map of node information
      */
     private Map<Long, NodeInfo> nodeInfosFrom(@NonNull final State state) {
-        final var entityCounts = state.getReadableStates(EntityIdService.NAME)
-                .<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY);
+        final var entityCounts = state.isImmutable()
+                ? state.getReadableStates(EntityIdService.NAME)
+                        .<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY)
+                : state.getWritableStates(EntityIdService.NAME)
+                        .<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY);
         final var nodeInfos = new LinkedHashMap<Long, NodeInfo>();
         if (requireNonNull(entityCounts.get()).numNodes() == 0) {
             // If there are no nodes in state, we can only fall back to the genesis network assets
@@ -158,8 +161,9 @@ public class StateNetworkInfo implements NetworkInfo {
                 nodeInfos.put(node.nodeId(), nodeInfo);
             }
         } else {
-            final ReadableKVState<EntityNumber, Node> nodes =
-                    state.getReadableStates(AddressBookService.NAME).get(NODES_KEY);
+            final ReadableKVState<EntityNumber, Node> nodes = state.isImmutable()
+                    ? state.getReadableStates(AddressBookService.NAME).get(NODES_KEY)
+                    : state.getWritableStates(AddressBookService.NAME).get(NODES_KEY);
             final var hederaConfig = configuration.getConfigData(HederaConfig.class);
             for (final var rosterEntry : activeRoster.rosterEntries()) {
                 // At genesis the node store is derived from the roster, hence must have info for every

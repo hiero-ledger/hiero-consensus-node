@@ -30,6 +30,7 @@ import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.config.MetricsConfig;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
@@ -92,6 +93,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     public static final ScheduledExecutorService METRIC_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
 
     public static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
+    public static final Metrics NO_OP_METRICS = new NoOpMetrics();
 
     private static final String ACCOUNTS_KEY = "ACCOUNTS";
     private static final String ALIASES_KEY = "ALIASES";

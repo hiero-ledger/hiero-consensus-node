@@ -2,6 +2,7 @@
 package com.swirlds.state;
 
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.DeferringListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
@@ -16,7 +17,7 @@ import java.util.Set;
  * <p>
  * All callbacks have default no-op implementations.
  */
-public interface StateChangeListener {
+public interface StateChangeListener extends DeferringListener {
     /**
      * The types of state that can change.
      */
@@ -40,6 +41,12 @@ public interface StateChangeListener {
      * @throws IllegalArgumentException if the listener has no id for the given service and state key
      */
     int stateIdFor(@NonNull String serviceName, @NonNull String stateKey);
+
+    /**
+     * Receives any a deferred commit for the given service name.
+     * @param serviceName the name of the service for which a commit was deferred
+     */
+    default void commitDeferredFor(@NonNull final String serviceName) {}
 
     /**
      * Save the state change when an entry is added in to a map.
@@ -66,23 +73,31 @@ public interface StateChangeListener {
      *
      * @param <V> The type of the value
      * @param stateId The id of the queue
+     * @param serviceName The name of the service
+     * @param stateKey The key of the state
      * @param value The value added to the queue
      */
-    default <V> void queuePushChange(int stateId, @NonNull V value) {}
+    default <V> void queuePushChange(
+            int stateId, @NonNull String serviceName, @NonNull String stateKey, @NonNull V value) {}
 
     /**
      * Save the state change when a value is removed from a queue
      *
      * @param stateId The label of the queue
+     * @param serviceName The name of the service
+     * @param stateKey The key of the state
      */
-    default void queuePopChange(int stateId) {}
+    default void queuePopChange(int stateId, @NonNull String serviceName, @NonNull String stateKey) {}
 
     /**
      * Save the state change when the value of a singleton is written.
      *
      * @param <V> The type of the value
      * @param stateId The id of the singleton
+     * @param serviceName The name of the service
+     * @param stateKey The key of the state
      * @param value The value of the singleton
      */
-    default <V> void singletonUpdateChange(int stateId, @NonNull V value) {}
+    default <V> void singletonUpdateChange(
+            int stateId, @NonNull String serviceName, @NonNull String stateKey, @NonNull V value) {}
 }
