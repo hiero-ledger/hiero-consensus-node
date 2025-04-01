@@ -284,8 +284,10 @@ class ContractCallLocalHandlerTest {
         // when:
         var response = subject.findResponse(context, responseHeader);
 
-        assertThat(Objects.requireNonNull(response.contractCallLocal()).header()).isEqualTo(responseHeader);
-        assertThat(Objects.requireNonNull(response.contractCallLocal()).functionResult()).isEqualTo(expectedOutcome.result());
+        assertThat(Objects.requireNonNull(response.contractCallLocal()).header())
+                .isEqualTo(responseHeader);
+        assertThat(Objects.requireNonNull(response.contractCallLocal()).functionResult())
+                .isEqualTo(expectedOutcome.result());
     }
 
     @Test
