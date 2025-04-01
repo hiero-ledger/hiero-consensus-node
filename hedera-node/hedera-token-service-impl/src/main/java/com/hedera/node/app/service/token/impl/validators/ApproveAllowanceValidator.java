@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NFT_IN_FUNGIBLE_TOKEN_A
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SPENDER_ACCOUNT_SAME_AS_OWNER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.TokenValidations.PERMIT_PAUSED;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -138,7 +139,7 @@ public class ApproveAllowanceValidator extends AllowanceValidator {
             final var owner = allowance.owner();
             final var spender = allowance.spenderOrThrow();
             // pureChecks() ensures that tokenId is not null
-            final var token = getIfUsable(allowance.tokenIdOrElse(TokenID.DEFAULT), tokenStore);
+            final var token = getIfUsable(allowance.tokenIdOrElse(TokenID.DEFAULT), tokenStore, PERMIT_PAUSED);
 
             // check if owner specified in allowances exists.
             // If not set, owner will be treated as payer for the transaction
@@ -180,7 +181,7 @@ public class ApproveAllowanceValidator extends AllowanceValidator {
             final var tokenId = allowance.tokenIdOrThrow();
             final var serialNums = allowance.serialNumbers();
 
-            final var token = getIfUsable(tokenId, tokenStore);
+            final var token = getIfUsable(tokenId, tokenStore, PERMIT_PAUSED);
             validateFalse(TokenType.FUNGIBLE_COMMON.equals(token.tokenType()), FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES);
 
             final var spenderAccount = accountStore.getAccountById(spender);
