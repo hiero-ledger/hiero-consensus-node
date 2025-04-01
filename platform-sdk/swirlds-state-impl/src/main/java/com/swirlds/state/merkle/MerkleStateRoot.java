@@ -817,24 +817,32 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 @NonNull final String serviceName,
                 @NonNull final WritableSingletonStateBase<V> singletonState,
                 @NonNull final StateChangeListener listener) {
-            final var stateId = listener.stateIdFor(serviceName, singletonState.getStateKey());
-            singletonState.registerListener(value -> listener.singletonUpdateChange(stateId, value));
+            final var stateKey = singletonState.getStateKey();
+            final var stateId = listener.stateIdFor(serviceName, stateKey);
+            singletonState.registerListener(
+                    value -> listener.singletonUpdateChange(stateId, serviceName, stateKey, value));
         }
 
         private <V> void registerQueueListener(
                 @NonNull final String serviceName,
                 @NonNull final WritableQueueStateBase<V> queueState,
                 @NonNull final StateChangeListener listener) {
-            final var stateId = listener.stateIdFor(serviceName, queueState.getStateKey());
+            final var stateKey = queueState.getStateKey();
+            final var stateId = listener.stateIdFor(serviceName, stateKey);
             queueState.registerListener(new QueueChangeListener<>() {
                 @Override
                 public void queuePushChange(@NonNull final V value) {
-                    listener.queuePushChange(stateId, value);
+                    listener.queuePushChange(stateId, serviceName, stateKey, value);
                 }
 
                 @Override
                 public void queuePopChange() {
-                    listener.queuePopChange(stateId);
+                    listener.queuePopChange(stateId, serviceName, stateKey);
+                }
+
+                @Override
+                public boolean deferCommits() {
+                    return listener.deferCommits();
                 }
             });
         }

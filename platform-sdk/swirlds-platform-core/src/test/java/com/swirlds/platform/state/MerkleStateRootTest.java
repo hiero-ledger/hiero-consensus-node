@@ -774,9 +774,9 @@ class MerkleStateRootTest extends MerkleTestBase {
             verify(kvListener).mapDeleteChange(FRUIT_STATE_ID, C_KEY);
             verify(kvListener).mapUpdateChange(ANIMAL_STATE_ID, A_KEY, AARDVARK);
             verify(kvListener).mapDeleteChange(ANIMAL_STATE_ID, C_KEY);
-            verify(nonKvListener).singletonUpdateChange(COUNTRY_STATE_ID, ESTONIA);
-            verify(nonKvListener).queuePushChange(STEAM_STATE_ID, BIOLOGY);
-            verify(nonKvListener).queuePopChange(STEAM_STATE_ID);
+            verify(nonKvListener).singletonUpdateChange(COUNTRY_STATE_ID, FIRST_SERVICE, COUNTRY_STATE_KEY, ESTONIA);
+            verify(nonKvListener).queuePushChange(STEAM_STATE_ID, FIRST_SERVICE, STEAM_STATE_KEY, BIOLOGY);
+            verify(nonKvListener).queuePopChange(STEAM_STATE_ID, FIRST_SERVICE, STEAM_STATE_KEY);
 
             verifyNoMoreInteractions(kvListener);
             verifyNoMoreInteractions(nonKvListener);

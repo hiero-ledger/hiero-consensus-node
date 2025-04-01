@@ -42,7 +42,9 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -66,6 +68,8 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     private final SortedMap<Integer, List<StateChange>> queueUpdates = new TreeMap<>();
     private static final int ENTITY_COUNTS_STATE_ID =
             BlockImplUtils.stateIdFor(EntityIdService.NAME, ENTITY_COUNTS_KEY);
+    private final SortedMap<Integer, Mutation> deferredSingletonUpdates = new TreeMap<>();
+    private final SortedMap<Integer, List<Mutation>> deferredQueueUpdates = new TreeMap<>();
 
     @Nullable
     private Instant lastConsensusTime;
@@ -78,6 +82,48 @@ public class BoundaryStateChangeListener implements StateChangeListener {
 
     @NonNull
     private final Supplier<Configuration> configurationSupplier;
+
+    /**
+     * The mode the listener is in.
+     */
+    private enum Mode {
+        /**
+         * The listener is tracking all mutations but signaling to the state that their commits should be deferred.
+         */
+        DEFERRING_COMMITS,
+        /**
+         * The listener is not deferring commits and only tracking the implied state changes, not the mutations.
+         */
+        COMMITTING,
+    }
+
+    /**
+     * The current mode.
+     */
+    private Mode mode = Mode.COMMITTING;
+
+    /**
+     * A mutation to state the listener has deferred committing.
+     *
+     * @param serviceName the name of the service
+     * @param stateKey the key of the state
+     * @param value the value of the change
+     */
+    private record Mutation(String serviceName, String stateKey, @Nullable Object value) {
+        /**
+         * Returns the value of the mutation, or throws if it is null.
+         */
+        public Object valueOrThrow() {
+            return requireNonNull(value);
+        }
+
+        /**
+         * Returns true if the mutation is a pop operation.
+         */
+        public boolean isPop() {
+            return value == null;
+        }
+    }
 
     /**
      * Constructor for the {@link BoundaryStateChangeListener} class.
@@ -115,13 +161,55 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         lastConsensusTime = null;
         singletonUpdates.clear();
         queueUpdates.clear();
+        deferredQueueUpdates.clear();
+        deferredSingletonUpdates.clear();
+        mode = Mode.COMMITTING;
+    }
+
+    /**
+     * Updates the listener to start deferring commits.
+     */
+    public void startDeferringCommits() {
+        mode = Mode.DEFERRING_COMMITS;
+    }
+
+    /**
+     * Commits all deferred mutations to the given state.
+     * @param state the state to commit to
+     */
+    public void commitDeferredMutations(@NonNull final State state) {
+        mode = Mode.COMMITTING;
+        deferredSingletonUpdates.forEach((stateId, mutation) -> {
+            final var writableStates = state.getWritableStates(mutation.serviceName());
+            final var singletonState = writableStates.getSingleton(mutation.stateKey());
+            singletonState.put(mutation.valueOrThrow());
+            ((CommittableWritableStates) writableStates).commit();
+        });
+        deferredSingletonUpdates.clear();
+        deferredQueueUpdates.forEach((stateId, mutations) -> {
+            if (!mutations.isEmpty()) {
+                final var writableStates =
+                        state.getWritableStates(mutations.getFirst().serviceName());
+                final var queueState =
+                        writableStates.getQueue(mutations.getFirst().stateKey());
+                for (final var mutation : mutations) {
+                    if (mutation.isPop()) {
+                        queueState.poll();
+                    } else {
+                        queueState.add(mutation.valueOrThrow());
+                    }
+                }
+                ((CommittableWritableStates) writableStates).commit();
+            }
+        });
+        deferredQueueUpdates.clear();
     }
 
     /**
      * Returns a {@link BlockItem} containing all the state changes that have been accumulated.
      * @return the block item
      */
-    public BlockItem flushChanges() {
+    public BlockItem summarizeCommittedChanges() {
         requireNonNull(boundaryTimestamp);
         final var stateChanges = new StateChanges(boundaryTimestamp, allStateChanges());
         singletonUpdates.clear();
@@ -159,40 +247,87 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     }
 
     @Override
+    public boolean deferCommits() {
+        return mode == Mode.DEFERRING_COMMITS;
+    }
+
+    @Override
     public int stateIdFor(@NonNull final String serviceName, @NonNull final String stateKey) {
         return BlockImplUtils.stateIdFor(serviceName, stateKey);
     }
 
     @Override
-    public <V> void queuePushChange(final int stateId, @NonNull final V value) {
+    public <V> void queuePushChange(
+            final int stateId,
+            @NonNull final String serviceName,
+            @NonNull final String stateKey,
+            @NonNull final V value) {
         requireNonNull(value);
-        final var stateChange = StateChange.newBuilder()
-                .stateId(stateId)
-                .queuePush(new QueuePushChange(queuePushChangeValueFor(value)))
-                .build();
-        queueUpdates.computeIfAbsent(stateId, k -> new LinkedList<>()).add(stateChange);
+        requireNonNull(serviceName);
+        requireNonNull(stateKey);
+        switch (mode) {
+            case DEFERRING_COMMITS -> {
+                final var mutation = new Mutation(serviceName, stateKey, value);
+                deferredQueueUpdates
+                        .computeIfAbsent(stateId, k -> new LinkedList<>())
+                        .add(mutation);
+            }
+            case COMMITTING -> {
+                final var stateChange = StateChange.newBuilder()
+                        .stateId(stateId)
+                        .queuePush(new QueuePushChange(queuePushChangeValueFor(value)))
+                        .build();
+                queueUpdates.computeIfAbsent(stateId, k -> new LinkedList<>()).add(stateChange);
+            }
+        }
+        ;
     }
 
     @Override
-    public void queuePopChange(final int stateId) {
-        final var stateChange = StateChange.newBuilder()
-                .stateId(stateId)
-                .queuePop(new QueuePopChange())
-                .build();
-        queueUpdates.computeIfAbsent(stateId, k -> new LinkedList<>()).add(stateChange);
+    public void queuePopChange(final int stateId, @NonNull final String serviceName, @NonNull final String stateKey) {
+        requireNonNull(serviceName);
+        requireNonNull(stateKey);
+        switch (mode) {
+            case DEFERRING_COMMITS -> {
+                final var mutation = new Mutation(serviceName, stateKey, null);
+                deferredQueueUpdates
+                        .computeIfAbsent(stateId, k -> new LinkedList<>())
+                        .add(mutation);
+            }
+            case COMMITTING -> {
+                final var stateChange = StateChange.newBuilder()
+                        .stateId(stateId)
+                        .queuePop(new QueuePopChange())
+                        .build();
+                queueUpdates.computeIfAbsent(stateId, k -> new LinkedList<>()).add(stateChange);
+            }
+        }
     }
 
     @Override
-    public <V> void singletonUpdateChange(final int stateId, @NonNull final V value) {
-        requireNonNull(value, "value must not be null");
-
-        final var stateChange = StateChange.newBuilder()
-                .stateId(stateId)
-                .singletonUpdate(new SingletonUpdateChange(singletonUpdateChangeValueFor(value)))
-                .build();
-        singletonUpdates.put(stateId, stateChange);
-        if (stateId == ENTITY_COUNTS_STATE_ID) {
-            updateEntityCountsMetrics((EntityCounts) value);
+    public <V> void singletonUpdateChange(
+            final int stateId,
+            @NonNull final String serviceName,
+            @NonNull final String stateKey,
+            @NonNull final V value) {
+        requireNonNull(value);
+        requireNonNull(serviceName);
+        requireNonNull(stateKey);
+        switch (mode) {
+            case DEFERRING_COMMITS -> {
+                final var mutation = new Mutation(serviceName, stateKey, value);
+                deferredSingletonUpdates.put(stateId, mutation);
+            }
+            case COMMITTING -> {
+                final var stateChange = StateChange.newBuilder()
+                        .stateId(stateId)
+                        .singletonUpdate(new SingletonUpdateChange(singletonUpdateChangeValueFor(value)))
+                        .build();
+                singletonUpdates.put(stateId, stateChange);
+                if (stateId == ENTITY_COUNTS_STATE_ID) {
+                    updateEntityCountsMetrics((EntityCounts) value);
+                }
+            }
         }
     }
 
@@ -330,9 +465,5 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             default -> throw new IllegalArgumentException(
                     "Unknown value type " + value.getClass().getName());
         }
-    }
-
-    private static BlockItem itemWith(@NonNull final StateChanges stateChanges) {
-        return BlockItem.newBuilder().stateChanges(stateChanges).build();
     }
 }

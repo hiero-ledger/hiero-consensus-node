@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.spi;
 
+import static com.swirlds.state.spi.DeferringListener.agreedDeferCommitOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -71,6 +72,7 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
      * cast and commit unless you own the instance!
      */
     public final void commit() {
+        final boolean deferCommits = agreedDeferCommitOrThrow(listeners);
         // We only want to remove from the data source elements we actually read from there; not
         // any elements we read from the list of items added in this changeset; if we have peeked
         // a non-zero number of elements from the added list, then we need to subtract one if the
@@ -78,14 +80,18 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
         final var numReadFromAdded =
                 currentAddedElementIndex > 0 ? currentAddedElementIndex - (peekedElement == null ? 0 : 1) : 0;
         for (int i = 0, n = readElements.size() - numReadFromAdded; i < n; i++) {
-            removeFromDataSource();
+            if (!deferCommits) {
+                removeFromDataSource();
+            }
             listeners.forEach(QueueChangeListener::queuePopChange);
         }
 
         // We only want to add to the data source elements that were added and NOT subsequently read
         for (int i = numReadFromAdded, n = addedElements.size(); i < n; i++) {
             final var addedElement = addedElements.get(i);
-            addToDataSource(addedElement);
+            if (!deferCommits) {
+                addToDataSource(addedElement);
+            }
             listeners.forEach(l -> l.queuePushChange(addedElement));
         }
         reset();

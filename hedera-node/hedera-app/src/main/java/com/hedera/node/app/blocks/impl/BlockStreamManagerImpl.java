@@ -313,7 +313,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 flushPreUserItems(null);
             }
             // Flush all boundary state changes besides the BlockStreamInfo
-            worker.addItem(boundaryStateChangeListener.flushChanges());
+            worker.addItem(boundaryStateChangeListener.summarizeCommittedChanges());
             worker.sync();
 
             final var inputHash = inputTreeHasher.rootHash().join();
@@ -348,7 +348,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     asTimestamp(lastHandleTime)));
             ((CommittableWritableStates) writableState).commit();
 
-            worker.addItem(boundaryStateChangeListener.flushChanges());
+            worker.addItem(boundaryStateChangeListener.summarizeCommittedChanges());
             worker.sync();
 
             final var outputHash = outputTreeHasher.rootHash().join();

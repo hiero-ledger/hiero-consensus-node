@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.spi;
 
+import static com.swirlds.state.spi.DeferringListener.agreedDeferCommitOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -88,7 +89,9 @@ public class WritableSingletonStateBase<T> extends ReadableSingletonStateBase<T>
     public void commit() {
         if (value != null) {
             final var currentValue = currentValue();
-            backingStoreMutator.accept(currentValue);
+            if (!agreedDeferCommitOrThrow(listeners)) {
+                backingStoreMutator.accept(currentValue);
+            }
             if (currentValue != null) {
                 listeners.forEach(l -> l.singletonUpdateChange(currentValue));
             }
