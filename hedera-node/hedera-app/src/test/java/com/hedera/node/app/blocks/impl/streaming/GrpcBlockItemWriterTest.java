@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.blocks.impl;
+package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
-import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.ArrayList;
 import org.junit.jupiter.api.Test;
@@ -19,25 +18,25 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class GrpcBlockItemWriterTest {
 
     @Mock
-    private BlockNodeConnectionManager blockNodeConnectionManager;
+    private BlockStreamStateManager blockStreamStateManager;
 
     @Test
     void testGrpcBlockItemWriterConstructor() {
-        final GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockNodeConnectionManager);
+        final GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
         assertThat(grpcBlockItemWriter).isNotNull();
     }
 
     @Test
     void testOpenBlockNegativeBlockNumber() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockNodeConnectionManager);
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
 
         assertThatThrownBy(() -> grpcBlockItemWriter.openBlock(-1), "Block number must be non-negative")
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    void testWriteItemBeforeOpen() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockNodeConnectionManager);
+    void testWriteItem() {
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
 
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
@@ -45,15 +44,17 @@ class GrpcBlockItemWriterTest {
                 .blockProof(BlockProof.newBuilder().blockSignature(bytes).siblingHashes(new ArrayList<>()))
                 .build();
 
-        assertThatThrownBy(() -> grpcBlockItemWriter.writePbjItem(proof), "Cannot write item before opening a block")
-                .isInstanceOf(IllegalStateException.class);
+        grpcBlockItemWriter.writePbjItem(proof);
+
+        verify(blockStreamStateManager).addItem(0L, proof);
     }
 
     @Test
-    void testCloseBlockNotOpen() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockNodeConnectionManager);
+    void testCloseBlock() {
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
 
-        assertThatThrownBy(grpcBlockItemWriter::closeBlock, "Cannot close a GrpcBlockItemWriter that is not open")
-                .isInstanceOf(IllegalStateException.class);
+        grpcBlockItemWriter.closeBlock();
+
+        verify(blockStreamStateManager).closeBlock(0L);
     }
 }
