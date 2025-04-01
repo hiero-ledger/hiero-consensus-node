@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -538,6 +539,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
                 .withGrpcCertificateHash(Bytes.wrap("hash"))
                 .withAdminKey(key)
+                .withDeclineReward(true)
                 .build(payerId);
         given(handleContext.body()).willReturn(txn);
         refreshStoresWithMoreNodeInWritable();
@@ -572,6 +574,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 certList.get(0).getEncoded(), createdNode.gossipCaCertificate().toByteArray());
         assertArrayEquals("hash".getBytes(), createdNode.grpcCertificateHash().toByteArray());
         assertEquals(key, createdNode.adminKey());
+        assertTrue(createdNode.declineReward());
     }
 
     @Test
@@ -640,6 +643,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         private Bytes grpcCertificateHash = null;
 
         private Key adminKey = null;
+        private boolean declineReward = false;
 
         private NodeCreateBuilder() {}
 
@@ -667,6 +671,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
             if (adminKey != null) {
                 txnBody.adminKey(adminKey);
             }
+            txnBody.declineReward(declineReward);
 
             return TransactionBody.newBuilder()
                     .transactionID(txnId)
@@ -706,6 +711,11 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
         public NodeCreateBuilder withAdminKey(final Key adminKey) {
             this.adminKey = adminKey;
+            return this;
+        }
+
+        public NodeCreateBuilder withDeclineReward(final boolean declineReward) {
+            this.declineReward = declineReward;
             return this;
         }
     }

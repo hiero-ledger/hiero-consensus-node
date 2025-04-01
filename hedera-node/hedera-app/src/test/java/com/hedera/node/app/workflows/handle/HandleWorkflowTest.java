@@ -15,6 +15,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
@@ -25,10 +26,10 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
+import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
@@ -40,19 +41,16 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
-import java.util.function.Function;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -65,6 +63,9 @@ class HandleWorkflowTest {
 
     @Mock
     private HintsService hintsService;
+
+    @Mock
+    private BlockHashSigner blockHashSigner;
 
     @Mock
     private HistoryService historyService;
@@ -144,14 +145,10 @@ class HandleWorkflowTest {
     @Mock
     private CongestionMetrics congestionMetrics;
 
+    @Mock
+    private NodeRewardManager nodeRewardManager;
+
     private HandleWorkflow subject;
-
-    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
-
-    @BeforeEach
-    void setUp() {
-        softwareVersionFactory = ServicesSoftwareVersion::new;
-    }
 
     @Test
     void onlySkipsEventWithMissingCreator() {
@@ -206,6 +203,8 @@ class HandleWorkflowTest {
                 .withValue("tss.historyEnabled", "false")
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        given(boundaryStateChangeListener.lastConsensusTimeOrThrow()).willReturn(NOW);
+        given(round.getConsensusTimestamp()).willReturn(NOW);
         subject = new HandleWorkflow(
                 networkInfo,
                 stakePeriodChanges,
@@ -232,8 +231,9 @@ class HandleWorkflowTest {
                 hintsService,
                 historyService,
                 congestionMetrics,
-                softwareVersionFactory,
                 () -> PlatformStatus.ACTIVE,
-                null);
+                blockHashSigner,
+                null,
+                nodeRewardManager);
     }
 }
