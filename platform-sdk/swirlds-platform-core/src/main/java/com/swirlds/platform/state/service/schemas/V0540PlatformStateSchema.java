@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service.schemas;
 
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
@@ -41,7 +39,6 @@ public class V0540PlatformStateSchema extends Schema {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(54).patch(0).build();
 
-
     public V0540PlatformStateSchema() {
         super(VERSION);
     }
@@ -69,7 +66,8 @@ public class V0540PlatformStateSchema extends Schema {
 
     private Consumer<PlatformStateModifier> genesisStateSpec(@NonNull final MigrationContext ctx) {
         return v -> {
-            v.setCreationSoftwareVersion(ctx.appConfig().getConfigData(VersionConfig.class).servicesVersion());
+            v.setCreationSoftwareVersion(
+                    ctx.appConfig().getConfigData(VersionConfig.class).servicesVersion());
             v.setRound(0);
             v.setLegacyRunningEventHash(null);
             v.setConsensusTimestamp(Instant.EPOCH);
