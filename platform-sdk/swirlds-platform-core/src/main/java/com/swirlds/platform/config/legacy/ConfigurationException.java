@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.config.legacy;
 
-import org.hiero.consensus.utility.exceptions.PlatformException;
 import com.swirlds.logging.legacy.LogMarker;
+import org.hiero.consensus.utility.exceptions.PlatformException;
 
 public class ConfigurationException extends PlatformException {
 

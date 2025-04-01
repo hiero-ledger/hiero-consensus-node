@@ -89,6 +89,7 @@ module com.hedera.node.test.clients {
     requires com.swirlds.state.api;
     requires com.swirlds.virtualmap;
     requires org.hiero.consensus.model;
+    requires org.hiero.consensus.utility;
     requires com.esaulpaugh.headlong;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
@@ -110,7 +111,6 @@ module com.hedera.node.test.clients {
     requires org.apache.logging.log4j;
     requires org.assertj.core;
     requires org.bouncycastle.provider;
-    requires org.hiero.consensus.utility;
     requires org.hyperledger.besu.datatypes;
     requires org.hyperledger.besu.internal.crypto;
     requires org.hyperledger.besu.nativelib.secp256k1;
