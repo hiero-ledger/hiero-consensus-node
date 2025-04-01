@@ -119,6 +119,9 @@ class BlockStreamManagerImplTest {
     private BoundaryStateChangeListener boundaryStateChangeListener;
 
     @Mock
+    private BlockStreamManager.Lifecycle lifecycle;
+
+    @Mock
     private BlockItemWriter aWriter;
 
     @Mock
@@ -129,9 +132,6 @@ class BlockStreamManagerImplTest {
 
     @Mock
     private CompletableFuture<Bytes> mockSigningFuture;
-
-    @Mock
-    private ConsensusEvent consensusEvent;
 
     private WritableStates writableStates;
 
@@ -218,7 +218,8 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE);
+                TEST_PLATFORM_STATE_FACADE,
+                lifecycle);
         assertSame(Instant.EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
@@ -239,7 +240,8 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE);
+                TEST_PLATFORM_STATE_FACADE,
+                lifecycle);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
 
@@ -281,7 +283,6 @@ class BlockStreamManagerImplTest {
         // Write some items to the block
         subject.writeItem(FAKE_EVENT_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
-        subject.setRoundFirstTransactionTime(CONSENSUS_NOW);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
 
@@ -423,7 +424,7 @@ class BlockStreamManagerImplTest {
         final var header = writtenHeader.get();
         assertNotNull(header);
         assertEquals(N_BLOCK_NO, header.number());
-        assertFalse(header.hasFirstTransactionConsensusTime());
+        assertEquals(header.blockTimestamp(), asTimestamp(CONSENSUS_NOW));
     }
 
     @Test
@@ -501,7 +502,6 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_EVENT_TRANSACTION);
         assertEquals(Bytes.fromHex("aa".repeat(48)), subject.prngSeed());
         subject.writeItem(FAKE_TRANSACTION_RESULT);
-        subject.setRoundFirstTransactionTime(CONSENSUS_NOW);
         assertEquals(Bytes.fromHex("bb".repeat(48)), subject.prngSeed());
         subject.writeItem(FAKE_STATE_CHANGES);
         for (int i = 0; i < 8; i++) {
@@ -568,11 +568,11 @@ class BlockStreamManagerImplTest {
                 bWriter);
         givenEndOfRoundSetup();
         doAnswer(invocationOnMock -> {
-                    lastBItem.set(invocationOnMock.getArgument(0));
+                    lastBItem.set(invocationOnMock.getArgument(1));
                     return bWriter;
                 })
                 .when(bWriter)
-                .writePbjItem(any());
+                .writePbjItemAndBytes(any(), any());
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
@@ -650,8 +650,6 @@ class BlockStreamManagerImplTest {
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
-
-        given(mockEvent.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1000));
 
         // Set up the signature future to complete immediately and run the callback synchronously
         given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
@@ -814,7 +812,8 @@ class BlockStreamManagerImplTest {
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE);
+                TEST_PLATFORM_STATE_FACADE,
+                lifecycle);
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
         given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
         infoRef.set(blockStreamInfo);
@@ -834,7 +833,7 @@ class BlockStreamManagerImplTest {
         lenient().when(boundaryStateChangeListener.flushChanges()).thenReturn(FAKE_STATE_CHANGES);
         lenient()
                 .doAnswer(invocationOnMock -> {
-                    lastAItem.set(invocationOnMock.getArgument(0));
+                    lastAItem.set(invocationOnMock.getArgument(1));
                     if (headerRef != null) {
                         final var item = BlockItem.PROTOBUF.parse(lastAItem.get());
                         if (item.hasBlockHeader()) {
@@ -844,7 +843,7 @@ class BlockStreamManagerImplTest {
                     return aWriter;
                 })
                 .when(aWriter)
-                .writePbjItem(any());
+                .writePbjItemAndBytes(any(), any());
         lenient().when(state.getWritableStates(BlockStreamService.NAME)).thenReturn(writableStates);
         lenient().when(state.getReadableStates(BlockStreamService.NAME)).thenReturn(readableStates);
         lenient().when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);

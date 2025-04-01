@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.tipset;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -27,13 +27,13 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.hiero.consensus.event.creator.EventCreationRule;
+import org.hiero.consensus.event.creator.impl.EventCreationConfig_;
+import org.hiero.consensus.event.creator.impl.rules.AggregateEventCreationRules;
+import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
+import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.event.creator.EventCreationRule;
-import org.hiero.event.creator.impl.EventCreationConfig_;
-import org.hiero.event.creator.impl.rules.AggregateEventCreationRules;
-import org.hiero.event.creator.impl.rules.MaximumRateRule;
-import org.hiero.event.creator.impl.rules.PlatformHealthRule;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
