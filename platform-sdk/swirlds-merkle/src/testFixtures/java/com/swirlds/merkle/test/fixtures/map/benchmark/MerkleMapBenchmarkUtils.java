@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test.fixtures.map.benchmark;
 
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.merkle.map.MerkleMap;
 import java.util.Random;
+import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 
 public final class MerkleMapBenchmarkUtils {
 

@@ -37,38 +37,40 @@ public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savep
     private static final EnumSet<ResponseCodeEnum> SUCCESSES =
             EnumSet.of(OK, SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED, SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
 
-    protected final BuilderSink parentSink;
+    protected final BuilderSink parent;
     protected final WrappedState state;
     private Status status = Status.PENDING;
+
+    private long nodeFeesCollected = 0;
 
     /**
      * Constructs a savepoint with limits that discriminate between the number of preceding and following builders.
      * @param state the current state
-     * @param parentSink the parent sink
+     * @param parent the parent sink
      * @param maxPreceding the maximum number of preceding builders
      * @param maxFollowing the maximum number of following builders
      */
     protected AbstractSavepoint(
             @NonNull final WrappedState state,
-            @NonNull final BuilderSink parentSink,
+            @NonNull final BuilderSink parent,
             final int maxPreceding,
             final int maxFollowing) {
         super(maxPreceding, maxFollowing);
         this.state = requireNonNull(state);
-        this.parentSink = requireNonNull(parentSink);
+        this.parent = requireNonNull(parent);
     }
 
     /**
      * Constructs a savepoint with a total limit on the number of builders that can be accumulated.
      * @param state the current state
-     * @param parentSink the parent sink
+     * @param parent the parent sink
      * @param maxTotal the maximum number of total builders
      */
     protected AbstractSavepoint(
-            @NonNull final WrappedState state, @NonNull final BuilderSink parentSink, final int maxTotal) {
+            @NonNull final WrappedState state, @NonNull final BuilderSink parent, final int maxTotal) {
         super(maxTotal);
         this.state = requireNonNull(state);
-        this.parentSink = requireNonNull(parentSink);
+        this.parent = requireNonNull(parent);
     }
 
     @Override
@@ -83,6 +85,9 @@ public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savep
         commitBuilders();
         state.commit();
         status = Status.FINISHED;
+        if (parent instanceof Savepoint savepoint) {
+            savepoint.trackCollectedNodeFee(nodeFeesCollected);
+        }
     }
 
     @Override
@@ -93,6 +98,7 @@ public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savep
         rollback(followingBuilders);
         commitBuilders();
         status = Status.FINISHED;
+        nodeFeesCollected = 0L;
     }
 
     @Override
@@ -123,6 +129,16 @@ public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savep
             }
         }
         return builder;
+    }
+
+    @Override
+    public void trackCollectedNodeFee(final long amount) {
+        nodeFeesCollected += amount;
+    }
+
+    @Override
+    public long getNodeFeesCollected() {
+        return nodeFeesCollected;
     }
 
     /**

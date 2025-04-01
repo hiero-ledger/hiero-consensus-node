@@ -14,7 +14,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
-import com.swirlds.common.utility.ByteUtils;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
@@ -40,6 +39,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.utility.ByteUtils;
 
 /**
  * This class handles the lifecycle events for the {@link ISSTestingToolState}.
