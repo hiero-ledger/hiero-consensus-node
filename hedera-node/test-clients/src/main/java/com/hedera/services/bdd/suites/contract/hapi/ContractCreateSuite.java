@@ -54,6 +54,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.CHAIN_ID;
@@ -121,6 +122,7 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.io.TempDir;
 
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
@@ -159,7 +161,7 @@ public class ContractCreateSuite {
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromTo(PAYER, creatorAddress, ONE_HUNDRED_HBARS)),
                 explicitEthereumTransaction(DEPLOYER, (spec, b) -> b.setCallData(systemFileId)
-                                .setEthereumData(transaction))
+                        .setEthereumData(transaction))
                         .payingWith(PAYER),
                 getContractInfo(DEPLOYER)
                         .has(contractWith().addressOrAlias(EXPECTED_DEPLOYER_ADDRESS))
@@ -258,7 +260,7 @@ public class ContractCreateSuite {
     final Stream<DynamicTest> cannotSendToNonExistentAccount() {
         final var contract = "Multipurpose";
         Object[] donationArgs =
-                new Object[] {new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, 666666L)), "Hey, Ma!"};
+                new Object[]{new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, 666666L)), "Hey, Ma!"};
 
         return hapiTest(
                 uploadInitCode(contract),
@@ -279,10 +281,10 @@ public class ContractCreateSuite {
                         .hasKnownStatus(INVALID_FILE_ID)
                         .refusingEthConversion(),
                 explicitEthereumTransaction(neverToBe, (spec, b) -> {
-                            final var signedEthTx = Signing.signMessage(
-                                    placeholderEthTx(), getEcdsaPrivateKeyFromSpec(spec, SECP_256K1_SOURCE_KEY));
-                            b.setCallData(systemFileId).setEthereumData(ByteString.copyFrom(signedEthTx.encodeTx()));
-                        })
+                    final var signedEthTx = Signing.signMessage(
+                            placeholderEthTx(), getEcdsaPrivateKeyFromSpec(spec, SECP_256K1_SOURCE_KEY));
+                    b.setCallData(systemFileId).setEthereumData(ByteString.copyFrom(signedEthTx.encodeTx()));
+                })
                         .hasPrecheck(INVALID_FILE_ID));
     }
 
@@ -444,7 +446,7 @@ public class ContractCreateSuite {
                     final var aNum = (int) registry.getAccountID(aBeneficiary).getAccountNum();
                     final var bNum = (int) registry.getAccountID(bBeneficiary).getAccountNum();
                     final var sendArgs =
-                            new Object[] {Long.valueOf(sendAmount), Long.valueOf(aNum), Long.valueOf(bNum)};
+                            new Object[]{Long.valueOf(sendAmount), Long.valueOf(aNum), Long.valueOf(bNum)};
 
                     final var op = contractCall(contract, "sendTo", sendArgs)
                             .gas(110_000)
@@ -790,7 +792,7 @@ public class ContractCreateSuite {
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
                                                 getABIFor(FUNCTION, "getIndirect", contract),
-                                                isLiteralResult(new Object[] {BigInteger.valueOf(7L)})))),
+                                                isLiteralResult(new Object[]{BigInteger.valueOf(7L)})))),
                 getTxnRecord("getChildAddressTxn")
                         .hasPriority(recordWith()
                                 .contractCallResult(resultWith()
@@ -831,7 +833,7 @@ public class ContractCreateSuite {
                 uploadInitCode(contract),
                 cryptoCreate(autoRenewAccount).balance(ONE_HUNDRED_HBARS),
                 submitModified(withSuccessivelyVariedBodyIds(), () -> contractCreate(
-                                "contract" + creationNumber.getAndIncrement())
+                        "contract" + creationNumber.getAndIncrement())
                         .bytecode(contract)
                         .autoRenewAccountId(autoRenewAccount)));
     }
@@ -860,6 +862,37 @@ public class ContractCreateSuite {
                 getContractInfo(contract).has(ContractInfoAsserts.contractWith().maxAutoAssociations(0)));
     }
 
+    //TODO Glib: test it
+    @HapiTest
+    final Stream<DynamicTest> revertBlockAndRecordContainsContractId() {
+        final var txn = "revertBlockAndRecordContainsContractId";
+        return hapiTest(
+                uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
+                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
+                        .balance(1L)
+                        .via(txn)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                waitUntilNextBlock().withBackgroundTraffic(true),
+                getTxnRecord(txn).logged());
+    }
+
+    //TODO Glib: with this we can test a files
+    @TempDir
+    Path tempDir;
+
+    //TODO Glib: test it
+    @HapiTest
+    final Stream<DynamicTest> blockAndRecordContainsContractId() {
+        final var txn = "revertBlockAndRecordContainsContractId";
+        return hapiTest(
+                uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
+                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
+                        .via(txn)
+                        .hasKnownStatus(SUCCESS),
+                waitUntilNextBlock().withBackgroundTraffic(true),
+                getTxnRecord(txn).logged());
+    }
+
     private EthTxData placeholderEthTx() {
         return new EthTxData(
                 null,
@@ -870,10 +903,10 @@ public class ContractCreateSuite {
                 BigInteger.ONE.toByteArray(),
                 BigInteger.ONE.toByteArray(),
                 150_000,
-                new byte[] {1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4},
+                new byte[]{1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4},
                 BigInteger.ONE,
-                new byte[] {},
-                new byte[] {},
+                new byte[]{},
+                new byte[]{},
                 0,
                 null,
                 null,

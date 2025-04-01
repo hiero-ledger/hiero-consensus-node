@@ -103,6 +103,7 @@ public record CallOutcome(
         recordBuilder.withCommonFieldsSetFrom(this);
     }
 
+    // TODO Glib: here we are set contractID for record and block if status == SUCCESS
     /**
      * Adds the create details to the given record builder.
      *
@@ -111,7 +112,7 @@ public record CallOutcome(
     public void addCreateDetailsTo(@NonNull final ContractCreateStreamBuilder recordBuilder) {
         requireNonNull(recordBuilder);
         recordBuilder.contractID(recipientIdIfCreated());
-        recordBuilder.contractCreateResult(result);
+        recordBuilder.contractCreateResult(isSuccess() ? result : null); //TODO Glib
         recordBuilder.withCommonFieldsSetFrom(this);
     }
 
