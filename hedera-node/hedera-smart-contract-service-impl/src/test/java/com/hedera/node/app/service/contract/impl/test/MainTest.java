@@ -34,6 +34,11 @@ public class MainTest {
         Pair<Integer, Optional<RecordStreamFile>> recordFile2 = readRecord(
                 dir.resolve("2025-04-01T10_14_00.004854000Z.rcd.gz"));
         RecordStreamItem record2 = recordFile2.getRight().get().getRecordStreamItemsList().get(2);
+        // test fail with no contract result
+        //TODO
+        Pair<Integer, Optional<RecordStreamFile>> recordFile3 = readRecord(
+                dir.resolve("2025-04-01T16_28_38.628680000Z.rcd.gz"));
+//        RecordStreamItem record3 = recordFile3.getRight().get().getRecordStreamItemsList().get(2);
 
         // -------------------- block
         // ticket fail
@@ -45,6 +50,9 @@ public class MainTest {
         // test success
         final var block2 = readBlockWoVersion(dir.resolve("000000000000000000000000000000000003 2.blk.gz"));
         BlockItem item2 = block2.getRight().get().getItems(5);
+        // test fail with no contract result
+        final var block3 = readBlockWoVersion(dir.resolve("000000000000000000000000000000000004.blk.gz"));
+//        BlockItem item3 = block3.getRight().get().getItems(5);
 
         System.out.println(" DONE -------------------------------------------------------");
     }

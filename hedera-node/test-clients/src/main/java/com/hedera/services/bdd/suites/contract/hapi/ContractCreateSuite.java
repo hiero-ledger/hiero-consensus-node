@@ -886,6 +886,7 @@ public class ContractCreateSuite {
         final var txn = "revertBlockAndRecordContainsContractId";
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .via(txn)
                         .hasKnownStatus(SUCCESS),
