@@ -42,6 +42,7 @@ import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -134,6 +135,7 @@ class SystemTransactionsTest {
         given(appContext.idFactory()).willReturn(idFactory);
 
         subject = new SystemTransactions(
+                InitTrigger.GENESIS,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -174,7 +176,7 @@ class SystemTransactionsTest {
         verifyUpdateDispatch(filesConfig.hapiPermissions(), serializedPermissionOverrides());
         verifyUpdateDispatch(filesConfig.throttleDefinitions(), serializedThrottleOverrides());
         verifyUpdateDispatch(filesConfig.feeSchedules(), serializedFeeSchedules());
-        verify(stack, times(5)).commitFullStack();
+        verify(stack, times(6)).commitFullStack();
     }
 
     @Test
@@ -192,7 +194,7 @@ class SystemTransactionsTest {
         subject.doPostUpgradeSetup(dispatch);
 
         verify(fileService).updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), eq(readableNodeStore));
-        verify(stack, times(1)).commitFullStack();
+        verify(stack, times(2)).commitFullStack();
 
         final var infoLogs = logCaptor.infoLogs();
         assertThat(infoLogs.size()).isEqualTo(5);
@@ -223,7 +225,7 @@ class SystemTransactionsTest {
         subject.doPostUpgradeSetup(dispatch);
 
         verify(fileService).updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), eq(readableNodeStore));
-        verify(stack, times(1)).commitFullStack();
+        verify(stack, times(2)).commitFullStack();
 
         final var errorLogs = logCaptor.errorLogs();
         assertThat(errorLogs.size()).isEqualTo(4);

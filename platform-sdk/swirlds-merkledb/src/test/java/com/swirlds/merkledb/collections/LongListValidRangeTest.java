@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.nextLong;
 import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.nextLong;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

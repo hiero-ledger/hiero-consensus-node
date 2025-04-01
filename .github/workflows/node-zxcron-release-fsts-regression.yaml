@@ -19,7 +19,7 @@ jobs:
     runs-on: hiero-network-node-linux-small-scheduler
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -42,7 +42,7 @@ jobs:
             major="${BASH_REMATCH[1]}"
             minor="${BASH_REMATCH[2]}"
 
-            if [[ "${major}" -eq 0 && "${minor}" -lt 59 ]]; then
+            if [[ "${major}" -eq 0 && "${minor}" -lt 60 ]]; then
               continue
             fi
 

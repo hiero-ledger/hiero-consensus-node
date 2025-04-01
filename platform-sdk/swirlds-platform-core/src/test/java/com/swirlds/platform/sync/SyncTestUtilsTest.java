@@ -5,7 +5,6 @@ import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.gossip.shadowgraph.SyncUtils;
 import com.swirlds.platform.test.fixtures.sync.EventFactory;
@@ -14,6 +13,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.Test;
 
 class SyncTestUtilsTest {

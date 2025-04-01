@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.tipset;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.platform.event.creation.tipset.Tipset.merge;
 import static com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -18,6 +18,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
 import com.swirlds.platform.event.creation.tipset.Tipset;
@@ -25,7 +26,6 @@ import com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight;
 import com.swirlds.platform.event.creation.tipset.TipsetTracker;
 import com.swirlds.platform.event.creation.tipset.TipsetWeightCalculator;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder.WeightDistributionStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -206,8 +206,7 @@ class TipsetWeightCalculatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
-                .withAverageWeight(1)
-                .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator(WeightGenerators.BALANCED)
                 .build();
 
         // In this test, we simulate from the perspective of node A. All nodes have 1 weight.
@@ -418,8 +417,7 @@ class TipsetWeightCalculatorTests {
 
         Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
-                .withAverageWeight(1)
-                .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator(WeightGenerators.BALANCED)
                 .build();
 
         // In this test, we simulate from the perspective of node A.
@@ -505,8 +503,7 @@ class TipsetWeightCalculatorTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
-                .withAverageWeight(1)
-                .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator(WeightGenerators.BALANCED)
                 .build();
 
         final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());

@@ -138,7 +138,7 @@ public final class IngestChecker {
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.nodeAccount = requireNonNull(nodeAccount, "nodeAccount must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
-        this.blockStreamManager = requireNonNull(blockStreamManager);
+        this.blockStreamManager = requireNonNull(blockStreamManager, "blockStreamManager must not be null");
         this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null");
         this.solvencyPreCheck = requireNonNull(solvencyPreCheck, "solvencyPreCheck must not be null");
         this.signatureVerifier = requireNonNull(signatureVerifier, "signatureVerifier must not be null");
@@ -147,9 +147,10 @@ public final class IngestChecker {
         this.dispatcher = requireNonNull(dispatcher, "dispatcher must not be null");
         this.feeManager = requireNonNull(feeManager, "feeManager must not be null");
         this.authorizer = requireNonNull(authorizer, "authorizer must not be null");
-        this.synchronizedThrottleAccumulator = requireNonNull(synchronizedThrottleAccumulator);
-        this.instantSource = requireNonNull(instantSource);
-        this.workflowMetrics = requireNonNull(workflowMetrics);
+        this.synchronizedThrottleAccumulator =
+                requireNonNull(synchronizedThrottleAccumulator, "synchronizedThrottleAccumulator must not be null");
+        this.instantSource = requireNonNull(instantSource, "instantSource must not be null");
+        this.workflowMetrics = requireNonNull(workflowMetrics, "workflowMetrics must not be null");
         this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
     }
@@ -184,7 +185,7 @@ public final class IngestChecker {
      * Runs all the ingest checks on a {@link Transaction}
      *
      * @param state the {@link State} to use
-     * @param serializedTransaction the {@link Bytes} of the {@link Transaction} to check
+     * @param serializedTransaction the {@link Transaction} to check
      * @param configuration the {@link Configuration} to use
      * @return the {@link TransactionInfo} with the extracted information
      * @throws PreCheckException if a check fails
@@ -234,7 +235,7 @@ public final class IngestChecker {
         dispatcher.dispatchPureChecks(pureChecksContext);
 
         // 5. Get payer account
-        final var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        final var storeFactory = new ReadableStoreFactory(state);
         final var payer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
         final var payerKey = payer.key();
         // There should, absolutely, be a key for this account. If there isn't, then something is wrong in

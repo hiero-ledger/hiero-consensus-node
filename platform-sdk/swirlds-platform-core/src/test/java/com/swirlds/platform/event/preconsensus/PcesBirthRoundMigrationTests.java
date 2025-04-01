@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 import static com.swirlds.platform.event.preconsensus.PcesBirthRoundMigration.findPcesFiles;
 import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.randomInstant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
