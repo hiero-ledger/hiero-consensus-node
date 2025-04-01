@@ -6,7 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.state.Mutable;
-import com.swirlds.common.Copyable;
+import org.hiero.consensus.utility.Copyable;
 import com.swirlds.common.threading.framework.ThreadSeed;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.threading.manager.ThreadManager;
