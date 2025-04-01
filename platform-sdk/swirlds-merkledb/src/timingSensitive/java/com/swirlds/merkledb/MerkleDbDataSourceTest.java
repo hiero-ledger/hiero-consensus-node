@@ -809,7 +809,7 @@ class MerkleDbDataSourceTest {
         try {
             assertEqualsAndPrint(hash(i), dataSource.loadHash(path));
         } catch (final Exception e) {
-            e.printStackTrace();
+            e.printStackTrace(System.err);
             fail("Exception should not have been thrown here!");
         }
     }
@@ -818,7 +818,7 @@ class MerkleDbDataSourceTest {
         try {
             assertNull(dataSource.loadHash(path));
         } catch (final Exception e) {
-            e.printStackTrace();
+            e.printStackTrace(System.err);
             fail("Exception should not have been thrown here!");
         }
     }
