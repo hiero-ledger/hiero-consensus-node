@@ -240,7 +240,12 @@ public class HintsContext {
             executor.schedule(
                     () -> {
                         if (!future.isDone()) {
-                            log.warn("Completing signing attempt without obtaining a signature");
+                            log.warn(
+                                    "Completing signing attempt without obtaining a signature (had {} from parties {} for total weight {}/{} required)",
+                                    signatures.size(),
+                                    signatures.keySet(),
+                                    weightOfSignatures.get(),
+                                    thresholdWeight);
                         }
                         onCompletion.run();
                     },

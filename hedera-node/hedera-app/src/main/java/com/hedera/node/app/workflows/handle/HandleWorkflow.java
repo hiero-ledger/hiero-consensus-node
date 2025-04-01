@@ -245,6 +245,7 @@ public class HandleWorkflow {
                 migrationStateChanges.clear();
             }
         }
+        systemTransactions.resetNextDispatchNonce();
         final boolean isGenesis =
                 switch (streamMode) {
                     case RECORDS -> blockRecordManager
