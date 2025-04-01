@@ -178,7 +178,7 @@ class OrphanBufferTests {
             final NodeId nodeId = NodeId.of(i);
             final PlatformEvent bootstrapEvent =
                     new TestingEventBuilder(random).setCreatorId(nodeId).build();
-            ;
+
             intakeEvents.add(bootstrapEvent);
             parentCandidates.add(bootstrapEvent);
             tips.put(nodeId, bootstrapEvent);
