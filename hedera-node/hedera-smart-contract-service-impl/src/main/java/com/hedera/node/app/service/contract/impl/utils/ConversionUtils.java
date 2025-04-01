@@ -936,7 +936,7 @@ public class ConversionUtils {
     public static @NonNull Long contractIDToNum(
             @NonNull final EntityIdFactory entityIdFactory, final ContractID contractId) {
         final Long id;
-        // For convenience also translate a long-zero address to a token ID
+        // For convenience also translate a long-zero address to a entity id
         if (contractId.hasEvmAddress()) {
             final var evmAddress = contractId.evmAddressOrThrow().toByteArray();
             if (isLongZeroAddress(entityIdFactory, evmAddress)) {

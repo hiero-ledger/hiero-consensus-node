@@ -131,16 +131,16 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
      */
     private Bytes bytecodeFrom(@NonNull final QueryContext context) {
         final ContractID contractId;
-        final Account contract;
+        final Account account;
         final Token token;
         final Schedule schedule;
         if ((contractId = getContractId(context)) == null) {
             return null;
-        } else if ((contract = accountFrom(context, contractId)) != null) {
-            if (contract.deleted()) {
+        } else if ((account = accountFrom(context, contractId)) != null) {
+            if (account.deleted()) {
                 return null;
-            } else if (contract.smartContract()) {
-                return bytecodeFrom(context, contractId);
+            } else if (account.smartContract()) {
+                return bytecodeFrom(context, account);
             } else {
                 return RedirectBytecodeUtils.accountProxyBytecodePjb(
                         ConversionUtils.contractIDToBesuAddress(entityIdFactory, contractId));
@@ -164,7 +164,20 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
         }
     }
 
-    private Bytes bytecodeFrom(@NonNull final QueryContext context, @NonNull final ContractID contractId) {
+    /**
+     * Getting bytecode by contract account
+     * <p>
+     * We are getting bytecode from Account, but not from initial ContractID,
+     * because initial ContractID can be an alias to real account.
+     *
+     * @param context Context of a single query. Contains all query specific information.
+     * @param contract the account of the contract
+     * @return the bytecode
+     */
+    private Bytes bytecodeFrom(@NonNull final QueryContext context, @NonNull final Account contract) {
+        var accountId = contract.accountIdOrThrow();
+        var contractNumber = accountId.accountNumOrThrow();
+        var contractId = entityIdFactory.newContractId(contractNumber);
         final var bytecode = context.createStore(ContractStateStore.class).getBytecode(contractId);
         return bytecode == null ? null : bytecode.code();
     }

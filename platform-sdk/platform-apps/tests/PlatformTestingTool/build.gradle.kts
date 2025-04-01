@@ -37,6 +37,7 @@ timingSensitiveModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
+    requires("org.hiero.consensus.model")
 }
 
 protobuf { protoc { artifact = "com.google.protobuf:protoc" } }
