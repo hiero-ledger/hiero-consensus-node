@@ -39,8 +39,8 @@ class FileBlockItemWriterTest {
     @Mock
     private ConfigProvider configProvider;
 
-    private NodeInfo selfNodeInfo =
-            new NodeInfoImpl(0, AccountID.newBuilder().accountNum(3).build(), 10, List.of(), Bytes.EMPTY, List.of());
+    private NodeInfo selfNodeInfo = new NodeInfoImpl(
+            0, AccountID.newBuilder().accountNum(3).build(), 10, List.of(), Bytes.EMPTY, List.of(), false);
 
     @Mock
     private BlockStreamConfig blockStreamConfig;

@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHashBytes;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomSignature;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHashBytes;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignature;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.mockito.Mockito.spy;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
@@ -20,7 +21,6 @@ import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
@@ -47,6 +47,7 @@ import java.util.stream.Stream;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 
 /**
  * A utility for generating random signed states.
@@ -188,15 +189,19 @@ public class RandomSignedStateGenerator {
         }
 
         final ConsensusSnapshot consensusSnapshotInstance;
+        final List<JudgeId> judges = Stream.generate(() -> new JudgeId(0L, randomHashBytes(random)))
+                .limit(10)
+                .toList();
         if (consensusSnapshot == null) {
-            consensusSnapshotInstance = new ConsensusSnapshot(
-                    roundInstance,
-                    Stream.generate(() -> randomHashBytes(random)).limit(10).toList(),
-                    IntStream.range(0, roundsNonAncientInstance)
+            consensusSnapshotInstance = ConsensusSnapshot.newBuilder()
+                    .round(roundInstance)
+                    .judgeIds(judges)
+                    .minimumJudgeInfoList(IntStream.range(0, roundsNonAncientInstance)
                             .mapToObj(i -> new MinimumJudgeInfo(roundInstance - i, 0L))
-                            .toList(),
-                    roundInstance,
-                    CommonUtils.toPbjTimestamp(consensusTimestampInstance));
+                            .toList())
+                    .nextConsensusNumber(roundInstance)
+                    .consensusTimestamp(CommonUtils.toPbjTimestamp(consensusTimestampInstance))
+                    .build();
         } else {
             consensusSnapshotInstance = consensusSnapshot;
         }

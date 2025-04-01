@@ -29,6 +29,7 @@ import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
+import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.ids.EntityIdService;
@@ -71,17 +72,19 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     private final SortedMap<Integer, Mutation> deferredSingletonUpdates = new TreeMap<>();
     private final SortedMap<Integer, List<Mutation>> deferredQueueUpdates = new TreeMap<>();
 
+    @NonNull
+    private final StoreMetricsService storeMetricsService;
+
+    @NonNull
+    private final Supplier<Configuration> configurationSupplier;
+
     @Nullable
     private Instant lastConsensusTime;
 
     @Nullable
     private Timestamp boundaryTimestamp;
 
-    @NonNull
-    private final StoreMetricsService storeMetricsService;
-
-    @NonNull
-    private final Supplier<Configuration> configurationSupplier;
+    private long nodeFeesCollected;
 
     /**
      * The mode the listener is in.
@@ -135,6 +138,28 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             @NonNull final Supplier<Configuration> configurationSupplier) {
         this.storeMetricsService = requireNonNull(storeMetricsService);
         this.configurationSupplier = requireNonNull(configurationSupplier);
+    }
+
+    /**
+     * Resets the node fees collected in this block.
+     */
+    public void resetCollectedNodeFees() {
+        nodeFeesCollected = 0;
+    }
+
+    /**
+     * Returns the node fees collected in this block.
+     */
+    public long nodeFeesCollected() {
+        return nodeFeesCollected;
+    }
+
+    /**
+     * Tracks the collected node fees.
+     * @param nodeFeesCollected the node fees collected
+     */
+    public void trackCollectedNodeFees(final long nodeFeesCollected) {
+        this.nodeFeesCollected += nodeFeesCollected;
     }
 
     /**
@@ -425,6 +450,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             case NetworkStakingRewards networkStakingRewards -> {
                 return new OneOf<>(
                         SingletonUpdateChange.NewValueOneOfType.NETWORK_STAKING_REWARDS_VALUE, networkStakingRewards);
+            }
+            case NodeRewards nodeRewards -> {
+                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.NODE_REWARDS_VALUE, nodeRewards);
             }
             case ProtoBytes protoBytes -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.BYTES_VALUE, protoBytes.value());

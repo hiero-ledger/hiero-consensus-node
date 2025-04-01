@@ -142,7 +142,7 @@ public class TransactionExecutorsTest {
     private static final String EXPECTED_TRACE_START =
             "{\"pc\":0,\"op\":96,\"gas\":\"0x13458\",\"gasCost\":\"0x3\",\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
     private static final NodeInfo DEFAULT_NODE_INFO =
-            new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of());
+            new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), true);
 
     @Mock
     private SignatureVerifier signatureVerifier;

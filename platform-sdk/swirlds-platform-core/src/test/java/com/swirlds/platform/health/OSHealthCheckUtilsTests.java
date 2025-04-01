@@ -6,13 +6,13 @@ import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTime
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import com.swirlds.common.test.fixtures.RandomUtils;
 import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
+import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.Test;
 
 class OSHealthCheckUtilsTests {

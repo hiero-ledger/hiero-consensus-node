@@ -3,12 +3,12 @@ package com.swirlds.virtualmap;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
+import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.Test;
 
 class VirtualMapRandomTest {

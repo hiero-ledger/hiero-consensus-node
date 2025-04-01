@@ -169,6 +169,12 @@ class BoundaryStateChangeListenerTest {
     }
 
     @Test
+    void getAndResetNodeFees() {
+        subject.trackCollectedNodeFees(100);
+        assertEquals(100, subject.nodeFeesCollected());
+    }
+
+    @Test
     void testSingletonUpdateChangeForEntityCounts() {
         subject.singletonUpdateChange(STATE_ID_ENTITY_COUNTS, "HwService", "Earth", ENTITY_COUNTS);
 

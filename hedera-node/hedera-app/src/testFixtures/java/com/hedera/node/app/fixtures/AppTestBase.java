@@ -161,7 +161,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
             10,
             List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
             Bytes.wrap("cert7"),
-            List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)));
+            List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
+            false);
 
     /**
      * The gRPC system has extensive metrics. This object allows us to inspect them and make sure they are being set
@@ -250,7 +251,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 10,
                 List.of(),
                 Bytes.EMPTY,
-                List.of());
+                List.of(),
+                true);
         private Set<NodeInfo> nodes = new LinkedHashSet<>();
 
         private TestAppBuilder() {}
@@ -331,7 +333,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                         10,
                         List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.4", 23456)),
                         Bytes.wrap("cert7"),
-                        List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.4", 23456)));
+                        List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.4", 23456)),
+                        true);
             } else {
                 realSelfNodeInfo = new NodeInfoImpl(
                         selfNodeInfo.nodeId(),
@@ -339,7 +342,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                         selfNodeInfo.weight(),
                         selfNodeInfo.gossipEndpoints(),
                         selfNodeInfo.sigCertBytes(),
-                        selfNodeInfo.hapiEndpoints());
+                        selfNodeInfo.hapiEndpoints(),
+                        selfNodeInfo.declineReward());
             }
 
             final var workingStateAccessor = new WorkingStateAccessor();
@@ -488,7 +492,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                         node.weight(),
                         node.gossipEndpoint(),
                         node.gossipCaCertificate(),
-                        node.serviceEndpoint());
+                        node.serviceEndpoint(),
+                        node.declineReward());
                 nodeInfos.put(node.nodeId(), nodeInfo);
             }
             return nodeInfos;
