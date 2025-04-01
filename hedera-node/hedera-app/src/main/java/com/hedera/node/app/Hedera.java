@@ -593,10 +593,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .getConfigData(BlockStreamConfig.class)
                 .streamToBlockNodes();
         switch (platformStatus) {
-            case ACTIVE -> {
-                startGrpcServer();
-                daggerApp.blockStreamManager().notifyActive();
-            }
+            case ACTIVE -> startGrpcServer();
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
                 shutdownGrpcServer();

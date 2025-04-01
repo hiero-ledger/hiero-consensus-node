@@ -157,11 +157,6 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     void writeItem(@NonNull BlockItem item);
 
     /**
-     * Notifies the block stream manager that the platform is active.
-     */
-    void notifyActive();
-
-    /**
      * Notifies the block stream manager that a fatal event has occurred, e.g. an ISS. This event should
      * trigger any essential fatal shutdown logic.
      */

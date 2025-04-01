@@ -83,7 +83,6 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.status.PlatformStatus;
 
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
@@ -199,14 +198,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private volatile CompletableFuture<Void> fatalShutdownFuture = null;
 
     /**
-     * A future that completes the first time the platform becomes {@link PlatformStatus#ACTIVE}.
+     * False until the node has tried to recover any blocks pending TSS signature still on disk.
      */
-    private final CompletableFuture<Void> onFirstActive = new CompletableFuture<>();
-
-    /**
-     * False until any the node has attempted to recover any blocks pending TSS signature still on disk.
-     */
-    private boolean recoveredPendingBlocks = false;
+    private boolean hasCheckedForPendingBlocks = false;
 
     @Inject
     public BlockStreamManagerImpl(
@@ -296,7 +290,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             inputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             outputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             blockNumber = blockStreamInfo.blockNumber() + 1;
-            if (hintsEnabled && !recoveredPendingBlocks) {
+            if (hintsEnabled && !hasCheckedForPendingBlocks) {
                 final var hasBeenFrozen = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
                                 .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY)
                                 .get())
@@ -304,7 +298,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 if (hasBeenFrozen) {
                     recoverPendingBlocks();
                 }
-                recoveredPendingBlocks = true;
+                hasCheckedForPendingBlocks = true;
             }
 
             worker = new BlockStreamManagerTask();
@@ -319,12 +313,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     /**
-     * Flushes the contents and proof context of any pending blocks to disk.
+     * Recovers the contents and proof context of any pending blocks from disk.
      */
     private void recoverPendingBlocks() {
         final var path = blockDirFor(configProvider.getConfiguration(), networkInfo.selfNodeInfo());
         log.info(
-                "Attempting to sign any pending blocks contiguous to #{} still on disk @ {}",
+                "Attempting to recover any pending blocks contiguous to #{} still on disk @ {}",
                 blockNumber,
                 path.toAbsolutePath());
         try {
@@ -894,13 +888,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         endRoundStateHashes
                 .get(notification.round())
                 .complete(notification.hash().getBytes());
-    }
-
-    @Override
-    public void notifyActive() {
-        if (!onFirstActive.isDone()) {
-            onFirstActive.complete(null);
-        }
     }
 
     @Override
