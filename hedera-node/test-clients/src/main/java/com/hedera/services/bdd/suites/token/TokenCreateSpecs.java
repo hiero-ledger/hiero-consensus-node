@@ -22,7 +22,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFeeInheritingRoyaltyCollector;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
@@ -80,7 +79,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_S
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NAME_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_SYMBOL_TOO_LONG;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN_FIELDS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -1048,27 +1046,6 @@ public class TokenCreateSpecs {
                         .autoRenewAccount(AUTO_RENEW_ACCOUNT)
                         .autoRenewPeriod(ONE_MONTH_IN_SECONDS - 1)
                         .hasKnownStatus(INVALID_RENEWAL_PERIOD));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> createWithDeletedFixedToken() {
-        var token = "token";
-        var token2 = "token2";
-
-        return hapiTest(
-                newKeyNamed(ADMIN_KEY),
-                cryptoCreate(TOKEN_TREASURY),
-                newKeyNamed("tokenAdmin"),
-                tokenCreate(token)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .supplyType(TokenSupplyType.INFINITE)
-                        .adminKey(ADMIN_KEY)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY),
-                tokenDelete(token),
-                tokenCreate(token2)
-                        .withCustom(fixedHtsFee(1, token, TOKEN_TREASURY))
-                        .hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     private final long hbarAmount = 1_234L;

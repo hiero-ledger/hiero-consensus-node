@@ -181,7 +181,6 @@ public class CustomFeesValidator {
         validateFalse(denomToken.paused(), INVALID_TOKEN_ID_IN_CUSTOM_FEES);
         validateTrue(isFungibleCommon(denomToken.tokenType()), CUSTOM_FEE_DENOMINATION_MUST_BE_FUNGIBLE_COMMON);
         validateTrue(tokenRelationStore.get(feeCollectorNum, tokenNum) != null, TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR);
-        TokenHandlerHelper.getIfUsable(tokenNum, tokenStore);
     }
 
     /**
