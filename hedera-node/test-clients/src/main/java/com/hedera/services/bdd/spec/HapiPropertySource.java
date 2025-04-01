@@ -100,10 +100,21 @@ public interface HapiPropertySource {
     }
 
     default AccountID getAccount(String property) {
+        final var value = get(property);
+
+        if (value.matches("\\d+\\.\\d+\\.\\d+")) {
+            try {
+                var parts = value.split("\\.");
+                return asAccount(parts[0], parts[1], parts[2]);
+            } catch (Exception ignore) {
+            }
+        }
+
         try {
             return asAccount(get("default.shard"), get("default.realm"), get(property));
         } catch (Exception ignore) {
         }
+
         return AccountID.getDefaultInstance();
     }
 

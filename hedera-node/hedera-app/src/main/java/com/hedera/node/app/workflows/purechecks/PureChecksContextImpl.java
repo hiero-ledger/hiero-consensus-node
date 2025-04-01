@@ -36,7 +36,6 @@ public class PureChecksContextImpl implements PureChecksContext {
         return txn;
     }
 
-    @NonNull
     @Override
     public void dispatchPureChecks(@NonNull TransactionBody body) throws PreCheckException {
         final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);

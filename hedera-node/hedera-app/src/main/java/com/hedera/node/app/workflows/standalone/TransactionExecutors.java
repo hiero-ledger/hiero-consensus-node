@@ -17,6 +17,7 @@ import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
@@ -252,7 +253,7 @@ public enum TransactionExecutors {
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();
 
         var defaultNodeInfo =
-                new NodeInfoImpl(0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of());
+                new NodeInfoImpl(0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), false);
         final var disableThrottles = Optional.ofNullable(properties.get(DISABLE_THROTTLES_PROPERTY))
                 .map(Boolean::parseBoolean)
                 .orElse(false);
@@ -281,6 +282,12 @@ public enum TransactionExecutors {
                 entityIdFactory);
         final var contractService = new ContractServiceImpl(
                 appContext, NO_OP_METRICS, NOOP_VERIFICATION_STRATEGIES, tracerBinding, customOps);
+        final var utilService = new UtilServiceImpl(appContext, (signedTxn, config) -> componentRef
+                .get()
+                .transactionChecker()
+                .parseSignedAndCheck(
+                        signedTxn, config.getConfigData(HederaConfig.class).nodeTransactionMaxBytes())
+                .txBody());
         final var fileService = new FileServiceImpl();
         final var scheduleService = new ScheduleServiceImpl(appContext);
         final var hintsService = new HintsServiceImpl(
@@ -299,6 +306,7 @@ public enum TransactionExecutors {
                 .fileServiceImpl(fileService)
                 .scheduleService(scheduleService)
                 .contractServiceImpl(contractService)
+                .utilServiceImpl(utilService)
                 .scheduleServiceImpl(scheduleService)
                 .hintsService(hintsService)
                 .historyService(historyService)
