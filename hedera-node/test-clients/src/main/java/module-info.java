@@ -110,6 +110,7 @@ module com.hedera.node.test.clients {
     requires org.apache.logging.log4j;
     requires org.assertj.core;
     requires org.bouncycastle.provider;
+    requires org.hiero.consensus.utility;
     requires org.hyperledger.besu.datatypes;
     requires org.hyperledger.besu.internal.crypto;
     requires org.hyperledger.besu.nativelib.secp256k1;

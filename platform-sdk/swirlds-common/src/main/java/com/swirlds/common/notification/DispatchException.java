@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.notification;
 
-import com.swirlds.common.exceptions.PlatformException;
+import org.hiero.consensus.utility.exceptions.PlatformException;
 import com.swirlds.logging.legacy.LogMarker;
 
 public class DispatchException extends PlatformException {
