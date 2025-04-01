@@ -81,6 +81,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.function.Function;
+import org.hiero.consensus.event.creator.impl.EventCreationConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
@@ -92,7 +93,6 @@ import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
-import org.hiero.event.creator.impl.EventCreationConfig;
 
 /**
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.

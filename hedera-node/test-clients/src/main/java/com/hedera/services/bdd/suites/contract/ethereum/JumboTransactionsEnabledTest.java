@@ -34,6 +34,7 @@ import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
+import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -56,7 +57,10 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
-                cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS), uploadInitCode(CONTRACT), contractCreate(CONTRACT));
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),
+                uploadInitCode(CONTRACT),
+                contractCreate(CONTRACT));
     }
 
     @HapiTest
@@ -159,5 +163,52 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 .signingWith(SECP_256K1_SOURCE_KEY)
                 .payingWith(payer)
                 .gasLimit(1_000_000L);
+    }
+
+    @HapiTest
+    @Order(5)
+    @DisplayName("Jumbo transaction send to the wrong gRPC endpoint")
+    public Stream<DynamicTest> sendToTheWrongGRPCEndpoint() {
+        final var sixKbPayload = new byte[6 * 1024];
+        final var moreThenSixKbPayload = new byte[6 * 1024 + 1];
+        final var limitPayload = new byte[128 * 1024];
+        final var tooBigPayload = new byte[130 * 1024];
+
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
+                ethereumCall(CONTRACT, FUNCTION, sixKbPayload)
+                        .markAsJumboTxn()
+                        // Override the hedera functionality to make the framework send the request to the wrong
+                        // endpoint
+                        .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .gasLimit(1_000_000L)
+                        .orUnavailableStatus(),
+                ethereumCall(CONTRACT, FUNCTION, moreThenSixKbPayload)
+                        .markAsJumboTxn()
+                        // Override the hedera functionality to make the framework send the request to the wrong
+                        // endpoint
+                        .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .gasLimit(1_000_000L)
+                        .orUnavailableStatus(),
+                ethereumCall(CONTRACT, FUNCTION, limitPayload)
+                        .markAsJumboTxn()
+                        // Override the hedera functionality to make the framework send the request to the wrong
+                        // endpoint
+                        .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .gasLimit(1_000_000L)
+                        .orUnavailableStatus(),
+                ethereumCall(CONTRACT, FUNCTION, tooBigPayload)
+                        .markAsJumboTxn()
+                        // Override the hedera functionality to make the framework send the request to the wrong
+                        // endpoint
+                        .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .gasLimit(1_000_000L)
+                        .orUnavailableStatus());
     }
 }
