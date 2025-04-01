@@ -23,10 +23,10 @@ open module com.swirlds.virtualmap {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.utility;
     requires com.swirlds.base;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
-    requires org.hiero.consensus.utility;
     requires java.management; // Test dependency
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
