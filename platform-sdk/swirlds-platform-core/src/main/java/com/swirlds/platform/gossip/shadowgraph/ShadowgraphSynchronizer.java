@@ -109,7 +109,7 @@ public class ShadowgraphSynchronizer {
     private final Duration nonAncestorFilterThreshold;
 
     /**
-     * Determines if events should be sorted before sending to the peer or not.
+     * Determines if events should be sorted before sending to the peer.
      */
     private final boolean sortEventsBeforeSending;
 
