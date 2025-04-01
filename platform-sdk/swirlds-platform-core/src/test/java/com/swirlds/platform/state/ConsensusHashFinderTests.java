@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.platform.state.iss.internal.ConsensusHashStatus.CATASTROPHIC_ISS;
 import static com.swirlds.platform.state.iss.internal.ConsensusHashStatus.DECIDED;
 import static com.swirlds.platform.state.iss.internal.ConsensusHashStatus.UNDECIDED;
 import static com.swirlds.platform.test.fixtures.utils.EqualsVerifier.randomHash;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;

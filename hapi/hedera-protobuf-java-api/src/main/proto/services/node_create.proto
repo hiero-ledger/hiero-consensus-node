@@ -125,4 +125,13 @@ message NodeCreateTransactionBody {
      * This field is REQUIRED and MUST NOT be set to an empty `KeyList`.
      */
     proto.Key admin_key = 7;
+
+    /**
+     * A boolean flag indicating whether the node operator declines to receive
+     * node rewards.
+     * <p>
+     * If this flag is set to `true`, the node operator declines to receive
+     * node rewards.<br/>
+     */
+    bool decline_reward = 8;
 }
