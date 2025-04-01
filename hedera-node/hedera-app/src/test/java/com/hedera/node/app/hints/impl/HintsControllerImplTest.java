@@ -178,7 +178,6 @@ class HintsControllerImplTest {
 
     @Test
     void schedulesPreprocessingWithQualifiedHintsKeysIfProcessingStartTimeIsSetButDoesNotScheduleTwice() {
-        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
         setupWith(
                 CONSTRUCTION_WITH_START_TIME,
                 List.of(EXPECTED_NODE_ONE_PUBLICATION, TARDY_NODE_TWO_PUBLICATION),
