@@ -61,7 +61,7 @@ public class DefaultSignedStatesTestCollector implements SignedStatesTestCollect
     }
 
     @Override
-    public List<ReservedSignedState> getFilteredConsensusRounds(@NonNull Set<MerkleNodeState> merkleStates) {
+    public List<ReservedSignedState> getFilteredSignedStates(@NonNull Set<MerkleNodeState> merkleStates) {
         return collectedSignedStates.entrySet().stream()
                 .filter(s -> merkleStates.contains(s.getKey()))
                 .map(Map.Entry::getValue)

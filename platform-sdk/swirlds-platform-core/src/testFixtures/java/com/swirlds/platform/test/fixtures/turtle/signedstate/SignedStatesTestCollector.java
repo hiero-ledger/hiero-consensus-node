@@ -36,10 +36,10 @@ public interface SignedStatesTestCollector {
     Map<MerkleNodeState, ReservedSignedState> getCollectedSignedStates();
 
     /**
-     * Get filtered signed states specified roots.
+     * Get filtered signed states by specified state roots.
      *
      * @param merkleStates the roots collection to use as a filter
      * @return the filtered signed states
      */
-    List<ReservedSignedState> getFilteredConsensusRounds(@NonNull final Set<MerkleNodeState> merkleStates);
+    List<ReservedSignedState> getFilteredSignedStates(@NonNull final Set<MerkleNodeState> merkleStates);
 }

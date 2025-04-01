@@ -73,7 +73,7 @@ public class TurtleNode {
     private final DeterministicWiringModel model;
     private final Platform platform;
     private final NodeId nodeId;
-    private DefaultConsensusRoundsTestCollector consensusRoundsTestCollector;
+    private ConsensusRoundsTestCollector consensusRoundsTestCollector;
     private SignedStatesTestCollector signedStatesTestCollector;
 
     /**
