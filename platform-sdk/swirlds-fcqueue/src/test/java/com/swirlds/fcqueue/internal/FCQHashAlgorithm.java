@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.fcqueue.internal;
 
-import static com.swirlds.common.utility.ByteUtils.byteArrayToLong;
-import static com.swirlds.common.utility.ByteUtils.longToByteArray;
+import static org.hiero.consensus.utility.ByteUtils.byteArrayToLong;
+import static org.hiero.consensus.utility.ByteUtils.longToByteArray;
 
 public enum FCQHashAlgorithm {
     SUM_HASH(FCQHashAlgorithm::sumHashCalculator, FCQHashAlgorithm::removalSumHashCalculator),

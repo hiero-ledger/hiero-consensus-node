@@ -10,6 +10,7 @@ import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
 import com.swirlds.platform.event.preconsensus.PcesUtilities;
+import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import java.io.IOException;
@@ -37,7 +38,8 @@ public class CoinRoundTest extends PlatformTest {
 
         final LegacyConfigProperties legacyConfigProperties =
                 LegacyConfigPropertiesLoader.loadConfigFile(ResourceLoader.getFile(resources + "config.txt"));
-        final TestIntake intake = new TestIntake(context, legacyConfigProperties.getAddressBook());
+        final TestIntake intake =
+                new TestIntake(context, RosterRetriever.buildRoster(legacyConfigProperties.getAddressBook()));
 
         long maxGen = 0;
         final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(0, 0);

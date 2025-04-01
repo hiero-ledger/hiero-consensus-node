@@ -28,9 +28,11 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.HashSet;
@@ -44,16 +46,20 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class CryptoTransferValidator {
+    private final EntityIdFactory entityIdFactory;
+
     /**
      * Default constructor for injection.
      */
     @Inject
-    public CryptoTransferValidator() {
+    public CryptoTransferValidator(final EntityIdFactory entityIdFactory) {
         // For Dagger injection
+        this.entityIdFactory = entityIdFactory;
     }
 
     /**
      * Performs pure checks that validates basic fields in the crypto transfer transaction.
+     *
      * @param op the crypto transfer transaction body
      * @throws PreCheckException if any of the checks fail
      */
@@ -75,21 +81,33 @@ public class CryptoTransferValidator {
 
     /**
      * All validations needed for the crypto transfer operation, that include state or config.
-     * @param op the crypto transfer operation
-     * @param ledgerConfig the ledger config
-     * @param hederaConfig the hedera config
-     * @param tokensConfig the tokens config
+     *
+     * @param op             the crypto transfer operation
+     * @param ledgerConfig   the ledger config
+     * @param hederaConfig   the hedera config
+     * @param tokensConfig   the tokens config
+     * @param accountsConfig
      */
     public void validateSemantics(
             @NonNull final CryptoTransferTransactionBody op,
             @NonNull final LedgerConfig ledgerConfig,
             @NonNull final HederaConfig hederaConfig,
-            @NonNull final TokensConfig tokensConfig) {
+            @NonNull final TokensConfig tokensConfig,
+            @NonNull final AccountsConfig accountsConfig) {
         final var transfers = op.transfersOrElse(TransferList.DEFAULT);
 
         // Validate that there aren't too many hbar transfers
         final var hbarTransfers = transfers.accountAmounts();
-        validateTrue(hbarTransfers.size() <= ledgerConfig.transfersMaxLen(), TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
+
+        // If the payer is node rewards account, we are dispatching synthetic node rewards. So skip checking the limits.
+        if (hbarTransfers.size() > ledgerConfig.transfersMaxLen()) {
+            final var nodeRewardAccountId = entityIdFactory.newAccountId(accountsConfig.nodeRewardAccount());
+            validateTrue(
+                    hbarTransfers.stream()
+                            .filter(aa -> aa.amount() < 0)
+                            .anyMatch(aa -> nodeRewardAccountId.equals(aa.accountID())),
+                    TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
+        }
 
         // Validate that allowances are enabled, or that no hbar transfers are an allowance transfer
         final var allowancesEnabled = hederaConfig.allowancesIsEnabled();
@@ -123,6 +141,7 @@ public class CryptoTransferValidator {
 
     /**
      * Checks if any of the transfers is with approval flag set.
+     *
      * @param transfers the transfers
      * @return true if any of the transfers is with approval flag set, false otherwise
      */
@@ -137,6 +156,7 @@ public class CryptoTransferValidator {
 
     /**
      * Checks if any of the nft transfers is with approval flag set.
+     *
      * @param nftTransfers the nft transfers
      * @return true if any of the nft transfers is with approval flag set, false otherwise
      */

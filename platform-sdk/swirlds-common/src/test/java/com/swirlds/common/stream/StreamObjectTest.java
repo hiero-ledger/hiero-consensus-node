@@ -15,7 +15,7 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.stream.internal.LinkedObjectStreamValidateUtils;
 import com.swirlds.common.stream.internal.StreamValidationResult;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.stream.StreamFileSigner;
 import com.swirlds.common.test.fixtures.stream.StreamObjectWorker;
 import com.swirlds.common.test.fixtures.stream.TestStreamType;
@@ -44,7 +44,7 @@ class StreamObjectTest {
     private static final Marker LOGM_EXCEPTION = MarkerManager.getMarker("EXCEPTION");
     private static final String dirPath = "src/test/resources/stream/writeDir";
     private static final StreamType streamType = TestStreamType.TEST_STREAM;
-    static Hash initialHash = RandomUtils.randomHash();
+    static Hash initialHash = CryptoRandomUtils.randomHash();
     static StreamFileSigner signer = new StreamFileSigner();
     static PublicKey publicKey = signer.getPublicKey();
 

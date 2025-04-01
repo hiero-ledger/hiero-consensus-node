@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.orphan;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -178,7 +178,6 @@ class OrphanBufferTests {
             final NodeId nodeId = NodeId.of(i);
             final PlatformEvent bootstrapEvent =
                     new TestingEventBuilder(random).setCreatorId(nodeId).build();
-            ;
             intakeEvents.add(bootstrapEvent);
             parentCandidates.add(bootstrapEvent);
             tips.put(nodeId, bootstrapEvent);

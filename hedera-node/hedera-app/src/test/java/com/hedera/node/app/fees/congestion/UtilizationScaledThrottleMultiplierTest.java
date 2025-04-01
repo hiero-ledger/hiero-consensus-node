@@ -21,7 +21,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.PendingAirdropId;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
@@ -51,7 +50,6 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
 import com.hedera.node.app.store.ReadableStoreFactory;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
@@ -63,13 +61,11 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.node.config.types.EntityScaleFactors;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.system.SoftwareVersion;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -118,8 +114,6 @@ class UtilizationScaledThrottleMultiplierTest {
     private TransactionInfo txnInfo;
 
     private FakeState state;
-
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory = ServicesSoftwareVersion::new;
 
     @BeforeEach
     void setUp() {
@@ -174,7 +168,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                         .numAccounts(1L)
                                         .build())));
 
-        var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        var storeFactory = new ReadableStoreFactory(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
 
         assertEquals(SOME_MULTIPLIER * ENTITY_SCALE_FACTOR, multiplier);
@@ -211,7 +205,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                         .numContractBytecodes(1L)
                                         .build())));
 
-        var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        var storeFactory = new ReadableStoreFactory(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
 
         assertEquals(SOME_MULTIPLIER * ENTITY_SCALE_FACTOR, multiplier);
@@ -245,7 +239,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                 new AtomicReference<>(
                                         EntityCounts.newBuilder().numFiles(1L).build())));
 
-        var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        var storeFactory = new ReadableStoreFactory(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
 
         assertEquals(SOME_MULTIPLIER * ENTITY_SCALE_FACTOR, multiplier);
@@ -292,7 +286,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                 new AtomicReference<>(
                                         EntityCounts.newBuilder().numNfts(1L).build())));
 
-        var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        var storeFactory = new ReadableStoreFactory(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(nftMintTxnInfo, storeFactory);
 
         assertEquals(SOME_MULTIPLIER * ENTITY_SCALE_FACTOR, multiplier);
@@ -316,7 +310,7 @@ class UtilizationScaledThrottleMultiplierTest {
                 null);
         when(delegate.currentMultiplier()).thenReturn(SOME_MULTIPLIER);
 
-        var storeFactory = new ReadableStoreFactory(new FakeState(), softwareVersionFactory);
+        var storeFactory = new ReadableStoreFactory(new FakeState());
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(tokenMintTxnInfo, storeFactory);
 
         assertEquals(SOME_MULTIPLIER, multiplier);
@@ -350,7 +344,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                 new AtomicReference<>(
                                         EntityCounts.newBuilder().numTokens(1L).build())));
 
-        var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        var storeFactory = new ReadableStoreFactory(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
 
         assertEquals(SOME_MULTIPLIER * ENTITY_SCALE_FACTOR, multiplier);
@@ -383,7 +377,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                         .numAirdrops(1L)
                                         .build())));
 
-        var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        var storeFactory = new ReadableStoreFactory(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
 
         assertEquals(SOME_MULTIPLIER * ENTITY_SCALE_FACTOR, multiplier);
@@ -422,7 +416,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                         .numTokenRelations(1L)
                                         .build())));
 
-        var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        var storeFactory = new ReadableStoreFactory(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
 
         assertEquals(SOME_MULTIPLIER * ENTITY_SCALE_FACTOR, multiplier);
@@ -456,7 +450,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                 new AtomicReference<>(
                                         EntityCounts.newBuilder().numTopics(1L).build())));
 
-        var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        var storeFactory = new ReadableStoreFactory(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
 
         assertEquals(SOME_MULTIPLIER * ENTITY_SCALE_FACTOR, multiplier);
@@ -469,7 +463,7 @@ class UtilizationScaledThrottleMultiplierTest {
         when(txnInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
         when(delegate.currentMultiplier()).thenReturn(SOME_MULTIPLIER);
 
-        var storeFactory = new ReadableStoreFactory(new FakeState(), softwareVersionFactory);
+        var storeFactory = new ReadableStoreFactory(new FakeState());
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
 
         assertEquals(SOME_MULTIPLIER, multiplier);

@@ -14,6 +14,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 
 /**
@@ -201,13 +202,15 @@ public interface TokenServiceApi {
      * @param fees the fees to charge
      * @param recordBuilder the record builder to record the fees in
      * @param cb if not null, a map to record the balance adjustments in
+     * @param onNodeFee a callback to receive the node fee disbursement
      */
     void chargeFees(
             @NonNull AccountID payer,
             AccountID nodeAccount,
             @NonNull Fees fees,
             @NonNull FeeStreamBuilder recordBuilder,
-            @Nullable ObjLongConsumer<AccountID> cb);
+            @Nullable ObjLongConsumer<AccountID> cb,
+            @NonNull LongConsumer onNodeFee);
 
     /**
      * Refunds the given fees to the given receiver, and records those fees in the given record builder.
