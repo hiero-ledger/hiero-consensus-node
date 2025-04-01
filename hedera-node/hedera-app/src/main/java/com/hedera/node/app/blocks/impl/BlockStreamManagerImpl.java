@@ -166,14 +166,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
          * Flushes this pending block to disk, optionally including the sibling hashes needed
          * for an indirect proof of its preceding block(s).
          * @param withSiblingHashes whether to include sibling hashes for an indirect proof
+         * @param nextSchemeId the latest id of the next scheme
          */
-        public void flushPending(final boolean withSiblingHashes) {
+        public void flushPending(final boolean withSiblingHashes, final long nextSchemeId) {
             final var incompleteProof = proofBuilder.build();
             final var pendingProof = PendingProof.newBuilder()
                     .block(number)
                     .blockHash(blockHash)
                     .activeHintsConstructionId(schemeIds.activeId())
-                    .nextHintsConstructionId(schemeIds.nextId())
+                    .nextHintsConstructionId(nextSchemeId)
                     .previousBlockHash(incompleteProof.previousBlockRootHash())
                     .startOfBlockStateRootHash(incompleteProof.startOfBlockStateRootHash())
                     .siblingHashesFromPrevBlockRoot(withSiblingHashes ? List.of(siblingHashes) : List.of())
@@ -465,7 +466,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // until after restart to gossip partial signatures and sign any pending blocks
             if (hintsEnabled && roundNum == freezeRoundNumber) {
                 final var hasPrecedingUnproven = new AtomicBoolean(false);
-                pendingBlocks.forEach(block -> block.flushPending(hasPrecedingUnproven.getAndSet(true)));
+                // In case the id of the next hinTS construction changed since a block ended
+                final long nextSchemeId = blockHashSigner.currentSchemeIds().nextId();
+                pendingBlocks.forEach(block -> block.flushPending(hasPrecedingUnproven.getAndSet(true), nextSchemeId));
             } else {
                 final var schemeId = blockHashSigner.currentSchemeIds().activeId();
                 blockHashSigner
