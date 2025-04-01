@@ -24,6 +24,7 @@ public class WiringModelBuilder {
     private Duration healthLogPeriod = Duration.ofMinutes(10);
     private final Metrics metrics;
     private final Time time;
+    private Duration healthyReportThreshold = Duration.ofSeconds(1);
 
     /**
      * Create a new builder.
@@ -163,6 +164,17 @@ public class WiringModelBuilder {
     }
 
     /**
+     * Set the healthyReportThreshold.
+     * Indicates how long between two consecutive reports when the system is healthy.
+     * @return this
+     */
+    @NonNull
+    public WiringModelBuilder withHealthyReportThreshold(@NonNull final Duration healthyReportThreshold) {
+        this.healthyReportThreshold = Objects.requireNonNull(healthyReportThreshold);
+        return this;
+    }
+
+    /**
      * Build the wiring model.
      *
      * @param <T> the type of wiring model
@@ -273,5 +285,15 @@ public class WiringModelBuilder {
     @NonNull
     Time getTime() {
         return time;
+    }
+
+    /**
+     * Get the healthyReportThreshold.
+     * Indicates how long between two consecutive reports when the system is healthy.
+     * @return the healthyReportThreshold
+     */
+    @NonNull
+    Duration getHealthyReportThreshold() {
+        return healthyReportThreshold;
     }
 }

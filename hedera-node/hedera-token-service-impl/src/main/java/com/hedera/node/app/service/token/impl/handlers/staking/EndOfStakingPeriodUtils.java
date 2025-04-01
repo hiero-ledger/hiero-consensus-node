@@ -84,7 +84,9 @@ public final class EndOfStakingPeriodUtils {
     public static NetworkStakingRewards.Builder asStakingRewardBuilder(
             @NonNull final ReadableNetworkStakingRewardsStore networkRewardsStore) {
         requireNonNull(networkRewardsStore);
-        return NetworkStakingRewards.newBuilder()
+        return networkRewardsStore
+                .get()
+                .copyBuilder()
                 .pendingRewards(networkRewardsStore.pendingRewards())
                 .stakingRewardsActivated(networkRewardsStore.isStakingRewardsActivated())
                 .totalStakedRewardStart(networkRewardsStore.totalStakeRewardStart())

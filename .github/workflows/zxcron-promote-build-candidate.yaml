@@ -3,8 +3,8 @@ name: "ZXCron: Promote Build Candidate"
 on:
   workflow_dispatch:
   schedule:
-    # Runs Promote Build Candidate at 2000 hours
-    - cron: "0 20 * * *"
+    # Runs Promote Build Candidate at 0100 hours UTC (8:00 PM CDT)
+    - cron: "0 1 * * *"
 
 permissions:
   actions: write
@@ -28,7 +28,7 @@ jobs:
       build-candidate-commit: ${{ steps.find-build-candidates.outputs.build-candidate-commit }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -84,7 +84,7 @@ jobs:
     if: ${{ needs.determine-build-candidate.result == 'success' && needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -145,7 +145,7 @@ jobs:
       needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -184,16 +184,16 @@ jobs:
                           "text": "Build Candidate Commit"
                         },
                         {
-                          "type": "plain_text",
-                          "text": "${{ needs.determine-build-candidate.outputs.build-candidate-commit }}"
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.determine-build-candidate.outputs.build-candidate-commit }}>"
                         },
                         {
                           "type": "plain_text",
                           "text": "Promoted Build Tag"
                         },
                         {
-                          "type": "plain_text",
-                          "text": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.promote-build-candidate.outputs.build-candidate-tag }}>"
                         }
                       ]
                     }
@@ -211,7 +211,7 @@ jobs:
     if: ${{ (needs.determine-build-candidate.result != 'success' || needs.promote-build-candidate.result != 'success') && !cancelled() && always() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
