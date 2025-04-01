@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.state.PlatformStateModifier;
@@ -40,15 +41,9 @@ public class V0540PlatformStateSchema extends Schema {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(54).patch(0).build();
 
-    private final SemanticVersion versionFn;
 
     public V0540PlatformStateSchema() {
-        this(V0540PlatformStateSchema.UNAVAILABLE_VERSION_FN);
-    }
-
-    public V0540PlatformStateSchema(@NonNull final SemanticVersion versionFn) {
         super(VERSION);
-        this.versionFn = requireNonNull(versionFn);
     }
 
     @NonNull
@@ -74,7 +69,7 @@ public class V0540PlatformStateSchema extends Schema {
 
     private Consumer<PlatformStateModifier> genesisStateSpec(@NonNull final MigrationContext ctx) {
         return v -> {
-            v.setCreationSoftwareVersion(versionFn);
+            v.setCreationSoftwareVersion(ctx.appConfig().getConfigData(VersionConfig.class).servicesVersion());
             v.setRound(0);
             v.setLegacyRunningEventHash(null);
             v.setConsensusTimestamp(Instant.EPOCH);
