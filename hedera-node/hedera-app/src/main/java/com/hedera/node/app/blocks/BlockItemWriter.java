@@ -54,4 +54,9 @@ public interface BlockItemWriter {
      * @param pendingProof the proof pending a signature
      */
     void flushPendingBlock(@NonNull PendingProof pendingProof);
+
+    /**
+     * Performs any actions that need to be done before the block proof is complete.
+     */
+    void writePreBlockProofItems();
 }

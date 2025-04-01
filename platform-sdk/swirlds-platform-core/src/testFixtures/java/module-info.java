@@ -24,6 +24,7 @@ module com.swirlds.platform.core.test.fixtures {
     requires com.github.spotbugs.annotations;
     requires com.google.common;
     requires java.desktop;
+    requires org.assertj.core;
     requires org.mockito;
 
     exports com.swirlds.platform.test.fixtures;
