@@ -30,8 +30,7 @@ public class DefaultConsensusRoundsTestCollector implements ConsensusRoundsTestC
 
             assertThat(collectedRounds)
                     .withFailMessage(String.format(
-                            "Round with number %d has been already" + " produced by node %d",
-                            roundNumber, selfNodeId.id()))
+                            "Round with number %d has been already produced by node %d", roundNumber, selfNodeId.id()))
                     .doesNotContainKey(roundNumber);
             collectedRounds.put(roundNumber, round);
         }

@@ -41,7 +41,6 @@ import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsTestCollector;
 import com.swirlds.platform.test.fixtures.turtle.consensus.DefaultConsensusRoundsTestCollector;
-import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import com.swirlds.platform.test.fixtures.turtle.signedstate.DefaultSignedStatesTestCollector;
 import com.swirlds.platform.test.fixtures.turtle.signedstate.SignedStatesTestCollector;
@@ -162,10 +161,6 @@ public class TurtleNode {
         wireConsensusRoundsTestCollector(platformWiring);
         wireSignedStatesTestCollector(platformWiring);
 
-        final SimulatedGossip gossip = network.getGossipInstance(nodeId);
-        gossip.provideIntakeEventCounter(
-                platformComponentBuilder.getBuildingBlocks().intakeEventCounter());
-
         platformComponentBuilder.withMetricsDocumentationEnabled(false).withGossip(network.getGossipInstance(nodeId));
 
         platform = platformComponentBuilder.build();
@@ -194,7 +189,7 @@ public class TurtleNode {
         final ComponentWiring<SignedStatesTestCollector, Void> signedStatesTestCollectorWiring = new ComponentWiring<>(
                 model, SignedStatesTestCollector.class, TaskSchedulerConfiguration.parse("DIRECT"));
 
-        signedStatesTestCollector = new DefaultSignedStatesTestCollector();
+        signedStatesTestCollector = new DefaultSignedStatesTestCollector(nodeId);
         signedStatesTestCollectorWiring.bind(signedStatesTestCollector);
 
         final InputWire<ReservedSignedState> signedStateHolderInputWire =
