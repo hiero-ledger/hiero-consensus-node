@@ -502,17 +502,6 @@ public final class SyncUtils {
     }
 
     /**
-     * Performs a topological sort on the given list of events (i.e. where parents always come before their children).
-     *
-     * @param sendList The list of events to sort.
-     */
-    static void sort(@NonNull final List<PlatformEvent> sendList) {
-        // Note: regardless of ancient mode, sorting uses generations and not birth rounds.
-        //       Sorting by generations yields a list in topological order, sorting by birth rounds does not.
-        sendList.sort(Comparator.comparingLong(PlatformEvent::getNGen));
-    }
-
-    /**
      * For each tip they send us, determine if we have that event. For each tip, send true if we have the event and
      * false if we don't.
      *

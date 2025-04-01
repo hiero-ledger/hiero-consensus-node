@@ -109,11 +109,6 @@ public class ShadowgraphSynchronizer {
     private final Duration nonAncestorFilterThreshold;
 
     /**
-     * Determines if events should be sorted before sending to the peer.
-     */
-    private final boolean sortEventsBeforeSending;
-
-    /**
      * The maximum number of events to send in a single sync, or 0 if there is no limit.
      */
     private final int maximumEventsPerSync;
@@ -161,7 +156,6 @@ public class ShadowgraphSynchronizer {
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
         this.maximumEventsPerSync = syncConfig.maxSyncEventCount();
-        sortEventsBeforeSending = syncConfig.sortEventsBeforeSending();
 
         this.ancientMode = platformContext
                 .getConfiguration()
@@ -344,10 +338,6 @@ public class ShadowgraphSynchronizer {
 
         final List<PlatformEvent> eventsTheyMayNeed =
                 sendSet.stream().map(ShadowEvent::getEvent).collect(Collectors.toCollection(ArrayList::new));
-
-        if (sortEventsBeforeSending) {
-            SyncUtils.sort(eventsTheyMayNeed);
-        }
 
         List<PlatformEvent> sendList;
         if (filterLikelyDuplicates) {
