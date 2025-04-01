@@ -39,8 +39,8 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookUtils;
-import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsTestCollector;
-import com.swirlds.platform.test.fixtures.turtle.consensus.DefaultConsensusRoundsTestCollector;
+import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsHolder;
+import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsListContainer;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import com.swirlds.platform.test.fixtures.turtle.signedstate.DefaultSignedStatesTestCollector;
@@ -74,7 +74,7 @@ public class TurtleNode {
     private final DeterministicWiringModel model;
     private final Platform platform;
     private final NodeId nodeId;
-    private ConsensusRoundsTestCollector consensusRoundsTestCollector;
+    private ConsensusRoundsListContainer consensusRoundsTestCollector;
     private SignedStatesTestCollector signedStatesTestCollector;
 
     /**
@@ -156,6 +156,7 @@ public class TurtleNode {
         final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
 
         final PlatformBuildingBlocks buildingBlocks = platformComponentBuilder.getBuildingBlocks();
+
         final PlatformWiring platformWiring = buildingBlocks.platformWiring();
 
         wireConsensusRoundsTestCollector(platformWiring);
@@ -171,15 +172,15 @@ public class TurtleNode {
     }
 
     private void wireConsensusRoundsTestCollector(final PlatformWiring platformWiring) {
-        final ComponentWiring<ConsensusRoundsTestCollector, Void> consensusRoundsTestCollectorWiring =
+        final ComponentWiring<ConsensusRoundsHolder, Void> consensusRoundsTestCollectorWiring =
                 new ComponentWiring<>(
-                        model, ConsensusRoundsTestCollector.class, TaskSchedulerConfiguration.parse("DIRECT"));
+                        model, ConsensusRoundsHolder.class, TaskSchedulerConfiguration.parse("DIRECT"));
 
-        consensusRoundsTestCollector = new DefaultConsensusRoundsTestCollector();
+        consensusRoundsTestCollector = new ConsensusRoundsListContainer(nodeId);
         consensusRoundsTestCollectorWiring.bind(consensusRoundsTestCollector);
 
         final InputWire<List<ConsensusRound>> consensusRoundsHolderInputWire =
-                consensusRoundsTestCollectorWiring.getInputWire(ConsensusRoundsTestCollector::interceptRounds);
+                consensusRoundsTestCollectorWiring.getInputWire(ConsensusRoundsHolder::interceptRounds);
 
         final OutputWire<List<ConsensusRound>> consensusEngineOutputWire =
                 platformWiring.getConsensusEngineOutputWire();
@@ -215,13 +216,8 @@ public class TurtleNode {
         model.tick();
     }
 
-    public void clear() {
-        consensusRoundsTestCollector.clear();
-        signedStatesTestCollector.clear();
-    }
-
     @NonNull
-    public ConsensusRoundsTestCollector getConsensusRoundsHolder() {
+    public ConsensusRoundsHolder getConsensusRoundsHolder() {
         return consensusRoundsTestCollector;
     }
 

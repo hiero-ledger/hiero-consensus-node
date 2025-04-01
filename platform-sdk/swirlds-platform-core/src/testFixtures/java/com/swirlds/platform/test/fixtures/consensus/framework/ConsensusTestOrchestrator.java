@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
@@ -18,7 +17,7 @@ import org.hiero.consensus.model.node.NodeId;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
 public class ConsensusTestOrchestrator {
-    private static final ConsensusRoundValidator consensusRoundValidatorWithAllChecks = new ConsensusRoundValidator();
+    private final ConsensusRoundValidator consensusRoundValidatorWithAllChecks = new ConsensusRoundValidator();
     private final PlatformContext platformContext;
     private final List<ConsensusTestNode> nodes;
     private long currentSequence = 0;
@@ -114,13 +113,6 @@ public class ConsensusTestOrchestrator {
             final ConsensusTestNode otherNode = nodes.get(i);
 
             consensusOutputValidator.validate(node1.getOutput(), otherNode.getOutput());
-            assertThat(node1.getOutput().getConsensusRounds())
-                    .hasSameSizeAs(otherNode.getOutput().getConsensusRounds())
-                    .withFailMessage(String.format(
-                            "The number of consensus rounds is not the same."
-                                    + "output1 has %d rounds, output2 has %d rounds",
-                            node1.getOutput().getConsensusRounds().size(),
-                            otherNode.getOutput().getConsensusRounds().size()));
             consensusRoundValidatorWithAllChecks.validate(
                     node1.getOutput().getConsensusRounds(),
                     otherNode.getOutput().getConsensusRounds());
@@ -176,7 +168,7 @@ public class ConsensusTestOrchestrator {
         for (final ConsensusTestNode node : nodes) {
             node.getEventEmitter()
                     .getGraphGenerator()
-                    .getSource(getAddressBook().getNodeId(nodeIndex))
+                    .getSourceByIndex(nodeIndex)
                     .setNewEventWeight(eventWeight);
         }
     }
@@ -196,7 +188,7 @@ public class ConsensusTestOrchestrator {
         return nodes;
     }
 
-    public AddressBook getAddressBook() {
-        return nodes.get(0).getEventEmitter().getGraphGenerator().getAddressBook();
+    public Roster getRoster() {
+        return nodes.get(0).getEventEmitter().getGraphGenerator().getRoster();
     }
 }

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.ReadableNetworkStakingRewardsStoreImpl;
@@ -207,7 +208,7 @@ class StakePeriodManagerTest {
 
     private void givenStakingRewardsActivated() {
         final AtomicReference<NetworkStakingRewards> backingValue =
-                new AtomicReference<>(new NetworkStakingRewards(true, 1L, 2L, 3L));
+                new AtomicReference<>(new NetworkStakingRewards(true, 1L, 2L, 3L, Timestamp.DEFAULT));
         final var stakingRewardsState =
                 new WritableSingletonStateBase<>(STAKING_NETWORK_REWARDS_KEY, backingValue::get, backingValue::set);
         given(states.getSingleton(STAKING_NETWORK_REWARDS_KEY))
@@ -217,7 +218,7 @@ class StakePeriodManagerTest {
 
     private void givenStakingRewardsNotActivated() {
         final AtomicReference<NetworkStakingRewards> backingValue =
-                new AtomicReference<>(new NetworkStakingRewards(false, 1L, 2L, 3L));
+                new AtomicReference<>(new NetworkStakingRewards(false, 1L, 2L, 3L, Timestamp.DEFAULT));
         final var stakingRewardsState =
                 new WritableSingletonStateBase<>(STAKING_NETWORK_REWARDS_KEY, backingValue::get, backingValue::set);
         given(states.getSingleton(STAKING_NETWORK_REWARDS_KEY))

@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.schema.BlockSchema;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.config.ConfigProvider;
@@ -146,6 +147,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
         writableStreamingData.writeVarInt(bytes.length, false);
         // Write the item bytes themselves.
         writableStreamingData.writeBytes(bytes);
+    }
+
+    @Override
+    public void writePbjItem(@NonNull BlockItem item) {
+        throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
     }
 
     @Override

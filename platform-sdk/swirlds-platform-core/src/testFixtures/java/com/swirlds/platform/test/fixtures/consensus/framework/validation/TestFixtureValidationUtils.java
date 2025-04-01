@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
+import static org.assertj.core.api.Assertions.fail;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.assertj.core.api.Assertions;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 public class TestFixtureValidationUtils {
@@ -24,7 +25,7 @@ public class TestFixtureValidationUtils {
             final boolean shouldBeEqual) {
 
         if (l1.size() != l2.size()) {
-            Assertions.fail(String.format("Length of event lists are unequal: %d vs %d", l1.size(), l2.size()));
+            fail(String.format("Length of event lists are unequal: %d vs %d", l1.size(), l2.size()));
         }
 
         for (int index = 0; index < l1.size(); index++) {
@@ -43,7 +44,7 @@ public class TestFixtureValidationUtils {
                         + "\n"
                         + "at index: "
                         + index;
-                Assertions.fail(sb);
+                fail(sb);
             }
             if (!shouldBeEqual && !equals) {
                 // events are not equal, and they are not expected to be, we can stop checking
@@ -52,8 +53,7 @@ public class TestFixtureValidationUtils {
         }
         if (!shouldBeEqual) {
             // events are not expected to be equal, but we have gone through the whole list without finding a mismatch
-            Assertions.fail(
-                    String.format("Events are added in exactly the same order. Number of events: %d", l1.size()));
+            fail(String.format("Events are added in exactly the same order. Number of events: %d", l1.size()));
         }
     }
 }

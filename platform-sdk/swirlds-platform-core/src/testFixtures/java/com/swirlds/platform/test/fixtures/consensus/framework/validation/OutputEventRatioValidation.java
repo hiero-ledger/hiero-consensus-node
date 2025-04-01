@@ -8,6 +8,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 
+/**
+ * Validate whether the actual ratios of consensus events and stale events fall within an
+ * expected configurable range.
+ */
 public class OutputEventRatioValidation implements ConsensusOutputValidation {
     /**
      * The minimum fraction of events (out of 1.0) that are expected to have reached consensus at
@@ -97,26 +101,26 @@ public class OutputEventRatioValidation implements ConsensusOutputValidation {
         final double consensusRatio = ((double) numConsensus) / allEvents1.size();
 
         assertThat(consensusRatio)
-                .isGreaterThanOrEqualTo(minimumConsensusRatio)
                 .withFailMessage(String.format(
                         "Consensus ratio %s is less than the expected minimum %s",
-                        consensusRatio, minimumConsensusRatio));
+                        consensusRatio, minimumConsensusRatio))
+                .isGreaterThanOrEqualTo(minimumConsensusRatio);
         assertThat(consensusRatio)
-                .isLessThanOrEqualTo(maximumConsensusRatio)
                 .withFailMessage(String.format(
                         "Consensus ratio %s is more than the expected maximum %s",
-                        consensusRatio, maximumConsensusRatio));
+                        consensusRatio, maximumConsensusRatio))
+                .isLessThanOrEqualTo(maximumConsensusRatio);
 
         // Validate stale ratio
         final double staleRatio = ((double) output1.getStaleEvents().size()) / allEvents1.size();
 
         assertThat(staleRatio)
-                .isGreaterThanOrEqualTo(minimumStaleRatio)
                 .withFailMessage(String.format(
-                        "Stale ratio %s is less than the expected minimum %s", staleRatio, minimumStaleRatio));
+                        "Stale ratio %s is less than the expected minimum %s", staleRatio, minimumStaleRatio))
+                .isGreaterThanOrEqualTo(minimumStaleRatio);
         assertThat(staleRatio)
-                .isLessThanOrEqualTo(maximumStaleRatio)
                 .withFailMessage(String.format(
-                        "Stale ratio %s is more than the expected maximum %s", staleRatio, maximumStaleRatio));
+                        "Stale ratio %s is more than the expected maximum %s", staleRatio, maximumStaleRatio))
+                .isLessThanOrEqualTo(maximumStaleRatio);
     }
 }

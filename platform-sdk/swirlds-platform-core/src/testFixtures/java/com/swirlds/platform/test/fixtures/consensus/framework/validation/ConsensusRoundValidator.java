@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
@@ -16,25 +17,16 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
  */
 public class ConsensusRoundValidator {
 
-    private final Set<ConsensusRoundValidation> validations;
-
-    /**
-     * Enum that defines whether a given validation needs consensus rounds coming from the same node
-     * or from different nodes
-     */
-    enum ConsensusRoundsNodeOrigin {
-        SAME,
-        DIFFERENT
-    }
+    private final Set<ConsensusRoundValidation> validationsForDifferentNodes = new HashSet<>();
+    private final Set<ConsensusRoundValidation> validationsForSameNode = new HashSet<>();
 
     /**
      * Creates a new instance of the validator with all available validations for {@link ConsensusRound}.
      */
     public ConsensusRoundValidator() {
-        validations = new HashSet<>();
-        validations.add(new RoundTimestampCheckerValidation());
-        validations.add(new RoundInternalEqualityValidation());
-        validations.add(new RoundAncientThresholdIncreasesValidation());
+        validationsForDifferentNodes.add(new RoundTimestampCheckerValidation());
+        validationsForDifferentNodes.add(new RoundInternalEqualityValidation());
+        validationsForSameNode.add(new RoundAncientThresholdIncreasesValidation());
     }
 
     /**
@@ -44,12 +36,12 @@ public class ConsensusRoundValidator {
      * @param rounds2 the second list of rounds to use for validation from another node
      */
     public void validate(@NonNull final List<ConsensusRound> rounds1, @NonNull final List<ConsensusRound> rounds2) {
-        final Set<ConsensusRoundValidation> validationsForDifferentNodes = validations.stream()
-                .filter(v -> v.getNodeOrigin() == ConsensusRoundsNodeOrigin.DIFFERENT)
-                .collect(Collectors.toSet());
-        final Set<ConsensusRoundValidation> validationsForSameNode = validations.stream()
-                .filter(v -> v.getNodeOrigin() == ConsensusRoundsNodeOrigin.SAME)
-                .collect(Collectors.toSet());
+        assertThat(rounds1)
+                .withFailMessage(String.format(
+                        "The number of consensus rounds is not the same."
+                                + "first argument has %d rounds, second has %d rounds",
+                        rounds1.size(), rounds2.size()))
+                .hasSameSizeAs(rounds2);
 
         for (final ConsensusRoundValidation validation : validationsForDifferentNodes) {
             for (int i = 0; i < rounds1.size(); i++) {
@@ -58,11 +50,11 @@ public class ConsensusRoundValidator {
         }
 
         for (final ConsensusRoundValidation validation : validationsForSameNode) {
-            for (int i = 0; i < rounds1.size() - 1; i++) {
-                validation.validate(rounds1.get(i), rounds1.get(i + 1));
-            }
-            for (int i = 0; i < rounds2.size() - 1; i++) {
-                validation.validate(rounds2.get(i), rounds2.get(i + 1));
+            if (rounds1.size() > 1) {
+                for (int i = 0; i < rounds1.size() - 1; i++) {
+                    validation.validate(rounds1.get(i), rounds1.get(i + 1));
+                    validation.validate(rounds2.get(i), rounds2.get(i + 1));
+                }
             }
         }
     }
