@@ -14,13 +14,11 @@ import com.hedera.node.app.workflows.query.QueryWorkflowInjectionModule;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.SoftwareVersion;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import javax.inject.Singleton;
 
 /**
@@ -47,7 +45,7 @@ public interface WorkflowsInjectionModule {
     static ThrottleAccumulator provideBackendThrottleAccumulator(
             @NonNull final ConfigProvider configProvider,
             @NonNull final Metrics metrics,
-            @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull SemanticVersion softwareVersionFactory) {
         final var throttleMetrics = new ThrottleMetrics(metrics, BACKEND_THROTTLE);
         return new ThrottleAccumulator(
                 () -> 1,

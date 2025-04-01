@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.lifecycle;
 
+import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.ReadableStates;
@@ -8,7 +10,6 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * Provides the context for a migration of state from one {@link Schema} version to another.
@@ -99,13 +100,10 @@ public interface MigrationContext {
      * implied by the given functions used to compare the version in the current app configuration and the
      * previous state version.
      * @param currentVersionFn the function to compute the current version from the app configuration
-     * @param previousVersionFn the function to compute the previous version from the saved state
      * @return whether the current version is an upgrade from the previous version
      * @param <T> the type of the version
      */
-    default <T extends Comparable<? super T>> boolean isUpgrade(
-            @NonNull final Function<Configuration, T> currentVersionFn,
-            @NonNull final Function<SemanticVersion, T> previousVersionFn) {
-        return currentVersionFn.apply(appConfig()).compareTo(previousVersionFn.apply(previousVersion())) > 0;
+    default <T extends Comparable<? super T>> boolean isUpgrade(@NonNull final SemanticVersion currentVersionFn) {
+        return SEMANTIC_VERSION_COMPARATOR.compare(currentVersionFn, previousVersion()) > 0;
     }
 }

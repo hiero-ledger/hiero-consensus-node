@@ -17,12 +17,10 @@ import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
@@ -36,14 +34,14 @@ public class AppThrottleFactory implements Throttle.Factory {
     private final ThrottleAccumulatorFactory throttleAccumulatorFactory;
 
     @NonNull
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final SemanticVersion softwareVersionFactory;
 
     public interface ThrottleAccumulatorFactory {
         ThrottleAccumulator newThrottleAccumulator(
                 @NonNull Supplier<Configuration> config,
                 @NonNull IntSupplier capacitySplitSource,
                 @NonNull ThrottleAccumulator.ThrottleType throttleType,
-                @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory);
+                @NonNull final SemanticVersion softwareVersionFactory);
     }
 
     public AppThrottleFactory(
@@ -51,7 +49,7 @@ public class AppThrottleFactory implements Throttle.Factory {
             @NonNull final Supplier<State> stateSupplier,
             @NonNull final Supplier<ThrottleDefinitions> definitionsSupplier,
             @NonNull final ThrottleAccumulatorFactory throttleAccumulatorFactory,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final SemanticVersion softwareVersionFactory) {
         this.configSupplier = requireNonNull(configSupplier);
         this.stateSupplier = requireNonNull(stateSupplier);
         this.definitionsSupplier = requireNonNull(definitionsSupplier);

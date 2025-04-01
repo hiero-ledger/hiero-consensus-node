@@ -28,7 +28,6 @@ import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManage
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
@@ -40,14 +39,12 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
-import java.util.function.Function;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
@@ -146,11 +143,11 @@ class HandleWorkflowTest {
 
     private HandleWorkflow subject;
 
-    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private SemanticVersion softwareVersionFactory;
 
     @BeforeEach
     void setUp() {
-        softwareVersionFactory = ServicesSoftwareVersion::new;
+        softwareVersionFactory = SemanticVersion.DEFAULT;
     }
 
     @Test

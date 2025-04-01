@@ -25,7 +25,6 @@ import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.info.InfoInjectionModule;
 import com.hedera.node.app.metrics.MetricsInjectionModule;
 import com.hedera.node.app.platform.PlatformModule;
-import com.hedera.node.app.platform.PlatformStateModule;
 import com.hedera.node.app.records.BlockRecordInjectionModule;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
@@ -91,8 +90,7 @@ import javax.inject.Singleton;
             BlockStreamModule.class,
             PlatformModule.class,
             ThrottleServiceModule.class,
-            FacilityInitModule.class,
-            PlatformStateModule.class
+            FacilityInitModule.class
         })
 public interface HederaInjectionComponent {
     InitTrigger initTrigger();

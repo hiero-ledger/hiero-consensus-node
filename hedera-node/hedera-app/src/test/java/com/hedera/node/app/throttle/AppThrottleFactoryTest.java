@@ -23,15 +23,12 @@ import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.GasLimitDeterministicThrottle;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import java.time.Instant;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,11 +82,11 @@ class AppThrottleFactoryTest {
     private AppThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;
 
     private AppThrottleFactory subject;
-    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private SemanticVersion softwareVersionFactory;
 
     @BeforeEach
     void setUp() {
-        softwareVersionFactory = v -> new ServicesSoftwareVersion();
+        softwareVersionFactory = SemanticVersion.DEFAULT;
         subject = new AppThrottleFactory(
                 config,
                 () -> state,

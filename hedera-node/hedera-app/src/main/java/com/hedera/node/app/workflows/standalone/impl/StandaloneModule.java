@@ -17,7 +17,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.SnapshotPlatformStateAccessor;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import dagger.Binds;
@@ -27,7 +26,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import java.util.function.IntSupplier;
 import javax.inject.Singleton;
 
@@ -57,7 +55,7 @@ public interface StandaloneModule {
             @NonNull final ConfigProvider configProvider,
             final boolean disableThrottling,
             @NonNull final Metrics metrics,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final SemanticVersion softwareVersionFactory) {
         final var throttleMetrics = new ThrottleMetrics(metrics, BACKEND_THROTTLE);
         return new ThrottleAccumulator(
                 () -> 1,
