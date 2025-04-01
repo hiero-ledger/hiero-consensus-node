@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.creation;
 
-import static org.hiero.consensus.event.creator.EventCreationStatus.ATTEMPTING_CREATION;
-import static org.hiero.consensus.event.creator.EventCreationStatus.IDLE;
-import static org.hiero.consensus.event.creator.EventCreationStatus.NO_ELIGIBLE_PARENTS;
-import static org.hiero.consensus.event.creator.EventCreationStatus.RATE_LIMITED;
+import static org.hiero.consensus.event.creator.impl.EventCreationStatus.ATTEMPTING_CREATION;
+import static org.hiero.consensus.event.creator.impl.EventCreationStatus.IDLE;
+import static org.hiero.consensus.event.creator.impl.EventCreationStatus.NO_ELIGIBLE_PARENTS;
+import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LIMITED;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.extensions.PhaseTimer;
@@ -17,10 +17,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.event.creator.EventCreationRule;
-import org.hiero.consensus.event.creator.EventCreationStatus;
-import org.hiero.consensus.event.creator.impl.EventCreationConfig;
+import org.hiero.consensus.event.creator.impl.EventCreationStatus;
+import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.rules.AggregateEventCreationRules;
+import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
 import org.hiero.consensus.model.event.PlatformEvent;
