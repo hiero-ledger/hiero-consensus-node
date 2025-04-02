@@ -4,6 +4,7 @@ package com.swirlds.platform.gossip.modular;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
@@ -19,7 +20,6 @@ import com.swirlds.platform.network.communication.handshake.VersionCompareHandsh
 import com.swirlds.platform.network.protocol.HeartbeatProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -98,7 +98,7 @@ public class PeerCommunicationTests {
             final ProtocolConfig protocolConfig =
                     platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
             final VersionCompareHandshake versionCompareHandshake = new VersionCompareHandshake(
-                    new BasicSoftwareVersion(1), !protocolConfig.tolerateMismatchedVersion());
+                    SemanticVersion.newBuilder().major(1).build(), !protocolConfig.tolerateMismatchedVersion());
             final List<ProtocolRunnable> handshakeProtocols = List.of(versionCompareHandshake);
 
             List<Protocol> protocols = new ArrayList<>();
