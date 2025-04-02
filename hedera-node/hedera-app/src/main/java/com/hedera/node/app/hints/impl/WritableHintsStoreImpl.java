@@ -178,10 +178,9 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
         log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
         // The next construction is becoming the active one; so purge obsolete votes now
         purgeVotes(requireNonNull(activeConstruction.get()), ignore -> previousRoster);
-        // If the active construction's party size was different than the current roster's, purge its hinTS keys
-        final int newActiveSize = partySizeForRoster(previousRoster);
-        purgeHintsKeysIfNotForPartySize(
-                newActiveSize, requireNonNull(activeConstruction.get()), ignore -> previousRoster);
+        // If the previous scheme's party size was different than the new one, purge the hinTS keys;
+        // this is likely optional, but seems like a better default behavior than leaving them in state
+        maybePurgeHintsKeys(partySizeForRoster(adoptedRoster), previousRoster);
         activeConstruction.put(upcomingConstruction);
         nextConstruction.put(HintsConstruction.DEFAULT);
         return true;
@@ -295,16 +294,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     /**
-     * Purges any hinTS keys for the given construction if it was not for the given party size.
+     * Purges any hinTS keys for the given roster if it is not for the given party size.
      *
-     * @param m            the party size
-     * @param construction the construction
-     * @param lookup       the roster lookup
+     * @param m the party size
      */
-    private void purgeHintsKeysIfNotForPartySize(
-            final int m, @NonNull final HintsConstruction construction, @NonNull final Function<Bytes, Roster> lookup) {
-        final var targetRoster = requireNonNull(lookup.apply(construction.targetRosterHash()));
-        final int n = partySizeForRoster(targetRoster);
+    private void maybePurgeHintsKeys(final int m, @NonNull final Roster roster) {
+        final int n = partySizeForRoster(roster);
         if (n != m) {
             for (int partyId = 0; partyId < n; partyId++) {
                 final var hintsId = new HintsPartyId(partyId, n);

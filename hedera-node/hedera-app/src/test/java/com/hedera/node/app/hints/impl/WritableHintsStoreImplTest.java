@@ -78,7 +78,8 @@ class WritableHintsStoreImplTest {
     private static final Bytes B_ROSTER_HASH = Bytes.wrap("B");
     private static final Roster C_ROSTER = new Roster(List.of(
             RosterEntry.newBuilder().nodeId(1L).build(),
-            RosterEntry.newBuilder().nodeId(2L).build()));
+            RosterEntry.newBuilder().nodeId(2L).build(),
+            RosterEntry.newBuilder().nodeId(3L).build()));
     private static final Bytes C_ROSTER_HASH = Bytes.wrap("C");
     private static final TssConfig TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);

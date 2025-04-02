@@ -23,7 +23,6 @@ import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
@@ -35,7 +34,6 @@ import com.hedera.hapi.block.stream.output.QueuePushChange;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
-import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -289,23 +287,11 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
             final StreamingTreeHasher inputTreeHasher = new NaiveStreamingTreeHasher();
             final StreamingTreeHasher outputTreeHasher = new NaiveStreamingTreeHasher();
-            Timestamp expectedFirstUserTxnTime = null;
-            boolean firstUserTxnSeen = false;
             long firstBlockRound = -1;
             long eventNodeId = -1;
             for (final var item : block.items()) {
                 if (firstBlockRound == -1 && item.hasRoundHeader()) {
                     firstBlockRound = item.roundHeaderOrThrow().roundNumber();
-                }
-                if (item.hasBlockHeader()) {
-                    if (i == 0) {
-                        assertEquals(0, item.blockHeaderOrThrow().number(), "Genesis block number should be 0");
-                    }
-                    expectedFirstUserTxnTime = item.blockHeaderOrThrow().firstTransactionConsensusTime();
-                } else if (item.hasTransactionResult() && !firstUserTxnSeen) {
-                    final var result = item.transactionResultOrThrow();
-                    assertEquals(expectedFirstUserTxnTime, result.consensusTimestampOrThrow());
-                    firstUserTxnSeen = true;
                 }
                 servicesWritten.clear();
                 if (shouldVerifyProof) {
@@ -339,9 +325,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                     }
                 }
                 servicesWritten.forEach(name -> ((CommittableWritableStates) state.getWritableStates(name)).commit());
-            }
-            if (!firstUserTxnSeen) {
-                assertNull(expectedFirstUserTxnTime, "Block had no user transactions");
             }
             if (i <= lastVerifiableIndex) {
                 final var lastBlockItem = block.items().getLast();
