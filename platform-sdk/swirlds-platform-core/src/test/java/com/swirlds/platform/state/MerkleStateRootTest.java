@@ -777,6 +777,7 @@ class MerkleStateRootTest extends MerkleTestBase {
             verify(nonKvListener).singletonUpdateChange(COUNTRY_STATE_ID, FIRST_SERVICE, COUNTRY_STATE_KEY, ESTONIA);
             verify(nonKvListener).queuePushChange(STEAM_STATE_ID, FIRST_SERVICE, STEAM_STATE_KEY, BIOLOGY);
             verify(nonKvListener).queuePopChange(STEAM_STATE_ID, FIRST_SERVICE, STEAM_STATE_KEY);
+            verify(nonKvListener).deferCommits();
 
             verifyNoMoreInteractions(kvListener);
             verifyNoMoreInteractions(nonKvListener);

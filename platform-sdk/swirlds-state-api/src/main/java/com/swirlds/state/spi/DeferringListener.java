@@ -30,9 +30,9 @@ public interface DeferringListener {
         if (!listeners.isEmpty()) {
             deferCommits = listeners.getFirst().deferCommits();
             if (listeners.size() > 1) {
-                final var allAgree = !listeners.subList(1, listeners.size()).stream()
+                final var restAgree = listeners.subList(1, listeners.size()).stream()
                         .allMatch(l -> l.deferCommits() == listeners.getFirst().deferCommits());
-                if (!allAgree) {
+                if (!restAgree) {
                     throw new IllegalArgumentException("Listeners have inconsistent defer commit settings");
                 }
             }

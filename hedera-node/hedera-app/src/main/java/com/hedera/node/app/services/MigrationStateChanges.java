@@ -23,7 +23,7 @@ import java.util.List;
 public class MigrationStateChanges {
     private final List<List<StateChange>> stateChanges = new ArrayList<>();
     private final KVStateChangeListener kvStateChangeListener = new KVStateChangeListener();
-    private final BoundaryStateChangeListener roundStateChangeListener;
+    private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final State state;
 
     /**
@@ -41,10 +41,11 @@ public class MigrationStateChanges {
         requireNonNull(storeMetricsService);
 
         this.state = requireNonNull(state);
-        this.roundStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, () -> config);
+        this.boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, () -> config);
         if (config.getConfigData(BlockStreamConfig.class).streamMode() != RECORDS) {
             state.registerCommitListener(kvStateChangeListener);
-            state.registerCommitListener(roundStateChangeListener);
+            state.registerCommitListener(boundaryStateChangeListener);
+            boundaryStateChangeListener.startDeferringCommits();
         }
     }
 
@@ -67,12 +68,13 @@ public class MigrationStateChanges {
      * @return the state changes that occurred during the migration
      */
     public List<StateChanges.Builder> getStateChanges() {
-        final var roundChanges = roundStateChangeListener.allStateChanges();
+        boundaryStateChangeListener.commitDeferredMutations(state);
+        final var roundChanges = boundaryStateChangeListener.allStateChanges();
         if (!roundChanges.isEmpty()) {
             stateChanges.add(roundChanges);
         }
         state.unregisterCommitListener(kvStateChangeListener);
-        state.unregisterCommitListener(roundStateChangeListener);
+        state.unregisterCommitListener(boundaryStateChangeListener);
 
         return stateChanges.stream()
                 .map(changes -> StateChanges.newBuilder().stateChanges(changes))

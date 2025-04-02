@@ -179,7 +179,8 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     }
 
     /**
-     * Resets the state of the listener.
+     * Resets the state of the listener to avoid ony contamination from migration state changes done
+     * during state initialization outside of {@code handleTransaction}.
      */
     public void reset() {
         boundaryTimestamp = null;
@@ -196,6 +197,8 @@ public class BoundaryStateChangeListener implements StateChangeListener {
      */
     public void startDeferringCommits() {
         mode = Mode.DEFERRING_COMMITS;
+        deferredQueueUpdates.clear();
+        deferredSingletonUpdates.clear();
     }
 
     /**
@@ -210,7 +213,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             singletonState.put(mutation.valueOrThrow());
             ((CommittableWritableStates) writableStates).commit();
         });
-        deferredSingletonUpdates.clear();
         deferredQueueUpdates.forEach((stateId, mutations) -> {
             if (!mutations.isEmpty()) {
                 final var writableStates =
@@ -227,7 +229,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
                 ((CommittableWritableStates) writableStates).commit();
             }
         });
-        deferredQueueUpdates.clear();
     }
 
     /**

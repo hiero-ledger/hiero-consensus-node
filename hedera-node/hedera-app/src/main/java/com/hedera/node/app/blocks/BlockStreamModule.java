@@ -58,6 +58,7 @@ public interface BlockStreamModule {
         return new BlockStreamManager.Lifecycle() {
             @Override
             public void onOpenBlock(@NonNull final State state) {
+                listener.startDeferringCommits();
                 listener.resetCollectedNodeFees();
                 nodeRewardManager.onOpenBlock(state);
             }
@@ -65,6 +66,7 @@ public interface BlockStreamModule {
             @Override
             public void onCloseBlock(@NonNull final State state) {
                 nodeRewardManager.onCloseBlock(state, listener.nodeFeesCollected());
+                listener.commitDeferredMutations(state);
             }
         };
     }
