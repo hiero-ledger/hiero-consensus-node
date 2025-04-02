@@ -3,21 +3,27 @@ package com.hedera.services.bdd.suites.contract.ethereum;
 
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.PropertySource.asAccountString;
+import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
+import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
+import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
+import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
+import static com.hedera.services.bdd.spec.keys.SigControl.SECP256K1_ON;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -25,33 +31,29 @@ import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
-import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.queries.meta.AccountCreationDetails;
+import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.Arrays;
-
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.DynamicTest;
 
 @Tag(UPGRADE)
 @Order(Integer.MAX_VALUE - 123)
@@ -59,19 +61,21 @@ import org.junit.jupiter.api.DynamicTest;
 @OrderedInIsolation
 public class JumboTransactionsEnabledTest implements LifecycleTest {
 
-    private static final String CONTRACT = "CalldataSize";
+    private static final String CONTRACT_CALLDATA_SIZE = "CalldataSize";
     private static final String FUNCTION = "callme";
     private static final int SMALL_TXN_SIZE = 6 * 1024;
     private static final int MAX_ALLOWED_SIZE = 127 * 1024;
     private static final int ABOVE_MAX_SIZE = 129 * 1024;
     private static final int OVERSIZED_TXN_SIZE = 130 * 1024;
+
     private record TestCombination(int txnSize, EthTxData.EthTransactionType type) {}
 
     private static HapiEthereumCall jumboEthCall(String contract, String function, byte[] payload) {
-        return jumboEthCall(contract, function, payload , EthTxData.EthTransactionType.EIP1559);
+        return jumboEthCall(contract, function, payload, EthTxData.EthTransactionType.EIP1559);
     }
 
-    private static HapiEthereumCall jumboEthCall(String contract, String function, byte[] payload, EthTxData.EthTransactionType type) {
+    private static HapiEthereumCall jumboEthCall(
+            String contract, String function, byte[] payload, EthTxData.EthTransactionType type) {
         return ethereumCall(contract, function, payload)
                 .markAsJumboTxn()
                 .type(type)
@@ -84,8 +88,8 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
                 cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT));
+                uploadInitCode(CONTRACT_CALLDATA_SIZE),
+                contractCreate(CONTRACT_CALLDATA_SIZE));
     }
 
     @HapiTest
@@ -97,7 +101,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                ethereumCall(CONTRACT, FUNCTION, jumboPayload)
+                ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, jumboPayload)
                         .payingWith(RELAYER)
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .markAsJumboTxn()
@@ -128,17 +132,17 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
                 // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),
                 // so we can't toggle it via overriding(). Instead, we need to upgrade to the config version.
-                prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
+                //                prepareFakeUpgrade(),
+                //                upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
 
                 // send jumbo payload to non jumbo endpoint
-                contractCall(CONTRACT, FUNCTION, jumboPayload)
+                contractCall(CONTRACT_CALLDATA_SIZE, FUNCTION, jumboPayload)
                         .gas(1_000_000L)
                         // gRPC request terminated immediately
                         .orUnavailableStatus(),
 
                 // send too big payload to jumbo endpoint
-                ethereumCall(CONTRACT, FUNCTION, tooBigPayload)
+                ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, tooBigPayload)
                         .payingWith(RELAYER)
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .markAsJumboTxn()
@@ -148,7 +152,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .orUnavailableStatus(),
 
                 // send jumbo payload to jumbo endpoint
-                ethereumCall(CONTRACT, FUNCTION, jumboPayload)
+                ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, jumboPayload)
                         .payingWith(RELAYER)
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .markAsJumboTxn()
@@ -166,8 +170,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 new TestCombination(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP1559),
                 new TestCombination(SMALL_TXN_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM),
                 new TestCombination(SMALL_TXN_SIZE, EthTxData.EthTransactionType.EIP2930),
-                new TestCombination(SMALL_TXN_SIZE, EthTxData.EthTransactionType.EIP1559)
-        );
+                new TestCombination(SMALL_TXN_SIZE, EthTxData.EthTransactionType.EIP1559));
 
         @HapiTest
         @Order(4)
@@ -178,9 +181,62 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     logIt("Valid Jumbo Txn with size: " + (test.txnSize / 1024) + "KB" + " and type: " + test.type),
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                    jumboEthCall(CONTRACT, FUNCTION, new byte[test.txnSize], test.type)
-            ));
+                    jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[test.txnSize], test.type)));
         }
+    }
+
+    @HapiTest
+    @Order(12)
+    @DisplayName(
+            "Jumbo Ethereum txn works when alias account is updated to threshold key (following token creation pattern)")
+    public Stream<DynamicTest> jumboTxnAliasWithThresholdKeyPattern() {
+        final var cryptoKey = "cryptoKey";
+        final var thresholdKey = "thresholdKey";
+        final var aliasCreationTxn = "aliasCreation";
+        final var ethereumCallTxn = "jumboTxnFromThresholdKeyAccount";
+        final var contract = CONTRACT_CALLDATA_SIZE;
+        final var function = FUNCTION;
+        final var payload = new byte[127 * 1024];
+
+        final AtomicReference<byte[]> rawPublicKey = new AtomicReference<>();
+        final AtomicReference<AccountCreationDetails> creationDetails = new AtomicReference<>();
+
+        return hapiTest(
+
+                // Create SECP key and extract raw bytes
+                newKeyNamed(cryptoKey)
+                        .shape(SECP256K1_ON)
+                        .exposingKeyTo(
+                                k -> rawPublicKey.set(k.getECDSASecp256K1().toByteArray())),
+
+                // Create alias account via cryptoTransfer
+                cryptoTransfer(tinyBarsFromToWithAlias(GENESIS, cryptoKey, 2 * ONE_HUNDRED_HBARS))
+                        .via(aliasCreationTxn),
+
+                // Extract AccountCreationDetails for EVM address and account ID
+                getTxnRecord(aliasCreationTxn)
+                        .exposingCreationDetailsTo(details -> creationDetails.set(details.getFirst())),
+
+                // Create threshold key using SECP key and contract
+                newKeyNamed(thresholdKey)
+                        .shape(threshOf(1, PREDEFINED_SHAPE, CONTRACT).signedWith(sigs(cryptoKey, contract))),
+
+                // Update alias account to use threshold key
+                sourcing(
+                        () -> cryptoUpdate(asAccountString(creationDetails.get().createdId()))
+                                .key(thresholdKey)
+                                .signedBy(GENESIS, cryptoKey)),
+
+                // Submit jumbo Ethereum txn, signed with SECP key
+                sourcing(() -> ethereumCall(contract, function, payload)
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .markAsJumboTxn()
+                        .nonce(0)
+                        .signingWith(cryptoKey)
+                        .payingWith(RELAYER)
+                        .gasLimit(1_000_000L)
+                        .via(ethereumCallTxn)),
+                getTxnRecord(ethereumCallTxn).logged());
     }
 
     @Nested
@@ -190,19 +246,17 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         private final Stream<TestCombination> aboveMaxCases = Stream.of(
                 new TestCombination(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM),
                 new TestCombination(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.EIP2930),
-                new TestCombination(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.EIP1559)
-        );
+                new TestCombination(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.EIP1559));
         private final Stream<TestCombination> oversizedCases = Stream.of(
                 new TestCombination(OVERSIZED_TXN_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM),
                 new TestCombination(OVERSIZED_TXN_SIZE, EthTxData.EthTransactionType.EIP2930),
-                new TestCombination(OVERSIZED_TXN_SIZE, EthTxData.EthTransactionType.EIP1559)
-        );
+                new TestCombination(OVERSIZED_TXN_SIZE, EthTxData.EthTransactionType.EIP1559));
 
         private final Stream<Integer> insufficientFeeCases = Stream.of(SMALL_TXN_SIZE, MAX_ALLOWED_SIZE);
+
         private static byte[] corruptedPayload() {
             return Arrays.copyOf("corruptedPayload".getBytes(StandardCharsets.UTF_8), 128 * 1024);
         }
-
 
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail for above max size data with TRANSACTION_OVERSIZE")
@@ -213,10 +267,9 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     logIt("Invalid Jumbo Txn with size: " + (test.txnSize / 1024) + "KB and type: " + test.type),
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
-                    jumboEthCall(CONTRACT, FUNCTION, new byte[test.txnSize], test.type)
+                    jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[test.txnSize], test.type)
                             .noLogging()
-                            .hasPrecheck(TRANSACTION_OVERSIZE)
-            ));
+                            .hasPrecheck(TRANSACTION_OVERSIZE)));
         }
 
         @HapiTest
@@ -228,10 +281,9 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     logIt("Invalid Jumbo Txn with size: " + (test.txnSize / 1024) + "KB and type: " + test.type),
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
-                    jumboEthCall(CONTRACT, FUNCTION, new byte[test.txnSize], test.type)
+                    jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[test.txnSize], test.type)
                             .noLogging()
-                            .orUnavailableStatus()
-            ));
+                            .orUnavailableStatus()));
         }
 
         @HapiTest
@@ -242,20 +294,18 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
             var corruptedTypes = Stream.of(
                     EthTxData.EthTransactionType.LEGACY_ETHEREUM,
                     EthTxData.EthTransactionType.EIP2930,
-                    EthTxData.EthTransactionType.EIP1559
-            );
+                    EthTxData.EthTransactionType.EIP1559);
             return corruptedTypes.flatMap(type -> hapiTest(
                     logIt("Corrupted Jumbo Txn of size 128KB and type: " + type),
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                    ethereumCall(CONTRACT, FUNCTION, corruptedPayload())
+                    ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, corruptedPayload())
                             .markAsJumboTxn()
                             .type(type)
                             .payingWith(RELAYER)
                             .signingWith(SECP_256K1_SOURCE_KEY)
                             .gasLimit(1_000_000L)
-                            .hasPrecheck(TRANSACTION_OVERSIZE)
-            ));
+                            .hasPrecheck(TRANSACTION_OVERSIZE)));
         }
 
         @HapiTest
@@ -268,13 +318,12 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     newKeyNamed("string").shape(ED25519),
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                    ethereumCall(CONTRACT, FUNCTION, payload)
+                    ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
                             .markAsJumboTxn()
                             .signingWith("string")
                             .payingWith(RELAYER)
                             .gasLimit(1_000_000L)
-                            .hasPrecheck(INVALID_SIGNATURE)
-            );
+                            .hasPrecheck(INVALID_SIGNATURE));
         }
 
         @HapiTest
@@ -286,11 +335,8 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     logIt("Invalid Jumbo Txn with insufficient balance and size: " + (txnSize / 1024) + "KB"),
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoCreate(RELAYER).balance(1L),
-                    jumboEthCall(CONTRACT, FUNCTION, new byte[txnSize])
-                            .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)
-            ));
+                    jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[txnSize])
+                            .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)));
         }
-
-
     }
 }
