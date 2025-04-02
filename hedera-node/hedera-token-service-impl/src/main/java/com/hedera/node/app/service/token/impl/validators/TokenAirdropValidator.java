@@ -2,13 +2,13 @@
 package com.hedera.node.app.service.token.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.AIRDROP_CONTAINS_MULTIPLE_SENDERS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_TOKEN_TRANSFER_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
@@ -62,17 +62,20 @@ public class TokenAirdropValidator {
     public void pureChecks(@NonNull final TokenAirdropTransactionBody op) throws PreCheckException {
         final var tokenTransfers = op.tokenTransfers();
         validateTruePreCheck(!tokenTransfers.isEmpty(), EMPTY_TOKEN_TRANSFER_BODY);
-        // If there is not exactly one debit we throw an exception
+        // If there is not exactly one debit or multiple nft senders we throw an exception
         for (var tokenTransfer : tokenTransfers) {
-            if (tokenTransfer.transfers().isEmpty()) {
-                // NFT transfers, skip this check
-                continue;
+            if (!tokenTransfer.nftTransfers().isEmpty()) {
+                final var sender =
+                        tokenTransfer.nftTransfers().stream().findFirst().get().senderAccountID();
+                final var allNftsHaveTheSameSender = tokenTransfer.nftTransfers().stream()
+                        .allMatch(nftTransfer -> nftTransfer.senderAccountID().equals(sender));
+                validateTrue(allNftsHaveTheSameSender, AIRDROP_CONTAINS_MULTIPLE_SENDERS);
             }
-            List<AccountAmount> negativeTransfers = tokenTransfer.transfers().stream()
-                    .filter(fungibleTransfer -> fungibleTransfer.amount() < 0)
-                    .toList();
-            if (negativeTransfers.size() != 1) {
-                throw new PreCheckException(INVALID_TRANSACTION_BODY);
+            if (!tokenTransfer.transfers().isEmpty()) {
+                List<AccountAmount> negativeTransfers = tokenTransfer.transfers().stream()
+                        .filter(fungibleTransfer -> fungibleTransfer.amount() < 0)
+                        .toList();
+                validateTrue(negativeTransfers.size() == 1, AIRDROP_CONTAINS_MULTIPLE_SENDERS);
             }
         }
         validateTokenTransfers(op.tokenTransfers(), CryptoTransferValidator.AllowanceStrategy.ALLOWANCES_REJECTED);
