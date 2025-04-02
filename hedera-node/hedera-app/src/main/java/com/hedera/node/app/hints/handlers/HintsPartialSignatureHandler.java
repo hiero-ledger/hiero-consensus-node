@@ -18,6 +18,7 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.time.Duration;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -40,9 +41,9 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
      * A node's partial signature verified relative to a particular hinTS construction id and CRS.
      *
      * @param constructionId the construction id
-     * @param crs the CRS
-     * @param nodeId the node id
-     * @param body the partial signature
+     * @param crs            the CRS
+     * @param nodeId         the node id
+     * @param body           the partial signature
      */
     private record PartialSignature(
             long constructionId, @NonNull Bytes crs, long nodeId, @NonNull HintsPartialSignatureTransactionBody body) {
@@ -77,11 +78,15 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         requireNonNull(context);
         final var hintsStore = context.createStore(ReadableHintsStore.class);
         // We don't care about the result, just that it's in the cache
-        cache.get(new PartialSignature(
-                hintsContext.constructionIdOrThrow(),
-                requireNonNull(hintsStore.crsIfKnown()),
-                context.creatorInfo().nodeId(),
-                context.body().hintsPartialSignatureOrThrow()));
+        try {
+            cache.get(new PartialSignature(
+                    hintsContext.constructionIdOrThrow(),
+                    requireNonNull(hintsStore.crsIfKnown()),
+                    context.creatorInfo().nodeId(),
+                    context.body().hintsPartialSignatureOrThrow()));
+        } catch (Exception ignore) {
+            // Ignore any exceptions
+        }
     }
 
     @Override
