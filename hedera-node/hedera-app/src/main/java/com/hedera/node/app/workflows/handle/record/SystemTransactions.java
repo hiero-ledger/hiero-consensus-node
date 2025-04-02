@@ -92,7 +92,6 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -559,7 +558,6 @@ public class SystemTransactions {
         final var creatorInfo = networkInfo.addressBook().getFirst();
         final var validDuration =
                 new Duration(config.getConfigData(HederaConfig.class).transactionMaxValidDuration());
-        final AtomicBoolean firstHandled = new AtomicBoolean(true);
 
         return new SystemContext() {
             @Override
@@ -611,9 +609,6 @@ public class SystemTransactions {
                 }
                 if (streamMode != RECORDS) {
                     handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
-                    if (firstHandled.compareAndSet(true, false)) {
-                        blockStreamManager.setRoundFirstTransactionTime(now);
-                    }
                 }
             }
 

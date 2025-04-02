@@ -4,6 +4,7 @@ package com.swirlds.platform.gossip.modular;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.google.common.collect.ImmutableList;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
@@ -31,7 +32,6 @@ import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
@@ -91,7 +91,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final KeysAndCerts ownKeysAndCerts,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final SoftwareVersion appVersion,
+            @NonNull final SemanticVersion appVersion,
             @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final StatusActionSubmitter statusActionSubmitter,

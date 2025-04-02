@@ -6,8 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -16,27 +14,31 @@ import org.apache.logging.log4j.Logger;
  */
 public class GrpcBlockItemWriter implements BlockItemWriter {
     private static final Logger logger = LogManager.getLogger(GrpcBlockItemWriter.class);
-    private final BlockNodeConnectionManager connectionManager;
-
-    private final Map<Long, BlockState> blockStates = new ConcurrentHashMap<>();
-    private volatile BlockState currentBlock;
+    private final BlockStreamStateManager blockStreamStateManager;
+    private long blockNumber;
 
     /**
      * Construct a new GrpcBlockItemWriter.
      *
-     * @param connectionManager the connection manager for the gRPC block stream service
+     * @param blockStreamStateManager the block stream state manager
      */
-    public GrpcBlockItemWriter(@NonNull final BlockNodeConnectionManager connectionManager) {
-        this.connectionManager = requireNonNull(connectionManager, "connectionManager must not be null");
+    public GrpcBlockItemWriter(@NonNull final BlockStreamStateManager blockStreamStateManager) {
+        this.blockStreamStateManager =
+                requireNonNull(blockStreamStateManager, "blockStreamStateManager must not be null");
     }
 
     @Override
     public void openBlock(long blockNumber) {
         if (blockNumber < 0) throw new IllegalArgumentException("Block number must be non-negative");
-
-        currentBlock = BlockState.from(blockNumber);
-        blockStates.put(blockNumber, currentBlock);
+        this.blockNumber = blockNumber;
+        blockStreamStateManager.openBlock(blockNumber);
         logger.debug("Started new block in GrpcBlockItemWriter {}", blockNumber);
+    }
+
+    @Override
+    public void writePbjItem(@NonNull BlockItem blockItem) {
+        requireNonNull(blockItem, "blockItem must not be null");
+        blockStreamStateManager.addItem(blockNumber, blockItem);
     }
 
     @Override
@@ -45,34 +47,13 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void writePbjItem(@NonNull BlockItem item) {
-        if (currentBlock == null) {
-            throw new IllegalStateException("Received block item before opening block");
-        }
-        currentBlock.items().add(item);
+    public void closeBlock() {
+        blockStreamStateManager.closeBlock(blockNumber);
+        logger.debug("Closed block in GrpcBlockItemWriter");
     }
 
     @Override
-    public void closeBlock() {
-        if (currentBlock == null) {
-            throw new IllegalStateException("Received close block before opening block");
-        }
-        final long blockNumber = currentBlock.blockNumber();
-
-        try {
-            BlockState block = blockStates.get(blockNumber);
-            if (block == null) {
-                logger.error("Could not find block state for block {}", blockNumber);
-                return;
-            }
-            // Stream the block asynchronously
-            connectionManager.startStreamingBlock(block);
-
-            logger.debug("Closed block in GrpcBlockItemWriter {}", blockNumber);
-            currentBlock = null;
-        } finally {
-            // Clean up the block state after streaming
-            blockStates.remove(blockNumber);
-        }
+    public void writePreBlockProofItems() {
+        blockStreamStateManager.streamPreBlockProofItems(blockNumber);
     }
 }
