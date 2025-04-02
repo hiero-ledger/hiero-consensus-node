@@ -375,8 +375,7 @@ public class TransactionChecker {
     @VisibleForTesting
     void checkJumboTransactionBody(TransactionInfo txInfo) throws PreCheckException {
         final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
-        final var allowedJumboHederaFunctionalities =
-                jumboTransactionsConfig.allowedHederaFunctionalities();
+        final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
         final var maxJumboEthereumCallDataSize = jumboTransactionsConfig.ethereumMaxCallDataSize();
 
         if (jumboTxnEnabled
