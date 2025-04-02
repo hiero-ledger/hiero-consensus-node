@@ -68,7 +68,7 @@ public class TokenAirdropValidator {
             if (!tokenTransfer.nftTransfers().isEmpty()) {
                 final var sender =
                         tokenTransfer.nftTransfers().stream().findFirst().get().senderAccountID();
-                validateTruePreCheck(sender!= null, INVALID_TRANSFER_ACCOUNT_ID);
+                validateTruePreCheck(sender != null, INVALID_TRANSFER_ACCOUNT_ID);
                 final var allNftsHaveTheSameSender = tokenTransfer.nftTransfers().stream()
                         .allMatch(nftTransfer -> sender.equals(nftTransfer.senderAccountID()));
                 validateTruePreCheck(allNftsHaveTheSameSender, AIRDROP_CONTAINS_MULTIPLE_SENDERS);
