@@ -261,7 +261,7 @@ class DiskStartupNetworksTest {
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         SemanticVersion currentVersion =
                 bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion();
-        PLATFORM_STATE_SERVICE.setAppVersionFn(currentVersion);
+        PLATFORM_STATE_SERVICE.setAppVersion(currentVersion);
         Set.of(
                         tssBaseService,
                         PLATFORM_STATE_SERVICE,

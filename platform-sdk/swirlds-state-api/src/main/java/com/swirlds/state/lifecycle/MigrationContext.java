@@ -99,11 +99,11 @@ public interface MigrationContext {
      * Returns whether the current version is an upgrade from the previous version, relative to the ordering
      * implied by the given functions used to compare the version in the current app configuration and the
      * previous state version.
-     * @param currentVersionFn the function to compute the current version from the app configuration
+     * @param currentVersion the function to compute the current version from the app configuration
      * @return whether the current version is an upgrade from the previous version
      * @param <T> the type of the version
      */
-    default <T extends Comparable<? super T>> boolean isUpgrade(@NonNull final SemanticVersion currentVersionFn) {
-        return SEMANTIC_VERSION_COMPARATOR.compare(currentVersionFn, previousVersion()) > 0;
+    default <T extends Comparable<? super T>> boolean isUpgrade(@NonNull final SemanticVersion currentVersion) {
+        return SEMANTIC_VERSION_COMPARATOR.compare(currentVersion, previousVersion()) > 0;
     }
 }

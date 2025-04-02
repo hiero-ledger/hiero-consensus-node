@@ -50,7 +50,7 @@ import javax.inject.Singleton;
             HederaStateInjectionModule.class,
             ThrottleServiceModule.class,
             FacilityInitModule.class,
-            SemanticVersionModule.class // Add this line
+            SemanticVersionModule.class,
         })
 public interface ExecutorComponent {
     @Component.Builder

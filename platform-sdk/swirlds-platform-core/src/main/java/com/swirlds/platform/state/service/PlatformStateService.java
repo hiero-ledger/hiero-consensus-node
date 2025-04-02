@@ -25,7 +25,7 @@ public enum PlatformStateService implements Service {
     /**
      * Temporary access to a function that computes an application version from config.
      */
-    private static final AtomicReference<SemanticVersion> APP_VERSION_FN = new AtomicReference<>();
+    private static final AtomicReference<SemanticVersion> APP_VERSION = new AtomicReference<>();
     /**
      * The schemas to register with the {@link SchemaRegistry}.
      */
@@ -48,9 +48,9 @@ public enum PlatformStateService implements Service {
 
     /**
      * Sets the application version to the given version.
-     * @param appVersionFn the version to set as the application version
+     * @param appVersion the version to set as the application version
      */
-    public void setAppVersionFn(@NonNull final SemanticVersion appVersionFn) {
-        APP_VERSION_FN.set(requireNonNull(appVersionFn));
+    public void setAppVersion(@NonNull final SemanticVersion appVersion) {
+        APP_VERSION.set(requireNonNull(appVersion));
     }
 }
