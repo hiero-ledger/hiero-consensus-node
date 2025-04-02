@@ -14,6 +14,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_BURN;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_RECEIPT;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_KEY;
@@ -752,7 +753,7 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(true);
         given(jumboTransactionsConfig.allowedHederaFunctionalities())
-                .willReturn(new HederaFunctionalitySet(Set.of(ETHEREUM_TRANSACTION)));
+                .willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -801,7 +802,7 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(true);
         given(jumboTransactionsConfig.allowedHederaFunctionalities())
-                .willReturn(new HederaFunctionalitySet(Set.of(ETHEREUM_TRANSACTION)));
+                .willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -987,7 +988,7 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(true);
         given(jumboTransactionsConfig.allowedHederaFunctionalities())
-                .willReturn(new HederaFunctionalitySet(Set.of(ETHEREUM_TRANSACTION)));
+                .willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1313,7 +1314,7 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(true);
         given(jumboTransactionsConfig.allowedHederaFunctionalities())
-                .willReturn(new HederaFunctionalitySet(Set.of(ETHEREUM_TRANSACTION)));
+                .willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1836,7 +1837,7 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(true);
         given(jumboTransactionsConfig.allowedHederaFunctionalities())
-                .willReturn(new HederaFunctionalitySet(Set.of(ETHEREUM_TRANSACTION)));
+                .willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));
 
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(ALIASES_KEY)).willReturn(aliases);

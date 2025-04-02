@@ -10,6 +10,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor.ONE_TO_ONE;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.childAsOrdinary;
@@ -413,7 +414,7 @@ public class ThrottleAccumulator {
         if (isJumboTransactionsEnabled) {
             final var allowedHederaFunctionalities =
                     configuration.getConfigData(JumboTransactionsConfig.class).allowedHederaFunctionalities();
-            if (allowedHederaFunctionalities.functionalitySet().contains(txnInfo.functionality())) {
+            if (allowedHederaFunctionalities.contains(fromPbj(txnInfo.functionality()))) {
                 final var bytesUsage = txnInfo.transaction().protobufSize();
                 final var maxRegularTxnSize =
                         configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
