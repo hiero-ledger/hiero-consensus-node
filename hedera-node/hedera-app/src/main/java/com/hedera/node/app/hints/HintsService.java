@@ -80,12 +80,14 @@ public interface HintsService extends Service, BlockHashSigner {
      *
      * @param hintsStore the hints store
      * @param previousRoster the previous roster
+     * @param adoptedRoster the adopted roster
      * @param adoptedRosterHash the adopted roster hash
      * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
      */
     void manageRosterAdoption(
             @NonNull WritableHintsStore hintsStore,
             @NonNull Roster previousRoster,
+            @NonNull Roster adoptedRoster,
             @NonNull Bytes adoptedRosterHash,
             boolean forceHandoff);
 

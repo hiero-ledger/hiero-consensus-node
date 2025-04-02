@@ -1354,13 +1354,15 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                                 .isReadyToAdopt(rosterHash));
     }
 
-    private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Bytes adoptedRosterHash) {
+    private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {
         requireNonNull(initState);
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled()) {
+            final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
             final var writableStates = initState.getWritableStates(HintsService.NAME);
             final var store = new WritableHintsStoreImpl(writableStates);
-            hintsService.manageRosterAdoption(store, previousRoster, adoptedRosterHash, tssConfig.forceHandoffs());
+            hintsService.manageRosterAdoption(
+                    store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
             ((CommittableWritableStates) writableStates).commit();
         }
     }

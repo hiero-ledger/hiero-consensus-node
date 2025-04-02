@@ -20,6 +20,7 @@ import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
 import com.hedera.hapi.node.state.hints.HintsPartyId;
+import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
@@ -48,7 +49,6 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -62,7 +62,6 @@ import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -92,9 +91,6 @@ class WritableHintsStoreImplTest {
 
     @Mock
     private HintsLibrary library;
-
-    @Mock
-    private NetworkInfo networkInfo;
 
     @Mock
     private StartupNetworks startupNetworks;
@@ -293,12 +289,7 @@ class WritableHintsStoreImplTest {
     }
 
     @Test
-    @Disabled
     void purgingStateAfterHandoffHasTrueExpectedEffectIfSomethingHappened() {
-        given(activeRosters.phase()).willReturn(HANDOFF);
-        given(activeRosters.currentRoster()).willReturn(C_ROSTER);
-        given(activeRosters.currentRosterHash()).willReturn(C_ROSTER_HASH);
-        givenARosterLookup();
         final var activeConstruction = HintsConstruction.newBuilder()
                 .constructionId(123L)
                 .sourceRosterHash(A_ROSTER_HASH)
@@ -307,17 +298,20 @@ class WritableHintsStoreImplTest {
         final var nextConstruction = HintsConstruction.newBuilder()
                 .constructionId(456L)
                 .targetRosterHash(C_ROSTER_HASH)
+                .hintsScheme(HintsScheme.DEFAULT)
                 .build();
         setConstructions(activeConstruction, nextConstruction);
-        addSomeVotesFor(123L, A_ROSTER);
-        addSomeHintsKeySetsFor(A_ROSTER);
+        final var prevRoster =
+                new Roster(List.of(RosterEntry.newBuilder().nodeId(0L).build()));
+        addSomeVotesFor(123L, prevRoster);
+        addSomeHintsKeySetsFor(prevRoster);
         final var votesBefore = subject.getVotes(123L, Set.of(0L, 1L));
         assertEquals(1, votesBefore.size());
         assertEquals(DEFAULT_VOTE, votesBefore.get(0L));
         final var publicationsBefore = subject.getHintsKeyPublications(Set.of(0L), partySizeForRoster(A_ROSTER));
         assertEquals(1, publicationsBefore.size());
 
-        // TODO - switch to test updateAtHandoff()
+        subject.updateAtHandoff(prevRoster, C_ROSTER, C_ROSTER_HASH, false);
 
         assertSame(nextConstruction, constructionNow(ACTIVE_HINT_CONSTRUCTION_KEY));
 

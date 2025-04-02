@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -50,7 +49,7 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
     /**
      * A callback to invoke with an outgoing roster being replaced by a new roster hash.
      */
-    private final BiConsumer<Roster, Bytes> onAdopt;
+    private final BiConsumer<Roster, Roster> onAdopt;
     /**
      * The test to use to determine if a candidate roster may be adopted at an upgrade boundary.
      */
@@ -68,7 +67,7 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
     private final PlatformStateFacade platformStateFacade;
 
     public V0540RosterSchema(
-            @NonNull final BiConsumer<Roster, Bytes> onAdopt,
+            @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Predicate<Roster> canAdopt,
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory,
             @NonNull final Supplier<State> stateSupplier,
@@ -110,7 +109,7 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
                     log.info("No candidate roster to adopt in round {}", activeRoundNumber);
                 } else if (canAdopt.test(candidateRoster)) {
                     log.info("Adopting candidate roster in round {}", activeRoundNumber);
-                    onAdopt.accept(requireNonNull(rosterStore.getActiveRoster()), rosterStore.getCandidateRosterHash());
+                    onAdopt.accept(requireNonNull(rosterStore.getActiveRoster()), candidateRoster);
                     rosterStore.adoptCandidateRoster(activeRoundNumber);
                 } else {
                     log.info("Rejecting candidate roster in round {}", activeRoundNumber);

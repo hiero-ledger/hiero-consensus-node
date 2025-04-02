@@ -16,7 +16,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.State;
@@ -66,7 +65,7 @@ class V0540RosterSchemaTest {
     private Function<WritableStates, WritableRosterStore> rosterStoreFactory;
 
     @Mock
-    private BiConsumer<Roster, Bytes> onAdopt;
+    private BiConsumer<Roster, Roster> onAdopt;
 
     @Mock
     private Predicate<Roster> canAdopt;
@@ -185,13 +184,12 @@ class V0540RosterSchemaTest {
         given(ctx.platformConfig()).willReturn(DEFAULT_CONFIG);
         given(startupNetworks.overrideNetworkFor(ROUND_NO, DEFAULT_CONFIG)).willReturn(Optional.of(NETWORK));
         given(rosterStore.getActiveRoster()).willReturn(ROSTER);
-        given(rosterStore.getCurrentRosterHash()).willReturn(Bytes.EMPTY);
 
         subject.restart(ctx);
 
         verify(rosterStore).putActiveRoster(ROSTER, ROUND_NO + 1L);
         verify(startupNetworks).setOverrideRound(ROUND_NO);
-        verify(onAdopt).accept(ROSTER, Bytes.EMPTY);
+        verify(onAdopt).accept(ROSTER, ROSTER);
     }
 
     @Test
@@ -209,7 +207,6 @@ class V0540RosterSchemaTest {
         final var adaptedRoster = new Roster(
                 List.of(RosterEntry.newBuilder().nodeId(1L).weight(42L).build()));
         given(rosterStore.getActiveRoster()).willReturn(adaptedRoster);
-        given(rosterStore.getCurrentRosterHash()).willReturn(Bytes.EMPTY);
 
         subject.restart(ctx);
 

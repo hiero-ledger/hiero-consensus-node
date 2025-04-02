@@ -146,7 +146,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
 
     @Override
     public boolean updateAtHandoff(
-            @NonNull final Bytes adoptedRosterHash, @NonNull final Roster previousRoster, final boolean forceHandoff) {
+            @NonNull final Roster previousRoster,
+            @NonNull final Roster adoptedRoster,
+            @NonNull final Bytes adoptedRosterHash,
+            final boolean forceHandoff) {
+        requireNonNull(previousRoster);
+        requireNonNull(adoptedRoster);
         requireNonNull(adoptedRosterHash);
         final var upcomingConstruction = requireNonNull(nextConstruction.get());
         // It is pointless to adopt any incomplete construction

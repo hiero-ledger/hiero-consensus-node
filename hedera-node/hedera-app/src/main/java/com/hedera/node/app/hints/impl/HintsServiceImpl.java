@@ -83,12 +83,14 @@ public class HintsServiceImpl implements HintsService {
     public void manageRosterAdoption(
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Roster previousRoster,
+            @NonNull final Roster adoptedRoster,
             @NonNull final Bytes adoptedRosterHash,
             final boolean forceHandoff) {
         requireNonNull(hintsStore);
         requireNonNull(previousRoster);
+        requireNonNull(adoptedRoster);
         requireNonNull(adoptedRosterHash);
-        if (hintsStore.updateAtHandoff(adoptedRosterHash, previousRoster, forceHandoff)) {
+        if (hintsStore.updateAtHandoff(previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff)) {
             final var activeConstruction = requireNonNull(hintsStore.getActiveConstruction());
             component.signingContext().setConstructions(activeConstruction);
             logger.info("Updated hinTS construction in signing context to #{}", activeConstruction.constructionId());

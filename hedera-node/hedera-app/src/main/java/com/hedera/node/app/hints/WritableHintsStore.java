@@ -67,12 +67,18 @@ public interface WritableHintsStore extends ReadableHintsStore {
 
     /**
      * Updates state for a handoff to the given roster hash.
-     * @param adoptedRosterHash the adopted roster hash
+     *
      * @param previousRoster the previous roster
+     * @param adoptedRoster the adopted roster
+     * @param adoptedRosterHash the adopted roster hash
      * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
      * @return whether the handoff changed the hinTS scheme
      */
-    boolean updateAtHandoff(@NonNull Bytes adoptedRosterHash, @NonNull Roster previousRoster, boolean forceHandoff);
+    boolean updateAtHandoff(
+            @NonNull Roster previousRoster,
+            @NonNull Roster adoptedRoster,
+            @NonNull Bytes adoptedRosterHash,
+            boolean forceHandoff);
 
     /**
      * Sets the {@link CRSState} for the network.

@@ -9,7 +9,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.config.data.NetworkAdminConfig;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -41,7 +40,7 @@ public interface RosterTransplantSchema {
      */
     default boolean restart(
             @NonNull final MigrationContext ctx,
-            @NonNull final BiConsumer<Roster, Bytes> onAdopt,
+            @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory) {
         requireNonNull(ctx);
         final long roundNumber = ctx.roundNumber();
@@ -58,7 +57,7 @@ public interface RosterTransplantSchema {
                     ? withExtantNodeWeights(overrideRoster, rosterStore.getActiveRoster())
                     : overrideRoster;
             rosterStore.putActiveRoster(roster, activeRoundNumber);
-            onAdopt.accept(outgoingRoster, requireNonNull(rosterStore.getCurrentRosterHash()));
+            onAdopt.accept(outgoingRoster, roster);
             startupNetworks.setOverrideRound(roundNumber);
         });
         return overrideNetwork.isPresent();

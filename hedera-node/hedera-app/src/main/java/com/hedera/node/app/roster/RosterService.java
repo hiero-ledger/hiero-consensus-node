@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.roster.schemas.V0540RosterSchema;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.State;
@@ -35,7 +34,7 @@ public class RosterService implements Service {
     /**
      * A callback to invoke with an outgoing roster being replaced by a new roster hash.
      */
-    private final BiConsumer<Roster, Bytes> onAdopt;
+    private final BiConsumer<Roster, Roster> onAdopt;
     /**
      * Required until the upgrade that adopts the roster lifecycle; at that upgrade boundary,
      * we must initialize the active roster from the platform state's legacy address books.
@@ -47,7 +46,7 @@ public class RosterService implements Service {
 
     public RosterService(
             @NonNull final Predicate<Roster> canAdopt,
-            @NonNull final BiConsumer<Roster, Bytes> onAdopt,
+            @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Supplier<State> stateSupplier,
             @NonNull final PlatformStateFacade platformStateFacade) {
         this.onAdopt = requireNonNull(onAdopt);
