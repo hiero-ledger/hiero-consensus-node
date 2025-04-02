@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.event.creator.impl.EventCreationConfig;
+import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -219,9 +219,9 @@ public class TipsetWeightCalculator {
                             EXCEPTION.getMarker(),
                             "When looking at possible parents, we should never "
                                     + "consider ancient parents that are not self parents. "
-                                    + "Parent ID = {}, parent generation = {}, minimum generation non-ancient = {}",
+                                    + "Parent ID = {}, parent ancient threshold = {}, minimum threshold non-ancient = {}",
                             parent.creator(),
-                            parent.eventDescriptor().generation(),
+                            tipsetTracker.getEventWindow().getAncientMode().selectIndicator(parent.eventDescriptor()),
                             tipsetTracker.getEventWindow());
                 }
                 continue;

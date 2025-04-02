@@ -122,15 +122,15 @@ public class SyncValidator {
 
         // Remove expired events
         expectedCallerSendList.removeIf(
-                e -> e.getBaseEvent().getAncientIndicator(ancientMode) < caller.getExpirationThreshold());
+                e -> ancientMode.selectIndicator(e.getBaseEvent()) < caller.getExpirationThreshold());
         expectedListenerSendList.removeIf(
-                e -> e.getBaseEvent().getAncientIndicator(ancientMode) < listener.getExpirationThreshold());
+                e -> ancientMode.selectIndicator(e.getBaseEvent()) < listener.getExpirationThreshold());
 
         // Remove events that are ancient for the peer
         expectedCallerSendList.removeIf(
-                e -> e.getBaseEvent().getAncientIndicator(ancientMode) < listener.getCurrentAncientThreshold());
+                e -> ancientMode.selectIndicator(e.getBaseEvent()) < listener.getCurrentAncientThreshold());
         expectedListenerSendList.removeIf(
-                e -> e.getBaseEvent().getAncientIndicator(ancientMode) < caller.getCurrentAncientThreshold());
+                e -> ancientMode.selectIndicator(e.getBaseEvent()) < caller.getCurrentAncientThreshold());
 
         // Get the events each received from the other in the sync
         final List<PlatformEvent> callerReceivedEvents = caller.getReceivedEvents();
