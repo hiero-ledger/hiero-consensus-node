@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -27,8 +26,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -127,8 +126,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 jumboEthCall(jumboPayload, RELAYER));
     }
 
-    // This tests depends on the feature flag being enabled, so we need to upgrade to the next config version.
-    // If its run before the previous test or standalone, it will fail.
     @Order(3)
     @DisplayName("Jumbo transaction gets bytes throttled at ingest")
     @LeakyHapiTest(overrides = {"jumboTransactions.isEnabled", "jumboTransactions.maxBytesPerSec"})
@@ -174,15 +171,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                                 .markAsJumboTxn()
                                 .gasLimit(1_000_000L)
                                 .noLogging())));
-    }
-
-    private static HapiEthereumCall jumboEthCall(byte[] payload, String payer) {
-        return ethereumCall(CONTRACT, FUNCTION, payload)
-                .markAsJumboTxn()
-                .type(EthTxData.EthTransactionType.EIP1559)
-                .signingWith(SECP_256K1_SOURCE_KEY)
-                .payingWith(payer)
-                .gasLimit(1_000_000L);
     }
 
     @HapiTest
@@ -329,5 +317,14 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .gasLimit(1_000_000L),
                 cryptoCreate("receiver"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, "receiver", ONE_HUNDRED_HBARS)));
+    }
+
+    private static HapiEthereumCall jumboEthCall(byte[] payload, String payer) {
+        return ethereumCall(CONTRACT, FUNCTION, payload)
+                .markAsJumboTxn()
+                .type(EthTxData.EthTransactionType.EIP1559)
+                .signingWith(SECP_256K1_SOURCE_KEY)
+                .payingWith(payer)
+                .gasLimit(1_000_000L);
     }
 }

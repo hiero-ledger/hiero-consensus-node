@@ -390,6 +390,8 @@ public class ThrottleAccumulator {
             @NonNull final State state) {
         final var function = txnInfo.functionality();
         final var configuration = configSupplier.get();
+        final boolean isJumboTransactionsEnabled =
+                configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
 
         // Note that by payer exempt from throttling we mean just that those transactions will not be throttled,
         // such payer accounts neither impact the throttles nor are they impacted by them
@@ -406,6 +408,19 @@ public class ThrottleAccumulator {
         if (isGasExhausted(txnInfo, now, configuration)) {
             lastTxnWasGasThrottled = true;
             return true;
+        }
+
+        if (isJumboTransactionsEnabled) {
+            final var bytesUsage = txnInfo.transaction().protobufSize();
+            final var maxRegularTxnSize =
+                    configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
+            final var allowedHederaFunctionalities =
+                    configuration.getConfigData(JumboTransactionsConfig.class).allowedHederaFunctionalities();
+            final var excessBytes = bytesUsage > maxRegularTxnSize ? bytesUsage - maxRegularTxnSize : 0;
+            if (allowedHederaFunctionalities.functionalitySet().contains(txnInfo.functionality())
+                    && shouldThrottleBasedExcessBytes(excessBytes, now)) {
+                return true;
+            }
         }
 
         final var manager = functionReqs.get(function);
@@ -434,12 +449,7 @@ public class ThrottleAccumulator {
             case ETHEREUM_TRANSACTION -> {
                 final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
                 final var implicitCreations = getImplicitCreationsCount(txnInfo.txBody(), accountStore);
-                yield shouldThrottleEthTxn(
-                        manager,
-                        now,
-                        configuration,
-                        implicitCreations,
-                        txnInfo.transaction().protobufSize());
+                yield shouldThrottleEthTxn(manager, now, configuration, implicitCreations);
             }
             default -> !manager.allReqsMetAt(now);
         };
@@ -615,20 +625,11 @@ public class ThrottleAccumulator {
             @NonNull final ThrottleReqsManager manager,
             @NonNull final Instant now,
             @NonNull final Configuration configuration,
-            final int implicitCreationsCount,
-            final long bytesUsage) {
+            final int implicitCreationsCount) {
         final boolean isAutoCreationEnabled =
                 configuration.getConfigData(AutoCreationConfig.class).enabled();
         final boolean isLazyCreationEnabled =
                 configuration.getConfigData(LazyCreationConfig.class).enabled();
-        final boolean isJumboTransactionsEnabled =
-                configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
-        final var maxRegularTxnSize =
-                configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
-        final var excessBytes = bytesUsage > maxRegularTxnSize ? bytesUsage - maxRegularTxnSize : 0;
-        if (isJumboTransactionsEnabled && shouldThrottleBasedExcessBytes(manager, excessBytes, now)) {
-            return true;
-        }
         if (isAutoCreationEnabled && isLazyCreationEnabled) {
             return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now);
         } else {
@@ -802,14 +803,9 @@ public class ThrottleAccumulator {
                 : shouldThrottleImplicitCreations(implicitCreationsCount, now);
     }
 
-    private boolean shouldThrottleBasedExcessBytes(
-            @NonNull final ThrottleReqsManager manager, final long bytesUsed, @NonNull final Instant now) {
+    private boolean shouldThrottleBasedExcessBytes(final long bytesUsed, @NonNull final Instant now) {
         // If the bucket doesn't allow the thx enforce the throttle
-        if (bytesThrottle != null && !bytesThrottle.allow(now, bytesUsed)) {
-            return true;
-        }
-        // We enforce the limit on the EthereumTxn TPS
-        return !manager.allReqsMetAt(now);
+        return bytesThrottle != null && !bytesThrottle.allow(now, bytesUsed);
     }
 
     private boolean shouldThrottleBasedOnAutoAssociations(
