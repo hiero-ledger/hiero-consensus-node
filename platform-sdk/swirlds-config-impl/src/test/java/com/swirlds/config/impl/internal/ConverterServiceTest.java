@@ -240,10 +240,6 @@ class ConverterServiceTest {
         ONE
     }
 
-    private enum TwoValueEnum {
-        ONE, TWO
-    }
-
     private enum NumberAndValueEnum {
         ONE(1);
         final int value;

@@ -155,6 +155,9 @@ class ConverterService implements ConfigLifecycle {
         if(!converters.containsKey(Byte.TYPE)) {
             addConverter(Byte.TYPE, BYTE_CONVERTER);
         }
+        if(!converters.containsKey(Boolean.TYPE)) {
+            addConverter(Boolean.TYPE, BOOLEAN_CONVERTER);
+        }
 
         if(!converters.containsKey(String.class)) {
             addConverter(String.class, STRING_CONVERTER);
