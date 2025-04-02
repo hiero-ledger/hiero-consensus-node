@@ -67,7 +67,7 @@ class HintsLibraryImplTest {
 
     @Test
     void preprocessesHintsIntoUsableKeys() {
-        final var initialCrs = subject.newCrs(32);
+        final var initialCrs = subject.newCrs(64);
         byte[] entropyBytes = new byte[32];
         RANDOM.nextBytes(entropyBytes);
         final var newCrs = subject.updateCrs(initialCrs, Bytes.wrap(entropyBytes));

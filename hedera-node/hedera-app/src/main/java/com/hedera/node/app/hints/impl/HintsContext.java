@@ -161,6 +161,7 @@ public class HintsContext {
                 .mapToLong(RosterEntry::weight)
                 .sum();
         return new Signing(
+                blockHash,
                 atLeastOneThirdOfTotal(totalWeight),
                 preprocessedKeys.aggregationKey(),
                 requireNonNull(nodePartyIds),
@@ -192,6 +193,7 @@ public class HintsContext {
      */
     public class Signing {
         private final long thresholdWeight;
+        private final Bytes blockHash;
         private final Bytes aggregationKey;
         private final Bytes verificationKey;
         private final Map<Long, Integer> partyIds;
@@ -202,6 +204,7 @@ public class HintsContext {
         private final AtomicBoolean completed = new AtomicBoolean();
 
         public Signing(
+                @NonNull final Bytes blockHash,
                 final long thresholdWeight,
                 @NonNull final Bytes aggregationKey,
                 @NonNull final Map<Long, Integer> partyIds,
@@ -210,6 +213,7 @@ public class HintsContext {
                 @NonNull final Runnable onCompletion) {
             this.thresholdWeight = thresholdWeight;
             requireNonNull(onCompletion);
+            this.blockHash = requireNonNull(blockHash);
             this.aggregationKey = requireNonNull(aggregationKey);
             this.partyIds = requireNonNull(partyIds);
             this.verificationKey = requireNonNull(verificationKey);
@@ -218,7 +222,8 @@ public class HintsContext {
                     () -> {
                         if (!future.isDone()) {
                             log.warn(
-                                    "Completing signing attempt without obtaining a signature (had {} from parties {} for total weight {}/{} required)",
+                                    "Completing signing attempt on '{}' without obtaining a signature (had {} from parties {} for total weight {}/{} required)",
+                                    blockHash,
                                     signatures.size(),
                                     signatures.keySet(),
                                     weightOfSignatures.get(),

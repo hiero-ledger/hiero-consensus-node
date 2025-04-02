@@ -155,13 +155,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                 .toAbsolutePath()
                 .normalize();
         // 3 if debugging most PR checks, 4 if debugging the HAPI (Restart) check
-        final long hintsThresholdDenominator = 4;
+        final long hintsThresholdDenominator = 3;
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
-                        "5b8197fd19fa9dd714124cd643183a38e8c37c59895d776c376819a571acf7b4b7c032af60158bf8f273b49dab3c79ec"),
+                        "525279ce448629033053af7fd64e1439f415c0acb5ad6819b73363807122847b2d68ded6d47db36b59920474093f0651"),
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
+                16,
                 HintsEnabled.YES,
                 HistoryEnabled.NO,
                 hintsThresholdDenominator);
@@ -210,11 +211,13 @@ public class StateChangesValidator implements BlockStreamValidator {
             Files.writeString(genesisConfigTxt, subProcessNetwork.genesisConfigTxt());
             final boolean isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
             final boolean isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
+            final int crsSize = spec.startupProperties().getInteger("tss.initialCrsParties");
             return new StateChangesValidator(
                     rootHash,
                     node0.getExternalPath(SWIRLDS_LOG),
                     node0.getExternalPath(APPLICATION_PROPERTIES),
                     node0.getExternalPath(DATA_CONFIG_DIR),
+                    crsSize,
                     isHintsEnabled ? HintsEnabled.YES : HintsEnabled.NO,
                     isHistoryEnabled ? HistoryEnabled.YES : HistoryEnabled.NO,
                     Optional.ofNullable(System.getProperty("hapi.spec.hintsThresholdDenominator"))
@@ -230,6 +233,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             @NonNull final Path pathToNode0SwirldsLog,
             @NonNull final Path pathToOverrideProperties,
             @NonNull final Path pathToUpgradeSysFilesLoc,
+            final int crsSize,
             @NonNull final HintsEnabled hintsEnabled,
             @NonNull final HistoryEnabled historyEnabled,
             final long hintsThresholdDenominator) {
@@ -245,6 +249,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 pathToUpgradeSysFilesLoc.toAbsolutePath().toString());
         System.setProperty("tss.hintsEnabled", "" + (hintsEnabled == HintsEnabled.YES));
         System.setProperty("tss.historyEnabled", "" + (historyEnabled == HistoryEnabled.YES));
+        System.setProperty("tss.initialCrsParties", "" + crsSize);
         unarchiveGenesisNetworkJson(pathToUpgradeSysFilesLoc);
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
@@ -353,7 +358,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                     blockNumbers.put(
                             expectedBlockHash,
                             block.items().getFirst().blockHeaderOrThrow().number());
-                    validateBlockProof(i, firstBlockRound, blockProof, expectedBlockHash);
+                    validateBlockProof(i, firstBlockRound, blockProof, expectedBlockHash, startOfStateHash);
                     previousBlockHash = expectedBlockHash;
                 } else {
                     previousBlockHash = requireNonNull(
@@ -475,8 +480,14 @@ public class StateChangesValidator implements BlockStreamValidator {
     }
 
     private void validateBlockProof(
-            final long number, final long firstRound, @NonNull final BlockProof proof, @NonNull final Bytes blockHash) {
+            final long number,
+            final long firstRound,
+            @NonNull final BlockProof proof,
+            @NonNull final Bytes blockHash,
+            @NonNull final Bytes startOfStateHash) {
         assertEquals(number, proof.block());
+        assertEquals(
+                proof.startOfBlockStateRootHash(), startOfStateHash, "Wrong start of state hash for block #" + number);
         var provenHash = blockHash;
         final var siblingHashes = proof.siblingHashes();
         if (!siblingHashes.isEmpty()) {
@@ -487,22 +498,17 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
         if (hintsLibrary != null) {
             final var signature = proof.blockSignature();
-            try {
-                final Bytes vk;
-                if (proof.hasSchemeId()) {
-                    vk = requireNonNull(preprocessedKeys.get(proof.schemeId())).verificationKey();
-                } else {
-                    vk = proof.verificationKeyOrThrow();
-                }
-                final boolean valid =
-                        hintsLibrary.verifyAggregate(signature, provenHash, vk, 1, hintsThresholdDenominator);
-                if (!valid) {
-                    Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);
-                } else {
-                    logger.info("Verified signature on #{}", proof.block());
-                }
-            } catch (Exception e) {
-                logger.error("Could not verify signature for #{} ('{}')", proof.block(), e.getMessage());
+            final Bytes vk;
+            if (proof.hasSchemeId()) {
+                vk = requireNonNull(preprocessedKeys.get(proof.schemeId())).verificationKey();
+            } else {
+                vk = proof.verificationKeyOrThrow();
+            }
+            final boolean valid = hintsLibrary.verifyAggregate(signature, provenHash, vk, 1, hintsThresholdDenominator);
+            if (!valid) {
+                Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);
+            } else {
+                logger.info("Verified signature on #{}", proof.block());
             }
         } else {
             final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));

@@ -12,8 +12,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.SplittableRandom;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of {@link HintsLibrary}.
@@ -21,7 +19,6 @@ import org.apache.logging.log4j.Logger;
 public class HintsLibraryImpl implements HintsLibrary {
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
-    private static final Logger log = LogManager.getLogger(HintsLibraryImpl.class);
 
     @Override
     public Bytes newCrs(final int n) {
