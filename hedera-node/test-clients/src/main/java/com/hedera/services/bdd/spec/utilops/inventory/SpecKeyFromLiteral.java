@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.inventory;
 
-import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromMnemonic.createAndLinkSimpleKey;
+import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromMnemonic.createAndLinkSimpleEdKey;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -31,7 +31,7 @@ public class SpecKeyFromLiteral extends UtilOp {
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
         byte[] privateKey = CommonUtils.unhex(hexEncodedPrivateKey);
-        createAndLinkSimpleKey(spec, privateKey, name, linkedId, log);
+        createAndLinkSimpleEdKey(spec, privateKey, name, linkedId, log);
         return false;
     }
 

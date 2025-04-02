@@ -7,7 +7,7 @@ import static com.swirlds.common.merkle.route.MerkleRouteFactory.getEmptyRoute;
 import static com.swirlds.common.merkle.route.MerkleRouteFactory.setRouteEncodingStrategy;
 import static com.swirlds.common.merkle.route.MerkleRouteUtils.merkleRouteToPathFormat;
 import static com.swirlds.common.merkle.route.MerkleRouteUtils.pathFormatToMerkleRoute;
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;

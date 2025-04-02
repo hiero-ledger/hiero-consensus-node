@@ -54,6 +54,7 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
     private Optional<byte[]> grpcCertificateHash = Optional.empty();
     private Optional<String> adminKeyName = Optional.empty();
     private Optional<KeyShape> adminKeyShape = Optional.empty();
+    private Optional<Boolean> declineReward = Optional.empty();
 
     @Nullable
     private LongConsumer nodeIdObserver;
@@ -124,6 +125,11 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
         return this;
     }
 
+    public HapiNodeCreate declineReward(final boolean decline) {
+        this.declineReward = Optional.of(decline);
+        return this;
+    }
+
     public HapiNodeCreate adminKey(final String name) {
         adminKeyName = Optional.of(name);
         return this;
@@ -175,6 +181,7 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
                             builder.clearServiceEndpoint().addAllServiceEndpoint(grpcEndpoints);
                             gossipCaCertificate.ifPresent(s -> builder.setGossipCaCertificate(ByteString.copyFrom(s)));
                             grpcCertificateHash.ifPresent(s -> builder.setGrpcCertificateHash(ByteString.copyFrom(s)));
+                            declineReward.ifPresent(builder::setDeclineReward);
                         });
         return b -> b.setNodeCreate(opBody);
     }
