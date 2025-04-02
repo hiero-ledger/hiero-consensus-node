@@ -55,7 +55,7 @@ class DefaultInlinePcesWriterTest {
 
     @Test
     void standardOperationTest() throws Exception {
-        final Random random = RandomUtils.getRandomPrintSeed(-5497227373264870019L);
+        final Random random = RandomUtils.getRandomPrintSeed();
 
         final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(platformContext, random);
 
