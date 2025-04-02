@@ -82,16 +82,20 @@ public class WritableSingletonStateBase<T> extends ReadableSingletonStateBase<T>
     }
 
     /**
-     * Flushes all changes into the underlying data store. This method should <strong>ONLY</strong>
-     * be called by the code that created the {@link WritableSingletonStateBase} instance or owns
-     * it. Don't cast and commit unless you own the instance!
+     * Flushes the change into the underlying data store unless the registered listeners agree to defer
+     * the commit.
+     * <p>
+     * This method should <strong>ONLY</strong> be called by the code that created the
+     * {@link WritableSingletonStateBase} instance or owns it. Don't cast and commit unless you own the instance!
      */
     public void commit() {
+        if (agreedDeferCommitOrThrow(listeners)) {
+            listeners.forEach(SingletonChangeListener::commitDeferred);
+            return;
+        }
         if (value != null) {
             final var currentValue = currentValue();
-            if (!agreedDeferCommitOrThrow(listeners)) {
-                backingStoreMutator.accept(currentValue);
-            }
+            backingStoreMutator.accept(currentValue);
             if (currentValue != null) {
                 listeners.forEach(l -> l.singletonUpdateChange(currentValue));
             }

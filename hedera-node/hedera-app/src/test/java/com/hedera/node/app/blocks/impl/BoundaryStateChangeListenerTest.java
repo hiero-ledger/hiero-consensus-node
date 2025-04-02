@@ -296,16 +296,34 @@ class BoundaryStateChangeListenerTest {
         subject.startDeferringCommits();
         final var writableThrottleStates = state.getWritableStates(CongestionThrottleService.NAME);
         final var snapshotState = writableThrottleStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_KEY);
-        for (final var snapshot : List.of(FIRST_SNAPSHOTS, SECOND_SNAPSHOTS, THIRD_SNAPSHOTS)) {
+        final var snapshots = List.of(FIRST_SNAPSHOTS, SECOND_SNAPSHOTS, THIRD_SNAPSHOTS);
+        for (int i = 0, n = snapshots.size(); i < n; i++) {
+            final var snapshot = snapshots.get(i);
             snapshotState.put(snapshot);
+            ((CommittableWritableStates) writableThrottleStates).commit();
+            assertEquals(snapshot, snapshotState.get());
+            // Views of the underlying state don't change until the deferred commits are flushed
+            assertEquals(
+                    ThrottleUsageSnapshots.DEFAULT,
+                    state.getReadableStates(CongestionThrottleService.NAME)
+                            .getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_KEY)
+                            .get());
         }
-        ((CommittableWritableStates) writableThrottleStates).commit();
 
         final var writableRecordStates = state.getWritableStates(RecordCacheService.NAME);
         final var receiptsState = writableRecordStates.getQueue(TXN_RECEIPT_QUEUE);
         receiptsState.add(A_ENTRIES);
         receiptsState.add(B_ENTRIES);
+        ((CommittableWritableStates) writableRecordStates).commit();
+        final var halfwayReceipts = StreamSupport.stream(
+                        Spliterators.spliteratorUnknownSize(receiptsState.iterator(), Spliterator.ORDERED), false)
+                .toList();
+        assertEquals(List.of(A_ENTRIES, B_ENTRIES), halfwayReceipts);
         receiptsState.poll();
+        final var threeQuartersReceipts = StreamSupport.stream(
+                        Spliterators.spliteratorUnknownSize(receiptsState.iterator(), Spliterator.ORDERED), false)
+                .toList();
+        assertEquals(List.of(B_ENTRIES), threeQuartersReceipts);
         receiptsState.add(C_ENTRIES);
         ((CommittableWritableStates) writableRecordStates).commit();
 
@@ -317,7 +335,7 @@ class BoundaryStateChangeListenerTest {
                 state.getReadableStates(RecordCacheService.NAME).getQueue(TXN_RECEIPT_QUEUE);
         assertFalse(updatedReceiptsState.iterator().hasNext());
 
-        subject.commitDeferredMutations(state);
+        subject.flushDeferredCommits(state);
 
         final ReadableSingletonState<ThrottleUsageSnapshots> finalSnapshotState = state.getReadableStates(
                         CongestionThrottleService.NAME)

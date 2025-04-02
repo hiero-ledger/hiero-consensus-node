@@ -48,15 +48,17 @@ final class WritableQueueStateBaseTest<E> extends ReadableQueueStateBaseTest<E> 
         }
 
         @Test
-        void iterateAfterAddGivesNewElements() {
+        void iterateAfterAddAndRemoveGivesRemainingElements() {
             final var subject = writableSTEAMState();
             final var element = "Hydrology";
 
+            assertEquals(ART, subject.poll());
             subject.add(element);
+            assertEquals(BIOLOGY, subject.poll());
 
             assertThat(subject.iterator())
                     .toIterable()
-                    .containsExactly(ART, BIOLOGY, CHEMISTRY, DISCIPLINE, ECOLOGY, FIELDS, GEOMETRY, "Hydrology");
+                    .containsExactly(CHEMISTRY, DISCIPLINE, ECOLOGY, FIELDS, GEOMETRY, "Hydrology");
         }
 
         @Test

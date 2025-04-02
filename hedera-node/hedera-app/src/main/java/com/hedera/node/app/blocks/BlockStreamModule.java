@@ -66,7 +66,7 @@ public interface BlockStreamModule {
             @Override
             public void onCloseBlock(@NonNull final State state) {
                 nodeRewardManager.onCloseBlock(state, listener.nodeFeesCollected());
-                listener.commitDeferredMutations(state);
+                listener.flushDeferredCommits(state);
             }
         };
     }

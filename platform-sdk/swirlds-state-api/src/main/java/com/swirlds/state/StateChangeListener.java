@@ -43,6 +43,12 @@ public interface StateChangeListener extends DeferringListener {
     int stateIdFor(@NonNull String serviceName, @NonNull String stateKey);
 
     /**
+     * Receives any a deferred commit for the given service name.
+     * @param serviceName the name of the service for which a commit was deferred
+     */
+    default void commitDeferredFor(@NonNull final String serviceName) {}
+
+    /**
      * Save the state change when an entry is added in to a map.
      *
      * @param <K> The type of the key

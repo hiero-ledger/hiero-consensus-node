@@ -54,7 +54,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Supplier;
 
 /**
@@ -65,12 +67,11 @@ import java.util.function.Supplier;
 public class BoundaryStateChangeListener implements StateChangeListener {
     private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(SINGLETON, QUEUE);
 
+    private final SortedSet<String> servicesWithDeferredCommits = new TreeSet<>();
     private final SortedMap<Integer, StateChange> singletonUpdates = new TreeMap<>();
     private final SortedMap<Integer, List<StateChange>> queueUpdates = new TreeMap<>();
     private static final int ENTITY_COUNTS_STATE_ID =
             BlockImplUtils.stateIdFor(EntityIdService.NAME, ENTITY_COUNTS_KEY);
-    private final SortedMap<Integer, Mutation> deferredSingletonUpdates = new TreeMap<>();
-    private final SortedMap<Integer, List<Mutation>> deferredQueueUpdates = new TreeMap<>();
 
     @NonNull
     private final StoreMetricsService storeMetricsService;
@@ -106,30 +107,8 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     private Mode mode = Mode.COMMITTING;
 
     /**
-     * A mutation to state the listener has deferred committing.
-     *
-     * @param serviceName the name of the service
-     * @param stateKey the key of the state
-     * @param value the value of the change
-     */
-    private record Mutation(String serviceName, String stateKey, @Nullable Object value) {
-        /**
-         * Returns the value of the mutation, or throws if it is null.
-         */
-        public Object valueOrThrow() {
-            return requireNonNull(value);
-        }
-
-        /**
-         * Returns true if the mutation is a pop operation.
-         */
-        public boolean isPop() {
-            return value == null;
-        }
-    }
-
-    /**
      * Constructor for the {@link BoundaryStateChangeListener} class.
+     *
      * @param storeMetricsService the store metrics service
      * @param configurationSupplier the configuration
      */
@@ -156,6 +135,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
 
     /**
      * Tracks the collected node fees.
+     *
      * @param nodeFeesCollected the node fees collected
      */
     public void trackCollectedNodeFees(final long nodeFeesCollected) {
@@ -187,8 +167,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         lastConsensusTime = null;
         singletonUpdates.clear();
         queueUpdates.clear();
-        deferredQueueUpdates.clear();
-        deferredSingletonUpdates.clear();
+        servicesWithDeferredCommits.clear();
         mode = Mode.COMMITTING;
     }
 
@@ -197,42 +176,22 @@ public class BoundaryStateChangeListener implements StateChangeListener {
      */
     public void startDeferringCommits() {
         mode = Mode.DEFERRING_COMMITS;
-        deferredQueueUpdates.clear();
-        deferredSingletonUpdates.clear();
     }
 
     /**
      * Commits all deferred mutations to the given state.
-     * @param state the state to commit to
      */
-    public void commitDeferredMutations(@NonNull final State state) {
+    public void flushDeferredCommits(@NonNull final State state) {
+        requireNonNull(state);
         mode = Mode.COMMITTING;
-        deferredSingletonUpdates.forEach((stateId, mutation) -> {
-            final var writableStates = state.getWritableStates(mutation.serviceName());
-            final var singletonState = writableStates.getSingleton(mutation.stateKey());
-            singletonState.put(mutation.valueOrThrow());
-            ((CommittableWritableStates) writableStates).commit();
-        });
-        deferredQueueUpdates.forEach((stateId, mutations) -> {
-            if (!mutations.isEmpty()) {
-                final var writableStates =
-                        state.getWritableStates(mutations.getFirst().serviceName());
-                final var queueState =
-                        writableStates.getQueue(mutations.getFirst().stateKey());
-                for (final var mutation : mutations) {
-                    if (mutation.isPop()) {
-                        queueState.poll();
-                    } else {
-                        queueState.add(mutation.valueOrThrow());
-                    }
-                }
-                ((CommittableWritableStates) writableStates).commit();
-            }
-        });
+        servicesWithDeferredCommits.forEach(
+                service -> ((CommittableWritableStates) state.getWritableStates(service)).commit());
+        servicesWithDeferredCommits.clear();
     }
 
     /**
      * Returns a {@link BlockItem} containing all the state changes that have been accumulated.
+     *
      * @return the block item
      */
     public BlockItem summarizeCommittedChanges() {
@@ -245,6 +204,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
 
     /**
      * Returns all the state changes that have been accumulated.
+     *
      * @return the state changes
      */
     public List<StateChange> allStateChanges() {
@@ -260,6 +220,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
 
     /**
      * Sets the last used consensus time in the round.
+     *
      * @param lastUsedConsensusTime the last used consensus time
      */
     public void setBoundaryTimestamp(@NonNull final Instant lastUsedConsensusTime) {
@@ -278,6 +239,15 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     }
 
     @Override
+    public void commitDeferredFor(@NonNull final String serviceName) {
+        requireNonNull(serviceName);
+        if (mode == Mode.COMMITTING) {
+            throw new IllegalStateException("Commits should not have been deferred for '" + serviceName + "' here");
+        }
+        servicesWithDeferredCommits.add(serviceName);
+    }
+
+    @Override
     public int stateIdFor(@NonNull final String serviceName, @NonNull final String stateKey) {
         return BlockImplUtils.stateIdFor(serviceName, stateKey);
     }
@@ -292,12 +262,8 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         requireNonNull(serviceName);
         requireNonNull(stateKey);
         switch (mode) {
-            case DEFERRING_COMMITS -> {
-                final var mutation = new Mutation(serviceName, stateKey, value);
-                deferredQueueUpdates
-                        .computeIfAbsent(stateId, k -> new LinkedList<>())
-                        .add(mutation);
-            }
+            case DEFERRING_COMMITS -> throw new IllegalStateException(
+                    "Queue push should have been deferred for " + serviceName + "." + stateKey);
             case COMMITTING -> {
                 final var stateChange = StateChange.newBuilder()
                         .stateId(stateId)
@@ -306,7 +272,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
                 queueUpdates.computeIfAbsent(stateId, k -> new LinkedList<>()).add(stateChange);
             }
         }
-        ;
     }
 
     @Override
@@ -314,12 +279,8 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         requireNonNull(serviceName);
         requireNonNull(stateKey);
         switch (mode) {
-            case DEFERRING_COMMITS -> {
-                final var mutation = new Mutation(serviceName, stateKey, null);
-                deferredQueueUpdates
-                        .computeIfAbsent(stateId, k -> new LinkedList<>())
-                        .add(mutation);
-            }
+            case DEFERRING_COMMITS -> throw new IllegalStateException(
+                    "Queue pop should have been deferred for " + serviceName + "." + stateKey);
             case COMMITTING -> {
                 final var stateChange = StateChange.newBuilder()
                         .stateId(stateId)
@@ -340,10 +301,8 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         requireNonNull(serviceName);
         requireNonNull(stateKey);
         switch (mode) {
-            case DEFERRING_COMMITS -> {
-                final var mutation = new Mutation(serviceName, stateKey, value);
-                deferredSingletonUpdates.put(stateId, mutation);
-            }
+            case DEFERRING_COMMITS -> throw new IllegalStateException(
+                    "Singleton update should have been deferred for " + serviceName + "." + stateKey);
             case COMMITTING -> {
                 final var stateChange = StateChange.newBuilder()
                         .stateId(stateId)

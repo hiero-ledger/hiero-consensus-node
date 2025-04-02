@@ -18,6 +18,11 @@ public interface DeferringListener {
     }
 
     /**
+     * Called when a commit is deferred.
+     */
+    default void commitDeferred() {}
+
+    /**
      * Returns the agreed defer commit setting for the given listeners. If the listeners have
      * inconsistent defer commit settings, an exception is thrown.
      * @param listeners the list of listeners to check

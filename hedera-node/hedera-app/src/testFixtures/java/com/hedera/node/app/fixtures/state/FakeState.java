@@ -220,13 +220,19 @@ public class FakeState implements MerkleNodeState {
         final var stateId = listener.stateIdFor(serviceName, stateKey);
         singletonState.registerListener(new SingletonChangeListener<V>() {
             @Override
-            public void singletonUpdateChange(@NonNull V value) {
+            public void singletonUpdateChange(@NonNull final V value) {
+                requireNonNull(value);
                 listener.singletonUpdateChange(stateId, serviceName, stateKey, value);
             }
 
             @Override
             public boolean deferCommits() {
                 return listener.deferCommits();
+            }
+
+            @Override
+            public void commitDeferred() {
+                listener.commitDeferredFor(serviceName);
             }
         });
     }
@@ -251,6 +257,11 @@ public class FakeState implements MerkleNodeState {
             @Override
             public boolean deferCommits() {
                 return listener.deferCommits();
+            }
+
+            @Override
+            public void commitDeferred() {
+                listener.commitDeferredFor(serviceName);
             }
         });
     }

@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -777,7 +778,7 @@ class MerkleStateRootTest extends MerkleTestBase {
             verify(nonKvListener).singletonUpdateChange(COUNTRY_STATE_ID, FIRST_SERVICE, COUNTRY_STATE_KEY, ESTONIA);
             verify(nonKvListener).queuePushChange(STEAM_STATE_ID, FIRST_SERVICE, STEAM_STATE_KEY, BIOLOGY);
             verify(nonKvListener).queuePopChange(STEAM_STATE_ID, FIRST_SERVICE, STEAM_STATE_KEY);
-            verify(nonKvListener).deferCommits();
+            verify(nonKvListener, times(2)).deferCommits();
 
             verifyNoMoreInteractions(kvListener);
             verifyNoMoreInteractions(nonKvListener);
