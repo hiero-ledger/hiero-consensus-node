@@ -19,6 +19,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -47,6 +49,7 @@ public class TipsetTracker {
 
     private final AncientMode ancientMode;
     private EventWindow eventWindow;
+    private final NodeId selfId;
 
     private final RateLimitedLogger ancientEventLogger;
 
@@ -58,18 +61,19 @@ public class TipsetTracker {
      * @param ancientMode the {@link AncientMode} to use
      */
     public TipsetTracker(
-            @NonNull final Time time, @NonNull final Roster roster, @NonNull final AncientMode ancientMode) {
+            @NonNull final Time time, @NonNull final Roster roster, @NonNull final AncientMode ancientMode,
+            @NonNull final NodeId selfId) {
 
         this.roster = Objects.requireNonNull(roster);
-
+        this.selfId = Objects.requireNonNull(selfId);
         this.latestGenerations = new Tipset(roster);
 
         if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-            tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, ed -> ed.eventDescriptor()
-                    .birthRound());
+            tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true,
+                    ed -> ed.eventDescriptor().birthRound());
         } else {
-            tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, ed -> ed.eventDescriptor()
-                    .generation());
+            tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true,
+                    ed -> ed.eventDescriptor().generation());
         }
 
         ancientEventLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
@@ -99,29 +103,41 @@ public class TipsetTracker {
     }
 
     /**
-     * Add a new event to the tracker.
+     * Add a new self event to the tracker.
      *
-     * @param eventDescriptorWrapper the descriptor of the event to add
-     * @param parents         the parents of the event being added
-     * @return the tipset for the event that was added
+     * @param event the self event to add
+     * @return the tipset for the new self event
      */
     @NonNull
-    public Tipset addEvent(
-            @NonNull final EventDescriptorWrapper eventDescriptorWrapper,
-            @NonNull final List<EventDescriptorWrapper> parents) {
+    public Tipset addSelfEvent(@NonNull final UnsignedEvent event) {
+        throwIfNotSelfEvent(event.getDescriptor());
+        logIfAncient(event.getDescriptor());
 
-        if (eventWindow.isAncient(eventDescriptorWrapper)) {
-            // Note: although we don't immediately return from this method, the tipsets.put()
-            // will not update the data structure for an ancient event. We should never
-            // enter this bock of code. This log is here as a canary to alert us if we somehow do.
-            ancientEventLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Rejecting ancient event from {} with generation {}. Current event window is {}",
-                    eventDescriptorWrapper.creator(),
-                    eventDescriptorWrapper.eventDescriptor().generation(),
-                    eventWindow);
+        final List<Tipset> parentTipsets = getParentTipsets(event.getMetadata().getAllParents());
+
+        final Tipset eventTipset;
+        if (parentTipsets.isEmpty()) {
+            eventTipset = new Tipset(roster)
+                    .increment(selfId);
+        } else {
+            eventTipset = merge(parentTipsets)
+                    .increment(selfId);
         }
 
+        tipsets.put(event.getDescriptor(), eventTipset);
+        latestGenerations = latestGenerations.increment(selfId);
+
+        return eventTipset;
+    }
+
+    private void throwIfNotSelfEvent(@NonNull final EventDescriptorWrapper descriptor) {
+        logger.error(EXCEPTION.getMarker(),
+                "Attempt to add other event as self event to the TipsetTracker. Self Id: {}, Event Creator: {}",
+                selfId.id(), descriptor.creator());
+    }
+
+    @NonNull
+    private List<Tipset> getParentTipsets(@NonNull final List<EventDescriptorWrapper> parents) {
         final List<Tipset> parentTipsets = new ArrayList<>(parents.size());
         for (final EventDescriptorWrapper parent : parents) {
             final Tipset parentTipset = tipsets.get(parent);
@@ -129,26 +145,63 @@ public class TipsetTracker {
                 parentTipsets.add(parentTipset);
             }
         }
+        return parentTipsets;
+    }
+
+    /**
+     * Add a new event to the tracker created by another node.
+     *
+     * @param event the event to add
+     * @return the tipset for the event that was added
+     */
+    @NonNull
+    public Tipset addEvent(@NonNull final PlatformEvent event) {
+        logIfAncient(event.getDescriptor());
+
+        final List<Tipset> parentTipsets = getParentTipsets(event.getAllParents());
 
         final Tipset eventTipset;
         if (parentTipsets.isEmpty()) {
             eventTipset = new Tipset(roster)
                     .advance(
-                            eventDescriptorWrapper.creator(),
-                            eventDescriptorWrapper.eventDescriptor().generation());
+                            event.getCreatorId(),
+                            event.getNGen());
         } else {
             eventTipset = merge(parentTipsets)
                     .advance(
-                            eventDescriptorWrapper.creator(),
-                            eventDescriptorWrapper.eventDescriptor().generation());
+                            event.getCreatorId(),
+                            event.getNGen());
         }
 
-        tipsets.put(eventDescriptorWrapper, eventTipset);
+        tipsets.put(event.getDescriptor(), eventTipset);
         latestGenerations = latestGenerations.advance(
-                eventDescriptorWrapper.creator(),
-                eventDescriptorWrapper.eventDescriptor().generation());
+                event.getCreatorId(),
+                event.getNGen());
 
         return eventTipset;
+    }
+
+    private void logIfAncient(@NonNull final EventDescriptorWrapper descriptor) {
+        if (eventWindow.isAncient(descriptor)) {
+            // Note: although we don't immediately return from this method, the tipsets.put()
+            // will not update the data structure for an ancient event. We should never
+            // enter this bock of code. This log is here as a canary to alert us if we somehow do.
+            if (ancientMode.equals(AncientMode.BIRTH_ROUND_THRESHOLD)) {
+                ancientEventLogger.error(
+                        EXCEPTION.getMarker(),
+                        "Rejecting ancient event from {} with birth round {}. Current event window is {}",
+                        descriptor.creator(),
+                        descriptor.eventDescriptor().birthRound(),
+                        eventWindow);
+            } else {
+                ancientEventLogger.error(
+                        EXCEPTION.getMarker(),
+                        "Rejecting ancient event from {} with generation {}. Current event window is {}",
+                        descriptor.creator(),
+                        descriptor.eventDescriptor().generation(),
+                        eventWindow);
+            }
+        }
     }
 
     /**

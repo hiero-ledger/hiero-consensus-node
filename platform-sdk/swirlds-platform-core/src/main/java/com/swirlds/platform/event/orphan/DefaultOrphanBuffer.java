@@ -5,6 +5,7 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
+import com.swirlds.platform.event.EventUtils;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.sequence.map.SequenceMap;
@@ -130,23 +131,26 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     }
 
     /**
-     * Calculates and sets the nGen value for this event. The event must not be an orphan. The value is the max of all
-     * non-ancient parent nGen values + 1, or {@link EventConstants#FIRST_GENERATION} if no such parents exist.
+     * Calculates and sets the nGen value for this event. The event must not be an orphan.
      *
      * @param event the non-orphan event to populate nGen for
      */
     private void calculateAndSetNGen(final PlatformEvent event) {
-        long maxParentNGen = EventConstants.GENERATION_UNDEFINED;
+        // If the nGen is already set, then this is a self event, and it was set by the event creator.
+        // Do not override the nGen value assigned by the event creator so that nGen values are consistent
+        // between the event creator and the orphan buffer.
+        if (event.isNGenSet()) {
+            return;
+        }
+        final List<Long> parentNGens = new ArrayList<>();
         for (final EventDescriptorWrapper parentDesc : event.getAllParents()) {
             final PlatformEvent parent = eventsWithParents.get(parentDesc);
             if (parent != null) {
-                maxParentNGen = Math.max(maxParentNGen, parent.getNGen());
+                parentNGens.add(parent.getNGen());
             }
         }
-        final long nGen = maxParentNGen == EventConstants.GENERATION_UNDEFINED
-                ? EventConstants.FIRST_GENERATION
-                : maxParentNGen + 1;
-        event.setNGen(nGen);
+
+        event.setNGen(EventUtils.calculateNGen(parentNGens));
     }
 
     /**

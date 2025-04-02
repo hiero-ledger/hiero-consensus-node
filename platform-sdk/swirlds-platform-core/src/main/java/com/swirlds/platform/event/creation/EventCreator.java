@@ -33,7 +33,7 @@ public interface EventCreator {
      * @return the new event, or null if it is not legal to create a new event
      */
     @Nullable
-    UnsignedEvent maybeCreateEvent();
+    PlatformEvent maybeCreateEvent();
 
     /**
      * Reset the event creator to its initial state.

@@ -43,6 +43,7 @@ public class UnsignedEvent implements Hashable {
      * @param selfParent      self parent event descriptor
      * @param otherParents    other parent event descriptors
      * @param birthRound      the round in which this event was created.
+     * @param nGen            the non-deterministic generation of this event
      * @param timeCreated     creation time, as claimed by its creator
      * @param transactions    list of transactions included in this event instance
      */
@@ -52,10 +53,11 @@ public class UnsignedEvent implements Hashable {
             @Nullable final EventDescriptorWrapper selfParent,
             @NonNull final List<EventDescriptorWrapper> otherParents,
             final long birthRound,
+            final long nGen,
             @NonNull final Instant timeCreated,
             @NonNull final List<Bytes> transactions) {
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null");
-        this.metadata = new EventMetadata(creatorId, selfParent, otherParents, timeCreated, transactions, birthRound);
+        this.metadata = new EventMetadata(creatorId, selfParent, otherParents, timeCreated, transactions, birthRound, nGen);
         this.eventCore = new EventCore(
                 creatorId.id(),
                 birthRound,
@@ -64,6 +66,13 @@ public class UnsignedEvent implements Hashable {
                         .map(EventDescriptorWrapper::eventDescriptor)
                         .toList(),
                 softwareVersion);
+    }
+
+    /**
+     * @return the non-deterministic generation of the event.
+     */
+    public long getNGen() {
+        return metadata.getNGen();
     }
 
     /**

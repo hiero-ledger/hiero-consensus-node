@@ -9,9 +9,12 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.crypto.Signature;
+import com.swirlds.common.stream.HashSigner;
 import com.swirlds.common.stream.Signer;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.components.transaction.TransactionSupplier;
+import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.event.EventUtils;
 import com.swirlds.platform.event.creation.EventCreator;
 import com.swirlds.platform.event.hashing.PbjStreamHasher;
@@ -23,10 +26,12 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import org.antlr.v4.runtime.misc.NotNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.creator.impl.EventCreationConfig;
@@ -47,7 +52,7 @@ public class TipsetEventCreator implements EventCreator {
 
     private final Time time;
     private final Random random;
-    private final Signer signer;
+    private final HashSigner signer;
     private final NodeId selfId;
     private final TipsetTracker tipsetTracker;
     private final TipsetWeightCalculator tipsetWeightCalculator;
@@ -79,24 +84,14 @@ public class TipsetEventCreator implements EventCreator {
     private final TipsetMetrics tipsetMetrics;
 
     /**
-     * The last event created by this node.
-     */
-    private EventDescriptorWrapper lastSelfEvent;
-
-    /**
-     * The timestamp of the last event created by this node.
-     */
-    private Instant lastSelfEventCreationTime;
-
-    /**
-     * The number of transactions in the last event created by this node.
-     */
-    private int lastSelfEventTransactionCount;
-
-    /**
      * Defines the current ancient mode.
      */
     private final AncientMode ancientMode;
+
+    /**
+     * The last event created by this node.
+     */
+    private PlatformEvent lastSelfEvent;
 
     private final RateLimitedLogger zeroAdvancementWeightLogger;
     private final RateLimitedLogger noParentFoundLogger;
@@ -120,7 +115,7 @@ public class TipsetEventCreator implements EventCreator {
     public TipsetEventCreator(
             @NonNull final PlatformContext platformContext,
             @NonNull final Random random,
-            @NonNull final Signer signer,
+            @NonNull final HashSigner signer,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final SemanticVersion softwareVersion,
@@ -143,7 +138,7 @@ public class TipsetEventCreator implements EventCreator {
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
-        tipsetTracker = new TipsetTracker(time, roster, ancientMode);
+        tipsetTracker = new TipsetTracker(time, roster, ancientMode, selfId);
         childlessOtherEventTracker = new ChildlessEventTracker();
         tipsetWeightCalculator =
                 new TipsetWeightCalculator(platformContext, roster, selfId, tipsetTracker, childlessOtherEventTracker);
@@ -172,26 +167,27 @@ public class TipsetEventCreator implements EventCreator {
         final boolean selfEvent = eventCreator.equals(selfId);
 
         if (selfEvent) {
-            if (lastSelfEvent == null || lastSelfEvent.eventDescriptor().generation() < event.getGeneration()) {
+            /*
+            On restart, the node will stream PlatformEvents from PCES. It will learn of our self events
+            this way before starting to create events again. We must remember the lastest of these events
+            event creation starts again at which time we will only track the lastest event as it is created.
+             */
+            if (this.lastSelfEvent == null || this.lastSelfEvent.getNGen() < event.getNGen()) {
                 // Normally we will ingest self events before we get to this point, but it's possible
                 // to learn of self events for the first time here if we are loading from a restart or reconnect.
-                lastSelfEvent = event.getDescriptor();
-                lastSelfEventCreationTime = event.getTimeCreated();
-                lastSelfEventTransactionCount = event.getTransactionCount();
+                lastSelfEvent = event;
                 childlessOtherEventTracker.registerSelfEventParents(event.getOtherParents());
             } else {
                 // We already ingested this self event (when it was created),
+                // or it is older than the event we are already tracking.
                 return;
             }
         }
 
-        final EventDescriptorWrapper descriptor = event.getDescriptor();
-        final List<EventDescriptorWrapper> parentDescriptors = event.getAllParents();
-
-        tipsetTracker.addEvent(descriptor, parentDescriptors);
+        tipsetTracker.addEvent(event);
 
         if (!selfEvent) {
-            childlessOtherEventTracker.addEvent(descriptor, parentDescriptors);
+            childlessOtherEventTracker.addEvent(event);
         }
     }
 
@@ -208,9 +204,20 @@ public class TipsetEventCreator implements EventCreator {
     /**
      * {@inheritDoc}
      */
-    @Override
     @Nullable
-    public UnsignedEvent maybeCreateEvent() {
+    @Override
+    public PlatformEvent maybeCreateEvent() {
+        final UnsignedEvent event = maybeCreateUnsignedEvent();
+        if (event != null) {
+            final PlatformEvent signedEvent = signEvent(event);
+            lastSelfEvent = signedEvent;
+            return signedEvent;
+        }
+        return null;
+    }
+
+    @Nullable
+    private UnsignedEvent maybeCreateUnsignedEvent() {
         if (networkSize == 1) {
             // Special case: network of size 1.
             // We can always create a new event, no need to run the tipset algorithm.
@@ -231,18 +238,24 @@ public class TipsetEventCreator implements EventCreator {
         }
     }
 
+    private PlatformEvent signEvent(final UnsignedEvent event) {
+        final Signature signature = signer.sign(event.getHash());
+        return new PlatformEvent(event, signature.getBytes());
+    }
+
     /**
      * Create the next event for a network of size 1 (i.e. where we are the only member). We don't use the tipset
      * algorithm like normal, since we will never have a real other parent.
      *
      * @return the new event
      */
+    @NonNull
     private UnsignedEvent createEventForSizeOneNetwork() {
         // There is a quirk in size 1 networks where we can only
         // reach consensus if the self parent is also the other parent.
         // Unexpected, but harmless. So just use the same event
         // as both parents until that issue is resolved.
-        return buildAndProcessEvent(lastSelfEvent);
+        return buildAndProcessEvent(lastSelfEvent.getDescriptor());
     }
 
     /**
@@ -252,21 +265,15 @@ public class TipsetEventCreator implements EventCreator {
      */
     @Nullable
     private UnsignedEvent createEventByOptimizingAdvancementWeight() {
-        final List<EventDescriptorWrapper> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
+        final List<PlatformEvent> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
         Collections.shuffle(possibleOtherParents, random);
 
-        EventDescriptorWrapper bestOtherParent = null;
+        PlatformEvent bestOtherParent = null;
         TipsetAdvancementWeight bestAdvancementWeight = ZERO_ADVANCEMENT_WEIGHT;
-        for (final EventDescriptorWrapper otherParent : possibleOtherParents) {
-
-            final List<EventDescriptorWrapper> parents = new ArrayList<>(2);
-            parents.add(otherParent);
-            if (lastSelfEvent != null) {
-                parents.add(lastSelfEvent);
-            }
-
+        for (final PlatformEvent otherParent : possibleOtherParents) {
             final TipsetAdvancementWeight advancementWeight =
-                    tipsetWeightCalculator.getTheoreticalAdvancementWeight(parents);
+                    tipsetWeightCalculator.getTheoreticalAdvancementWeight(List.of(otherParent),
+                            lastSelfEvent.getDescriptor());
             if (advancementWeight.isGreaterThan(bestAdvancementWeight)) {
                 bestOtherParent = otherParent;
                 bestAdvancementWeight = advancementWeight;
@@ -286,8 +293,8 @@ public class TipsetEventCreator implements EventCreator {
             return buildAndProcessEvent(null);
         }
 
-        tipsetMetrics.getTipsetParentMetric(bestOtherParent.creator()).cycle();
-        return buildAndProcessEvent(bestOtherParent);
+        tipsetMetrics.getTipsetParentMetric(bestOtherParent.getCreatorId()).cycle();
+        return buildAndProcessEvent(bestOtherParent.getDescriptor());
     }
 
     /**
@@ -297,26 +304,27 @@ public class TipsetEventCreator implements EventCreator {
      */
     @Nullable
     private UnsignedEvent createEventToReduceSelfishness() {
-        final List<EventDescriptorWrapper> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
-        final List<EventDescriptorWrapper> ignoredNodes = new ArrayList<>(possibleOtherParents.size());
+        final List<PlatformEvent> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
+        final List<PlatformEvent> ignoredNodes = new ArrayList<>(possibleOtherParents.size());
 
         // Choose a random ignored node, weighted by how much it is currently being ignored.
 
         // First, figure out who is an ignored node and sum up all selfishness scores.
         int selfishnessSum = 0;
         final List<Integer> selfishnessScores = new ArrayList<>(possibleOtherParents.size());
-        for (final EventDescriptorWrapper possibleIgnoredNode : possibleOtherParents) {
-            final int selfishness = tipsetWeightCalculator.getSelfishnessScoreForNode(possibleIgnoredNode.creator());
+        for (final PlatformEvent possibleIgnoredNode : possibleOtherParents) {
+            final int selfishness = tipsetWeightCalculator.getSelfishnessScoreForNode(
+                    possibleIgnoredNode.getCreatorId());
 
-            final List<EventDescriptorWrapper> theoreticalParents = new ArrayList<>(2);
+            final List<PlatformEvent> theoreticalParents = new ArrayList<>(2);
             theoreticalParents.add(possibleIgnoredNode);
             if (lastSelfEvent == null) {
-                throw new IllegalStateException("lastSelfEvent is null");
+                throw new IllegalStateException("no known self parent");
             }
-            theoreticalParents.add(lastSelfEvent);
 
             final TipsetAdvancementWeight advancementWeight =
-                    tipsetWeightCalculator.getTheoreticalAdvancementWeight(theoreticalParents);
+                    tipsetWeightCalculator.getTheoreticalAdvancementWeight(theoreticalParents,
+                            lastSelfEvent.getDescriptor());
 
             if (selfishness > 1) {
                 if (advancementWeight.isNonZero()) {
@@ -353,9 +361,9 @@ public class TipsetEventCreator implements EventCreator {
         for (int i = 0; i < ignoredNodes.size(); i++) {
             runningSum += selfishnessScores.get(i);
             if (choice < runningSum) {
-                final EventDescriptorWrapper ignoredNode = ignoredNodes.get(i);
-                tipsetMetrics.getPityParentMetric(ignoredNode.creator()).cycle();
-                return buildAndProcessEvent(ignoredNode);
+                final PlatformEvent ignoredNode = ignoredNodes.get(i);
+                tipsetMetrics.getPityParentMetric(ignoredNode.getCreatorId()).cycle();
+                return buildAndProcessEvent(ignoredNode.getDescriptor());
             }
         }
 
@@ -370,20 +378,11 @@ public class TipsetEventCreator implements EventCreator {
      * @return the new event
      */
     private UnsignedEvent buildAndProcessEvent(@Nullable final EventDescriptorWrapper otherParent) {
-        final List<EventDescriptorWrapper> parentDescriptors = new ArrayList<>(2);
-        if (lastSelfEvent != null) {
-            parentDescriptors.add(lastSelfEvent);
-        }
-        if (otherParent != null) {
-            parentDescriptors.add(otherParent);
-        }
-
         final UnsignedEvent event = assembleEventObject(otherParent);
 
-        final EventDescriptorWrapper descriptor = event.getDescriptor();
-        tipsetTracker.addEvent(descriptor, parentDescriptors);
+        tipsetTracker.addSelfEvent(event);
         final TipsetAdvancementWeight advancementWeight =
-                tipsetWeightCalculator.addEventAndGetAdvancementWeight(descriptor);
+                tipsetWeightCalculator.addEventAndGetAdvancementWeight(event.getDescriptor());
         final double weightRatio = advancementWeight.advancementWeight()
                 / (double) tipsetWeightCalculator.getMaximumPossibleAdvancementWeight();
         tipsetMetrics.getTipsetAdvancementMetric().update(weightRatio);
@@ -391,10 +390,6 @@ public class TipsetEventCreator implements EventCreator {
         if (otherParent != null) {
             childlessOtherEventTracker.registerSelfEventParents(List.of(otherParent));
         }
-
-        lastSelfEvent = descriptor;
-        lastSelfEventCreationTime = event.getTimeCreated();
-        lastSelfEventTransactionCount = event.getTransactions().size();
 
         return event;
     }
@@ -413,22 +408,40 @@ public class TipsetEventCreator implements EventCreator {
             timeCreated = now;
         } else {
             timeCreated = EventUtils.calculateNewEventCreationTime(
-                    now, lastSelfEventCreationTime, lastSelfEventTransactionCount);
+                    now, lastSelfEvent.getTimeCreated(), lastSelfEvent.getTransactionCount());
         }
+
+        final long nGen = EventUtils.calculateNGen(getParentNGens(otherParent));
 
         final UnsignedEvent event = new UnsignedEvent(
                 softwareVersion,
                 selfId,
-                lastSelfEvent,
+                lastSelfEvent.getDescriptor(),
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent),
                 eventWindow.getAncientMode() == AncientMode.BIRTH_ROUND_THRESHOLD
                         ? eventWindow.getPendingConsensusRound()
                         : ConsensusConstants.ROUND_FIRST,
+                nGen,
                 timeCreated,
                 transactionSupplier.getTransactions());
         eventHasher.hashUnsignedEvent(event);
 
         return event;
+    }
+
+    @NonNull
+    private Collection<Long> getParentNGens(@Nullable final EventDescriptorWrapper otherParentDesc) {
+        final Collection<Long> parentNGens = new ArrayList<>(2);
+        if (otherParentDesc != null) {
+            final PlatformEvent otherParent = childlessOtherEventTracker.getChildlessEvent(otherParentDesc);
+            if (otherParent != null) {
+                parentNGens.add(otherParent.getNGen());
+            }
+        }
+        if (lastSelfEvent != null) {
+            parentNGens.add(lastSelfEvent.getNGen());
+        }
+        return parentNGens;
     }
 
     /**
@@ -453,8 +466,6 @@ public class TipsetEventCreator implements EventCreator {
         tipsetWeightCalculator.clear();
         eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
         lastSelfEvent = null;
-        lastSelfEventCreationTime = null;
-        lastSelfEventTransactionCount = 0;
     }
 
     @NonNull
@@ -465,13 +476,13 @@ public class TipsetEventCreator implements EventCreator {
         sb.append(tipsetWeightCalculator);
 
         sb.append("Childless events:");
-        final List<EventDescriptorWrapper> childlessEvents = childlessOtherEventTracker.getChildlessEvents();
+        final List<PlatformEvent> childlessEvents = childlessOtherEventTracker.getChildlessEvents();
         if (childlessEvents.isEmpty()) {
             sb.append(" none\n");
         } else {
             sb.append("\n");
-            for (final EventDescriptorWrapper event : childlessEvents) {
-                final Tipset tipset = tipsetTracker.getTipset(event);
+            for (final PlatformEvent event : childlessEvents) {
+                final Tipset tipset = tipsetTracker.getTipset(event.getDescriptor());
                 sb.append("  - ").append(event).append(" ").append(tipset).append("\n");
             }
         }

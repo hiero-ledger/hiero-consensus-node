@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.creation.tipset;
 
+import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -10,6 +12,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -19,38 +22,34 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class ChildlessEventTracker {
 
-    private final Set<EventDescriptorWrapper> childlessEvents = new HashSet<>();
-    private final Map<NodeId, EventDescriptorWrapper> eventsByCreator = new HashMap<>();
+    private final Map<EventDescriptorWrapper, PlatformEvent> childlessEvents = new HashMap<>();
+    private final Map<NodeId, PlatformEvent> eventsByCreator = new HashMap<>();
 
     /**
      * Add a new event. Parents are removed from the set of childless events. Event is ignored if there is another event
-     * from the same creator with a higher generation. Causes any event by the same creator, if present, to be removed
-     * if it has a lower generation. This is true even if the event being added is not a direct child (possible if there
+     * from the same creator with a higher nGen. Causes any event by the same creator, if present, to be removed
+     * if it has a lower nGen. This is true even if the event being added is not a direct child (possible if there
      * has been branching).
      *
-     * @param eventDescriptorWrapper the event to add
-     * @param parents         the parents of the event being added
+     * @param event the event to add
      */
-    public void addEvent(
-            @NonNull final EventDescriptorWrapper eventDescriptorWrapper,
-            @NonNull final List<EventDescriptorWrapper> parents) {
-        Objects.requireNonNull(eventDescriptorWrapper);
+    public void addEvent(@NonNull final PlatformEvent event) {
+        Objects.requireNonNull(event);
 
-        final EventDescriptorWrapper existingEvent = eventsByCreator.get(eventDescriptorWrapper.creator());
+        final PlatformEvent existingEvent = eventsByCreator.get(event.getCreatorId());
         if (existingEvent != null) {
-            if (existingEvent.eventDescriptor().generation()
-                    >= eventDescriptorWrapper.eventDescriptor().generation()) {
-                // Only add a new event if it has the highest generation of all events observed so far.
+            if (existingEvent.getNGen() >= event.getNGen()) {
+                // Only add a new event if it has the highest ngen of all events observed so far.
                 return;
             } else {
-                // Remove the existing event if it has a lower generation than the new event.
-                removeEvent(existingEvent);
+                // Remove the existing event if it has a lower ngen than the new event.
+                removeEvent(existingEvent.getDescriptor());
             }
         }
 
-        insertEvent(eventDescriptorWrapper);
+        insertEvent(event);
 
-        for (final EventDescriptorWrapper parent : parents) {
+        for (final EventDescriptorWrapper parent : event.getAllParents()) {
             removeEvent(parent);
         }
     }
@@ -72,9 +71,9 @@ public class ChildlessEventTracker {
      * @param eventWindow the event window
      */
     public void pruneOldEvents(@NonNull final EventWindow eventWindow) {
-        for (final EventDescriptorWrapper event : getChildlessEvents()) {
+        for (final PlatformEvent event : getChildlessEvents()) {
             if (eventWindow.isAncient(event)) {
-                removeEvent(event);
+                removeEvent(event.getDescriptor());
             }
         }
     }
@@ -85,25 +84,30 @@ public class ChildlessEventTracker {
      * @return the childless events, this list is safe to modify
      */
     @NonNull
-    public List<EventDescriptorWrapper> getChildlessEvents() {
-        return new ArrayList<>(childlessEvents);
+    public List<PlatformEvent> getChildlessEvents() {
+        return new ArrayList<>(childlessEvents.values());
     }
 
     /**
      * Insert an event into this data structure.
      */
-    private void insertEvent(@NonNull final EventDescriptorWrapper eventDescriptorWrapper) {
-        childlessEvents.add(eventDescriptorWrapper);
-        eventsByCreator.put(eventDescriptorWrapper.creator(), eventDescriptorWrapper);
+    private void insertEvent(@NonNull final PlatformEvent event) {
+        childlessEvents.put(event.getDescriptor(), event);
+        eventsByCreator.put(event.getCreatorId(), event);
+    }
+
+    @Nullable
+    public PlatformEvent getChildlessEvent(@NonNull final EventDescriptorWrapper descriptor) {
+        return childlessEvents.get(descriptor);
     }
 
     /**
      * Remove an event from this data structure.
      */
-    private void removeEvent(@NonNull final EventDescriptorWrapper eventDescriptorWrapper) {
-        final boolean removed = childlessEvents.remove(eventDescriptorWrapper);
+    private void removeEvent(@NonNull final EventDescriptorWrapper event) {
+        final boolean removed = childlessEvents.remove(event) != null;
         if (removed) {
-            eventsByCreator.remove(eventDescriptorWrapper.creator());
+            eventsByCreator.remove(event.creator());
         }
     }
 
@@ -124,7 +128,7 @@ public class ChildlessEventTracker {
         final StringBuilder sb = new StringBuilder();
         sb.append("Childless events:\n");
 
-        for (final EventDescriptorWrapper event : childlessEvents) {
+        for (final EventDescriptorWrapper event : childlessEvents.keySet()) {
             sb.append("  - ").append(event).append("\n");
         }
         return sb.toString();

@@ -7,6 +7,7 @@ import static org.hiero.consensus.event.creator.EventCreationStatus.NO_ELIGIBLE_
 import static org.hiero.consensus.event.creator.EventCreationStatus.RATE_LIMITED;
 
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
 import com.swirlds.platform.event.creation.rules.PlatformStatusRule;
@@ -115,7 +116,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         return newEvent;
     }
-
     /**
      * {@inheritDoc}
      */

@@ -21,6 +21,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.stream.HashSigner;
 import com.swirlds.common.stream.Signer;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.components.transaction.TransactionSupplier;
@@ -89,7 +90,7 @@ class TipsetEventCreatorTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().withTime(time).build();
 
-        final Signer signer = mock(Signer.class);
+        final HashSigner signer = mock(HashSigner.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
 
         final SemanticVersion softwareVersion =

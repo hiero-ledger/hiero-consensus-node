@@ -120,6 +120,21 @@ public class Tipset {
     }
 
     /**
+     * Advance a tip within the tipset by 1. This should only ever be called when adding a new self event to the
+     * tipset.
+     *
+     * @param creator the id to increment
+     * @return this object
+     */
+    public @NonNull Tipset increment(@NonNull final NodeId creator) {
+        final int index = RosterUtils.getIndex(roster, creator.id());
+        // TODO KELLY this will not work. We cannot simple increment the self generation by one, because the
+        // generation may jump more than 1 depending on the other parent.
+        tips[index]++;
+        return this;
+    }
+
+    /**
      * <p>
      * Get the combined weight of all nodes which experienced a tip advancement between this tipset and another tipset.
      * Note that this method ignores advancement contributions from this node.

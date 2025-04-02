@@ -10,6 +10,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -21,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.creator.impl.EventCreationConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -198,36 +200,39 @@ public class TipsetWeightCalculator {
     /**
      * Figure out what advancement weight we would get if we created an event with a given list of parents.
      *
-     * @param parents the proposed parents of an event
+     * @param otherParents the proposed other parents of an event
+     * @param selfParent the proposed self parent of an event
      * @return the advancement weight we would get by creating an event with the given parents
      */
     public TipsetAdvancementWeight getTheoreticalAdvancementWeight(
-            @NonNull final List<EventDescriptorWrapper> parents) {
-        if (parents.isEmpty()) {
+            @NonNull final List<PlatformEvent> otherParents, @Nullable final EventDescriptorWrapper selfParent) {
+        if (otherParents.isEmpty() && selfParent == null) {
             return ZERO_ADVANCEMENT_WEIGHT;
         }
 
-        final List<Tipset> parentTipsets = new ArrayList<>(parents.size());
-        for (final EventDescriptorWrapper parent : parents) {
-            final Tipset parentTipset = tipsetTracker.getTipset(parent);
+        final List<Tipset> parentTipsets = new ArrayList<>(otherParents.size());
+        for (final PlatformEvent otherParent : otherParents) {
+            final Tipset otherParentTipset = tipsetTracker.getTipset(otherParent.getDescriptor());
 
-            if (parentTipset == null) {
+            if (otherParentTipset == null) {
                 // For some reason we are trying to use an ancient parent. In theory possible that a self
                 // parent may be ancient. But we shouldn't even be considering non-self parents that are ancient.
-                if (!parent.creator().equals(selfId)) {
-                    ancientParentLogger.error(
-                            EXCEPTION.getMarker(),
-                            "When looking at possible parents, we should never "
-                                    + "consider ancient parents that are not self parents. "
-                                    + "Parent ID = {}, parent generation = {}, minimum generation non-ancient = {}",
-                            parent.creator(),
-                            parent.eventDescriptor().generation(),
-                            tipsetTracker.getEventWindow());
-                }
+                ancientParentLogger.error(
+                        EXCEPTION.getMarker(),
+                        "When looking at possible parents, we should never "
+                                + "consider ancient parents that are not self parents. "
+                                + "Parent ID = {}, parent generation = {}, minimum generation non-ancient = {}",
+                        otherParent.getDescriptor().creator(),
+                        otherParent.getDescriptor().eventDescriptor().generation(),
+                        tipsetTracker.getEventWindow());
                 continue;
             }
 
-            parentTipsets.add(parentTipset);
+            parentTipsets.add(otherParentTipset);
+        }
+
+        if (selfParent != null) {
+            parentTipsets.add(tipsetTracker.getTipset(selfParent));
         }
 
         if (parentTipsets.isEmpty()) {
@@ -252,8 +257,8 @@ public class TipsetWeightCalculator {
      */
     public int getMaxSelfishnessScore() {
         int selfishness = 0;
-        for (final EventDescriptorWrapper eventDescriptorWrapper : childlessEventTracker.getChildlessEvents()) {
-            selfishness = Math.max(selfishness, getSelfishnessScoreForNode(eventDescriptorWrapper.creator()));
+        for (final PlatformEvent event : childlessEventTracker.getChildlessEvents()) {
+            selfishness = Math.max(selfishness, getSelfishnessScoreForNode(event.getCreatorId()));
         }
         return selfishness;
     }

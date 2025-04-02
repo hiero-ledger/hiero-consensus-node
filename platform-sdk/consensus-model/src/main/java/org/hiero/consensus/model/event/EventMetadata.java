@@ -66,14 +66,24 @@ public class EventMetadata extends AbstractHashable {
     private final long birthRound;
 
     /**
+     * The non-deterministic generation calculated locally by each node. NGen is calculated for every event added to the
+     * hashgraph. The value can differ between nodes for the same event and must only ever be used for determining one
+     * of the several valid topological orderings, or determining which event is higher in the hashgraph than another (a
+     * higher number indicates the event is higher in the hashgraph). NGen will be
+     * {@link EventConstants#GENERATION_UNDEFINED} until set at the appropriate point in the pipeline.
+     */
+    private long nGen = EventConstants.GENERATION_UNDEFINED;
+
+    /**
      * Create a EventMetadata object
      *
-     * @param creatorId       ID of this event's creator
-     * @param selfParent      self parent event descriptor
-     * @param otherParents    other parent event descriptors
-     * @param timeCreated     creation time, as claimed by its creator
-     * @param transactions    list of transactions included in this event instance
-     * @param birthRound      birth round associated with event
+     * @param creatorId    ID of this event's creator
+     * @param selfParent   self parent event descriptor
+     * @param otherParents other parent event descriptors
+     * @param timeCreated  creation time, as claimed by its creator
+     * @param transactions list of transactions included in this event instance
+     * @param birthRound   birth round associated with event
+     * @param nGen         the non-deterministic generation of this event
      */
     public EventMetadata(
             @NonNull final NodeId creatorId,
@@ -81,7 +91,8 @@ public class EventMetadata extends AbstractHashable {
             @NonNull final List<EventDescriptorWrapper> otherParents,
             @NonNull final Instant timeCreated,
             @NonNull final List<Bytes> transactions,
-            final long birthRound) {
+            final long birthRound,
+            final long nGen) {
 
         Objects.requireNonNull(transactions, "The transactions must not be null");
         this.creatorId = Objects.requireNonNull(creatorId, "The creatorId must not be null");
@@ -96,12 +107,13 @@ public class EventMetadata extends AbstractHashable {
                 .map(TransactionWrapper::new)
                 .toList();
         this.birthRound = birthRound;
+        this.nGen = nGen;
     }
 
     /**
      * Create a EventMetadata object
      *
-     * @param gossipEvent     the gossip event to extract metadata from
+     * @param gossipEvent the gossip event to extract metadata from
      */
     public EventMetadata(@NonNull final GossipEvent gossipEvent) {
         Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null");
@@ -129,9 +141,28 @@ public class EventMetadata extends AbstractHashable {
     private static long calculateGeneration(@NonNull final List<EventDescriptorWrapper> allParents) {
         return 1
                 + Objects.requireNonNull(allParents).stream()
-                        .mapToLong(d -> d.eventDescriptor().generation())
-                        .max()
-                        .orElse(EventConstants.GENERATION_UNDEFINED);
+                .mapToLong(d -> d.eventDescriptor().generation())
+                .max()
+                .orElse(EventConstants.GENERATION_UNDEFINED);
+    }
+
+    /**
+     * The non-deterministic generation of this event.
+     *
+     * @return the non-deterministic generation of this event. A value of {@link EventConstants#GENERATION_UNDEFINED} if
+     * none has been set yet.
+     */
+    public long getNGen() {
+        return nGen;
+    }
+
+    /**
+     * Sets the non-deterministic generation of this event.
+     *
+     * @param nGen the non-deterministic generation value to set
+     */
+    public void setNGen(final long nGen) {
+        this.nGen = nGen;
     }
 
     /**
@@ -241,11 +272,11 @@ public class EventMetadata extends AbstractHashable {
     }
 
     /**
-     * Override the birth round for this event and potentially any parents associated with the event. Parents will
-     * have their birth round overridden if their  generation is greater or equal to the specified
+     * Override the birth round for this event and potentially any parents associated with the event. Parents will have
+     * their birth round overridden if their  generation is greater or equal to the specified
      * {@code ancientGenerationThreshold} value.
      *
-     * @param birthRound the birth round to use for this event and potential parents
+     * @param birthRound                 the birth round to use for this event and potential parents
      * @param ancientGenerationThreshold the threshold used to determine if parents will also have their birth round
      *                                   overridden
      */
