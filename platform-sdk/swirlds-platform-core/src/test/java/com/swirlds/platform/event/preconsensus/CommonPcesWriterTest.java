@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import org.hiero.consensus.model.crypto.DigestType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -94,6 +96,7 @@ class CommonPcesWriterTest {
                 .thenReturn(new EventDescriptorWrapper(EventDescriptor.newBuilder()
                         .birthRound(150)
                         .generation(150)
+                        .hash(Bytes.wrap(new byte[DigestType.SHA_384.digestLength()]))
                         .build()));
 
         boolean fileClosed = commonPcesWriter.prepareOutputStream(mockEvent);
