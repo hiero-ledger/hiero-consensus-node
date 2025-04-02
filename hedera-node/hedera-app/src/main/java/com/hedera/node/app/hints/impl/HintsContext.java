@@ -94,6 +94,7 @@ public class HintsContext {
     /**
      * Returns the current scheme ids, or throws if they are unset.
      * @return the active scheme id
+     * @throws IllegalStateException if the scheme id is unset
      */
     public long activeSchemeIdOrThrow() {
         if (schemeId == 0) {

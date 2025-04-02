@@ -130,7 +130,17 @@ public class FileBlockItemWriter implements BlockItemWriter {
      * @param pendingProof the pending proof for the block
      */
     public record OnDiskPendingBlock(
-            List<BlockItem> items, PendingProof pendingProof, Path proofJsonPath, Path contentsPath) {
+            @NonNull List<BlockItem> items,
+            @NonNull PendingProof pendingProof,
+            @NonNull Path proofJsonPath,
+            @NonNull Path contentsPath) {
+        public OnDiskPendingBlock {
+            requireNonNull(items);
+            requireNonNull(pendingProof);
+            requireNonNull(proofJsonPath);
+            requireNonNull(contentsPath);
+        }
+
         /**
          * The number of the block.
          */
@@ -180,23 +190,24 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     /**
      * Loads pending blocks from the given directory, identifying them by the presence of {@code .pnd.json} files
-     * with pending block proofs. The contents of the blocks are read from the corresponding {@code .blk.gz} or
-     * {@code .blk} files.
-     * @param p the directory to load pending blocks from
-     * @param number the block number the pending blocks should be contiguous to
+     * with pending block proofs. The contents of the blocks are read from the corresponding {@code .pnd.gz} or
+     * {@code .pnd} files.
+     * @param pendingBlocksPath the directory to load pending blocks from
+     * @param followingBlockNumber the block number the pending blocks should be immediately preceding
      * @return the list of pending blocks
      */
-    public static List<OnDiskPendingBlock> loadContiguousPendingBlocks(@NonNull final Path p, final long number) {
-        requireNonNull(p);
+    public static List<OnDiskPendingBlock> loadContiguousPendingBlocks(
+            @NonNull final Path pendingBlocksPath, final long followingBlockNumber) {
+        requireNonNull(pendingBlocksPath);
         final List<OnDiskPendingBlock> pendingBlocks = new LinkedList<>();
-        final var proofJsons = p.toFile().listFiles((dir, name) -> name.endsWith(".pnd.json"));
+        final var proofJsons = pendingBlocksPath.toFile().listFiles((dir, name) -> name.endsWith(".pnd.json"));
         if (proofJsons == null) {
-            logger.warn("No pending blocks found in {}", p);
+            logger.warn("No pending blocks found in {}", pendingBlocksPath);
             return pendingBlocks;
         }
         Arrays.sort(proofJsons, PROOF_JSON_FILE_COMPARATOR.reversed());
         logger.info("Evaluating {} pending blocks on disk", proofJsons.length);
-        long nextContiguousBlock = number - 1;
+        long nextContiguousBlock = followingBlockNumber - 1;
         for (int i = 0; i < proofJsons.length; i++) {
             final var proofJson = proofJsons[i];
             final long nextNumber = PROOF_JSON_BLOCK_NUMBER_FN.applyAsLong(proofJson);

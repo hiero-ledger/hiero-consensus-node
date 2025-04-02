@@ -246,27 +246,8 @@ public class HandleWorkflow {
             }
         }
         systemTransactions.resetNextDispatchNonce();
-        final boolean isGenesis =
-                switch (streamMode) {
-                    case RECORDS -> blockRecordManager
-                            .consTimeOfLastHandledTxn()
-                            .equals(Instant.EPOCH);
-                    case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
-                };
-        boolean transactionsDispatched = false;
-        if (isGenesis) {
-            final var genesisEventTime = round.iterator().next().getConsensusTimestamp();
-            logger.info("Doing genesis setup before {}", genesisEventTime);
-            systemTransactions.doGenesisSetup(genesisEventTime, state);
-            transactionsDispatched = true;
-            if (streamMode != RECORDS) {
-                blockStreamManager.confirmPendingWorkFinished();
-            }
-            logger.info(SYSTEM_ENTITIES_CREATED_MSG);
-            requireNonNull(systemEntitiesCreatedFlag).set(true);
-        }
-
         recordCache.resetRoundReceipts();
+        boolean transactionsDispatched = false;
         try {
             transactionsDispatched |= handleEvents(state, round, stateSignatureTxnCallback);
             try {
@@ -360,6 +341,24 @@ public class HandleWorkflow {
                             e);
                 }
             }
+        }
+        final boolean isGenesis =
+                switch (streamMode) {
+                    case RECORDS -> blockRecordManager
+                            .consTimeOfLastHandledTxn()
+                            .equals(Instant.EPOCH);
+                    case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
+                };
+        if (isGenesis) {
+            final var genesisEventTime = round.iterator().next().getConsensusTimestamp();
+            logger.info("Doing genesis setup before {}", genesisEventTime);
+            systemTransactions.doGenesisSetup(genesisEventTime, state);
+            transactionsDispatched = true;
+            if (streamMode != RECORDS) {
+                blockStreamManager.confirmPendingWorkFinished();
+            }
+            logger.info(SYSTEM_ENTITIES_CREATED_MSG);
+            requireNonNull(systemEntitiesCreatedFlag).set(true);
         }
         // Update all throttle metrics once per round
         throttleServiceManager.updateAllMetrics();
