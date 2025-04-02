@@ -55,12 +55,7 @@ public class SimpleLinker {
      */
     public SimpleLinker(@NonNull final AncientMode ancientMode) {
         this.ancientMode = ancientMode;
-        this.parentDescriptorMap = new StandardSequenceMap<>(
-                0,
-                INITIAL_CAPACITY,
-                true,
-                ed -> ancientMode.selectIndicator(
-                        ed.eventDescriptor().generation(), ed.eventDescriptor().birthRound()));
+        this.parentDescriptorMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
     }
 
     /**
@@ -128,7 +123,7 @@ public class SimpleLinker {
      */
     @Nullable
     public EventImpl linkEvent(@NonNull final PlatformEvent event) {
-        if (event.getAncientIndicator(ancientMode) < nonAncientThreshold) {
+        if (ancientMode.selectIndicator(event) < nonAncientThreshold) {
             // This event is ancient, so we don't need to link it.
             return null;
         }

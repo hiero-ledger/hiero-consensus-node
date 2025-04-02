@@ -143,7 +143,7 @@ public class EventWindow {
      * @return true if the event is ancient, false otherwise.
      */
     public boolean isAncient(@NonNull final PlatformEvent event) {
-        return event.getAncientIndicator(ancientMode) < ancientThreshold;
+        return ancientMode.selectIndicator(event) < ancientThreshold;
     }
 
     /**
@@ -153,7 +153,7 @@ public class EventWindow {
      * @return true if the event is ancient, false otherwise.
      */
     public boolean isAncient(@NonNull final EventDescriptorWrapper event) {
-        return event.getAncientIndicator(ancientMode) < ancientThreshold;
+        return ancientMode.selectIndicator(event) < ancientThreshold;
     }
 
     /**
