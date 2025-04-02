@@ -14,21 +14,6 @@ public final class ConsensusUtils {
     private ConsensusUtils() {}
 
     /**
-     * Return the result of a "coin flip". It doesn't need to be cryptographicaly strong. It just
-     * needs to be the case that an attacker cannot predict the coin flip results before seeing the
-     * event, even if they can manipulate the internet traffic to the creator of this event earlier.
-     * It's even OK if the attacker can predict the coin flip 90% of the time. There simply needs to
-     * be some epsilon such that the probability of a wrong prediction is always greater than
-     * epsilon (and less than 1-epsilon). This result is not memoized.
-     *
-     * @param event the event that will vote with a coin flip
-     * @return true if voting for famous, false if voting for not famous
-     */
-    public static boolean coin(@NonNull final EventImpl event) {
-        return coin(event.getBaseEvent().getSignature());
-    }
-
-    /**
      * Return the result of a "coin flip". It doesn't need to be cryptographically strong. It just
      * needs to be the case that an attacker cannot predict the coin flip results before seeing the
      * event, even if they can manipulate the internet traffic to the creator of this event earlier.
