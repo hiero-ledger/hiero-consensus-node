@@ -94,8 +94,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 spec,
                 // Ensure the CryptoTransfer below will be in a new block period
                 sleepFor(MAX_BLOCK_TIME_MS + BUFFER_MS),
-                cryptoTransfer((ignore, b) -> {
-                }).payingWith(GENESIS),
+                cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),
                 // Wait for the final record file to be created
                 sleepFor(2 * BUFFER_MS));
         // Validate the record streams
@@ -186,8 +185,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         return Optional.ofNullable(blocks);
     }
 
-    static Optional<StreamFileAccess.RecordStreamData> readMaybeRecordStreamDataFor(
-            @NonNull final HapiSpec spec) {
+    static Optional<StreamFileAccess.RecordStreamData> readMaybeRecordStreamDataFor(@NonNull final HapiSpec spec) {
         StreamFileAccess.RecordStreamData data = null;
         final var streamLocs = spec.getNetworkNodes().stream()
                 .map(node -> node.getExternalPath(RECORD_STREAMS_DIR))

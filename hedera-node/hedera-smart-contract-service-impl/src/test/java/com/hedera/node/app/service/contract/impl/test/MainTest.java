@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test;
 
 import com.hedera.hapi.block.stream.protoc.Block;
@@ -23,22 +24,25 @@ public class MainTest {
         Path dir = Paths.get("/Users/glibkozyryatskyy/Desktop/");
         // -------------------- record
         // ticket fail
-        Pair<Integer, Optional<RecordStreamFile>> recordFile0 = readRecord(
-                dir.resolve("2025-03-06T00_14_10.095626000Z.rcd.gz"));
-        RecordStreamItem record0 = recordFile0.getRight().get().getRecordStreamItemsList().get(4);
+        Pair<Integer, Optional<RecordStreamFile>> recordFile0 =
+                readRecord(dir.resolve("2025-03-06T00_14_10.095626000Z.rcd.gz"));
+        RecordStreamItem record0 =
+                recordFile0.getRight().get().getRecordStreamItemsList().get(4);
         // test fail
-        Pair<Integer, Optional<RecordStreamFile>> recordFile1 = readRecord(
-                dir.resolve("2025-04-01T10_04_16.553353000Z.rcd.gz"));
-        RecordStreamItem record1 = recordFile1.getRight().get().getRecordStreamItemsList().get(2);
+        Pair<Integer, Optional<RecordStreamFile>> recordFile1 =
+                readRecord(dir.resolve("2025-04-01T10_04_16.553353000Z.rcd.gz"));
+        RecordStreamItem record1 =
+                recordFile1.getRight().get().getRecordStreamItemsList().get(2);
         // test success
-        Pair<Integer, Optional<RecordStreamFile>> recordFile2 = readRecord(
-                dir.resolve("2025-04-01T10_14_00.004854000Z.rcd.gz"));
-        RecordStreamItem record2 = recordFile2.getRight().get().getRecordStreamItemsList().get(2);
+        Pair<Integer, Optional<RecordStreamFile>> recordFile2 =
+                readRecord(dir.resolve("2025-04-01T10_14_00.004854000Z.rcd.gz"));
+        RecordStreamItem record2 =
+                recordFile2.getRight().get().getRecordStreamItemsList().get(2);
         // test fail with no contract result
-        //TODO
-        Pair<Integer, Optional<RecordStreamFile>> recordFile3 = readRecord(
-                dir.resolve("2025-04-01T16_28_38.628680000Z.rcd.gz"));
-//        RecordStreamItem record3 = recordFile3.getRight().get().getRecordStreamItemsList().get(2);
+        // TODO
+        Pair<Integer, Optional<RecordStreamFile>> recordFile3 =
+                readRecord(dir.resolve("2025-04-01T16_28_38.628680000Z.rcd.gz"));
+        //        RecordStreamItem record3 = recordFile3.getRight().get().getRecordStreamItemsList().get(2);
 
         // -------------------- block
         // ticket fail
@@ -52,7 +56,7 @@ public class MainTest {
         BlockItem item2 = block2.getRight().get().getItems(5);
         // test fail with no contract result
         final var block3 = readBlockWoVersion(dir.resolve("000000000000000000000000000000000004.blk.gz"));
-//        BlockItem item3 = block3.getRight().get().getItems(5);
+        //        BlockItem item3 = block3.getRight().get().getItems(5);
 
         System.out.println(" DONE -------------------------------------------------------");
     }
@@ -60,9 +64,10 @@ public class MainTest {
     public static void printTicketFiles() throws IOException {
         Path dir = Paths.get("/Users/glibkozyryatskyy/Desktop/");
         // -------------------- record
-        Pair<Integer, Optional<RecordStreamFile>> recordFile = readRecord(
-                dir.resolve("2025-03-06T00_14_10.095626000Z.rcd.gz"));
-        TransactionRecord record = recordFile.getRight().get().getRecordStreamItemsList().get(4).getRecord();
+        Pair<Integer, Optional<RecordStreamFile>> recordFile =
+                readRecord(dir.resolve("2025-03-06T00_14_10.095626000Z.rcd.gz"));
+        TransactionRecord record =
+                recordFile.getRight().get().getRecordStreamItemsList().get(4).getRecord();
         System.out.println(record);
         final var contractId = record.getContractCreateResult().getContractID();
         System.out.println(contractId);
@@ -77,19 +82,17 @@ public class MainTest {
         System.out.println(" DONE -------------------------------------------------------");
     }
 
-    public static Pair<Integer, Optional<Block>> readBlock(final Path blockFile)
-            throws IOException {
+    public static Pair<Integer, Optional<Block>> readBlock(final Path blockFile) throws IOException {
         System.out.println("========================" + Files.exists(blockFile));
         final var uncompressedFileContents = FileCompressionUtils.readUncompressedFileBytes(blockFile.toString());
         final var recordFileVersion =
                 ByteBuffer.wrap(uncompressedFileContents, 0, 4).getInt();
-        final var file = Block.parseFrom(
-                ByteBuffer.wrap(uncompressedFileContents, 4, uncompressedFileContents.length - 4));
+        final var file =
+                Block.parseFrom(ByteBuffer.wrap(uncompressedFileContents, 4, uncompressedFileContents.length - 4));
         return Pair.of(0, Optional.ofNullable(file));
     }
 
-    public static Pair<Integer, Optional<Block>> readBlockWoVersion(final Path blockFile)
-            throws IOException {
+    public static Pair<Integer, Optional<Block>> readBlockWoVersion(final Path blockFile) throws IOException {
         System.out.println("========================" + Files.exists(blockFile));
         final var uncompressedFileContents = FileCompressionUtils.readUncompressedFileBytes(blockFile.toString());
         final var file = Block.parseFrom(uncompressedFileContents);

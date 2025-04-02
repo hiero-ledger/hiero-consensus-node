@@ -88,7 +88,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -168,7 +167,7 @@ public class ContractCreateSuite {
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromTo(PAYER, creatorAddress, ONE_HUNDRED_HBARS)),
                 explicitEthereumTransaction(DEPLOYER, (spec, b) -> b.setCallData(systemFileId)
-                        .setEthereumData(transaction))
+                                .setEthereumData(transaction))
                         .payingWith(PAYER),
                 getContractInfo(DEPLOYER)
                         .has(contractWith().addressOrAlias(EXPECTED_DEPLOYER_ADDRESS))
@@ -267,7 +266,7 @@ public class ContractCreateSuite {
     final Stream<DynamicTest> cannotSendToNonExistentAccount() {
         final var contract = "Multipurpose";
         Object[] donationArgs =
-                new Object[]{new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, 666666L)), "Hey, Ma!"};
+                new Object[] {new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, 666666L)), "Hey, Ma!"};
 
         return hapiTest(
                 uploadInitCode(contract),
@@ -288,10 +287,10 @@ public class ContractCreateSuite {
                         .hasKnownStatus(INVALID_FILE_ID)
                         .refusingEthConversion(),
                 explicitEthereumTransaction(neverToBe, (spec, b) -> {
-                    final var signedEthTx = Signing.signMessage(
-                            placeholderEthTx(), getEcdsaPrivateKeyFromSpec(spec, SECP_256K1_SOURCE_KEY));
-                    b.setCallData(systemFileId).setEthereumData(ByteString.copyFrom(signedEthTx.encodeTx()));
-                })
+                            final var signedEthTx = Signing.signMessage(
+                                    placeholderEthTx(), getEcdsaPrivateKeyFromSpec(spec, SECP_256K1_SOURCE_KEY));
+                            b.setCallData(systemFileId).setEthereumData(ByteString.copyFrom(signedEthTx.encodeTx()));
+                        })
                         .hasPrecheck(INVALID_FILE_ID));
     }
 
@@ -452,8 +451,7 @@ public class ContractCreateSuite {
                     final var registry = spec.registry();
                     final var aNum = (int) registry.getAccountID(aBeneficiary).getAccountNum();
                     final var bNum = (int) registry.getAccountID(bBeneficiary).getAccountNum();
-                    final var sendArgs =
-                            new Object[]{(long) sendAmount, (long) aNum, (long) bNum};
+                    final var sendArgs = new Object[] {(long) sendAmount, (long) aNum, (long) bNum};
 
                     final var op = contractCall(contract, "sendTo", sendArgs)
                             .gas(110_000)
@@ -801,7 +799,7 @@ public class ContractCreateSuite {
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
                                                 getABIFor(FUNCTION, "getIndirect", contract),
-                                                isLiteralResult(new Object[]{BigInteger.valueOf(7L)})))),
+                                                isLiteralResult(new Object[] {BigInteger.valueOf(7L)})))),
                 getTxnRecord("getChildAddressTxn")
                         .hasPriority(recordWith()
                                 .contractCallResult(resultWith()
@@ -842,7 +840,7 @@ public class ContractCreateSuite {
                 uploadInitCode(contract),
                 cryptoCreate(autoRenewAccount).balance(ONE_HUNDRED_HBARS),
                 submitModified(withSuccessivelyVariedBodyIds(), () -> contractCreate(
-                        "contract" + creationNumber.getAndIncrement())
+                                "contract" + creationNumber.getAndIncrement())
                         .bytecode(contract)
                         .autoRenewAccountId(autoRenewAccount)));
     }
@@ -871,7 +869,7 @@ public class ContractCreateSuite {
                 getContractInfo(contract).has(ContractInfoAsserts.contractWith().maxAutoAssociations(0)));
     }
 
-    //TODO Glib: should I annotate this test with @Tag("STREAM_VALIDATION")?
+    // TODO Glib: should I annotate this test with @Tag("STREAM_VALIDATION")?
     @HapiTest
     final Stream<DynamicTest> contractRevertBlockAndRecordFilesNotContainContractId() {
         final var txn = "contractRevertBlockAndRecordFilesNotContainContractId";
@@ -893,10 +891,8 @@ public class ContractCreateSuite {
                     // get last TRANSACTION_OUTPUT in all blocks
                     final var item = getLastContractCreateTx(blocks, ts.get());
                     asserBlockContractId(item, false);
-                })
-        );
+                }));
     }
-
 
     @HapiTest
     final Stream<DynamicTest> blockAndRecordFilesNotContainContractId() {
@@ -904,9 +900,7 @@ public class ContractCreateSuite {
         AtomicReference<Timestamp> ts = new AtomicReference<>();
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
-                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
-                        .via(txn)
-                        .hasKnownStatus(SUCCESS),
+                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT).via(txn).hasKnownStatus(SUCCESS),
                 // check if record contains expected contractIds
                 withOpContext((spec, opLog) -> {
                     final var record = getRecord(spec, txn, SUCCESS);
@@ -918,8 +912,7 @@ public class ContractCreateSuite {
                     // get last TRANSACTION_OUTPUT in all blocks
                     final var item = getLastContractCreateTx(blocks, ts.get());
                     asserBlockContractId(item, true);
-                })
-        );
+                }));
     }
 
     private TransactionRecord getRecord(HapiSpec spec, String txn, ResponseCodeEnum status) {
@@ -939,13 +932,12 @@ public class ContractCreateSuite {
                 .map(BlockItem::item)
                 .filter(e -> ItemOneOfType.TRANSACTION_OUTPUT.equals(e.kind()))
                 .<TransactionOutput>map(OneOf::as)
-                .filter(e -> TransactionOneOfType.CONTRACT_CREATE.equals(e.transaction().kind()))
+                .filter(e -> TransactionOneOfType.CONTRACT_CREATE.equals(
+                        e.transaction().kind()))
                 // match txn by timestamp, because there is other CONTRACT_CREATE txn
-                .filter(e -> e.contractCreateOrThrow().sidecars()
-                        .stream()
-                        .anyMatch(s ->
-                                s.consensusTimestamp().seconds() == timestamp.getSeconds()
-                                        && s.consensusTimestamp().nanos() == timestamp.getNanos()))
+                .filter(e -> e.contractCreateOrThrow().sidecars().stream()
+                        .anyMatch(s -> s.consensusTimestamp().seconds() == timestamp.getSeconds()
+                                && s.consensusTimestamp().nanos() == timestamp.getNanos()))
                 .reduce((f, s) -> s)
                 .orElseGet(() -> Assertions.fail("TRANSACTION_OUTPUT -> CONTRACT_CREATE mot found"));
     }
@@ -960,23 +952,30 @@ public class ContractCreateSuite {
     private void asserBlockContractId(TransactionOutput item, boolean shouldContractIdExists) {
         assertTrue(item.hasContractCreate());
         // check sidecars->actions->recipient, sidecars->bytecode->contractId
-        item.contractCreateOrThrow().sidecars()
-                .forEach(sidecar -> {
-                    if (sidecar.hasActions()) {
-                        sidecar.actionsOrThrow().contractActions()
-                                .forEach(action -> assertEquals(shouldContractIdExists, action.hasRecipientContract()));
-                    } else if (sidecar.hasBytecode()) {
-                        assertEquals(shouldContractIdExists, sidecar.bytecodeOrThrow().hasContractId());
-                    }
-                });
+        item.contractCreateOrThrow().sidecars().forEach(sidecar -> {
+            if (sidecar.hasActions()) {
+                sidecar.actionsOrThrow()
+                        .contractActions()
+                        .forEach(action -> assertEquals(shouldContractIdExists, action.hasRecipientContract()));
+            } else if (sidecar.hasBytecode()) {
+                assertEquals(shouldContractIdExists, sidecar.bytecodeOrThrow().hasContractId());
+            }
+        });
         // check contractCreate->contractCreateResult->contractId
         assertTrue(item.contractCreateOrThrow().hasContractCreateResult());
-        assertEquals(shouldContractIdExists,
+        assertEquals(
+                shouldContractIdExists,
                 item.contractCreateOrThrow().contractCreateResult().hasContractID());
         // check contractCreate->contractCreateResult->contractNonces->contractId
-        assertEquals(!shouldContractIdExists,
-                item.contractCreateOrThrow().contractCreateResult().contractNonces().isEmpty());
-        item.contractCreateOrThrow().contractCreateResult().contractNonces()
+        assertEquals(
+                !shouldContractIdExists,
+                item.contractCreateOrThrow()
+                        .contractCreateResult()
+                        .contractNonces()
+                        .isEmpty());
+        item.contractCreateOrThrow()
+                .contractCreateResult()
+                .contractNonces()
                 .forEach(nonce -> assertEquals(shouldContractIdExists, nonce.hasContractId()));
     }
 
@@ -990,10 +989,10 @@ public class ContractCreateSuite {
                 BigInteger.ONE.toByteArray(),
                 BigInteger.ONE.toByteArray(),
                 150_000,
-                new byte[]{1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4},
+                new byte[] {1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4},
                 BigInteger.ONE,
-                new byte[]{},
-                new byte[]{},
+                new byte[] {},
+                new byte[] {},
                 0,
                 null,
                 null,

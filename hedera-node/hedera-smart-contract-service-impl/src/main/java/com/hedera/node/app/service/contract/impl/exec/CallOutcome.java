@@ -125,7 +125,6 @@ public record CallOutcome(
         return tinybarGasPrice * result.gasUsed();
     }
 
-
     private boolean callWasAborted() {
         return result.gasUsed() == 0L;
     }
