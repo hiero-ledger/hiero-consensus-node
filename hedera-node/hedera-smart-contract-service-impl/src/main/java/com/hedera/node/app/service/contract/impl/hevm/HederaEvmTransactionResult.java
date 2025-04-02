@@ -326,11 +326,13 @@ public record HederaEvmTransactionResult(
                 .gasUsed(gasUsed)
                 .errorMessage(errorMessage)
                 .signerNonce(signerNonce);
-        // we are not setting recipientId as contractID for create contract action
-        // because failed block/receipt should not contain contractID
+        // checking first action.callType is CREATE to indicate 'create contract' call
+        // we are not setting recipientId as contractID for create contract call  because failed block/receipt should
+        // not contain contractID
         if (actions() == null
-                || actions().contractActions().stream()
-                        .noneMatch(e -> ContractActionType.CREATE.equals(e.callType()))) {
+                || actions().contractActions().isEmpty()
+                || !ContractActionType.CREATE.equals(
+                        actions().contractActions().getFirst().callType())) {
             builder.contractID(recipientId);
         }
         return builder;
