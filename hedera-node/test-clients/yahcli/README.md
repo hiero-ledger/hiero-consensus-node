@@ -224,6 +224,28 @@ _previewnet/keys/account1234.words_.) If the `-k SECP256K1` option is used, the 
 Secp256k1 key. A PEM file and .pass file are still created, but this algorithm doesn't support mnemonic keys, so the
 `.words` file is _not_ created.
 
+Yahcli now supports creating a new account with an existing key (either Ed25519 or Secp256k1) in PEM format. Use the
+`--keyFile` and `--passFile` options–both required–to specify the path to the PEM file and its corresponding passphrase file. 
+These options supersede the key type option (`--keyType`) when specified, meaning there is no need to specify the key type 
+when using an existing key.
+
+For example:
+
+```
+$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n previewnet -p 2 accounts create -d hbar -a 1 /
+--memo "Created with existing key" /
+--keyFile previewnet/keys/existing-account.pem /
+--passFile previewnet/keys/existing-account.pass
+
+```
+
+Note that the existing key **is not moved or copied** to the target network's `keys/` directory. Since yahcli typically
+depends on the keys in the `keys/` directory for subsequent operations, you will need to ensure that the imported key files
+used to create the account (i.e. the PEM file and pass file) are placed in the appropriate `keys/` directory with the 
+standard naming, `accountXXX.pem` and `accountXXX.pass`. 
+
+```
+
 # Updating system files
 
 For this example, we will run against a `localhost` network since we will modify a system file.
