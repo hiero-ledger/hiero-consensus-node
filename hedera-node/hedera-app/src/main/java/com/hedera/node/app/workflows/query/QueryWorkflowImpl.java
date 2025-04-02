@@ -309,9 +309,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             return queryParser.parseStrict(requestBuffer.toReadableSequentialData());
         } catch (ParseException e) {
             switch (e.getCause()) {
-                case MalformedProtobufException ex:
+                case MalformedProtobufException ignored:
                     break;
-                case UnknownFieldException ex:
+                case UnknownFieldException ignored:
                     break;
                 default:
                     logger.warn("Unexpected ParseException while parsing protobuf", e);
