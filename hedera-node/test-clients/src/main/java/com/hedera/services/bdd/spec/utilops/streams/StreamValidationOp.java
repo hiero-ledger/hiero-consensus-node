@@ -49,9 +49,9 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * A {@link UtilOp} that validates the streams produced by the target network of the given {@link HapiSpec}. Note it
- * suffices to validate the streams produced by a single node in the network since at minimum log validation will fail
- * in case of an ISS.
+ * A {@link UtilOp} that validates the streams produced by the target network of the given
+ * {@link HapiSpec}. Note it suffices to validate the streams produced by a single node in
+ * the network since at minimum log validation will fail in case of an ISS.
  */
 public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final Logger log = LogManager.getLogger(StreamValidationOp.class);
@@ -59,8 +59,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final long MAX_BLOCK_TIME_MS = 2000L;
     private static final long BUFFER_MS = 500L;
     private static final long MIN_GZIP_SIZE_IN_BYTES = 26;
-    static final String ERROR_PREFIX = "\n  - ";
-    static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
+    private static final String ERROR_PREFIX = "\n  - ";
+    private static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
 
     private static final List<RecordStreamValidator> RECORD_STREAM_VALIDATORS = List.of(
             new BlockNoValidator(),
@@ -185,7 +185,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         return Optional.ofNullable(blocks);
     }
 
-    static Optional<StreamFileAccess.RecordStreamData> readMaybeRecordStreamDataFor(@NonNull final HapiSpec spec) {
+    private static Optional<StreamFileAccess.RecordStreamData> readMaybeRecordStreamDataFor(
+            @NonNull final HapiSpec spec) {
         StreamFileAccess.RecordStreamData data = null;
         final var streamLocs = spec.getNetworkNodes().stream()
                 .map(node -> node.getExternalPath(RECORD_STREAMS_DIR))
