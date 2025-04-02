@@ -15,6 +15,9 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalUnit;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -101,6 +104,19 @@ class ConverterServiceTest {
         Assertions.assertEquals((short) 567, cs.convert("567", Short.class));
         Assertions.assertEquals((byte) 8, cs.convert("8", Byte.class));
         Assertions.assertTrue(cs.convert("true", Boolean.class));
+    }
+
+    @Test
+    void itSuccessfullyOverwriteDefaultConverter() {
+        // given
+        ConverterService cs = new ConverterService();
+
+        //when
+        cs.addConverter(Duration.class, value -> Duration.of(1, ChronoUnit.SECONDS));
+        cs.init();
+
+        //then
+        Assertions.assertEquals(Duration.of(1, ChronoUnit.SECONDS), cs.convert("TEST", Duration.class));
     }
 
     @Test
@@ -222,6 +238,10 @@ class ConverterServiceTest {
 
     private enum NumberEnum {
         ONE
+    }
+
+    private enum TwoValueEnum {
+        ONE, TWO
     }
 
     private enum NumberAndValueEnum {
