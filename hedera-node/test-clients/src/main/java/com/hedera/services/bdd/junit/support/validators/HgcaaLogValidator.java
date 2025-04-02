@@ -84,7 +84,8 @@ public class HgcaaLogValidator {
                 List.of("Completing signing attempt without obtaining a signature"),
                 List.of("No pending blocks found"),
                 List.of("Forcing handoff to construction", "with different target roster"),
-                List.of("HintsSubmissions", "Failed to submit", "(PLATFORM_NOT_ACTIVE)"));
+                List.of("HintsSubmissions", "Failed to submit", "(PLATFORM_NOT_ACTIVE)"),
+                List.of("Ignoring invalid partial signature"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

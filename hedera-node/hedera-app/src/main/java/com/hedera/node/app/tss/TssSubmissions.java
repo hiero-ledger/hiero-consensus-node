@@ -14,11 +14,15 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Base class for submitting node transactions to the network within an application context using a given executor.
  */
 public class TssSubmissions {
+    private static final Logger log = LogManager.getLogger(TssSubmissions.class);
+
     private final Executor executor;
     private final AppContext appContext;
 
@@ -43,6 +47,7 @@ public class TssSubmissions {
         // All submissions are best-effort in the TSS protocol, but in particular we never want to try to
         // submit anything if gossip is unavailable (e.g. because we are REPLAYING_EVENTS not ACTIVE)
         if (!appContext.gossip().isAvailable()) {
+            log.info("Skipping TSS submission because gossip is unavailable");
             return CompletableFuture.completedFuture(null);
         }
         final var selfId = appContext.selfNodeInfoSupplier().get().accountId();

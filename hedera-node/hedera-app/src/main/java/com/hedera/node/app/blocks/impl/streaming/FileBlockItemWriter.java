@@ -10,7 +10,6 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.schema.BlockSchema;
-import com.hedera.node.app.blocks.BlockHashSigner.SchemeIds;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -144,13 +143,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
          */
         public Bytes blockHash() {
             return pendingProof.blockHash();
-        }
-
-        /**
-         * The signing scheme ids in use when this block ended.
-         */
-        public SchemeIds schemeIds() {
-            return new SchemeIds(pendingProof.activeHintsConstructionId(), pendingProof.nextHintsConstructionId());
         }
 
         /**

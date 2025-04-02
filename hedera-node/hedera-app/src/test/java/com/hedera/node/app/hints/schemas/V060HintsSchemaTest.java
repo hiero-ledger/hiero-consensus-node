@@ -88,7 +88,7 @@ class V060HintsSchemaTest {
 
         subject.restart(migrationContext);
 
-        verify(signingContext).setConstructions(construction, null);
+        verify(signingContext).setConstructions(construction);
     }
 
     @Test

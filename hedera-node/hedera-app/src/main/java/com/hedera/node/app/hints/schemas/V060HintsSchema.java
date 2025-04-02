@@ -92,8 +92,7 @@ public class V060HintsSchema extends Schema {
                 final var nextConstruction =
                         requireNonNull(states.<HintsConstruction>getSingleton(NEXT_HINT_CONSTRUCTION_KEY)
                                 .get());
-                signingContext.setConstructions(
-                        activeConstruction, nextConstruction.hasHintsScheme() ? nextConstruction : null);
+                signingContext.setConstructions(activeConstruction);
             }
         }
     }

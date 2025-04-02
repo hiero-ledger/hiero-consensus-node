@@ -95,8 +95,8 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public SchemeIds currentSchemeIds() {
-        return delegate.currentSchemeIds();
+    public long activeSchemeId() {
+        return delegate.activeSchemeId();
     }
 
     @Override

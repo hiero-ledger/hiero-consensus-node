@@ -60,11 +60,6 @@ import org.apache.logging.log4j.Logger;
 public class TssBlockHashSigner implements BlockHashSigner {
     private static final Logger log = LogManager.getLogger(TssBlockHashSigner.class);
 
-    /**
-     * When TSS is disabled, the signing "scheme" is always available and never changes.
-     */
-    private static final SchemeIds MOCK_SCHEME_IDS = new SchemeIds(1, 1);
-
     public static final String SIGNER_READY_MSG = "TSS protocol ready to sign blocks";
 
     @Nullable
@@ -120,8 +115,8 @@ public class TssBlockHashSigner implements BlockHashSigner {
     }
 
     @Override
-    public SchemeIds currentSchemeIds() {
-        return (hintsService == null) ? MOCK_SCHEME_IDS : hintsService.currentSchemeIds();
+    public long activeSchemeId() {
+        return (hintsService == null) ? 1 : hintsService.activeSchemeId();
     }
 
     @Override

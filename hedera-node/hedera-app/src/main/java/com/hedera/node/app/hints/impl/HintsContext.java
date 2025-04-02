@@ -11,7 +11,6 @@ import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
-import com.hedera.node.app.blocks.BlockHashSigner.SchemeIds;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,7 +32,7 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * The hinTS context that can be used to request hinTS signatures using the latest
- * complete construction, if there is one. See {@link #setConstructions(HintsConstruction, HintsConstruction)}
+ * complete construction, if there is one. See {@link #setConstructions(HintsConstruction)}
  * for the ways the context can have a construction set.
  */
 @Singleton
@@ -52,27 +51,11 @@ public class HintsContext {
     @Nullable
     private Map<Long, Integer> nodePartyIds;
 
-    @Nullable
-    private SchemeIds schemeIds;
+    private long schemeId;
 
     @Inject
     public HintsContext(@NonNull final HintsLibrary library) {
         this.library = requireNonNull(library);
-    }
-
-    /**
-     * Updates the next construction in the signing context.
-     * @param nextConstruction the next construction
-     * @throws IllegalArgumentException if the next construction does not have a hinTS scheme
-     * @throws NullPointerException if there is no active construction
-     */
-    public void updateNextConstruction(@NonNull final HintsConstruction nextConstruction) {
-        requireNonNull(nextConstruction);
-        if (!nextConstruction.hasHintsScheme()) {
-            throw new IllegalArgumentException(
-                    "Next construction #" + nextConstruction.constructionId() + " has no hinTS scheme");
-        }
-        schemeIds = requireNonNull(schemeIds).withNextId(nextConstruction.constructionId());
     }
 
     /**
@@ -87,11 +70,9 @@ public class HintsContext {
      * </ol>
      *
      * @param activeConstruction the active construction
-     * @param nextConstruction if not null, the next construction
      * @throws IllegalArgumentException if either construction does not have a hinTS scheme
      */
-    public void setConstructions(
-            @NonNull final HintsConstruction activeConstruction, @Nullable final HintsConstruction nextConstruction) {
+    public void setConstructions(@NonNull final HintsConstruction activeConstruction) {
         requireNonNull(activeConstruction);
         if (!activeConstruction.hasHintsScheme()) {
             throw new IllegalArgumentException(
@@ -99,14 +80,7 @@ public class HintsContext {
         }
         construction = requireNonNull(activeConstruction);
         nodePartyIds = asNodePartyIds(activeConstruction.hintsSchemeOrThrow().nodePartyIds());
-        schemeIds = SchemeIds.fromNewlyAdopted(construction.constructionId());
-        if (nextConstruction != null) {
-            if (!nextConstruction.hasHintsScheme()) {
-                throw new IllegalArgumentException(
-                        "Next construction #" + nextConstruction.constructionId() + " has no hinTS scheme");
-            }
-            schemeIds = schemeIds.withNextId(nextConstruction.constructionId());
-        }
+        schemeId = construction.constructionId();
     }
 
     /**
@@ -119,10 +93,13 @@ public class HintsContext {
 
     /**
      * Returns the current scheme ids, or throws if they are unset.
-     * @return the scheme ids
+     * @return the active scheme id
      */
-    public SchemeIds schemeIdsOrThrow() {
-        return requireNonNull(schemeIds);
+    public long activeSchemeIdOrThrow() {
+        if (schemeId == 0) {
+            throw new IllegalStateException("No scheme id set");
+        }
+        return schemeId;
     }
 
     /**

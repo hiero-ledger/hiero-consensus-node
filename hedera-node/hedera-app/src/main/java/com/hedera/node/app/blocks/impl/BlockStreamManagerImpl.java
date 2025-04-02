@@ -22,7 +22,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
-import com.hedera.hapi.block.stream.SchemeUsed;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
@@ -151,7 +150,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * @param contentsPath  the path to the block contents file, if not null
      * @param blockHash     the block hash
      * @param proofBuilder  the block proof builder
-     * @param schemeIds     the scheme IDs at the time the block ended
      * @param writer        the block item writer
      * @param siblingHashes the sibling hashes needed for an indirect block proof of an earlier block
      */
@@ -159,7 +157,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             long number,
             @Nullable Path contentsPath,
             @NonNull Bytes blockHash,
-            @NonNull BlockHashSigner.SchemeIds schemeIds,
             @NonNull BlockProof.Builder proofBuilder,
             @NonNull BlockItemWriter writer,
             @NonNull MerkleSiblingHash... siblingHashes) {
@@ -167,15 +164,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
          * Flushes this pending block to disk, optionally including the sibling hashes needed
          * for an indirect proof of its preceding block(s).
          * @param withSiblingHashes whether to include sibling hashes for an indirect proof
-         * @param nextSchemeId the latest id of the next scheme
          */
-        public void flushPending(final boolean withSiblingHashes, final long nextSchemeId) {
+        public void flushPending(final boolean withSiblingHashes) {
             final var incompleteProof = proofBuilder.build();
             final var pendingProof = PendingProof.newBuilder()
                     .block(number)
                     .blockHash(blockHash)
-                    .activeHintsConstructionId(schemeIds.activeId())
-                    .nextHintsConstructionId(nextSchemeId)
                     .previousBlockHash(incompleteProof.previousBlockRootHash())
                     .startOfBlockStateRootHash(incompleteProof.startOfBlockStateRootHash())
                     .siblingHashesFromPrevBlockRoot(withSiblingHashes ? List.of(siblingHashes) : List.of())
@@ -338,7 +332,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             block.number(),
                             block.contentsPath(),
                             blockHash,
-                            block.schemeIds(),
                             block.proofBuilder(),
                             pendingWriter,
                             block.siblingHashesIfUseful()));
@@ -456,7 +449,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockNumber,
                     null,
                     blockHash,
-                    blockHashSigner.currentSchemeIds(),
                     pendingProof,
                     writer,
                     new MerkleSiblingHash(false, inputHash),
@@ -475,10 +467,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (hintsEnabled && roundNum == freezeRoundNumber) {
                 final var hasPrecedingUnproven = new AtomicBoolean(false);
                 // In case the id of the next hinTS construction changed since a block ended
-                final long nextSchemeId = blockHashSigner.currentSchemeIds().nextId();
-                pendingBlocks.forEach(block -> block.flushPending(hasPrecedingUnproven.getAndSet(true), nextSchemeId));
+                pendingBlocks.forEach(block -> block.flushPending(hasPrecedingUnproven.getAndSet(true)));
             } else {
-                final var schemeId = blockHashSigner.currentSchemeIds().activeId();
+                final var schemeId = blockHashSigner.activeSchemeId();
                 blockHashSigner
                         .signFuture(blockHash)
                         .thenAcceptAsync(signature -> finishProofWithSignature(blockHash, signature, schemeId));
@@ -582,23 +573,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var proof = block.proofBuilder()
                     .blockSignature(blockSignature)
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
-            SchemeUsed schemeUsed = null;
-            if (schemeId == block.schemeIds().activeId()) {
-                schemeUsed = SchemeUsed.LATEST_ACTIVE_SCHEME;
-            } else if (schemeId == block.schemeIds().nextId()) {
-                schemeUsed = SchemeUsed.LATEST_NEXT_SCHEME;
-            }
-            if (schemeUsed == null) {
-                final var vk = blockHashSigner.activeVerificationKey();
-                log.warn(
-                        "{} ended before hinTS scheme #{} was published; externalizing verification key '{}'",
-                        block,
-                        schemeId,
-                        vk);
-                proof.verificationKey(vk);
-            } else {
-                proof.schemeUsed(schemeUsed);
-            }
+            proof.schemeId(schemeId);
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeCompleteBlock();

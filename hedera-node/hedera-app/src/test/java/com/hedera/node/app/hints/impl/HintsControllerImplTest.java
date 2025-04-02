@@ -315,7 +315,7 @@ class HintsControllerImplTest {
 
         assertTrue(subject.addPreprocessingVote(1L, vote, store));
 
-        verify(context).setConstructions(FINISHED_CONSTRUCTION, null);
+        verify(context).setConstructions(FINISHED_CONSTRUCTION);
     }
 
     @Test
@@ -341,33 +341,7 @@ class HintsControllerImplTest {
                 .willReturn(FINISHED_CONSTRUCTION);
         assertTrue(subject.addPreprocessingVote(2L, congruentVote, store));
 
-        verify(context).setConstructions(FINISHED_CONSTRUCTION, null);
-    }
-
-    @Test
-    void setsSchemeAndNextConstructionGivenVoteAndWinningCongruenceNotMatchingActiveId() {
-        setupWith(CONSTRUCTION_WITH_START_TIME);
-        final var keys = new PreprocessedKeys(Bytes.wrap("AK"), Bytes.wrap("VK"));
-        final var vote = PreprocessingVote.newBuilder().preprocessedKeys(keys).build();
-
-        given(weights.sourceWeightOf(1L)).willReturn(1L);
-        given(weights.sourceWeightThreshold()).willReturn(2L);
-
-        assertTrue(subject.addPreprocessingVote(1L, vote, store));
-        assertFalse(subject.addPreprocessingVote(1L, vote, store));
-
-        given(weights.sourceWeightOf(2L)).willReturn(1L);
-        final var activeConstruction =
-                HintsConstruction.newBuilder().constructionId(456L).build();
-        given(store.getActiveConstruction()).willReturn(activeConstruction);
-        final var congruentVote =
-                PreprocessingVote.newBuilder().congruentNodeId(1L).build();
-        given(store.setHintsScheme(CONSTRUCTION_WITH_START_TIME.constructionId(), keys, Map.of()))
-                .willReturn(FINISHED_CONSTRUCTION);
-        assertTrue(subject.addPreprocessingVote(2L, congruentVote, store));
-
-        verify(context, never()).setConstructions(any(), any());
-        verify(context).updateNextConstruction(FINISHED_CONSTRUCTION);
+        verify(context).setConstructions(FINISHED_CONSTRUCTION);
     }
 
     @Test

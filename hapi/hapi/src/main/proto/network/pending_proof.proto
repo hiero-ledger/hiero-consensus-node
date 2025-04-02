@@ -34,21 +34,13 @@ message PendingProof {
    */
   bytes block_hash = 2;
   /**
-   * Id of the active hinTS scheme at the time the block ended.
-   */
-  uint64 active_hints_construction_id = 3;
-  /**
-   * Id of the next hinTS scheme at the time the block ended.
-   */
-  uint64 next_hints_construction_id = 4;
-  /**
    * The state hash of the start of the pending block.
    */
-  bytes start_of_block_state_root_hash = 5;
+  bytes start_of_block_state_root_hash = 3;
   /**
    * The hash of the previous block.
    */
-  bytes previous_block_hash = 6;
+  bytes previous_block_hash = 4;
   /**
    * If set, the sibling hashes that could be used to prove the
    * previous block hash (in case it was also pending, and we
@@ -58,5 +50,5 @@ message PendingProof {
    * already been signed and this block proof will not be used
    * for any indirect proofs.
    */
-  repeated com.hedera.hapi.block.stream.MerkleSiblingHash sibling_hashes_from_prev_block_root = 7;
+  repeated com.hedera.hapi.block.stream.MerkleSiblingHash sibling_hashes_from_prev_block_root = 5;
 }

@@ -442,9 +442,7 @@ public class HintsControllerImpl implements HintsController {
                 log.info("Completed hinTS Scheme for construction #{}", construction.constructionId());
                 // If this just completed the active construction, update the signing context
                 if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                    context.setConstructions(construction, null);
-                } else {
-                    context.updateNextConstruction(construction);
+                    context.setConstructions(construction);
                 }
             });
             return true;
