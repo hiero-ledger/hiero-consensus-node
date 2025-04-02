@@ -8,6 +8,9 @@ import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSch
 import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULE_ID_BY_EQUALITY_KEY;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
+import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
+import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ScheduleID;
@@ -408,7 +411,12 @@ public class ScheduleTestBase {
         addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
         childBuilder.utilPrng(UtilPrngTransactionBody.newBuilder());
         addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
-
+        childBuilder.nodeCreate(NodeCreateTransactionBody.newBuilder());
+        addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
+        childBuilder.nodeUpdate(NodeUpdateTransactionBody.newBuilder());
+        addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
+        childBuilder.nodeDelete(NodeDeleteTransactionBody.newBuilder());
+        addNextItem(listOfOptions, builder, originBuilder, modifiedCreate, childBuilder, idBuilder, ++num);
         return listOfOptions;
     }
 

@@ -64,13 +64,7 @@ public class TipsetTracker {
 
         this.latestGenerations = new Tipset(roster);
 
-        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-            tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, ed -> ed.eventDescriptor()
-                    .birthRound());
-        } else {
-            tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, ed -> ed.eventDescriptor()
-                    .generation());
-        }
+        tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, ancientMode::selectIndicator);
 
         ancientEventLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
@@ -116,9 +110,9 @@ public class TipsetTracker {
             // enter this bock of code. This log is here as a canary to alert us if we somehow do.
             ancientEventLogger.error(
                     EXCEPTION.getMarker(),
-                    "Rejecting ancient event from {} with generation {}. Current event window is {}",
+                    "Rejecting ancient event from {} with threshold {}. Current event window is {}",
                     eventDescriptorWrapper.creator(),
-                    eventDescriptorWrapper.eventDescriptor().generation(),
+                    ancientMode.selectIndicator(eventDescriptorWrapper),
                     eventWindow);
         }
 
