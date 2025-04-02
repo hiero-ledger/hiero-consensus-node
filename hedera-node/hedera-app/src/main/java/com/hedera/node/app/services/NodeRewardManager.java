@@ -167,19 +167,20 @@ public class NodeRewardManager {
      * @param state              the state
      * @param now                the current consensus time
      * @param systemTransactions the system transactions
+     * @return whether the node rewards were paid
      */
-    public void maybeRewardActiveNodes(
+    public boolean maybeRewardActiveNodes(
             @NonNull final State state, @NonNull final Instant now, final SystemTransactions systemTransactions) {
         final var config = configProvider.getConfiguration();
         final var nodesConfig = config.getConfigData(NodesConfig.class);
         if (!nodesConfig.nodeRewardsEnabled()) {
-            return;
+            return false;
         }
         final var lastNodeRewardsPaymentTime = classifyLastNodeRewardsPaymentTime(state, now);
         // If we're in the same staking period as the last time node rewards were paid, we don't
         // need to do anything
         if (lastNodeRewardsPaymentTime == LastNodeRewardsPaymentTime.CURRENT_PERIOD) {
-            return;
+            return false;
         }
         final var writableStates = state.getWritableStates(TokenService.NAME);
         final var nodeRewardStore = new WritableNodeRewardsStoreImpl(writableStates);
@@ -236,6 +237,7 @@ public class NodeRewardManager {
         nodeRewardStore.resetForNewStakingPeriod();
         resetNodeRewards();
         ((CommittableWritableStates) writableStates).commit();
+        return true;
     }
 
     /**
