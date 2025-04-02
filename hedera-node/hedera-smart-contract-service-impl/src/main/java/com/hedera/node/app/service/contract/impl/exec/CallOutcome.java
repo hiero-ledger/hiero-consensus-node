@@ -110,7 +110,8 @@ public record CallOutcome(
      */
     public void addCreateDetailsTo(@NonNull final ContractCreateStreamBuilder recordBuilder) {
         requireNonNull(recordBuilder);
-        recordBuilder.contractID(result.contractID());
+        // TODO Glib: Do we need this? or just use result.contractID()? Note: there is tests with recipientIdIfCreated
+        recordBuilder.contractID(recipientIdIfCreated());
         recordBuilder.contractCreateResult(result);
         recordBuilder.withCommonFieldsSetFrom(this);
     }
@@ -123,6 +124,19 @@ public record CallOutcome(
      */
     public long tinybarGasCost() {
         return tinybarGasPrice * result.gasUsed();
+    }
+
+    /**
+     * Returns the ID of the contract that was created, or null if no contract was created.
+     *
+     * @return the ID of the contract that was created, or null if no contract was created
+     */
+    public @Nullable ContractID recipientIdIfCreated() {
+        return representsTopLevelCreation() ? result.contractIDOrThrow() : null;
+    }
+
+    private boolean representsTopLevelCreation() {
+        return isSuccess() && requireNonNull(result).hasEvmAddress();
     }
 
     private boolean callWasAborted() {
