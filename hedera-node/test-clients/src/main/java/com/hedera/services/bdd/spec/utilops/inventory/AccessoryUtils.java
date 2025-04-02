@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec.utilops.inventory;
 
 import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.readKeyPairFrom;
 
+import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedReader;
 import java.io.File;
@@ -91,7 +92,12 @@ public class AccessoryUtils {
             readKeyPairFrom(keyFile, passphrase);
             return true;
         } catch (Exception ignore) {
-            return false;
+            try {
+                Secp256k1Utils.readECKeyFrom(keyFile, passphrase);
+                return true;
+            } catch (Exception alsoIgnore) {
+                return false;
+            }
         }
     }
 

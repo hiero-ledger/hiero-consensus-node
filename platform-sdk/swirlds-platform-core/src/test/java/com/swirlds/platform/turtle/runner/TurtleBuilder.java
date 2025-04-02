@@ -2,10 +2,12 @@
 package com.swirlds.platform.turtle.runner;
 
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Objects;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
  * Configures and builds a Turtle.
@@ -29,6 +31,7 @@ public class TurtleBuilder {
     private int nodeCount = 4;
     private boolean timeReportingEnabled;
     private Path outputDirectory;
+    private ConsensusRoundValidator consensusRoundValidator;
 
     /**
      * Create a new TurtleBuilder.
@@ -154,5 +157,25 @@ public class TurtleBuilder {
      */
     boolean isTimeReportingEnabled() {
         return timeReportingEnabled;
+    }
+
+    /**
+     * Set consensus round validator to assert {@link ConsensusRound} objects.
+     *
+     * @param consensusRoundValidator the consensus round validator
+     * @return this builder
+     */
+    public TurtleBuilder withConsensusRoundValidator(@NonNull final ConsensusRoundValidator consensusRoundValidator) {
+        this.consensusRoundValidator = Objects.requireNonNull(consensusRoundValidator);
+        return this;
+    }
+
+    /**
+     * Get the consensus round validator.
+     *
+     * @return the consensus round validator
+     */
+    public ConsensusRoundValidator getConsensusRoundValidator() {
+        return consensusRoundValidator;
     }
 }

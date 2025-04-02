@@ -253,7 +253,7 @@ public enum TransactionExecutors {
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();
 
         var defaultNodeInfo =
-                new NodeInfoImpl(0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of());
+                new NodeInfoImpl(0, entityIdFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), false);
         final var disableThrottles = Optional.ofNullable(properties.get(DISABLE_THROTTLES_PROPERTY))
                 .map(Boolean::parseBoolean)
                 .orElse(false);
