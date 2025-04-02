@@ -393,9 +393,12 @@ class OrphanBufferTests {
         final long minimumGenerationNonAncient = 100;
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
+        final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
+                ? minimumBirthRoundNonAncient
+                : minimumGenerationNonAncient;
         final EventWindow eventWindow = new EventWindow(
                 latestConsensusRound,
-                ancientMode.selectIndicator(minimumGenerationNonAncient, minimumBirthRoundNonAncient),
+                ancientThreshold,
                 1 /* ignored in this context */,
                 ancientMode);
 
@@ -451,9 +454,12 @@ class OrphanBufferTests {
         final long minimumGenerationNonAncient = 100;
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
+        final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
+                ? minimumBirthRoundNonAncient
+                : minimumGenerationNonAncient;
         final EventWindow eventWindow = new EventWindow(
                 latestConsensusRound,
-                ancientMode.selectIndicator(minimumGenerationNonAncient, minimumBirthRoundNonAncient),
+                ancientThreshold,
                 1 /* ignored in this context */,
                 ancientMode);
 
@@ -544,9 +550,12 @@ class OrphanBufferTests {
         final long minimumGenerationNonAncient = 100;
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
+        final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
+                ? minimumBirthRoundNonAncient
+                : minimumGenerationNonAncient;
         final EventWindow eventWindow = new EventWindow(
                 latestConsensusRound,
-                ancientMode.selectIndicator(minimumGenerationNonAncient, minimumBirthRoundNonAncient),
+                ancientThreshold,
                 1 /* ignored in this context */,
                 ancientMode);
 
