@@ -65,6 +65,7 @@
 /platform-sdk/README.md                             @hiero-ledger/hcn-consensus-codeowners
 
 # Platform SDK Modules
+/platform-sdk/consensus-*/                          @hiero-ledger/hcn-consensus-codeowners
 /platform-sdk/platform-apps/                        @hiero-ledger/hcn-consensus-codeowners
 /platform-sdk/swirlds-base/                         @hiero-ledger/hcn-tools-and-libs-codeowners
 /platform-sdk/swirlds-benchmarks/                   @hiero-ledger/hcn-tools-and-libs-codeowners

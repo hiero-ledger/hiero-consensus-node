@@ -98,7 +98,7 @@ public class PcesWriterTestUtils {
 
         long lastAncientIdentifier = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            lastAncientIdentifier = Math.max(lastAncientIdentifier, event.getAncientIndicator(ancientMode));
+            lastAncientIdentifier = Math.max(lastAncientIdentifier, ancientMode.selectIndicator(event));
         }
 
         final PcesFileTracker pcesFiles = PcesFileReader.readFilesFromDisk(
@@ -121,7 +121,7 @@ public class PcesWriterTestUtils {
         final long startingLowerBound = lastAncientIdentifier / 2;
         final IOIterator<PlatformEvent> eventsIterator2 = pcesFiles.getEventIterator(startingLowerBound, 0);
         for (final PlatformEvent event : events) {
-            if (event.getAncientIndicator(ancientMode) < startingLowerBound) {
+            if (ancientMode.selectIndicator(event) < startingLowerBound) {
                 continue;
             }
             assertTrue(eventsIterator2.hasNext());
@@ -160,8 +160,8 @@ public class PcesWriterTestUtils {
             try (final IOIterator<PlatformEvent> fileEvents = file.iterator(0)) {
                 while (fileEvents.hasNext()) {
                     final PlatformEvent event = fileEvents.next();
-                    assertTrue(event.getAncientIndicator(ancientMode) >= file.getLowerBound());
-                    assertTrue(event.getAncientIndicator(ancientMode) <= file.getUpperBound());
+                    assertTrue(ancientMode.selectIndicator(event) >= file.getLowerBound());
+                    assertTrue(ancientMode.selectIndicator(event) <= file.getUpperBound());
                 }
             } catch (final IOException ignored) {
                 // hasNext() can throw an IOException if the file is truncated, in this case there is nothing to do

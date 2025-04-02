@@ -5,7 +5,6 @@ import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -22,6 +21,7 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -55,7 +55,7 @@ class DefaultInlinePcesWriterTest {
 
     @Test
     void standardOperationTest() throws Exception {
-        final Random random = RandomUtils.getRandomPrintSeed(-5497227373264870019L);
+        final Random random = RandomUtils.getRandomPrintSeed();
 
         final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(platformContext, random);
 
@@ -103,30 +103,30 @@ class DefaultInlinePcesWriterTest {
 
         writer.beginStreamingNewEvents();
 
-        long lowerBound = ancientMode.selectIndicator(0, 1);
+        long lowerBound = ancientMode.getGenesisIndicator();
         final Iterator<PlatformEvent> iterator = events.iterator();
         while (iterator.hasNext()) {
             final PlatformEvent event = iterator.next();
 
             writer.writeEvent(event);
-            lowerBound = Math.max(lowerBound, event.getAncientIndicator(ancientMode) - stepsUntilAncient);
+            lowerBound = Math.max(lowerBound, ancientMode.selectIndicator(event) - stepsUntilAncient);
 
             writer.updateNonAncientEventBoundary(new EventWindow(1, lowerBound, lowerBound, ancientMode));
 
-            if (event.getAncientIndicator(ancientMode) < lowerBound) {
+            if (ancientMode.selectIndicator(event) < lowerBound) {
                 // Although it's not common, it's actually possible that the generator will generate
                 // an event that is ancient (since it isn't aware of what we consider to be ancient)
                 iterator.remove();
             }
         }
 
-        if (lowerBound > ancientEvent.getAncientIndicator(ancientMode)) {
+        if (lowerBound > ancientMode.selectIndicator(ancientEvent)) {
             // This is probably not possible... but just in case make sure this event is ancient
             try {
                 writer.updateNonAncientEventBoundary(new EventWindow(
                         1,
-                        ancientEvent.getAncientIndicator(ancientMode) + 1,
-                        ancientEvent.getAncientIndicator(ancientMode) + 1,
+                        ancientMode.selectIndicator(ancientEvent) + 1,
+                        ancientMode.selectIndicator(ancientEvent) + 1,
                         ancientMode));
             } catch (final IllegalArgumentException e) {
                 // ignore, more likely than not this event is way older than the actual ancient threshold

@@ -204,6 +204,11 @@ public class TestHelpers {
     public static final ContractID VALID_CONTRACT_ADDRESS = ContractID.newBuilder()
             .evmAddress(Bytes.fromHex("1234123412341234123412341234123412341234"))
             .build();
+    public static final Bytes LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("0000000000000000000000000000000000000123");
+    public static final Bytes NON_LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("dac17f958d2ee523a2206206994597c13d831ec7");
+    public static final ContractID LONG_ZERO_CONTRACT_ID =
+            ContractID.newBuilder().evmAddress(LONG_ZERO_ADDRESS_BYTES).build();
+
     public static final Address SYSTEM_ADDRESS =
             Address.fromHexString(BigInteger.valueOf(750).toString(16));
     public static final Address HTS_SYSTEM_CONTRACT_ADDRESS = Address.fromHexString("0x167");

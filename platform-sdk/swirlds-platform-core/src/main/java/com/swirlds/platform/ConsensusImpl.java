@@ -3,11 +3,13 @@ package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static java.util.stream.Collectors.toSet;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -39,7 +41,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.crypto.Hash;
@@ -242,8 +244,16 @@ public class ConsensusImpl implements Consensus {
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         reset();
-        initJudges = new InitJudges(
-                snapshot.round(), snapshot.judgeHashes().stream().map(Hash::new).collect(Collectors.toSet()));
+        final Set<Hash> judgeHashes;
+        if (!snapshot.judgeHashes().isEmpty()) {
+            // Deprecated case, we are loading from a snapshot that contains just judge hashes, no ids
+            judgeHashes = snapshot.judgeHashes().stream().map(Hash::new).collect(toSet());
+        } else {
+            judgeHashes = snapshot.judgeIds().stream()
+                    .map(judge -> new Hash(judge.judgeHash()))
+                    .collect(toSet());
+        }
+        initJudges = new InitJudges(snapshot.round(), judgeHashes);
         rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
         numConsensus = snapshot.nextConsensusNumber();
         lastConsensusTime = CommonUtils.fromPbjTimestamp(snapshot.consensusTimestamp());
@@ -736,16 +746,21 @@ public class ConsensusImpl implements Consensus {
         final long nonAncientThreshold = rounds.getAncientThreshold();
         final long nonExpiredThreshold = rounds.getExpiredThreshold();
 
+        final List<JudgeId> judgeIds = judges.stream()
+                .map(event -> new JudgeId(
+                        event.getCreatorId().id(), event.getBaseHash().getBytes()))
+                .toList();
         return new ConsensusRound(
                 roster,
                 consensusEvents,
                 new EventWindow(decidedRoundNumber, nonAncientThreshold, nonExpiredThreshold, ancientMode),
                 new ConsensusSnapshot(
                         decidedRoundNumber,
-                        ConsensusUtils.getHashBytes(judges),
+                        List.of(),
                         rounds.getMinimumJudgeInfoList(),
                         numConsensus,
-                        CommonUtils.toPbjTimestamp(lastConsensusTime)),
+                        CommonUtils.toPbjTimestamp(lastConsensusTime),
+                        judgeIds),
                 pcesMode,
                 time.now());
     }
