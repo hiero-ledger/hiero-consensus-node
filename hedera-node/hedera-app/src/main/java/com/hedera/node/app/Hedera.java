@@ -742,6 +742,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         startupNetworks = startupNetworksFactory.apply(configProvider);
         PLATFORM_STATE_SERVICE.setAppVersionFn(ServicesSoftwareVersion::from);
         this.initState = state;
+        boundaryStateChangeListener.startDeferringCommits();
         final var migrationChanges = serviceMigrator.doMigrations(
                 state,
                 servicesRegistry,
