@@ -328,8 +328,9 @@ public record HederaEvmTransactionResult(
                 .signerNonce(signerNonce);
         // we are not setting recipientId as contractID for create contract action
         // because failed block/receipt should not contain contractID
-        if (actions() == null || actions().contractActions().stream()
-                .noneMatch(e -> ContractActionType.CREATE.equals(e.callType()))) {
+        if (actions() == null
+                || actions().contractActions().stream()
+                        .noneMatch(e -> ContractActionType.CREATE.equals(e.callType()))) {
             builder.contractID(recipientId);
         }
         return builder;
