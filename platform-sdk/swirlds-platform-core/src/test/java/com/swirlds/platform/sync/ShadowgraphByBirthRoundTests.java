@@ -105,15 +105,14 @@ class ShadowgraphByBirthRoundTests {
                     shadowGraph.isHashInGraph(hash),
                     "Event that was just added to the shadow graph should still be in the shadow graph.");
             generatedEvents.add(event);
-            if (!birthRoundToShadows.containsKey(event.getBaseEvent().getAncientIndicator(BIRTH_ROUND_THRESHOLD))) {
-                birthRoundToShadows.put(
-                        event.getBaseEvent().getAncientIndicator(BIRTH_ROUND_THRESHOLD), new HashSet<>());
+            if (!birthRoundToShadows.containsKey(BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent()))) {
+                birthRoundToShadows.put(BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent()), new HashSet<>());
             }
             birthRoundToShadows
-                    .get(event.getBaseEvent().getAncientIndicator(BIRTH_ROUND_THRESHOLD))
+                    .get(BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent()))
                     .add(shadowGraph.shadow(event.getBaseEvent().getDescriptor()));
-            if (event.getBaseEvent().getAncientIndicator(BIRTH_ROUND_THRESHOLD) > maxBirthRound) {
-                maxBirthRound = event.getBaseEvent().getAncientIndicator(BIRTH_ROUND_THRESHOLD);
+            if (BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent()) > maxBirthRound) {
+                maxBirthRound = BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent());
             }
         }
     }
@@ -167,7 +166,7 @@ class ShadowgraphByBirthRoundTests {
         final Set<ShadowEvent> allEvents = shadowGraph.findAncestors(shadowGraph.getTips(), (e) -> true);
         for (final ShadowEvent event : allEvents) {
             assertTrue(
-                    event.getEvent().getAncientIndicator(BIRTH_ROUND_THRESHOLD) >= expireBelowBirthRound,
+                    BIRTH_ROUND_THRESHOLD.selectIndicator(event.getEvent()) >= expireBelowBirthRound,
                     "Ancestors should not include expired events.");
         }
     }
@@ -582,7 +581,7 @@ class ShadowgraphByBirthRoundTests {
         final EventWindow eventWindow = new EventWindow(
                 0 /* ignored by shadowgraph */,
                 1 /* ignored by shadowgraph */,
-                newEvent.getBaseEvent().getAncientIndicator(BIRTH_ROUND_THRESHOLD),
+                BIRTH_ROUND_THRESHOLD.selectIndicator(newEvent.getBaseEvent()),
                 BIRTH_ROUND_THRESHOLD);
         shadowGraph.updateEventWindow(eventWindow);
 
@@ -700,12 +699,11 @@ class ShadowgraphByBirthRoundTests {
         long oldestTipBirthRound = Long.MAX_VALUE;
         final List<ShadowEvent> tipsToExpire = new ArrayList<>();
         for (final ShadowEvent tip : shadowGraph.getTips()) {
-            oldestTipBirthRound =
-                    Math.min(oldestTipBirthRound, tip.getEvent().getAncientIndicator(BIRTH_ROUND_THRESHOLD));
+            oldestTipBirthRound = Math.min(oldestTipBirthRound, BIRTH_ROUND_THRESHOLD.selectIndicator(tip.getEvent()));
         }
 
         for (final ShadowEvent tip : shadowGraph.getTips()) {
-            if (tip.getEvent().getAncientIndicator(BIRTH_ROUND_THRESHOLD) == oldestTipBirthRound) {
+            if (BIRTH_ROUND_THRESHOLD.selectIndicator(tip.getEvent()) == oldestTipBirthRound) {
                 tipsToExpire.add(tip);
             }
         }

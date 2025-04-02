@@ -90,14 +90,6 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     void startRound(@NonNull Round round, @NonNull State state);
 
     /**
-     * Notifies the block stream manager of the first user transaction time in the
-     * last-started round.
-     *
-     * @param at the consensus time of the first user transaction
-     */
-    void setRoundFirstTransactionTime(@NonNull Instant at);
-
-    /**
      * Confirms that the post-upgrade work has been completed.
      */
     void confirmPendingWorkFinished();

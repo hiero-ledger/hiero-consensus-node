@@ -614,7 +614,7 @@ public class Shadowgraph implements Clearable {
 
         hashToShadowEvent.put(se.getEventBaseHash(), se);
 
-        final long ancientIndicator = event.getAncientIndicator(ancientMode);
+        final long ancientIndicator = ancientMode.selectIndicator(event);
         if (!indicatorToShadowEvent.containsKey(ancientIndicator)) {
             indicatorToShadowEvent.put(ancientIndicator, new HashSet<>());
         }

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.event.creator;
+package org.hiero.consensus.event.creator.impl.rules;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.event.creator.impl.EventCreationStatus;
 
 /**
  * An object used to limit or prevent the creation of new events.
