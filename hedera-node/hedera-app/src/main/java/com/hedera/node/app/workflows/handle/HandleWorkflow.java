@@ -17,6 +17,7 @@ import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.swirlds.platform.consensus.ConsensusUtils.coin;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
 import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static java.util.Objects.requireNonNull;
@@ -397,7 +398,7 @@ public class HandleWorkflow {
             }
         }
         final BlockItem headerItem = BlockItem.newBuilder()
-                .eventHeader(new EventHeader(event.getEventCore(), parents, isMiddleBitSet(event.getSignature())))
+                .eventHeader(new EventHeader(event.getEventCore(), parents, coin(event.getSignature())))
                 .build();
         blockStreamManager.writeItem(headerItem);
     }
@@ -959,17 +960,5 @@ public class HandleWorkflow {
                 .<BlockInfo>getSingleton(BLOCK_INFO_STATE_KEY)
                 .get();
         return !requireNonNull(blockInfo).migrationRecordsStreamed() ? POST_UPGRADE_TRANSACTION : ORDINARY_TRANSACTION;
-    }
-
-    /**
-     * Checks if the middle bit of the signature is set.
-     * The middle bit is determined by checking the LSB of the second of two middle bytes in the signature.
-     *
-     * @param signature the signature to check
-     * @return true if the middle bit is set, false otherwise
-     */
-    private static boolean isMiddleBitSet(@NonNull final Bytes signature) {
-        final int sigLen = (int) signature.length();
-        return ((signature.getByte((sigLen / 2)) & 1) == 1);
     }
 }
