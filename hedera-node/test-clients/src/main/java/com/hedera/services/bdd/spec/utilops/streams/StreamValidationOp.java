@@ -49,9 +49,9 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * A {@link UtilOp} that validates the streams produced by the target network of the given
- * {@link HapiSpec}. Note it suffices to validate the streams produced by a single node in
- * the network since at minimum log validation will fail in case of an ISS.
+ * A {@link UtilOp} that validates the streams produced by the target network of the given {@link HapiSpec}. Note it
+ * suffices to validate the streams produced by a single node in the network since at minimum log validation will fail
+ * in case of an ISS.
  */
 public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final Logger log = LogManager.getLogger(StreamValidationOp.class);
@@ -59,8 +59,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final long MAX_BLOCK_TIME_MS = 2000L;
     private static final long BUFFER_MS = 500L;
     private static final long MIN_GZIP_SIZE_IN_BYTES = 26;
-    private static final String ERROR_PREFIX = "\n  - ";
-    private static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
+    static final String ERROR_PREFIX = "\n  - ";
+    static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
 
     private static final List<RecordStreamValidator> RECORD_STREAM_VALIDATORS = List.of(
             new BlockNoValidator(),
@@ -94,7 +94,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 spec,
                 // Ensure the CryptoTransfer below will be in a new block period
                 sleepFor(MAX_BLOCK_TIME_MS + BUFFER_MS),
-                cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),
+                cryptoTransfer((ignore, b) -> {
+                }).payingWith(GENESIS),
                 // Wait for the final record file to be created
                 sleepFor(2 * BUFFER_MS));
         // Validate the record streams
@@ -164,7 +165,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         return false;
     }
 
-    private static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
+    static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
         List<Block> blocks = null;
         final var blockPaths = spec.getNetworkNodes().stream()
                 .map(node -> node.getExternalPath(BLOCK_STREAMS_DIR))
@@ -185,7 +186,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         return Optional.ofNullable(blocks);
     }
 
-    private static Optional<StreamFileAccess.RecordStreamData> readMaybeRecordStreamDataFor(
+    static Optional<StreamFileAccess.RecordStreamData> readMaybeRecordStreamDataFor(
             @NonNull final HapiSpec spec) {
         StreamFileAccess.RecordStreamData data = null;
         final var streamLocs = spec.getNetworkNodes().stream()

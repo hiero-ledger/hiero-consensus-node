@@ -51,9 +51,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEcdsaPrivateKeyF
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.simpleValidateStreams;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateStreams;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
@@ -862,18 +864,33 @@ public class ContractCreateSuite {
                 getContractInfo(contract).has(ContractInfoAsserts.contractWith().maxAutoAssociations(0)));
     }
 
+    //TODO Glib: should i annotate this test with @Tag("STREAM_VALIDATION")?
     //TODO Glib: test it
     @HapiTest
-    final Stream<DynamicTest> revertBlockAndRecordContainsContractId() {
-        final var txn = "revertBlockAndRecordContainsContractId";
+    final Stream<DynamicTest> contractRevertBlockAndRecordFilesNotContainContractId() {
+        final var txn = "revertBlockAndRecordContaixnsContractId";
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .balance(1L)
                         .via(txn)
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                getTxnRecord(txn).logged());
+                withOpContext((spec, opLog) -> {
+                    final var record = getTxnRecord(txn);
+                    allRunFor(spec, record);
+
+                    // First block info
+                    final var respRecord = record.getResponse();
+                    System.out.println(respRecord);
+                }),
+                simpleValidateStreams().withBlockValidation(blocks -> {
+//                    final var item = blocks.stream()
+//                            .flatMap(e -> e..stream())
+//                            .filter(e -> ResponseCodeEnum.CONTRACT_REVERT_EXECUTED.equals(e.getRecord().getReceipt().getStatus()))
+//                            .findFirst().orElse(null);
+                    System.out.println(blocks);
+                })
+        );
     }
 
     //TODO Glib: with this we can test a files

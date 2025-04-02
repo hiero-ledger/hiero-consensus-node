@@ -112,7 +112,7 @@ public record CallOutcome(
     public void addCreateDetailsTo(@NonNull final ContractCreateStreamBuilder recordBuilder) {
         requireNonNull(recordBuilder);
         recordBuilder.contractID(recipientIdIfCreated());
-        recordBuilder.contractCreateResult(isSuccess() ? result : null); //TODO Glib
+        recordBuilder.contractCreateResult(result);
         recordBuilder.withCommonFieldsSetFrom(this);
     }
 

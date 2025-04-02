@@ -320,6 +320,7 @@ public record HederaEvmTransactionResult(
         return builder.build();
     }
 
+    //TODO Glib: Do not set contractId here?
     private ContractFunctionResult.Builder asUncommittedFailureResult(@NonNull final String errorMessage) {
         requireNonNull(errorMessage);
         return ContractFunctionResult.newBuilder()
