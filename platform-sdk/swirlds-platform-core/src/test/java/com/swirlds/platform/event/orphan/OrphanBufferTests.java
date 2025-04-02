@@ -396,11 +396,8 @@ class OrphanBufferTests {
         final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
                 ? minimumBirthRoundNonAncient
                 : minimumGenerationNonAncient;
-        final EventWindow eventWindow = new EventWindow(
-                latestConsensusRound,
-                ancientThreshold,
-                1 /* ignored in this context */,
-                ancientMode);
+        final EventWindow eventWindow =
+                new EventWindow(latestConsensusRound, ancientThreshold, 1 /* ignored in this context */, ancientMode);
 
         // Create two ancient events to serve as parents
         final PlatformEvent selfParent =
@@ -457,11 +454,8 @@ class OrphanBufferTests {
         final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
                 ? minimumBirthRoundNonAncient
                 : minimumGenerationNonAncient;
-        final EventWindow eventWindow = new EventWindow(
-                latestConsensusRound,
-                ancientThreshold,
-                1 /* ignored in this context */,
-                ancientMode);
+        final EventWindow eventWindow =
+                new EventWindow(latestConsensusRound, ancientThreshold, 1 /* ignored in this context */, ancientMode);
 
         // Genesis event, ancient
         final PlatformEvent node0AncientEvent =
@@ -553,11 +547,8 @@ class OrphanBufferTests {
         final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
                 ? minimumBirthRoundNonAncient
                 : minimumGenerationNonAncient;
-        final EventWindow eventWindow = new EventWindow(
-                latestConsensusRound,
-                ancientThreshold,
-                1 /* ignored in this context */,
-                ancientMode);
+        final EventWindow eventWindow =
+                new EventWindow(latestConsensusRound, ancientThreshold, 1 /* ignored in this context */, ancientMode);
 
         // Genesis events, ancient
         final PlatformEvent node0AncientEvent =
