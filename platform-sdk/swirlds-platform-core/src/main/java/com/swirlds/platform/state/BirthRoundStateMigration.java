@@ -91,12 +91,13 @@ public final class BirthRoundStateMigration {
         for (final MinimumJudgeInfo judgeInfo : judgeInfoList) {
             modifiedJudgeInfoList.add(new MinimumJudgeInfo(judgeInfo.round(), lastRoundBeforeMigration));
         }
-        final ConsensusSnapshot modifiedConsensusSnapshot = new ConsensusSnapshot(
-                consensusSnapshot.round(),
-                consensusSnapshot.judgeHashes(),
-                modifiedJudgeInfoList,
-                consensusSnapshot.nextConsensusNumber(),
-                consensusSnapshot.consensusTimestamp());
+        final ConsensusSnapshot modifiedConsensusSnapshot = ConsensusSnapshot.newBuilder()
+                .round(consensusSnapshot.round())
+                .consensusTimestamp(consensusSnapshot.consensusTimestamp())
+                .judgeIds(consensusSnapshot.judgeIds())
+                .nextConsensusNumber(consensusSnapshot.nextConsensusNumber())
+                .minimumJudgeInfoList(modifiedJudgeInfoList)
+                .build();
         platformStateFacade.setSnapshotTo(state, modifiedConsensusSnapshot);
 
         state.invalidateHash();

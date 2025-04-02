@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.schema.BlockSchema;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.config.ConfigProvider;
@@ -149,6 +150,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
+    public void writePbjItem(@NonNull BlockItem item) {
+        throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
+    }
+
+    @Override
     public void closeBlock() {
         if (state.ordinal() < State.OPEN.ordinal()) {
             throw new IllegalStateException("Cannot close a FileBlockItemWriter that is not open");
@@ -175,6 +181,12 @@ public class FileBlockItemWriter implements BlockItemWriter {
             logger.error("Error closing the FileBlockItemWriter output stream", e);
             throw new UncheckedIOException(e);
         }
+    }
+
+    @Override
+    public void writePreBlockProofItems() {
+        throw new UnsupportedOperationException(
+                "FileBlockItemWriter does not support writing pre-block proof block items");
     }
 
     /**

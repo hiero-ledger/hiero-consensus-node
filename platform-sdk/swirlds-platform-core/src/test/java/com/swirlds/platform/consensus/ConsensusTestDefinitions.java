@@ -18,8 +18,10 @@ import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestOrche
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestUtils;
 import com.swirlds.platform.test.fixtures.consensus.framework.OrchestratorBuilder;
 import com.swirlds.platform.test.fixtures.consensus.framework.TestInput;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.EventRatioValidation;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.Validations;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.OutputEventRatioValidation;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.OutputEventsAddedInDifferentOrderValidation;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.OutputEventsEqualityValidation;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.emitter.PriorityEventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
@@ -47,19 +49,29 @@ import org.hiero.consensus.model.node.NodeId;
 
 public final class ConsensusTestDefinitions {
 
+    private static final ConsensusOutputValidator consensusOutputValidatorWithConsensusRatio05 =
+            new ConsensusOutputValidator(Set.of(
+                    new OutputEventsAddedInDifferentOrderValidation(),
+                    new OutputEventsEqualityValidation(),
+                    OutputEventRatioValidation.blank().setMinimumConsensusRatio(0.5)));
+    private static final ConsensusOutputValidator defaultConsensusOutputValidator = new ConsensusOutputValidator();
+
     private ConsensusTestDefinitions() {}
 
     /**
      * Changing the order of events (without breaking topological order) should result in the same consensus events.
      */
     public static void orderInvarianceTests(@NonNull final TestInput input) {
+        final ConsensusOutputValidator consensusOutputValidator = new ConsensusOutputValidator(Set.of(
+                new OutputEventsAddedInDifferentOrderValidation(),
+                new OutputEventsEqualityValidation(),
+                OutputEventRatioValidation.standard().setMinimumConsensusRatio(0.9 - (0.05 * input.numberOfNodes()))));
+
         OrchestratorBuilder.builder()
                 .setTestInput(input)
                 .build()
                 .generateAllEvents()
-                .validateAndClear(Validations.standard()
-                        .ratios(EventRatioValidation.standard()
-                                .setMinimumConsensusRatio(0.9 - (0.05 * input.numberOfNodes()))));
+                .validateAndClear(consensusOutputValidator);
     }
 
     /** Send an ancient event to consensus and check if it is marked stale. */
@@ -91,9 +103,7 @@ public final class ConsensusTestDefinitions {
         // Phase 3: the shunned node creates stops creating events
         orchestrator.setNewEventWeight(dyingNode, 0d);
         orchestrator.generateEvents(0.70);
-
-        orchestrator.validateAndClear(
-                Validations.standard().ratios(EventRatioValidation.blank().setMinimumConsensusRatio(0.5)));
+        orchestrator.validateAndClear(consensusOutputValidatorWithConsensusRatio05);
     }
 
     /** Test consensus in the presence of forks. */
@@ -129,13 +139,16 @@ public final class ConsensusTestDefinitions {
             return eventSources;
         };
 
+        final ConsensusOutputValidator consensusOutputValidator = new ConsensusOutputValidator(Set.of(
+                new OutputEventsAddedInDifferentOrderValidation(),
+                new OutputEventsEqualityValidation(),
+                OutputEventRatioValidation.standard().setMaximumStaleRatio(0.1)));
         OrchestratorBuilder.builder()
                 .setTestInput(input)
                 .setEventSourceBuilder(eventSourceBuilder)
                 .build()
                 .generateEvents(1.0)
-                .validateAndClear(Validations.standard()
-                        .ratios(EventRatioValidation.standard().setMaximumStaleRatio(0.1)));
+                .validateAndClear(consensusOutputValidator);
     }
 
     /**
@@ -163,7 +176,8 @@ public final class ConsensusTestDefinitions {
         // execution: generate a third of the total events
         orchestrator.generateEvents(0.33);
         // validation: we expect normal consensus
-        orchestrator.validateAndClear(Validations.standard());
+        final ConsensusOutputValidator defaultConsensusOutputValidator = new ConsensusOutputValidator();
+        orchestrator.validateAndClear(defaultConsensusOutputValidator);
 
         //
         // Phase 2
@@ -175,10 +189,14 @@ public final class ConsensusTestDefinitions {
         // validation: almost no events will reach consensus
         //   (it's possible a few tail events may reach consensus right at the beginning of the
         // phase)
-        orchestrator.validateAndClear(Validations.standard()
-                .ratios(EventRatioValidation.standard()
-                        .setMinimumConsensusRatio(0.0)
-                        .setMaximumConsensusRatio(0.5)));
+        final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType1 =
+                new ConsensusOutputValidator(Set.of(
+                        new OutputEventsAddedInDifferentOrderValidation(),
+                        new OutputEventsEqualityValidation(),
+                        OutputEventRatioValidation.standard()
+                                .setMinimumConsensusRatio(0.0)
+                                .setMaximumConsensusRatio(0.5)));
+        orchestrator.validateAndClear(consensusOutputValidatorWithEventRatioType1);
 
         //
         // Phase 3
@@ -188,10 +206,14 @@ public final class ConsensusTestDefinitions {
         // execution: generate a third of the total events
         orchestrator.generateEvents(0.34);
         // validation: we expect for phase 2 and phase 3 events to reach consensus
-        orchestrator.validateAndClear(Validations.standard()
-                .ratios(EventRatioValidation.standard()
-                        .setMinimumConsensusRatio(0.8)
-                        .setMaximumConsensusRatio(2.1)));
+        final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType2 =
+                new ConsensusOutputValidator(Set.of(
+                        new OutputEventsAddedInDifferentOrderValidation(),
+                        new OutputEventsEqualityValidation(),
+                        OutputEventRatioValidation.standard()
+                                .setMinimumConsensusRatio(0.8)
+                                .setMaximumConsensusRatio(2.1)));
+        orchestrator.validateAndClear(consensusOutputValidatorWithEventRatioType2);
     }
 
     /**
@@ -221,15 +243,18 @@ public final class ConsensusTestDefinitions {
         // In phase 1 we expect normal consensus
         orchestrator.setOtherParentAffinity(fullyConnected);
         orchestrator.generateEvents(0.33);
-        orchestrator.validateAndClear(Validations.standard());
+        orchestrator.validateAndClear(defaultConsensusOutputValidator);
 
         // In phase 2, events created by the sub-quorum partition nodes should not reach consensus,
         // so we set
         // the min and max consensus ratio relative to the number of nodes in the quorum partition.
         orchestrator.setOtherParentAffinity(partitioned);
         orchestrator.generateEvents(0.33);
-        orchestrator.validateAndClear(Validations.standard()
-                .ratios(EventRatioValidation.standard()
+
+        final ConsensusOutputValidator consensusOutputValidatorWithEventRatio = new ConsensusOutputValidator(Set.of(
+                new OutputEventsAddedInDifferentOrderValidation(),
+                new OutputEventsEqualityValidation(),
+                OutputEventRatioValidation.standard()
                         .setMinimumConsensusRatio(consNodeRatio * 0.8)
                         // Some seeds cause the nodes in the quorum partition to
                         // create more than it's fair
@@ -242,11 +267,12 @@ public final class ConsensusTestDefinitions {
                         // arbitrary.
                         .setMinimumStaleRatio(nonConsNodeRatio * 0.15)
                         .setMaximumStaleRatio(nonConsNodeRatio)));
+        orchestrator.validateAndClear(consensusOutputValidatorWithEventRatio);
 
         // In phase 3 consensus should return to normal.
         orchestrator.setOtherParentAffinity(fullyConnected);
         orchestrator.generateEvents(0.34);
-        orchestrator.validateAndClear(Validations.standard());
+        orchestrator.validateAndClear(defaultConsensusOutputValidator);
     }
 
     public static void cliqueTests(@NonNull final TestInput input) {
@@ -274,8 +300,10 @@ public final class ConsensusTestDefinitions {
         orchestrator.setOtherParentAffinity(affinity);
 
         orchestrator.generateAllEvents();
-        orchestrator.validateAndClear(Validations.standard()
-                .ratios(EventRatioValidation.standard()
+        final ConsensusOutputValidator consensusOutputValidatorWithEventRatio = new ConsensusOutputValidator(Set.of(
+                new OutputEventsAddedInDifferentOrderValidation(),
+                new OutputEventsEqualityValidation(),
+                OutputEventRatioValidation.standard()
                         // We expect for events to eventually reach consensus, but
                         // there may be a long lag
                         // between event creation and consensus. This means that the
@@ -283,6 +311,7 @@ public final class ConsensusTestDefinitions {
                         // needs to be lower than usual.
                         .setMinimumConsensusRatio(0.7)
                         .setMaximumStaleRatio(0.05)));
+        orchestrator.validateAndClear(consensusOutputValidatorWithEventRatio);
     }
 
     public static void variableRateTests(@NonNull final TestInput input) {
@@ -311,7 +340,7 @@ public final class ConsensusTestDefinitions {
                 .setEventSourceConfigurator(configureVariable)
                 .build()
                 .generateAllEvents()
-                .validateAndClear(Validations.standard());
+                .validateAndClear(defaultConsensusOutputValidator);
     }
 
     /** One node has a tendency to use stale other parents. */
@@ -327,10 +356,13 @@ public final class ConsensusTestDefinitions {
                     .setRequestedOtherParentAgeDistribution(integerPowerDistribution(0.002, 300));
         });
         orchestrator.generateAllEvents();
-        orchestrator.validateAndClear(Validations.standard()
-                .ratios(EventRatioValidation.standard()
+        final ConsensusOutputValidator consensusOutputValidatorWithEventRatio = new ConsensusOutputValidator(Set.of(
+                new OutputEventsAddedInDifferentOrderValidation(),
+                new OutputEventsEqualityValidation(),
+                OutputEventRatioValidation.standard()
                         .setMinimumConsensusRatio(0.3)
                         .setMaximumStaleRatio(0.2)));
+        orchestrator.validateAndClear(consensusOutputValidatorWithEventRatio);
     }
 
     /** One node has a tendency to provide stale other parents (when they are requested). */
@@ -357,8 +389,11 @@ public final class ConsensusTestDefinitions {
         large because many more events are required to strongly see witnesses. Larger rounds means fewer stale
         events. Possibly no stale events at all if there are not enough events to create enough rounds so that
         generations are considered ancient. */
-        orchestrator.validateAndClear(
-                Validations.standard().ratios(EventRatioValidation.blank().setMinimumConsensusRatio(0.2)));
+        final ConsensusOutputValidator consensusOutputValidatorWithEventRatio = new ConsensusOutputValidator(Set.of(
+                new OutputEventsAddedInDifferentOrderValidation(),
+                new OutputEventsEqualityValidation(),
+                OutputEventRatioValidation.blank().setMinimumConsensusRatio(0.2)));
+        orchestrator.validateAndClear(consensusOutputValidatorWithEventRatio);
     }
 
     /**
@@ -376,7 +411,7 @@ public final class ConsensusTestDefinitions {
         // execution: generate a third of the total events
         orchestrator.generateEvents(0.33);
         // validation: we expect normal consensus
-        orchestrator.validateAndClear(Validations.standard());
+        orchestrator.validateAndClear(defaultConsensusOutputValidator);
 
         //
         // Phase 2
@@ -389,13 +424,15 @@ public final class ConsensusTestDefinitions {
         orchestrator.generateEvents(0.33);
         // validation: almost no events will reach consensus
         //   (it's possible a few tail events may reach consensus right at the beginning of the phase)
-        orchestrator.validateAndClear(Validations.standard()
+        final ConsensusOutputValidator consensusOutputValidatorWithEventRatio = new ConsensusOutputValidator(
                 // in this test, only 1 node could end up creating events, which means they have to be added in the same
                 // order, so we disable this validation for this test
-                .remove(Validations.ValidationType.DIFFERENT_ORDER)
-                .ratios(EventRatioValidation.standard()
-                        .setMinimumConsensusRatio(0.0)
-                        .setMaximumConsensusRatio(0.2)));
+                Set.of(
+                        new OutputEventsEqualityValidation(),
+                        OutputEventRatioValidation.standard()
+                                .setMinimumConsensusRatio(0.0)
+                                .setMaximumConsensusRatio(0.2)));
+        orchestrator.validateAndClear(consensusOutputValidatorWithEventRatio);
 
         //
         // Phase 3
@@ -407,7 +444,7 @@ public final class ConsensusTestDefinitions {
         // execution: generate a third of the total events
         orchestrator.generateEvents(0.34);
         // validation: we expect normal consensus
-        orchestrator.validateAndClear(Validations.standard());
+        orchestrator.validateAndClear(defaultConsensusOutputValidator);
     }
 
     /** less than a quorum stop producing events, consensus proceeds as normal */
@@ -423,7 +460,7 @@ public final class ConsensusTestDefinitions {
         // execution: generate a third of the total events
         orchestrator.generateEvents(0.33);
         // validation: we expect normal consensus
-        orchestrator.validateAndClear(Validations.standard());
+        orchestrator.validateAndClear(defaultConsensusOutputValidator);
 
         //
         // Phase 2
@@ -435,7 +472,7 @@ public final class ConsensusTestDefinitions {
         // execution: generate a third of the total events
         orchestrator.generateEvents(0.33);
         // validation: Consensus continues without the nodes that shut down
-        orchestrator.validateAndClear(Validations.standard());
+        orchestrator.validateAndClear(defaultConsensusOutputValidator);
 
         //
         // Phase 3
@@ -447,20 +484,23 @@ public final class ConsensusTestDefinitions {
         // execution: generate a third of the total events
         orchestrator.generateEvents(0.34);
         // validation: we expect normal consensus
-        orchestrator.validateAndClear(Validations.standard());
+        orchestrator.validateAndClear(defaultConsensusOutputValidator);
     }
 
     /**
      * There should be no problems when the probability of events landing on the same timestamp is higher than usual.
      */
     public static void repeatedTimestampTest(@NonNull final TestInput input) {
+        final ConsensusOutputValidator consensusOutputValidatorWithEventRatio = new ConsensusOutputValidator(Set.of(
+                new OutputEventsAddedInDifferentOrderValidation(),
+                new OutputEventsEqualityValidation(),
+                OutputEventRatioValidation.standard().setMinimumConsensusRatio(0.3)));
         OrchestratorBuilder.builder()
                 .setTestInput(input)
                 .build()
                 .configGenerators(g -> ((StandardGraphGenerator) g).setSimultaneousEventFraction(0.5))
                 .generateAllEvents()
-                .validateAndClear(Validations.standard()
-                        .ratios(EventRatioValidation.standard().setMinimumConsensusRatio(0.3)));
+                .validateAndClear(consensusOutputValidatorWithEventRatio);
     }
 
     public static void stale(@NonNull final TestInput input) {
@@ -478,12 +518,15 @@ public final class ConsensusTestDefinitions {
         // Phase 3: all nodes are used as other-parents, again
         orchestrator.setOtherParentAffinity(createBalancedOtherParentMatrix(input.numberOfNodes()));
         orchestrator.generateEvents(0.1);
-        orchestrator.validateAndClear(Validations.standard()
-                .ratios(EventRatioValidation.blank()
+        final ConsensusOutputValidator consensusOutputValidatorWithEventRatio = new ConsensusOutputValidator(Set.of(
+                new OutputEventsAddedInDifferentOrderValidation(),
+                new OutputEventsEqualityValidation(),
+                OutputEventRatioValidation.blank()
                         // if the shunned node has a lot of weigh, not many events
                         // will reach consensus
                         .setMinimumConsensusRatio(0.1)
                         .setMinimumStaleRatio(0.1)));
+        orchestrator.validateAndClear(consensusOutputValidatorWithEventRatio);
     }
 
     /**
@@ -496,13 +539,11 @@ public final class ConsensusTestDefinitions {
                 OrchestratorBuilder.builder().setTestInput(input).build();
 
         orchestrator.generateEvents(0.5);
-        orchestrator.validate(
-                Validations.standard().ratios(EventRatioValidation.blank().setMinimumConsensusRatio(0.5)));
+        orchestrator.validate(consensusOutputValidatorWithConsensusRatio05);
         orchestrator.restartAllNodes();
         orchestrator.clearOutput();
         orchestrator.generateEvents(0.5);
-        orchestrator.validateAndClear(
-                Validations.standard().ratios(EventRatioValidation.blank().setMinimumConsensusRatio(0.5)));
+        orchestrator.validateAndClear(consensusOutputValidatorWithConsensusRatio05);
     }
 
     /** Simulates a reconnect */
@@ -511,30 +552,31 @@ public final class ConsensusTestDefinitions {
                 OrchestratorBuilder.builder().setTestInput(input).build();
 
         orchestrator.generateEvents(0.5);
-        orchestrator.validate(
-                Validations.standard().ratios(EventRatioValidation.blank().setMinimumConsensusRatio(0.5)));
+        orchestrator.validate(consensusOutputValidatorWithConsensusRatio05);
         orchestrator.addReconnectNode(input.platformContext());
 
         orchestrator.clearOutput();
         orchestrator.generateEvents(0.5);
-        orchestrator.validateAndClear(
-                Validations.standard().ratios(EventRatioValidation.blank().setMinimumConsensusRatio(0.5)));
+        orchestrator.validateAndClear(consensusOutputValidatorWithConsensusRatio05);
     }
 
     public static void removeNode(@NonNull final TestInput input) {
         final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         orchestrator.generateEvents(0.5);
-        orchestrator.validate(
-                Validations.standard().ratios(EventRatioValidation.blank().setMinimumConsensusRatio(0.5)));
+        orchestrator.validate(consensusOutputValidatorWithConsensusRatio05);
 
         orchestrator.removeNode(RosterUtils.getNodeId(orchestrator.getRoster(), 0));
 
         orchestrator.generateEvents(0.5);
+        final ConsensusOutputValidator consensusOutputValidatorWithEventRatio = new ConsensusOutputValidator(Set.of(
+                new OutputEventsAddedInDifferentOrderValidation(),
+                new OutputEventsEqualityValidation(),
+                OutputEventRatioValidation.blank().setMinimumConsensusRatio(0.4)));
         orchestrator.validate(
                 // this used to be set to 0.5, but then a test failed because it had a ratio of 0.4999
                 // the number are a bit arbitrary, but the goal is to validate that events are reaching consensus
-                Validations.standard().ratios(EventRatioValidation.blank().setMinimumConsensusRatio(0.4)));
+                consensusOutputValidatorWithEventRatio);
     }
 
     public static void syntheticSnapshot(@NonNull final TestInput input) {
@@ -563,14 +605,21 @@ public final class ConsensusTestDefinitions {
         });
 
         orchestrator.generateEvents(0.5);
-        orchestrator.validateAndClear(Validations.standard()
-                .ratios(EventRatioValidation.blank().setMaximumConsensusRatio(0))
+        final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType1 =
+                new ConsensusOutputValidator(Set.of(
+                        new OutputEventsEqualityValidation(),
+                        OutputEventRatioValidation.blank().setMaximumConsensusRatio(0)));
+        orchestrator.validateAndClear(
                 // only 1 event will actually be added, that is the judge, so there can be no variation in the order
-                .remove(Validations.ValidationType.DIFFERENT_ORDER));
+                consensusOutputValidatorWithEventRatioType1);
 
         orchestrator.generateEvents(0.5);
-        orchestrator.validate(
-                Validations.standard().ratios(EventRatioValidation.blank().setMinimumConsensusRatio(0.8)));
+        final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType2 =
+                new ConsensusOutputValidator(Set.of(
+                        new OutputEventsAddedInDifferentOrderValidation(),
+                        new OutputEventsEqualityValidation(),
+                        OutputEventRatioValidation.blank().setMinimumConsensusRatio(0.8)));
+        orchestrator.validate(consensusOutputValidatorWithEventRatioType2);
     }
 
     /**
@@ -587,10 +636,12 @@ public final class ConsensusTestDefinitions {
                             .getAncientMode()));
         }
 
-        orchestrator
-                .generateAllEvents()
-                .validateAndClear(Validations.standard()
-                        .ratios(EventRatioValidation.standard()
+        final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType2 =
+                new ConsensusOutputValidator(Set.of(
+                        new OutputEventsAddedInDifferentOrderValidation(),
+                        new OutputEventsEqualityValidation(),
+                        OutputEventRatioValidation.standard()
                                 .setMinimumConsensusRatio(0.9 - (0.05 * input.numberOfNodes()))));
+        orchestrator.generateAllEvents().validateAndClear(consensusOutputValidatorWithEventRatioType2);
     }
 }
