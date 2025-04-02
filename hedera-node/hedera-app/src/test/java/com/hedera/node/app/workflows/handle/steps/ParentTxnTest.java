@@ -273,7 +273,6 @@ class ParentTxnTest {
                 blockStreamManager,
                 childDispatchFactory,
                 softwareVersionFactory,
-                transactionChecker,
-                null);
+                transactionChecker);
     }
 }

@@ -16,6 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Defines the {@link PlatformState} singleton and initializes it at genesis.

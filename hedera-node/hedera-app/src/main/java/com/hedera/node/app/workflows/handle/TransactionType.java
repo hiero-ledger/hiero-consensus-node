@@ -19,4 +19,8 @@ public enum TransactionType {
      * All other transactions.
      */
     ORDINARY_TRANSACTION,
+    /**
+     * A synthetic transaction
+     */
+    INTERNAL_TRANSACTION,
 }
