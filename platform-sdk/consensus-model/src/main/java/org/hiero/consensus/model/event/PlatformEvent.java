@@ -91,7 +91,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
                         Objects.requireNonNull(unsignedEvent, "The unsignedEvent must not be null")
                                 .getEventCore(),
                         Objects.requireNonNull(signature, "The signature must not be null"),
-                        unsignedEvent.getTransactionsBytes()),
+                        unsignedEvent.getTransactionsBytes(),
+                        unsignedEvent.getParents()),
                 unsignedEvent.getMetadata());
     }
 

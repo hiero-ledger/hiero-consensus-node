@@ -13,8 +13,6 @@ import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -72,9 +70,12 @@ class DefaultInlinePcesWriterTest {
         final DefaultInlinePcesWriter writer = new DefaultInlinePcesWriter(platformContext, fileManager, selfId);
 
         writer.beginStreamingNewEvents();
-        for (PlatformEvent event : events) {
+        for (final PlatformEvent event : events) {
             writer.writeEvent(event);
         }
+
+        // forces the writer to close the current file so that we can verify the stream
+        writer.registerDiscontinuity(1L);
 
         PcesWriterTestUtils.verifyStream(selfId, events, platformContext, 0, ancientMode);
     }
@@ -102,8 +103,6 @@ class DefaultInlinePcesWriterTest {
 
         writer.beginStreamingNewEvents();
 
-        final Collection<PlatformEvent> rejectedEvents = new HashSet<>();
-
         long lowerBound = ancientMode.getGenesisIndicator();
         final Iterator<PlatformEvent> iterator = events.iterator();
         while (iterator.hasNext()) {
@@ -117,7 +116,6 @@ class DefaultInlinePcesWriterTest {
             if (ancientMode.selectIndicator(event) < lowerBound) {
                 // Although it's not common, it's actually possible that the generator will generate
                 // an event that is ancient (since it isn't aware of what we consider to be ancient)
-                rejectedEvents.add(event);
                 iterator.remove();
             }
         }
@@ -135,7 +133,8 @@ class DefaultInlinePcesWriterTest {
             }
         }
 
-        rejectedEvents.add(ancientEvent);
+        // forces the writer to close the current file so that we can verify the stream
+        writer.registerDiscontinuity(1L);
 
         PcesWriterTestUtils.verifyStream(selfId, events, platformContext, 0, ancientMode);
     }
