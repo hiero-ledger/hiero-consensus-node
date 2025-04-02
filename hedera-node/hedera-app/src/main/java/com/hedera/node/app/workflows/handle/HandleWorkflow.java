@@ -250,6 +250,7 @@ public class HandleWorkflow {
                 migrationStateChanges.clear();
             }
         }
+        systemTransactions.resetNextDispatchNonce();
         final boolean isGenesis =
                 switch (streamMode) {
                     case RECORDS -> blockRecordManager
@@ -257,12 +258,12 @@ public class HandleWorkflow {
                             .equals(Instant.EPOCH);
                     case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
                 };
-        boolean systemTransactionsDispatched = false;
+        boolean transactionsDispatched = false;
         if (isGenesis) {
             final var genesisEventTime = round.iterator().next().getConsensusTimestamp();
             logger.info("Doing genesis setup before {}", genesisEventTime);
             systemTransactions.doGenesisSetup(genesisEventTime, state);
-            systemTransactionsDispatched = true;
+            transactionsDispatched = true;
             if (streamMode != RECORDS) {
                 blockStreamManager.confirmPendingWorkFinished();
             }
@@ -272,20 +273,32 @@ public class HandleWorkflow {
 
         recordCache.resetRoundReceipts();
         try {
-            handleEvents(state, round, systemTransactionsDispatched, stateSignatureTxnCallback);
+            transactionsDispatched |= handleEvents(state, round, stateSignatureTxnCallback);
+            try {
+                transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
+                        state,
+                        boundaryStateChangeListener.lastConsensusTimeOrThrow().plusNanos(1),
+                        systemTransactions);
+            } catch (Exception e) {
+                logger.warn("Failed to reward active nodes", e);
+            }
+            // Inform the BlockRecordManager that the round is complete, so it can update running hashes in state
+            // from results computed in background threads. The running hash has to be included in state, but we want
+            // to synchronize with background threads as infrequently as possible; per round is the best we can do
+            // from the perspective of the legacy record stream.
+            if (transactionsDispatched && streamMode != BLOCKS) {
+                blockRecordManager.endRound(state);
+            }
         } finally {
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
             recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
         }
-        reconcileTssState(state, boundaryStateChangeListener.lastConsensusTimeOrThrow(), round.getConsensusTimestamp());
         try {
-            nodeRewardManager.maybeRewardActiveNodes(
-                    state,
-                    boundaryStateChangeListener.lastConsensusTimeOrThrow().plusNanos(1),
-                    systemTransactions);
+            reconcileTssState(
+                    state, boundaryStateChangeListener.lastConsensusTimeOrThrow(), round.getConsensusTimestamp());
         } catch (Exception e) {
-            logger.warn("Failed to reward active nodes", e);
+            logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
         }
     }
 
@@ -295,15 +308,13 @@ public class HandleWorkflow {
      *
      * @param state the state to apply the effects to
      * @param round the round to apply the effects of
-     * @param systemTransactionsDispatched whether system transactions have been dispatched
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
-    private void handleEvents(
+    private boolean handleEvents(
             @NonNull final State state,
             @NonNull final Round round,
-            final boolean systemTransactionsDispatched,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
-        boolean transactionsDispatched = systemTransactionsDispatched;
+        boolean transactionsDispatched = false;
         for (final var event : round) {
             if (streamMode != RECORDS) {
                 final var headerItem = BlockItem.newBuilder()
@@ -358,16 +369,7 @@ public class HandleWorkflow {
         }
         // Update all throttle metrics once per round
         throttleServiceManager.updateAllMetrics();
-        // Inform the BlockRecordManager that the round is complete, so it can update running-hashes in state
-        // that have been being computed in background threads. The running hash has to be included in
-        // state, but we want to synchronize with background threads as infrequently as possible. So once per
-        // round is the minimum we can do. Note the BlockStreamManager#endRound() method is called in Hedera's
-        // implementation of ConsensusStateEventHandler#onSealConsensusRound(), since the BlockStreamManager cannot do
-        // its
-        // end-of-block work until the platform has finished all its state changes.
-        if (transactionsDispatched && streamMode != BLOCKS) {
-            blockRecordManager.endRound(state);
-        }
+        return transactionsDispatched;
     }
 
     /**
