@@ -110,7 +110,6 @@ public record CallOutcome(
      */
     public void addCreateDetailsTo(@NonNull final ContractCreateStreamBuilder recordBuilder) {
         requireNonNull(recordBuilder);
-        // TODO Glib: Do we need this? or just use result.contractID()? Note: there is tests with recipientIdIfCreated
         recordBuilder.contractID(recipientIdIfCreated());
         recordBuilder.contractCreateResult(result);
         recordBuilder.withCommonFieldsSetFrom(this);

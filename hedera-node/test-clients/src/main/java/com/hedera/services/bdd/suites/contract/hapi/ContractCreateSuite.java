@@ -749,8 +749,6 @@ public class ContractCreateSuite {
                         .logged());
     }
 
-    // TODO Glib: check revision 2f5ca38b2ceb8f5743edc8455c1ba011f942ddd6
-    // https://github.com/hiero-ledger/hiero-consensus-node/commit/2f5ca38b2ceb8f5743edc8455c1ba011f942ddd6#diff-706556539b65ad848ed2e8507bfa1c432d53e406e5194cee1ebbceec33474ca0
     final Stream<DynamicTest> contractCreateShouldChargeTheSame() {
         final var createFeeWithMaxAutoAssoc = 10L;
         final var contract1 = "EmptyOne";
@@ -869,7 +867,6 @@ public class ContractCreateSuite {
                 getContractInfo(contract).has(ContractInfoAsserts.contractWith().maxAutoAssociations(0)));
     }
 
-    // TODO Glib: should I annotate this test with @Tag("STREAM_VALIDATION")?
     @HapiTest
     final Stream<DynamicTest> contractRevertBlockAndRecordFilesNotContainContractId() {
         final var txn = "contractRevertBlockAndRecordFilesNotContainContractId";
