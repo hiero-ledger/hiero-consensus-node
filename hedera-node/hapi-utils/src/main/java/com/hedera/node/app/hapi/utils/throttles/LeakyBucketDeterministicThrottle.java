@@ -37,21 +37,21 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
      * Verifies whether there is enough capacity to handle a transaction with some gasLimit.
      *
      * @param now        - the instant against which the {@link LeakyBucketThrottle} is tested.
-     * @param txGasLimit - the gasLimit extracted from the transaction payload.
+     * @param throttleLimit - the throttle limit extracted from the transaction payload.
      * @return true if there is enough capacity to handle this transaction; false if it should be
      * throttled.
      */
-    public boolean allow(@NonNull final Instant now, final long txGasLimit) {
+    public boolean allow(@NonNull final Instant now, final long throttleLimit) {
         final var elapsedNanos = nanosBetween(lastDecisionTime, now);
         if (elapsedNanos < 0L) {
             throw new IllegalArgumentException("Throttle timeline must advance, but " + now + " is not after "
                     + Instant.ofEpochSecond(lastDecisionTime.seconds(), lastDecisionTime.nanos()));
         }
-        if (txGasLimit < 0) {
-            throw new IllegalArgumentException("Gas limit must be non-negative, but was " + txGasLimit);
+        if (throttleLimit < 0) {
+            throw new IllegalArgumentException("Throttle limit must be non-negative, but was " + throttleLimit);
         }
         lastDecisionTime = new Timestamp(now.getEpochSecond(), now.getNano());
-        return delegate.allow(txGasLimit, elapsedNanos);
+        return delegate.allow(throttleLimit, elapsedNanos);
     }
 
     /**

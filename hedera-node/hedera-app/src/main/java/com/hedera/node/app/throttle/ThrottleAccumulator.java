@@ -411,15 +411,17 @@ public class ThrottleAccumulator {
         }
 
         if (isJumboTransactionsEnabled) {
-            final var bytesUsage = txnInfo.transaction().protobufSize();
-            final var maxRegularTxnSize =
-                    configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
             final var allowedHederaFunctionalities =
                     configuration.getConfigData(JumboTransactionsConfig.class).allowedHederaFunctionalities();
-            final var excessBytes = bytesUsage > maxRegularTxnSize ? bytesUsage - maxRegularTxnSize : 0;
-            if (allowedHederaFunctionalities.functionalitySet().contains(txnInfo.functionality())
-                    && shouldThrottleBasedExcessBytes(excessBytes, now)) {
-                return true;
+            if (allowedHederaFunctionalities.functionalitySet().contains(txnInfo.functionality())) {
+                final var bytesUsage = txnInfo.transaction().protobufSize();
+                final var maxRegularTxnSize =
+                        configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
+
+                final var excessBytes = bytesUsage > maxRegularTxnSize ? bytesUsage - maxRegularTxnSize : 0;
+                if (shouldThrottleBasedExcessBytes(excessBytes, now)) {
+                    return true;
+                }
             }
         }
 
