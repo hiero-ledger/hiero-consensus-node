@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
-import com.swirlds.platform.state.service.schemas.V059RosterLifecycleTransitionSchema;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -29,8 +28,7 @@ public enum PlatformStateService implements Service {
     /**
      * The schemas to register with the {@link SchemaRegistry}.
      */
-    private static final Collection<Schema> SCHEMAS =
-            List.of(new V0540PlatformStateSchema(), new V059RosterLifecycleTransitionSchema());
+    private static final Collection<Schema> SCHEMAS = List.of(new V0540PlatformStateSchema());
 
     public static final String NAME = "PlatformStateService";
 

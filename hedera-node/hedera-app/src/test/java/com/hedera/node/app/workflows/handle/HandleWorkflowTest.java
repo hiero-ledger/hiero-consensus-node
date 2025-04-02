@@ -150,13 +150,6 @@ class HandleWorkflowTest {
 
     private HandleWorkflow subject;
 
-    private SemanticVersion softwareVersionFactory;
-
-    @BeforeEach
-    void setUp() {
-        softwareVersionFactory = SemanticVersion.DEFAULT;
-    }
-
     @Test
     void onlySkipsEventWithMissingCreator() {
         final var presentCreatorId = NodeId.of(1L);

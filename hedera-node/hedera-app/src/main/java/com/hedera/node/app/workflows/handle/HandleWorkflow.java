@@ -139,7 +139,6 @@ public class HandleWorkflow {
     private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final ScheduleService scheduleService;
     private final CongestionMetrics congestionMetrics;
-    private final SemanticVersion softwareVersionFactory;
     private final CurrentPlatformStatus currentPlatformStatus;
     private final BlockHashSigner blockHashSigner;
 
@@ -179,7 +178,6 @@ public class HandleWorkflow {
             @NonNull final HintsService hintsService,
             @NonNull final HistoryService historyService,
             @NonNull final CongestionMetrics congestionMetrics,
-            @NonNull final SemanticVersion softwareVersionFactory,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
             @NonNull final BlockHashSigner blockHashSigner,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
