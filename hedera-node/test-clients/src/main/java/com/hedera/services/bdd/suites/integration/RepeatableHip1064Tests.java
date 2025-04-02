@@ -18,7 +18,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -110,11 +109,6 @@ public class RepeatableHip1064Tests {
                         Duration.ofSeconds(1)),
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(true),
-                withOpContext((spec, logger) -> {
-                    System.out.println("=================================");
-                    System.out.println("Starting new staking period");
-                    System.out.println("=================================");
-                }),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
                 // Collect some node fees with a non-system payer
@@ -156,11 +150,6 @@ public class RepeatableHip1064Tests {
                                     .numMissedJudgeRounds(2)
                                     .build())
                             .build();
-                }),
-                withOpContext((spec, logger) -> {
-                    System.out.println("=================================");
-                    System.out.println("Starting new staking period");
-                    System.out.println("=================================");
                 }),
                 waitUntilStartOfNextStakingPeriod(1),
                 // Trigger another round with a transaction with no fees (superuser payer)
@@ -359,11 +348,9 @@ public class RepeatableHip1064Tests {
             assertEquals(CryptoTransfer, payment.function());
             final var op = payment.body().getCryptoTransfer();
             final long expectedPerNode = expectedPerNodeReward.getAsLong();
-            System.out.println("Expected Per Node Reward: " + expectedPerNode);
             final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
                     .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
             assertEquals(3, bodyAdjustments.size());
-            System.out.println("Node Reward transfers: " + bodyAdjustments);
             // node2 and node3 only expected to receive (node0 is system, node1 was inactive)
             final long expectedDebit = -2 * expectedPerNode;
             assertEquals(
