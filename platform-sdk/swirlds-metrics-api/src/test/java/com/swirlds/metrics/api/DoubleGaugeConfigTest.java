@@ -33,6 +33,8 @@ class DoubleGaugeConfigTest {
         assertThat(config.getUnit()).isEmpty();
         assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
         assertThat(config.getInitialValue()).isEqualTo(0.0, within(EPSILON));
+        assertThat(config.getLabelKeys()).isEmpty();
+        assertThat(config.getPredefinedLabels()).isEmpty();
     }
 
     @Test
@@ -66,6 +68,8 @@ class DoubleGaugeConfigTest {
         assertThat(config.getUnit()).isEmpty();
         assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
         assertThat(config.getInitialValue()).isEqualTo(0.0, within(EPSILON));
+        assertThat(config.getLabelKeys()).isEmpty();
+        assertThat(config.getPredefinedLabels()).isEmpty();
 
         assertThat(result.getCategory()).isEqualTo(CATEGORY);
         assertThat(result.getName()).isEqualTo(NAME);
@@ -73,6 +77,8 @@ class DoubleGaugeConfigTest {
         assertThat(result.getUnit()).isEqualTo(UNIT);
         assertThat(result.getFormat()).isEqualTo(FORMAT);
         assertThat(result.getInitialValue()).isEqualTo(Math.PI, within(EPSILON));
+        assertThat(result.getLabelKeys()).isEmpty();
+        assertThat(result.getPredefinedLabels()).isEmpty();
     }
 
     @Test
