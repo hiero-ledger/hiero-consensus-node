@@ -468,7 +468,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
 
     private void setupStakingRewardsStore() {
         final AtomicReference<NetworkStakingRewards> backingValue =
-                new AtomicReference<>(new NetworkStakingRewards(true, 100000L, 50000L, 1000L));
+                new AtomicReference<>(new NetworkStakingRewards(true, 100000L, 50000L, 1000L, Timestamp.DEFAULT));
         final var stakingRewardsState = new ReadableSingletonStateBase<>(NETWORK_REWARDS, backingValue::get);
         given(readableStates.getSingleton(NETWORK_REWARDS)).willReturn((ReadableSingletonState) stakingRewardsState);
         final var readableRewardsStore = new ReadableNetworkStakingRewardsStoreImpl(readableStates);

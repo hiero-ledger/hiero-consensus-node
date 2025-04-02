@@ -61,6 +61,15 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private final CountDownLatch prehandleCompleted = new CountDownLatch(1);
 
     /**
+     * The non-deterministic generation calculated locally by each node. NGen is calculated for every event added to the
+     * hashgraph. The value can differ between nodes for the same event and must only ever be used for determining one
+     * of the several valid topological orderings, or determining which event is higher in the hashgraph than another (a
+     * higher number indicates the event is higher in the hashgraph). NGen will be
+     * {@link EventConstants#GENERATION_UNDEFINED} until set at the appropriate point in the pipeline.
+     */
+    private long nGen = EventConstants.GENERATION_UNDEFINED;
+
+    /**
      * Construct a new instance from an unsigned event and a signature.
      *
      * @param unsignedEvent the unsigned event
@@ -82,7 +91,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
                         Objects.requireNonNull(unsignedEvent, "The unsignedEvent must not be null")
                                 .getEventCore(),
                         Objects.requireNonNull(signature, "The signature must not be null"),
-                        unsignedEvent.getTransactionsBytes()),
+                        unsignedEvent.getTransactionsBytes(),
+                        unsignedEvent.getParents()),
                 unsignedEvent.getMetadata());
     }
 
@@ -181,6 +191,24 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
+     * Get the non-deterministic generation of the event.
+     *
+     * @return the non-deterministic generation of the event
+     */
+    public long getNGen() {
+        return nGen;
+    }
+
+    /**
+     * Set the non-deterministic generation of the event.
+     *
+     * @param nGen the nGen value to set
+     */
+    public void setNGen(final long nGen) {
+        this.nGen = nGen;
+    }
+
+    /**
      * Get the birth round of the event.
      *
      * @return the birth round of the event
@@ -255,9 +283,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * @return the consensus order for this event, this will be
-     * {@link ConsensusConstants#NO_CONSENSUS_ORDER} if the event has not reached
-     * consensus
+     * @return the consensus order for this event, this will be {@link ConsensusConstants#NO_CONSENSUS_ORDER} if the
+     * event has not reached consensus
      */
     public long getConsensusOrder() {
         return consensusData.consensusOrder();
@@ -279,8 +306,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * Set the consensus timestamp on the transaction wrappers for this event. This must be done after the consensus time is
-     * set for this event.
+     * Set the consensus timestamp on the transaction wrappers for this event. This must be done after the consensus
+     * time is set for this event.
      */
     public void setConsensusTimestampsOnTransactions() {
         if (this.consensusData == NO_CONSENSUS) {
@@ -324,9 +351,9 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * right before the birth round migration. Parents of this event may also have their birth round overridden if their
      * generation is greater or equal to the specified {@code ancientGenerationThreshold} value.
      *
-     * @param birthRound the birth round that has been assigned to this event
-     * @param ancientGenerationThreshold the threshold to determine if this event's parents should also have their
-     *                                   birth round overridden
+     * @param birthRound                 the birth round that has been assigned to this event
+     * @param ancientGenerationThreshold the threshold to determine if this event's parents should also have their birth
+     *                                   round overridden
      */
     public void overrideBirthRound(final long birthRound, final long ancientGenerationThreshold) {
         metadata.setBirthRoundOverride(birthRound, ancientGenerationThreshold);
@@ -443,18 +470,5 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     @Override
     public void setHash(final Hash hash) {
         metadata.setHash(hash);
-    }
-
-    /**
-     * Get the value used to determine if this event is ancient or not. Will be the event's generation prior to
-     * migration, and the event's birth round after migration.
-     *
-     * @return the value used to determine if this event is ancient or not
-     */
-    public long getAncientIndicator(@NonNull final AncientMode ancientMode) {
-        return switch (ancientMode) {
-            case GENERATION_THRESHOLD -> getGeneration();
-            case BIRTH_ROUND_THRESHOLD -> getBirthRound();
-        };
     }
 }

@@ -101,7 +101,7 @@ jobs:
         run: git push --set-upstream origin "${{ steps.branch.outputs.name }}"
 
       - name: Git-Semver Setup Action
-        uses: DJ-BBot/setup-git-semver@de866aa3ff6d0ae6e9909ba51b7948c0cf8a1a93 # v1.0.3
+        uses: DJ-BBot/setup-git-semver@b6b17c8e4e6b307d2a66fd93797a9d30e48836e1 # v1.0.4
 
       - name: Identify Current Version Number
         run: |

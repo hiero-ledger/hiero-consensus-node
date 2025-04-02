@@ -7,6 +7,7 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0500TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
+import com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema;
 import com.hedera.node.app.spi.AppContext;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -33,5 +34,6 @@ public class TokenServiceImpl implements TokenService {
         registry.register(new V0490TokenSchema());
         registry.register(new V0500TokenSchema(idFactory));
         registry.register(new V0530TokenSchema());
+        registry.register(new V0610TokenSchema());
     }
 }
