@@ -51,12 +51,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEcdsaPrivateKeyF
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.simpleValidateStreams;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateStreams;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateBlockStream;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.CHAIN_ID;
@@ -90,16 +88,24 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.block.stream.Block;
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.BlockItem.ItemOneOfType;
+import com.hedera.hapi.block.stream.output.TransactionOutput;
+import com.hedera.hapi.block.stream.output.TransactionOutput.TransactionOneOfType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.pbj.runtime.OneOf;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiPropertySource;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -109,6 +115,8 @@ import com.hedera.services.bdd.utils.Signing;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.Timestamp;
+import com.hederahashgraph.api.proto.java.TransactionRecord;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigInteger;
@@ -116,15 +124,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.consensus.model.utility.CommonUtils;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.io.TempDir;
 
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
@@ -133,7 +143,6 @@ public class ContractCreateSuite {
     public static final String EMPTY_CONSTRUCTOR_CONTRACT = "EmptyConstructor";
     public static final String PARENT_INFO = "parentInfo";
     private static final String PAYER = "payer";
-    private static final String ALICE = "alice";
 
     private static final Logger log = LogManager.getLogger(ContractCreateSuite.class);
 
@@ -144,17 +153,13 @@ public class ContractCreateSuite {
             "f8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222";
     private static final String EXPECTED_DEPLOYER_ADDRESS = "4e59b44847b379578588920ca78fbf26c0b4956c";
     private static final String DEPLOYER = "DeployerContract";
-    public static final String ENTITIES_UNLIMITED_AUTO_ASSOCIATIONS_ENABLED =
-            "entities.unlimitedAutoAssociationsEnabled";
-    public static final String LEDGER_MAX_AUTO_ASSOCIATIONS = "ledger.maxAutoAssociations";
-
     private static final String FUNGIBLE_TOKEN = "fungible";
     private static final String MULTI_KEY = "multiKey";
 
     @HapiTest
     final Stream<DynamicTest> createDeterministicDeployer() {
-        final var creatorAddress = ByteString.copyFrom(CommonUtils.unhex(DEPLOYMENT_SIGNER));
-        final var transaction = ByteString.copyFrom(CommonUtils.unhex(DEPLOYMENT_TRANSACTION));
+        final var creatorAddress = ByteString.copyFrom(Objects.requireNonNull(CommonUtils.unhex(DEPLOYMENT_SIGNER)));
+        final var transaction = ByteString.copyFrom(Objects.requireNonNull(CommonUtils.unhex(DEPLOYMENT_TRANSACTION)));
         final var systemFileId = FileID.newBuilder().setFileNum(159).build();
 
         return hapiTest(
@@ -424,7 +429,7 @@ public class ContractCreateSuite {
                     final var createdIds = creationResult.getCreatedContractIDsList();
                     assertEquals(1, createdIds.size(), "Expected one creations but got " + createdIds);
                     assertTrue(
-                            createdIds.get(0).getContractNum() < 10000,
+                            createdIds.getFirst().getContractNum() < 10000,
                             "Expected contract num < 10000 but got " + createdIds);
                 }));
     }
@@ -448,7 +453,7 @@ public class ContractCreateSuite {
                     final var aNum = (int) registry.getAccountID(aBeneficiary).getAccountNum();
                     final var bNum = (int) registry.getAccountID(bBeneficiary).getAccountNum();
                     final var sendArgs =
-                            new Object[]{Long.valueOf(sendAmount), Long.valueOf(aNum), Long.valueOf(bNum)};
+                            new Object[]{(long) sendAmount, (long) aNum, (long) bNum};
 
                     final var op = contractCall(contract, "sendTo", sendArgs)
                             .gas(110_000)
@@ -672,7 +677,7 @@ public class ContractCreateSuite {
                             secondBlockRecord.getContractCallResult().getLogInfoList();
                     assertEquals(2, secondBlockLogs.size());
                     final var secondBlockTimeLogData =
-                            secondBlockLogs.get(0).getData().toByteArray();
+                            secondBlockLogs.getFirst().getData().toByteArray();
                     final var secondBlockTimestamp =
                             Longs.fromByteArray(Arrays.copyOfRange(secondBlockTimeLogData, 24, 32));
                     assertNotEquals(firstBlockTimestamp, secondBlockTimestamp, "Block timestamps should change");
@@ -746,6 +751,8 @@ public class ContractCreateSuite {
                         .logged());
     }
 
+    // TODO Glib: check revision 2f5ca38b2ceb8f5743edc8455c1ba011f942ddd6
+    // https://github.com/hiero-ledger/hiero-consensus-node/commit/2f5ca38b2ceb8f5743edc8455c1ba011f942ddd6#diff-706556539b65ad848ed2e8507bfa1c432d53e406e5194cee1ebbceec33474ca0
     final Stream<DynamicTest> contractCreateShouldChargeTheSame() {
         final var createFeeWithMaxAutoAssoc = 10L;
         final var contract1 = "EmptyOne";
@@ -864,51 +871,113 @@ public class ContractCreateSuite {
                 getContractInfo(contract).has(ContractInfoAsserts.contractWith().maxAutoAssociations(0)));
     }
 
-    //TODO Glib: should i annotate this test with @Tag("STREAM_VALIDATION")?
-    //TODO Glib: test it
+    //TODO Glib: should I annotate this test with @Tag("STREAM_VALIDATION")?
     @HapiTest
     final Stream<DynamicTest> contractRevertBlockAndRecordFilesNotContainContractId() {
-        final var txn = "revertBlockAndRecordContaixnsContractId";
+        final var txn = "contractRevertBlockAndRecordFilesNotContainContractId";
+        AtomicReference<Timestamp> ts = new AtomicReference<>();
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .balance(1L)
                         .via(txn)
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                // check if CONTRACT_REVERT_EXECUTED record DON`T contains expected contractIds
                 withOpContext((spec, opLog) -> {
-                    final var record = getTxnRecord(txn);
-                    allRunFor(spec, record);
-
-                    // First block info
-                    final var respRecord = record.getResponse();
-                    System.out.println(respRecord);
+                    final var record = getRecord(spec, txn, CONTRACT_REVERT_EXECUTED);
+                    ts.set(record.getConsensusTimestamp());
+                    asserRecordContractId(record, false);
                 }),
-                simpleValidateStreams().withBlockValidation(blocks -> {
-//                    final var item = blocks.stream()
-//                            .flatMap(e -> e..stream())
-//                            .filter(e -> ResponseCodeEnum.CONTRACT_REVERT_EXECUTED.equals(e.getRecord().getReceipt().getStatus()))
-//                            .findFirst().orElse(null);
-                    System.out.println(blocks);
+                // check if CONTRACT_REVERT_EXECUTED block DON`T contains expected contractIds
+                validateBlockStream().withBlockValidation(blocks -> {
+                    // get last TRANSACTION_OUTPUT in all blocks
+                    final var item = getLastContractCreateTx(blocks, ts.get());
+                    asserBlockContractId(item, false);
                 })
         );
     }
 
-    //TODO Glib: with this we can test a files
-    @TempDir
-    Path tempDir;
 
-    //TODO Glib: test it
     @HapiTest
-    final Stream<DynamicTest> blockAndRecordContainsContractId() {
-        final var txn = "revertBlockAndRecordContainsContractId";
+    final Stream<DynamicTest> blockAndRecordFilesNotContainContractId() {
+        final var txn = "blockAndRecordFilesNotContainContractId";
+        AtomicReference<Timestamp> ts = new AtomicReference<>();
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
-                waitUntilNextBlock().withBackgroundTraffic(true),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .via(txn)
                         .hasKnownStatus(SUCCESS),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                getTxnRecord(txn).logged());
+                // check if record contains expected contractIds
+                withOpContext((spec, opLog) -> {
+                    final var record = getRecord(spec, txn, SUCCESS);
+                    ts.set(record.getConsensusTimestamp());
+                    asserRecordContractId(record, true);
+                }),
+                // check if block contains expected contractIds
+                validateBlockStream().withBlockValidation(blocks -> {
+                    // get last TRANSACTION_OUTPUT in all blocks
+                    final var item = getLastContractCreateTx(blocks, ts.get());
+                    asserBlockContractId(item, true);
+                })
+        );
+    }
+
+    private TransactionRecord getRecord(HapiSpec spec, String txn, ResponseCodeEnum status) {
+        final var hapiGetRecord = getTxnRecord(txn);
+        allRunFor(spec, hapiGetRecord);
+        // Getting record
+        final var respRecord = hapiGetRecord.getResponse();
+        assertTrue(respRecord.hasTransactionGetRecord());
+        final var record = respRecord.getTransactionGetRecord().getTransactionRecord();
+        assertEquals(status, record.getReceipt().getStatus());
+        return record;
+    }
+
+    private TransactionOutput getLastContractCreateTx(List<Block> blocks, Timestamp timestamp) {
+        return blocks.stream()
+                .flatMap(e -> e.items().stream())
+                .map(BlockItem::item)
+                .filter(e -> ItemOneOfType.TRANSACTION_OUTPUT.equals(e.kind()))
+                .<TransactionOutput>map(OneOf::as)
+                .filter(e -> TransactionOneOfType.CONTRACT_CREATE.equals(e.transaction().kind()))
+                // match txn by timestamp, because there is other CONTRACT_CREATE txn
+                .filter(e -> e.contractCreateOrThrow().sidecars()
+                        .stream()
+                        .anyMatch(s ->
+                                s.consensusTimestamp().seconds() == timestamp.getSeconds()
+                                        && s.consensusTimestamp().nanos() == timestamp.getNanos()))
+                .reduce((f, s) -> s)
+                .orElseGet(() -> Assertions.fail("TRANSACTION_OUTPUT -> CONTRACT_CREATE mot found"));
+    }
+
+    private void asserRecordContractId(TransactionRecord record, boolean shouldContractIdExists) {
+        // check record->receipt->contractId
+        assertEquals(shouldContractIdExists, record.getReceipt().hasContractID());
+        // check record->contractCreateResult->contractId
+        assertEquals(shouldContractIdExists, record.getContractCreateResult().hasContractID());
+    }
+
+    private void asserBlockContractId(TransactionOutput item, boolean shouldContractIdExists) {
+        assertTrue(item.hasContractCreate());
+        // check sidecars->actions->recipient, sidecars->bytecode->contractId
+        item.contractCreateOrThrow().sidecars()
+                .forEach(sidecar -> {
+                    if (sidecar.hasActions()) {
+                        sidecar.actionsOrThrow().contractActions()
+                                .forEach(action -> assertEquals(shouldContractIdExists, action.hasRecipientContract()));
+                    } else if (sidecar.hasBytecode()) {
+                        assertEquals(shouldContractIdExists, sidecar.bytecodeOrThrow().hasContractId());
+                    }
+                });
+        // check contractCreate->contractCreateResult->contractId
+        assertTrue(item.contractCreateOrThrow().hasContractCreateResult());
+        assertEquals(shouldContractIdExists,
+                item.contractCreateOrThrow().contractCreateResult().hasContractID());
+        // check contractCreate->contractCreateResult->contractNonces->contractId
+        assertEquals(!shouldContractIdExists,
+                item.contractCreateOrThrow().contractCreateResult().contractNonces().isEmpty());
+        item.contractCreateOrThrow().contractCreateResult().contractNonces()
+                .forEach(nonce -> assertEquals(shouldContractIdExists, nonce.hasContractId()));
     }
 
     private EthTxData placeholderEthTx() {

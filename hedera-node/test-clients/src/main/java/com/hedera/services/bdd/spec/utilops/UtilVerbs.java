@@ -379,7 +379,7 @@ public class UtilVerbs {
      *
      * @return the operation that validates the streams
      */
-    public static BlockStreamValidationOp simpleValidateStreams() {
+    public static BlockStreamValidationOp validateBlockStream() {
         return new BlockStreamValidationOp();
     }
 

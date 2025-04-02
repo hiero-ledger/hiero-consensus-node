@@ -103,7 +103,6 @@ public record CallOutcome(
         recordBuilder.withCommonFieldsSetFrom(this);
     }
 
-    // TODO Glib: here we are set contractID for record and block if status == SUCCESS
     /**
      * Adds the create details to the given record builder.
      *
@@ -111,7 +110,7 @@ public record CallOutcome(
      */
     public void addCreateDetailsTo(@NonNull final ContractCreateStreamBuilder recordBuilder) {
         requireNonNull(recordBuilder);
-        recordBuilder.contractID(recipientIdIfCreated());
+        recordBuilder.contractID(result.contractID());
         recordBuilder.contractCreateResult(result);
         recordBuilder.withCommonFieldsSetFrom(this);
     }
@@ -126,18 +125,6 @@ public record CallOutcome(
         return tinybarGasPrice * result.gasUsed();
     }
 
-    /**
-     * Returns the ID of the contract that was created, or null if no contract was created.
-     *
-     * @return the ID of the contract that was created, or null if no contract was created
-     */
-    public @Nullable ContractID recipientIdIfCreated() {
-        return representsTopLevelCreation() ? result.contractIDOrThrow() : null;
-    }
-
-    private boolean representsTopLevelCreation() {
-        return isSuccess() && requireNonNull(result).hasEvmAddress();
-    }
 
     private boolean callWasAborted() {
         return result.gasUsed() == 0L;

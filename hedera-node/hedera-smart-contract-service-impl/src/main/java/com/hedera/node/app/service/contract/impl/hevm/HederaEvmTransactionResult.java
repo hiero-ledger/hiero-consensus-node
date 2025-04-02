@@ -320,13 +320,12 @@ public record HederaEvmTransactionResult(
         return builder.build();
     }
 
-    //TODO Glib: Do not set contractId here?
     private ContractFunctionResult.Builder asUncommittedFailureResult(@NonNull final String errorMessage) {
         requireNonNull(errorMessage);
+        // we are not setting recipientId as contractID here because failed block/receipt should not contain contractID
         return ContractFunctionResult.newBuilder()
                 .gasUsed(gasUsed)
                 .errorMessage(errorMessage)
-                .contractID(recipientId)
                 .signerNonce(signerNonce);
     }
 
