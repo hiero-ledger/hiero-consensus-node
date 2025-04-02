@@ -77,8 +77,6 @@ import org.hiero.consensus.model.hashgraph.Round;
 public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
 
-    private static final String FATAL_SHUTDOWN_BASE_MSG = "Waiting for fatal shutdown of block stream to complete";
-
     private final int roundsPerBlock;
     private final Duration blockPeriod;
     private final int hashCombineBatchSize;
@@ -92,8 +90,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final PlatformStateFacade platformStateFacade;
 
+    private final Lifecycle lifecycle;
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
+    private final boolean streamToBlockNodes;
 
     // The status of pending work
     private PendingWork pendingWork = NONE;
@@ -115,21 +115,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private StreamingTreeHasher outputTreeHasher;
     private BlockStreamManagerTask worker;
     private final boolean hintsEnabled;
-    // If not null, the part of the block preceding a possible first transaction
-    @Nullable
-    private PreTxnItems preTxnItems;
-
-    /**
-     * Represents the part of a block preceding a possible first transaction; we defer writing this part until
-     * we know the timestamp of the first transaction.
-     * <p>
-     * <b>Important:</b> This first timestamp may be different from the first platform-assigned user transaction
-     * time because of synthetic preceding transactions.
-     *
-     * @param headerBuilder   the block header builder
-     * @param postHeaderItems the post-header items
-     */
-    private record PreTxnItems(@NonNull BlockHeader.Builder headerBuilder, @NonNull List<BlockItem> postHeaderItems) {}
 
     /**
      * Represents a block pending completion by the block hash signature needed for its block proof.
@@ -168,14 +153,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final Lifecycle lifecycle) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.version = requireNonNull(version);
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
-        this.platformStateFacade = platformStateFacade;
-        requireNonNull(configProvider);
+        this.platformStateFacade = requireNonNull(platformStateFacade);
+        this.lifecycle = requireNonNull(lifecycle);
         final var config = configProvider.getConfiguration();
         this.hintsEnabled = config.getConfigData(TssConfig.class).hintsEnabled();
         this.hapiVersion = hapiVersionFrom(config);
@@ -183,6 +169,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
         this.blockPeriod = blockStreamConfig.blockPeriod();
         this.hashCombineBatchSize = blockStreamConfig.hashCombineBatchSize();
+        this.streamToBlockNodes = blockStreamConfig.streamToBlockNodes();
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
@@ -228,8 +215,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Writer will be null when beginning a new block
         if (writer == null) {
             writer = writerSupplier.get();
-            // This iterator is never empty; c.f. DefaultTransactionHandler#handleConsensusRound()
-            blockTimestamp = round.iterator().next().getConsensusTimestamp();
+            blockTimestamp = round.getConsensusTimestamp();
             boundaryStateChangeListener.setBoundaryTimestamp(blockTimestamp);
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
@@ -245,6 +231,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockHashManager.startBlock(blockStreamInfo, lastBlockHash);
             runningHashManager.startBlock(blockStreamInfo);
 
+            lifecycle.onOpenBlock(state);
             inputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             outputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             blockNumber = blockStreamInfo.blockNumber() + 1;
@@ -254,17 +241,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .number(blockNumber)
                     .hashAlgorithm(SHA2_384)
                     .softwareVersion(platformStateFacade.creationSemanticVersionOf(state))
+                    .blockTimestamp(asTimestamp(blockTimestamp))
                     .hapiProtoVersion(hapiVersion);
-            preTxnItems = new PreTxnItems(header, new ArrayList<>());
+            worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
         }
         consensusTimeLastRound = round.getConsensusTimestamp();
-    }
-
-    @Override
-    public void setRoundFirstTransactionTime(@NonNull final Instant at) {
-        if (preTxnItems != null) {
-            flushPreUserItems(asTimestamp(at));
-        }
     }
 
     @Override
@@ -305,13 +286,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     public boolean endRound(@NonNull final State state, final long roundNum) {
         final boolean closesBlock = shouldCloseBlock(roundNum, roundsPerBlock);
         if (closesBlock) {
-            // If there were no user or node transactions in the block, this writes all
-            // the accumulated items starting from the header, sacrificing the benefits
-            // of concurrency; but performance impact is irrelevant when there are no
-            // transactions of any sort
-            if (preTxnItems != null) {
-                flushPreUserItems(null);
-            }
+            lifecycle.onCloseBlock(state);
             // Flush all boundary state changes besides the BlockStreamInfo
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
@@ -366,6 +341,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     writer,
                     new MerkleSiblingHash(false, inputHash),
                     new MerkleSiblingHash(false, rightParent)));
+
+            if (streamToBlockNodes) {
+                // Write any pre-block proof block items
+                writer.writePreBlockProofItems();
+            }
+
             // Update in-memory state to prepare for the next block
             lastBlockHash = blockHash;
             writer = null;
@@ -409,11 +390,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void writeItem(@NonNull final BlockItem item) {
-        if (preTxnItems != null) {
-            preTxnItems.postHeaderItems().add(item);
-        } else {
-            worker.addItem(item);
-        }
+        worker.addItem(item);
     }
 
     @Override
@@ -477,25 +454,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .blockSignature(blockSignature)
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
-            block.writer().writePbjItem(BlockItem.PROTOBUF.toBytes(proofItem));
+            block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeBlock();
             if (block.number() != blockNumber) {
                 siblingHashes.removeFirst();
             }
         }
-    }
-
-    /**
-     * Flushes the pre-user items, with the given first user transaction time.
-     *
-     * @param firstUserTransactionTime the first user transaction time
-     */
-    private void flushPreUserItems(@Nullable final Timestamp firstUserTransactionTime) {
-        requireNonNull(preTxnItems);
-        final var header = preTxnItems.headerBuilder().firstTransactionConsensusTime(firstUserTransactionTime);
-        worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
-        preTxnItems.postHeaderItems().forEach(worker::addItem);
-        preTxnItems = null;
     }
 
     /**
@@ -644,7 +608,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (header != null) {
                 writer.openBlock(header.number());
             }
-            writer.writePbjItem(serialized);
+            writer.writePbjItemAndBytes(item, serialized);
 
             next.send();
             return true;

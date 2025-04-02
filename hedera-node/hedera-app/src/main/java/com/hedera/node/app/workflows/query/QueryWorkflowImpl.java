@@ -240,7 +240,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                         queryChecker.validateAccountBalances(accountStore, transactionInfo, payer, queryFees, txFees);
 
                         // 3.vi Submit payment to platform
-                        submissionManager.submit(txBody, transactionInfo.serializedTransaction());
+                        submissionManager.submit(txBody, paymentBytes);
                     }
                 } else {
                     if (RESTRICTED_FUNCTIONALITIES.contains(function)) {
@@ -309,9 +309,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             return queryParser.parseStrict(requestBuffer.toReadableSequentialData());
         } catch (ParseException e) {
             switch (e.getCause()) {
-                case MalformedProtobufException ex:
+                case MalformedProtobufException ignored:
                     break;
-                case UnknownFieldException ex:
+                case UnknownFieldException ignored:
                     break;
                 default:
                     logger.warn("Unexpected ParseException while parsing protobuf", e);

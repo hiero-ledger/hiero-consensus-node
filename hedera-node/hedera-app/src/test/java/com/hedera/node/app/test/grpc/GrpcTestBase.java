@@ -13,6 +13,7 @@ import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
@@ -91,6 +92,7 @@ abstract class GrpcTestBase extends TestBase {
     private NettyGrpcServerManager grpcServer;
 
     private final Configuration configuration = ConfigurationBuilder.create()
+            .withConfigDataType(JumboTransactionsConfig.class)
             .withConfigDataType(MetricsConfig.class)
             .build();
 
@@ -282,6 +284,7 @@ abstract class GrpcTestBase extends TestBase {
                 .withConfigDataType(GrpcConfig.class)
                 .withConfigDataType(NettyConfig.class)
                 .withConfigDataType(HederaConfig.class)
+                .withConfigDataType(JumboTransactionsConfig.class)
                 .withSource(testConfig)
                 .build();
     }

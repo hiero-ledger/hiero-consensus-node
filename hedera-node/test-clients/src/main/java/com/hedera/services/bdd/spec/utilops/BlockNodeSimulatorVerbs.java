@@ -91,12 +91,12 @@ public class BlockNodeSimulatorVerbs {
         }
 
         /**
-         * Restarts the block node simulator immediately.
+         * Starts the block node simulator immediately.
          *
          * @return the operation
          */
         public BlockNodeSimulatorOp startImmediately() {
-            return BlockNodeSimulatorOp.restartImmediately(nodeIndex).build();
+            return BlockNodeSimulatorOp.startImmediately(nodeIndex).build();
         }
 
         /**
@@ -188,12 +188,12 @@ public class BlockNodeSimulatorVerbs {
         }
 
         /**
-         * Restarts all previously shutdown block node simulators.
+         * Starts all previously shutdown block node simulators.
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp restartAll() {
-            return BlockNodeSimulatorOp.restartAll().build();
+        public BlockNodeSimulatorOp startAll() {
+            return BlockNodeSimulatorOp.startAll().build();
         }
     }
 }

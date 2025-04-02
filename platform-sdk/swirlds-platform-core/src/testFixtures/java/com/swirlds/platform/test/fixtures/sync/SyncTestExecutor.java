@@ -6,7 +6,6 @@ import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticT
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
@@ -32,6 +31,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 
 /**
  * This class executes a single sync between two {@link SyncNode} instances. It defines the high level structure and
