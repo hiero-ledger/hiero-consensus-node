@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
@@ -67,15 +68,16 @@ public class TokenAirdropValidator {
             if (!tokenTransfer.nftTransfers().isEmpty()) {
                 final var sender =
                         tokenTransfer.nftTransfers().stream().findFirst().get().senderAccountID();
+                validateTruePreCheck(sender!= null, INVALID_TRANSFER_ACCOUNT_ID);
                 final var allNftsHaveTheSameSender = tokenTransfer.nftTransfers().stream()
-                        .allMatch(nftTransfer -> nftTransfer.senderAccountID().equals(sender));
-                validateTrue(allNftsHaveTheSameSender, AIRDROP_CONTAINS_MULTIPLE_SENDERS);
+                        .allMatch(nftTransfer -> sender.equals(nftTransfer.senderAccountID()));
+                validateTruePreCheck(allNftsHaveTheSameSender, AIRDROP_CONTAINS_MULTIPLE_SENDERS);
             }
             if (!tokenTransfer.transfers().isEmpty()) {
                 List<AccountAmount> negativeTransfers = tokenTransfer.transfers().stream()
                         .filter(fungibleTransfer -> fungibleTransfer.amount() < 0)
                         .toList();
-                validateTrue(negativeTransfers.size() == 1, AIRDROP_CONTAINS_MULTIPLE_SENDERS);
+                validateTruePreCheck(negativeTransfers.size() == 1, AIRDROP_CONTAINS_MULTIPLE_SENDERS);
             }
         }
         validateTokenTransfers(op.tokenTransfers(), CryptoTransferValidator.AllowanceStrategy.ALLOWANCES_REJECTED);
