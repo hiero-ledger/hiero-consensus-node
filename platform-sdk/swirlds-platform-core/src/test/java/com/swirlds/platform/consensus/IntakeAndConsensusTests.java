@@ -9,18 +9,18 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.RoundInternalEqualityValidation;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class IntakeAndConsensusTests {
     /**
@@ -38,8 +38,9 @@ class IntakeAndConsensusTests {
      * <p>
      * Tests the workaround described in #5762
      */
-    @Test
-    void nonAncientEventWithMissingParents() {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void nonAncientEventWithMissingParents(final boolean useBirthRounds) {
         final long seed = 0;
         final int numNodes = 10;
         final List<Integer> partitionNodes = List.of(0, 1);
@@ -47,6 +48,7 @@ class IntakeAndConsensusTests {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, 25)
                 .withValue(ConsensusConfig_.ROUNDS_EXPIRED, 25)
+                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, Boolean.toString(useBirthRounds))
                 .getOrCreateConfig();
 
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
@@ -80,8 +82,8 @@ class IntakeAndConsensusTests {
         // during the partition, we will not insert the minority partition events into consensus
         // we generate just enough events to make the first event of the partition ancient, but we don't insert the
         // last event into the second consensus
-        long partitionMinGen = EventConstants.GENERATION_UNDEFINED;
-        long partitionMaxGen = EventConstants.GENERATION_UNDEFINED;
+        long partitionMin = useBirthRounds ? EventConstants.BIRTH_ROUND_UNDEFINED : EventConstants.GENERATION_UNDEFINED;
+        long partitionMax = useBirthRounds ? EventConstants.BIRTH_ROUND_UNDEFINED : EventConstants.GENERATION_UNDEFINED;
         final List<EventImpl> partitionedEvents = new LinkedList<>();
         boolean succeeded = false;
         EventImpl lastEvent = null;
@@ -89,15 +91,23 @@ class IntakeAndConsensusTests {
             batch = generator.generateEvents(1);
             lastEvent = batch.getFirst();
             if (partitionNodes.contains((int) lastEvent.getCreatorId().id())) {
-                partitionMinGen = partitionMinGen == EventConstants.GENERATION_UNDEFINED
-                        ? lastEvent.getGeneration()
-                        : Math.min(partitionMinGen, lastEvent.getGeneration());
-                partitionMaxGen = Math.max(partitionMaxGen, lastEvent.getGeneration());
+                if (useBirthRounds) {
+                    partitionMin = partitionMin < 0
+                            ? lastEvent.getBirthRound()
+                            : Math.min(partitionMin, lastEvent.getBirthRound());
+                    partitionMax = Math.max(partitionMax, lastEvent.getBirthRound());
+                } else {
+                    partitionMin = partitionMin < 0
+                            ? lastEvent.getGeneration()
+                            : Math.min(partitionMin, lastEvent.getGeneration());
+                    partitionMax = Math.max(partitionMax, lastEvent.getGeneration());
+                }
+
                 partitionedEvents.add(lastEvent);
             } else {
                 node1.addEvent(lastEvent.getBaseEvent().copyGossipedData());
                 final long node1NonAncGen = node1.getOutput().getEventWindow().getAncientThreshold();
-                if (partitionMaxGen > node1NonAncGen && partitionMinGen < node1NonAncGen) {
+                if (partitionMax > node1NonAncGen && partitionMin < node1NonAncGen) {
                     succeeded = true;
                 } else {
                     node2.addEvent(lastEvent.getBaseEvent().copyGossipedData());
@@ -124,8 +134,8 @@ class IntakeAndConsensusTests {
         final int secondBatchSize = 1000;
         batch = generator.generateEvents(secondBatchSize);
         for (final EventImpl event : batch) {
-            node1.addEvent(event.getBaseEvent());
-            node2.addEvent(event.getBaseEvent());
+            node1.addEvent(event.getBaseEvent().copyGossipedData());
+            node2.addEvent(event.getBaseEvent().copyGossipedData());
         }
         assertThat(node1.getConsensusRounds().getLast().getRoundNum())
                 .isGreaterThan(consRoundBeforeLastBatch)
@@ -134,13 +144,7 @@ class IntakeAndConsensusTests {
     }
 
     private static void assertConsensusEvents(final TestIntake node1, final TestIntake node2) {
-        final RoundInternalEqualityValidation roundInternalEqualityValidation = new RoundInternalEqualityValidation();
-
-        final Iterator<ConsensusRound> iterator1 = node1.getConsensusRounds().iterator();
-        final Iterator<ConsensusRound> iterator2 = node2.getConsensusRounds().iterator();
-        while (iterator1.hasNext() && iterator2.hasNext()) {
-            roundInternalEqualityValidation.validate(iterator1.next(), iterator2.next());
-        }
+        new ConsensusRoundValidator().validate(node1.getConsensusRounds(), node2.getConsensusRounds());
         node1.getConsensusRounds().clear();
         node2.getConsensusRounds().clear();
     }
