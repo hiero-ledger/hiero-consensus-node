@@ -739,15 +739,13 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             @NonNull final InitTrigger trigger,
             @NonNull final Metrics metrics,
             @NonNull final Configuration platformConfig) {
-        final var previousVersion = deserializedVersion == null ? null : deserializedVersion;
-        // TODO: handle the case where the deserialized version is null
-        final var deserializedVersiomCompare = deserializedVersion == null
-                ? SemanticVersion.newBuilder().major(1).build()
+        final var deserializedVersionCompare = deserializedVersion == null
+                ? SemanticVersion.newBuilder().minor(1).build()
                 : deserializedVersion;
-        final var isUpgrade = SEMANTIC_VERSION_COMPARATOR.compare(version, deserializedVersiomCompare) > 0;
+        final var isUpgrade = SEMANTIC_VERSION_COMPARATOR.compare(version, deserializedVersionCompare) > 0;
         logger.info(
                 "{} from Services version {} @ current {} with trigger {}",
-                () -> isUpgrade ? "Upgrading" : (previousVersion == null ? "Starting" : "Restarting"),
+                () -> isUpgrade ? "Upgrading" : (deserializedVersion == null ? "Starting" : "Restarting"),
                 () -> HapiUtils.toString(deserializedVersion),
                 () -> HapiUtils.toString(version),
                 () -> trigger);
