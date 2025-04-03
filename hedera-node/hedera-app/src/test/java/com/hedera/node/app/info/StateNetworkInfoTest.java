@@ -26,8 +26,9 @@ import com.hedera.node.internal.network.Network;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableStates;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,10 +48,13 @@ public class StateNetworkInfoTest {
     private ReadableKVState<EntityNumber, Node> nodeState;
 
     @Mock
-    private ReadableSingletonState<EntityCounts> entityCountsState;
+    private WritableSingletonState<EntityCounts> entityCountsState;
 
     @Mock
     private ReadableStates readableStates;
+
+    @Mock
+    private WritableStates writableStates;
 
     private static final long SELF_ID = 1L;
     private final Roster activeRoster = new Roster(List.of(
@@ -63,8 +67,8 @@ public class StateNetworkInfoTest {
     public void setUp() {
         when(configProvider.getConfiguration())
                 .thenReturn(new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1));
-        when(state.getReadableStates(EntityIdService.NAME)).thenReturn(readableStates);
-        when(readableStates.<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY))
+        when(state.getWritableStates(EntityIdService.NAME)).thenReturn(writableStates);
+        when(writableStates.<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY))
                 .thenReturn(entityCountsState);
         when(entityCountsState.get())
                 .thenReturn(EntityCounts.newBuilder().numNodes(1L).build());

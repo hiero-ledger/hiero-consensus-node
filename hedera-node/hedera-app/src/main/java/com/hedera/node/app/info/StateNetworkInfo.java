@@ -137,8 +137,11 @@ public class StateNetworkInfo implements NetworkInfo {
      * @return a map of node information
      */
     private Map<Long, NodeInfo> nodeInfosFrom(@NonNull final State state) {
-        final var entityCounts = state.getReadableStates(EntityIdService.NAME)
-                .<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY);
+        final var entityCounts = state.isImmutable()
+                ? state.getReadableStates(EntityIdService.NAME)
+                        .<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY)
+                : state.getWritableStates(EntityIdService.NAME)
+                        .<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY);
         final var nodeInfos = new LinkedHashMap<Long, NodeInfo>();
         if (requireNonNull(entityCounts.get()).numNodes() == 0) {
             // If there are no nodes in state, we can only fall back to the genesis network assets
