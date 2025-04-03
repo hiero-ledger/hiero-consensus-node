@@ -113,4 +113,14 @@ public class TssBlockHashSigner implements BlockHashSigner {
         }
         return result;
     }
+
+    @Override
+    public long activeSchemeId() {
+        return (hintsService == null) ? 1 : hintsService.activeSchemeId();
+    }
+
+    @Override
+    public Bytes activeVerificationKey() {
+        return (hintsService == null) ? Bytes.EMPTY : hintsService.activeVerificationKeyOrThrow();
+    }
 }
