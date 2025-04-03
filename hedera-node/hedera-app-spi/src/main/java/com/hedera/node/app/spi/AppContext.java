@@ -29,12 +29,16 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Gives context to {@link Service} implementations on how the application workflows will do
  * shared functions like verifying signatures or computing the current instant.
  */
 public interface AppContext {
+    Logger log = LogManager.getLogger(AppContext.class);
+
     /**
      * The {@link Gossip} interface is used to submit transactions to the network.
      */
@@ -118,6 +122,9 @@ public interface AppContext {
                                     failureReason = iae.getMessage();
                                     if (DUPLICATE_TRANSACTION_REASON.equals(failureReason)) {
                                         validStartTime.set(validStartTime.get().plusNanos(NANOS_TO_SKIP_ON_DUPLICATE));
+                                        log.info(
+                                                "Retrying {} after duplicate transaction",
+                                                body.data().kind());
                                     } else {
                                         fatalFailure = true;
                                         break;
@@ -130,6 +137,7 @@ public interface AppContext {
                             } while (txnIdsLeft-- > 1);
                             onFailure.accept(body, failureReason);
                             if (!fatalFailure) {
+                                log.info("Retrying {} after {}", body.data().kind(), failureReason);
                                 try {
                                     MILLISECONDS.sleep(retryDelay.toMillis());
                                 } catch (InterruptedException e) {
