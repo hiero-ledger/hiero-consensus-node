@@ -53,7 +53,7 @@ class GrpcBlockItemWriterTest {
     void testCloseBlock() {
         GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
 
-        grpcBlockItemWriter.closeBlock();
+        grpcBlockItemWriter.closeCompleteBlock();
 
         verify(blockStreamStateManager).closeBlock(0L);
     }
