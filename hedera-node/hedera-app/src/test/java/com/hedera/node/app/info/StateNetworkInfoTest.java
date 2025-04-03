@@ -25,8 +25,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import java.util.List;
@@ -45,13 +44,10 @@ public class StateNetworkInfoTest {
     private ConfigProvider configProvider;
 
     @Mock
-    private ReadableKVState<EntityNumber, Node> nodeState;
+    private WritableKVState<EntityNumber, Node> nodeState;
 
     @Mock
     private WritableSingletonState<EntityCounts> entityCountsState;
-
-    @Mock
-    private ReadableStates readableStates;
 
     @Mock
     private WritableStates writableStates;
@@ -72,9 +68,9 @@ public class StateNetworkInfoTest {
                 .thenReturn(entityCountsState);
         when(entityCountsState.get())
                 .thenReturn(EntityCounts.newBuilder().numNodes(1L).build());
-        when(state.getReadableStates(AddressBookService.NAME)).thenReturn(readableStates);
-        when(readableStates.<EntityNumber, Node>get("NODES")).thenReturn(nodeState);
-        when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
+        when(state.getWritableStates(AddressBookService.NAME)).thenReturn(writableStates);
+        when(writableStates.<EntityNumber, Node>get("NODES")).thenReturn(nodeState);
+        when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(writableStates);
         networkInfo = new StateNetworkInfo(SELF_ID, state, activeRoster, configProvider, () -> Network.DEFAULT);
     }
 

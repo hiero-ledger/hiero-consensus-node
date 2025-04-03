@@ -161,8 +161,9 @@ public class StateNetworkInfo implements NetworkInfo {
                 nodeInfos.put(node.nodeId(), nodeInfo);
             }
         } else {
-            final ReadableKVState<EntityNumber, Node> nodes =
-                    state.getReadableStates(AddressBookService.NAME).get(NODES_KEY);
+            final ReadableKVState<EntityNumber, Node> nodes = state.isImmutable()
+                    ? state.getReadableStates(AddressBookService.NAME).get(NODES_KEY)
+                    : state.getWritableStates(AddressBookService.NAME).get(NODES_KEY);
             final var hederaConfig = configuration.getConfigData(HederaConfig.class);
             for (final var rosterEntry : activeRoster.rosterEntries()) {
                 // At genesis the node store is derived from the roster, hence must have info for every
