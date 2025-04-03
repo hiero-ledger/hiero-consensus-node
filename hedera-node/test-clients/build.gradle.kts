@@ -100,17 +100,25 @@ val prCheckStartPorts =
 val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to
-            "tss.hintsEnabled=true,tss.historyEnabled=false,blockStream.blockPeriod=1s",
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
         "hapiTestCrypto" to "tss.hintsEnabled=true,blockStream.blockPeriod=1s",
         "hapiTestSmartContract" to "tss.historyEnabled=false",
+        // FUTURE -
+        // "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s"
+        "hapiTestRestart" to "tss.hintsEnabled=false",
         "hapiTestMisc" to "nodes.nodeRewardsEnabled=false",
         "hapiTestTimeConsuming" to "nodes.nodeRewardsEnabled=false",
     )
-val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT30S")
+val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "0", "hapiTestSmartContract" to "0")
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
-    mapOf("hapiTestAdhoc" to "2", "hapiTestToken" to "3", "hapiTestSmartContract" to "4")
+    mapOf(
+        "hapiTestAdhoc" to "3",
+        "hapiTestCrypto" to "3",
+        "hapiTestToken" to "3",
+        "hapiTestSmartContract" to "4",
+    )
 
 tasks {
     prCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testSubprocess") } }
@@ -249,6 +257,15 @@ tasks.register<Test>("testSubprocess") {
             .findFirst()
             .orElse("4")
     systemProperty("hapi.spec.network.size", networkSize)
+
+    // Note the 1/4 threshold for the restart check; DabEnabledUpgradeTest is a chaotic
+    // churn of fast upgrades with heavy use of override networks, and there is a node
+    // removal step that happens without giving enough time for the next hinTS scheme
+    // to be completed, meaning a 1/3 threshold in the *actual* roster only accounts for
+    // 1/4 total weight in the out-of-date hinTS verification key,
+    val hintsThresholdDenominator =
+        if (gradle.startParameter.taskNames.contains("hapiTestRestart")) "4" else "3"
+    systemProperty("hapi.spec.hintsThresholdDenominator", hintsThresholdDenominator)
 
     // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
     systemProperty(

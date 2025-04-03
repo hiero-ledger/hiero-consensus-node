@@ -181,7 +181,7 @@ class NodeRewardManagerTest {
                 .build();
         givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), networkStakingRewards);
         nodeRewardManager = new NodeRewardManager(configProvider, entityIdFactory, exchangeRateManager);
-        when(exchangeRateManager.getTinybarsFromTinyCents(anyLong(), any())).thenReturn(5000L);
+        when(exchangeRateManager.getTinybarsFromTinycents(anyLong(), any())).thenReturn(5000L);
 
         nodeRewardManager.maybeRewardActiveNodes(state, NOW, systemTransactions);
 

@@ -59,7 +59,7 @@ public class HintsKeyAccessorImpl
                                     config.get().getConfigData(TssConfig.class).tssKeysPath())
                             .resolve(SUB_DIRECTORY);
                     contentManager = new SequentialContentManager<>(
-                            pathToKeys, FILE_CONTENT, FILE_NAME, library::newBlsKeyPair, this, this);
+                            pathToKeys, FILE_CONTENT, FILE_NAME, library::newBlsPrivateKey, this, this);
                 }
             }
         }
