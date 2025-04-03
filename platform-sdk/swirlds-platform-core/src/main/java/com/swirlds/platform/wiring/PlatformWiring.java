@@ -110,8 +110,7 @@ public class PlatformWiring {
     private final ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring;
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
     private final ComponentWiring<ConsensusEngine, List<ConsensusRound>> consensusEngineWiring;
-    private final ComponentWiring<EventCreationManager, UnsignedEvent> eventCreationManagerWiring;
-    private final ComponentWiring<SelfEventSigner, PlatformEvent> selfEventSignerWiring;
+    private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
     private final ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring;
     private final ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring;
     private final PcesReplayerWiring pcesReplayerWiring;
@@ -194,7 +193,6 @@ public class PlatformWiring {
 
         eventCreationManagerWiring =
                 new ComponentWiring<>(model, EventCreationManager.class, config.eventCreationManager());
-        selfEventSignerWiring = new ComponentWiring<>(model, SelfEventSigner.class, config.selfEventSigner());
 
         applicationTransactionPrehandlerWiring =
                 new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler());
@@ -439,9 +437,6 @@ public class PlatformWiring {
                 .solderTo(statusStateMachineWiring.getInputWire(StatusStateMachine::heartbeat), OFFER);
 
         eventCreationManagerWiring
-                .getOutputWire()
-                .solderTo(selfEventSignerWiring.getInputWire(SelfEventSigner::signEvent));
-        selfEventSignerWiring
                 .getOutputWire()
                 .solderTo(staleEventDetectorWiring.getInputWire(StaleEventDetector::addSelfEvent));
 
@@ -717,7 +712,6 @@ public class PlatformWiring {
         pcesReplayerWiring.bind(pcesReplayer);
         pcesInlineWriterWiring.bind(builder::buildInlinePcesWriter);
         eventCreationManagerWiring.bind(builder::buildEventCreationManager);
-        selfEventSignerWiring.bind(builder::buildSelfEventSigner);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
         applicationTransactionPrehandlerWiring.bind(builder::buildTransactionPrehandler);

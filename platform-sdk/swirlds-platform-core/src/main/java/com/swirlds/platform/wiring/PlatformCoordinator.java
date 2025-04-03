@@ -52,7 +52,7 @@ public class PlatformCoordinator {
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
     private final GossipWiring gossipWiring;
     private final ComponentWiring<ConsensusEngine, List<ConsensusRound>> consensusEngineWiring;
-    private final ComponentWiring<EventCreationManager, UnsignedEvent> eventCreationManagerWiring;
+    private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
     private final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             applicationTransactionPrehandlerWiring;
     private final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring;
@@ -98,7 +98,7 @@ public class PlatformCoordinator {
             @NonNull final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
             @NonNull final GossipWiring gossipWiring,
             @NonNull final ComponentWiring<ConsensusEngine, List<ConsensusRound>> consensusEngineWiring,
-            @NonNull final ComponentWiring<EventCreationManager, UnsignedEvent> eventCreationManagerWiring,
+            @NonNull final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring,
             @NonNull
                     final ComponentWiring<
                                     TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>

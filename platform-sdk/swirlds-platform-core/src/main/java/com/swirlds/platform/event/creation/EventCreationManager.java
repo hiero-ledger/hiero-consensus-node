@@ -23,7 +23,7 @@ public interface EventCreationManager {
      */
     @InputWireLabel("heartbeat")
     @Nullable
-    UnsignedEvent maybeCreateEvent();
+    PlatformEvent maybeCreateEvent();
 
     /**
      * Register a new event from event intake.

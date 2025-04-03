@@ -71,9 +71,9 @@ public class ChildlessEventTracker {
      * @param eventWindow the event window
      */
     public void pruneOldEvents(@NonNull final EventWindow eventWindow) {
-        for (final PlatformEvent event : getChildlessEvents()) {
+        for (final EventDescriptorWrapper event : childlessEvents.keySet()) {
             if (eventWindow.isAncient(event)) {
-                removeEvent(event.getDescriptor());
+                removeEvent(event);
             }
         }
     }

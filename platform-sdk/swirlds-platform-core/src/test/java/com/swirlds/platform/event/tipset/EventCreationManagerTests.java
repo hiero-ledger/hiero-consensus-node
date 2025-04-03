@@ -19,6 +19,7 @@ import com.swirlds.platform.event.creation.EventCreator;
 import com.swirlds.platform.pool.TransactionPoolNexus;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,14 +27,14 @@ import org.junit.jupiter.api.Test;
 
 class EventCreationManagerTests {
     private EventCreator creator;
-    private List<UnsignedEvent> eventsToCreate;
+    private List<PlatformEvent> eventsToCreate;
     private FakeTime time;
     private EventCreationManager manager;
 
     @BeforeEach
     void setUp() {
         creator = mock(EventCreator.class);
-        eventsToCreate = List.of(mock(UnsignedEvent.class), mock(UnsignedEvent.class), mock(UnsignedEvent.class));
+        eventsToCreate = List.of(mock(PlatformEvent.class), mock(PlatformEvent.class), mock(PlatformEvent.class));
         when(creator.maybeCreateEvent())
                 .thenReturn(eventsToCreate.get(0), eventsToCreate.get(1), eventsToCreate.get(2));
 
@@ -53,21 +54,21 @@ class EventCreationManagerTests {
 
     @Test
     void basicBehaviorTest() {
-        final UnsignedEvent e0 = manager.maybeCreateEvent();
+        final PlatformEvent e0 = manager.maybeCreateEvent();
         verify(creator, times(1)).maybeCreateEvent();
         assertNotNull(e0);
         assertSame(eventsToCreate.get(0), e0);
 
         time.tick(Duration.ofSeconds(1));
 
-        final UnsignedEvent e1 = manager.maybeCreateEvent();
+        final PlatformEvent e1 = manager.maybeCreateEvent();
         verify(creator, times(2)).maybeCreateEvent();
         assertNotNull(e1);
         assertSame(eventsToCreate.get(1), e1);
 
         time.tick(Duration.ofSeconds(1));
 
-        final UnsignedEvent e2 = manager.maybeCreateEvent();
+        final PlatformEvent e2 = manager.maybeCreateEvent();
         verify(creator, times(3)).maybeCreateEvent();
         assertNotNull(e2);
         assertSame(eventsToCreate.get(2), e2);
@@ -75,7 +76,7 @@ class EventCreationManagerTests {
 
     @Test
     void statusPreventsCreation() {
-        final UnsignedEvent e0 = manager.maybeCreateEvent();
+        final PlatformEvent e0 = manager.maybeCreateEvent();
         verify(creator, times(1)).maybeCreateEvent();
         assertNotNull(e0);
         assertSame(eventsToCreate.get(0), e0);
@@ -89,7 +90,7 @@ class EventCreationManagerTests {
         time.tick(Duration.ofSeconds(1));
 
         manager.updatePlatformStatus(PlatformStatus.ACTIVE);
-        final UnsignedEvent e1 = manager.maybeCreateEvent();
+        final PlatformEvent e1 = manager.maybeCreateEvent();
         assertNotNull(e1);
         verify(creator, times(2)).maybeCreateEvent();
         assertSame(eventsToCreate.get(1), e1);
@@ -97,7 +98,7 @@ class EventCreationManagerTests {
 
     @Test
     void ratePreventsCreation() {
-        final UnsignedEvent e0 = manager.maybeCreateEvent();
+        final PlatformEvent e0 = manager.maybeCreateEvent();
         verify(creator, times(1)).maybeCreateEvent();
         assertNotNull(e0);
         assertSame(eventsToCreate.get(0), e0);
@@ -110,7 +111,7 @@ class EventCreationManagerTests {
 
         time.tick(Duration.ofSeconds(1));
 
-        final UnsignedEvent e1 = manager.maybeCreateEvent();
+        final PlatformEvent e1 = manager.maybeCreateEvent();
         verify(creator, times(2)).maybeCreateEvent();
         assertNotNull(e1);
         assertSame(eventsToCreate.get(1), e1);
@@ -118,7 +119,7 @@ class EventCreationManagerTests {
 
     @Test
     void unhealthyNodePreventsCreation() {
-        final UnsignedEvent e0 = manager.maybeCreateEvent();
+        final PlatformEvent e0 = manager.maybeCreateEvent();
         verify(creator, times(1)).maybeCreateEvent();
         assertNotNull(e0);
         assertSame(eventsToCreate.get(0), e0);
@@ -134,7 +135,7 @@ class EventCreationManagerTests {
 
         manager.reportUnhealthyDuration(Duration.ZERO);
 
-        final UnsignedEvent e1 = manager.maybeCreateEvent();
+        final PlatformEvent e1 = manager.maybeCreateEvent();
         assertNotNull(e1);
         verify(creator, times(2)).maybeCreateEvent();
         assertSame(eventsToCreate.get(1), e1);

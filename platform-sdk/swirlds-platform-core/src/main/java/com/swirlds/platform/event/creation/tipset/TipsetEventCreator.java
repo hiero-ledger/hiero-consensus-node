@@ -167,11 +167,6 @@ public class TipsetEventCreator implements EventCreator {
         final boolean selfEvent = eventCreator.equals(selfId);
 
         if (selfEvent) {
-            /*
-            On restart, the node will stream PlatformEvents from PCES. It will learn of our self events
-            this way before starting to create events again. We must remember the lastest of these events
-            event creation starts again at which time we will only track the lastest event as it is created.
-             */
             if (this.lastSelfEvent == null || this.lastSelfEvent.getNGen() < event.getNGen()) {
                 // Normally we will ingest self events before we get to this point, but it's possible
                 // to learn of self events for the first time here if we are loading from a restart or reconnect.
