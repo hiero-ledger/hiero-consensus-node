@@ -118,9 +118,6 @@ public class ShadowgraphSynchronizer {
      */
     private final AncientMode ancientMode;
 
-    /** If true, sort events prior to sending. */
-    private final boolean sortEvents;
-
     /**
      * Constructs a new ShadowgraphSynchronizer.
      *
@@ -159,7 +156,6 @@ public class ShadowgraphSynchronizer {
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
         this.maximumEventsPerSync = syncConfig.maxSyncEventCount();
-        this.sortEvents = syncConfig.sortEvents();
 
         this.ancientMode = platformContext
                 .getConfiguration()
@@ -353,9 +349,7 @@ public class ShadowgraphSynchronizer {
             sendList = eventsTheyMayNeed;
         }
 
-        if (sortEvents) {
-            SyncUtils.sort(eventsTheyMayNeed);
-        }
+        SyncUtils.sort(eventsTheyMayNeed);
 
         if (maximumEventsPerSync > 0 && sendList.size() > maximumEventsPerSync) {
             sendList = sendList.subList(0, maximumEventsPerSync);

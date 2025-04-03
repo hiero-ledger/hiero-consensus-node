@@ -35,7 +35,6 @@ import java.time.Duration;
  * @param minimumHealthyUnrevokedPermitCount the minimum number of permits that must be unrevoked when the system is in
  *                                           a healthy state. If non-zero, this means that this number of permits is
  *                                           immediately returned as soon as the system becomes healthy.
- * @param sortEvents                         if true, sort events in topological order prior to sending to the peer
  */
 @ConfigData("sync")
 public record SyncConfig(
@@ -52,5 +51,4 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "1s") Duration unhealthyGracePeriod,
         @ConfigProperty(defaultValue = "5") double permitsRevokedPerSecond,
         @ConfigProperty(defaultValue = "0.1") double permitsReturnedPerSecond,
-        @ConfigProperty(defaultValue = "1") int minimumHealthyUnrevokedPermitCount,
-        @ConfigProperty(defaultValue = "true") boolean sortEvents) {}
+        @ConfigProperty(defaultValue = "1") int minimumHealthyUnrevokedPermitCount) {}
