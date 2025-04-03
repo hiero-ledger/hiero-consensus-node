@@ -74,7 +74,7 @@ public class NodeRewardManager {
             @NonNull final ConfigProvider configProvider,
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ExchangeRateManager exchangeRateManager,
-            final NodeMetrics metrics) {
+            @Nullable final NodeMetrics metrics) {
         this.configProvider = requireNonNull(configProvider);
         this.entityIdFactory = requireNonNull(entityIdFactory);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
