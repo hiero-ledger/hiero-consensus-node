@@ -246,7 +246,6 @@ class FileBlockItemWriterTest {
     void flushingPendingRenamesZippedItemsToPndAndIncludesProofContext() throws IOException, ParseException {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
-        when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
         when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
 
         final var subject = new FileBlockItemWriter(configProvider, selfNodeInfo, FileSystems.getDefault());

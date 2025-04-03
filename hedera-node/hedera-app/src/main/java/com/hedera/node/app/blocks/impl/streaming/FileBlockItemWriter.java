@@ -115,8 +115,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
         final Path blockDir = fileSystem.getPath(blockStreamConfig.blockFileDir());
         nodeScopedBlockDir = blockDir.resolve("block-" + asAccountString(nodeInfo.accountId()));
 
-        this.completeFileName =
-                name -> name + COMPLETE_BLOCK_EXTENSION + COMPRESSION_ALGORITHM_EXTENSION;
+        this.completeFileName = name -> name + COMPLETE_BLOCK_EXTENSION + COMPRESSION_ALGORITHM_EXTENSION;
         this.pendingFileName = name -> name + ".pnd" + COMPRESSION_ALGORITHM_EXTENSION;
     }
 
