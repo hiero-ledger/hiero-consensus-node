@@ -60,7 +60,7 @@ public class NodeMetrics {
      * @param nodeId        the node ID
      * @param activePercent the active round percentage
      */
-    public void updateNodeActiveMetrics(long nodeId, double activePercent) {
+    public void updateNodeActiveMetrics(final long nodeId, final double activePercent) {
         if (activeRoundsAverages.containsKey(nodeId)) {
             activeRoundsAverages.get(nodeId).update(activePercent);
         }
