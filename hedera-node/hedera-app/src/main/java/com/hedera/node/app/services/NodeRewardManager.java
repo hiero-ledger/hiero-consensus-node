@@ -260,8 +260,8 @@ public class NodeRewardManager {
         rosterEntries.forEach(node -> {
             final var nodeId = node.nodeId();
             final var missedJudges = missedJudgeCounts.getOrDefault(nodeId, 0L);
-            final var activeRounds = roundsLastPeriod - missedJudges;
-            final var activePercent = ((double) ((activeRounds * 100) / roundsLastPeriod));
+            final var activeRounds = Math.max(roundsLastPeriod - missedJudges, 0);
+            final var activePercent = activeRounds == 0 ? 0 : ((double) ((activeRounds * 100) / roundsLastPeriod));
             metrics.updateNodeActiveMetrics(nodeId, activePercent);
             log.info(
                     "Node {} active percent: {} active rounds {}, roundsLastPeriod {}",

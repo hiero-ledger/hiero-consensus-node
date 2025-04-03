@@ -19,7 +19,6 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public class NodeMetrics {
     private static final String APP_CATEGORY = "app_";
-    private static final String FORMAT_INTEGER = " %d";
     private static final Logger log = LogManager.getLogger(NodeMetrics.class);
     private final Map<Long, RunningAverageMetric> activeRoundsAverages = new HashMap<>();
     private final Map<Long, DoubleGauge> activeRoundsSnapshots = new HashMap<>();
