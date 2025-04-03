@@ -56,6 +56,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -108,6 +109,9 @@ class BlockStreamManagerImplTest {
 
     @Mock
     private BlockHashSigner blockHashSigner;
+
+    @Mock
+    private NetworkInfo networkInfo;
 
     @Mock
     private StateHashedNotification notification;
@@ -215,6 +219,7 @@ class BlockStreamManagerImplTest {
                 () -> aWriter,
                 ForkJoinPool.commonPool(),
                 configProvider,
+                networkInfo,
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
@@ -237,6 +242,7 @@ class BlockStreamManagerImplTest {
                 () -> aWriter,
                 ForkJoinPool.commonPool(),
                 configProvider,
+                networkInfo,
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,
@@ -264,6 +270,7 @@ class BlockStreamManagerImplTest {
         assertFalse(subject.hasLedgerId());
 
         given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.activeSchemeId()).willReturn(1L);
         // Start the round that will be block N
         subject.startRound(round, state);
         assertTrue(subject.hasLedgerId());
@@ -394,6 +401,7 @@ class BlockStreamManagerImplTest {
         assertFalse(subject.hasLedgerId());
 
         given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.activeSchemeId()).willReturn(1L);
         // Start the round that will be block N
         subject.startRound(round, state);
         assertTrue(subject.hasLedgerId());
@@ -489,6 +497,7 @@ class BlockStreamManagerImplTest {
         subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
 
         given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.activeSchemeId()).willReturn(1L);
         // Start the round that will be block N
         subject.startRound(round, state);
 
@@ -559,6 +568,7 @@ class BlockStreamManagerImplTest {
     @SuppressWarnings("unchecked")
     void supportsMultiplePendingBlocksWithIndirectProofAsExpected() throws ParseException {
         given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.activeSchemeId()).willReturn(1L);
         givenSubjectWith(
                 1,
                 0,
@@ -650,6 +660,7 @@ class BlockStreamManagerImplTest {
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.activeSchemeId()).willReturn(1L);
 
         // Set up the signature future to complete immediately and run the callback synchronously
         given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
@@ -672,7 +683,7 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         // Then block should not be closed
-        verify(aWriter, never()).closeBlock();
+        verify(aWriter, never()).closeCompleteBlock();
 
         // When starting another round at t=3 (after period)
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1003));
@@ -680,7 +691,7 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         // Then block should be closed
-        verify(aWriter).closeBlock();
+        verify(aWriter).closeCompleteBlock();
     }
 
     @Test
@@ -708,7 +719,7 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         // Then block should not be closed
-        verify(aWriter, never()).closeBlock();
+        verify(aWriter, never()).closeCompleteBlock();
     }
 
     @Test
@@ -725,6 +736,7 @@ class BlockStreamManagerImplTest {
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.activeSchemeId()).willReturn(1L);
 
         // Set up the signature future to complete immediately and run the callback synchronously
         given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
@@ -747,7 +759,7 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         // Then block should be closed due to freeze, even though period not elapsed
-        verify(aWriter).closeBlock();
+        verify(aWriter).closeCompleteBlock();
     }
 
     @Test
@@ -763,6 +775,7 @@ class BlockStreamManagerImplTest {
         givenEndOfRoundSetup();
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
         given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.activeSchemeId()).willReturn(1L);
 
         // Set up the signature future to complete immediately and run the callback synchronously
         given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
@@ -782,13 +795,13 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(1L);
         subject.startRound(round, state);
         subject.endRound(state, 1L);
-        verify(aWriter, never()).closeBlock();
+        verify(aWriter, never()).closeCompleteBlock();
 
         // Second round (mod 2)
         given(round.getRoundNum()).willReturn(2L);
         subject.startRound(round, state);
         subject.endRound(state, 2L);
-        verify(aWriter).closeBlock();
+        verify(aWriter).closeCompleteBlock();
     }
 
     private void givenSubjectWith(
@@ -809,6 +822,7 @@ class BlockStreamManagerImplTest {
                 () -> writers[nextWriter.getAndIncrement()],
                 ForkJoinPool.commonPool(),
                 configProvider,
+                networkInfo,
                 boundaryStateChangeListener,
                 hashInfo,
                 SemanticVersion.DEFAULT,

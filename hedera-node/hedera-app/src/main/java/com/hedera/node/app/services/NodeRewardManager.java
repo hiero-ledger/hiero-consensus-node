@@ -204,18 +204,18 @@ public class NodeRewardManager {
                     ? nodeRewardStore.get().nodeFeesCollected() / currentRoster.size()
                     : 0L;
 
-            final var targetPayInTinyCents = BigInteger.valueOf(nodesConfig.targetYearlyNodeRewardsUsd())
+            final var targetPayInTinycents = BigInteger.valueOf(nodesConfig.targetYearlyNodeRewardsUsd())
                     .multiply(USD_TO_TINYCENTS.toBigInteger())
                     .divide(BigInteger.valueOf(nodesConfig.numPeriodsToTargetUsd()));
-            final var minimumRewardInTinyCents = exchangeRateManager.getTinybarsFromTinyCents(
+            final var minimumRewardInTinycents = exchangeRateManager.getTinybarsFromTinycents(
                     Math.max(
                             0L,
                             BigInteger.valueOf(nodesConfig.minPerPeriodNodeRewardUsd())
                                     .multiply(USD_TO_TINYCENTS.toBigInteger())
                                     .longValue()),
                     now);
-            final long nodeReward = exchangeRateManager.getTinybarsFromTinyCents(targetPayInTinyCents.longValue(), now);
-            final var perActiveNodeReward = Math.max(minimumRewardInTinyCents, nodeReward - prePaidRewards);
+            final long nodeReward = exchangeRateManager.getTinybarsFromTinycents(targetPayInTinycents.longValue(), now);
+            final var perActiveNodeReward = Math.max(minimumRewardInTinycents, nodeReward - prePaidRewards);
 
             systemTransactions.dispatchNodeRewards(
                     state,
@@ -224,7 +224,7 @@ public class NodeRewardManager {
                     perActiveNodeReward,
                     rewardsAccountId,
                     rewardAccountBalance,
-                    minimumRewardInTinyCents,
+                    minimumRewardInTinycents,
                     rosterStore.getActiveRoster().rosterEntries());
         }
         // Record this as the last time node rewards were paid

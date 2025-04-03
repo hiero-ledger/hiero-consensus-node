@@ -77,16 +77,6 @@ class HintsServiceImplTest {
     }
 
     @Test
-    void initsSigningBySettingNextConstruction() {
-        given(hintsStore.getNextConstruction()).willReturn(HintsConstruction.DEFAULT);
-        given(component.signingContext()).willReturn(context);
-
-        subject.initSigningForNextScheme(hintsStore);
-
-        verify(context).setConstruction(HintsConstruction.DEFAULT);
-    }
-
-    @Test
     void stopsControllersWorkWhenAsked() {
         given(component.controllers()).willReturn(controllers);
 
@@ -96,12 +86,12 @@ class HintsServiceImplTest {
     }
 
     @Test
-    void callPurgeAfterHandoff() {
+    void handoffIsNoop() {
         given(activeRosters.phase()).willReturn(ActiveRosters.Phase.HANDOFF);
 
         subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
 
-        verify(hintsStore).updateForHandoff(activeRosters);
+        verifyNoInteractions(hintsStore);
     }
 
     @Test
