@@ -897,14 +897,6 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
      * {@inheritDoc}
      */
     @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
     }

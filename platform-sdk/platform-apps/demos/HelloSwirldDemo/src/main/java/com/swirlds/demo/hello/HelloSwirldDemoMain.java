@@ -156,14 +156,6 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
      * {@inheritDoc}
      */
     @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
     }

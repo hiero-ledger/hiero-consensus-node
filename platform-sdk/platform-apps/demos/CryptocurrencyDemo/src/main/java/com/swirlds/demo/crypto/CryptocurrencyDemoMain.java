@@ -212,14 +212,6 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
      * {@inheritDoc}
      */
     @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
     }

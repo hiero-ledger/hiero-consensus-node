@@ -303,14 +303,6 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
      * {@inheritDoc}
      */
     @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
     }

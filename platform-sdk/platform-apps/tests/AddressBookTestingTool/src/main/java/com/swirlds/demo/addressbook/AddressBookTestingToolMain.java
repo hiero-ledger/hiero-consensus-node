@@ -131,35 +131,6 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public BasicSoftwareVersion getSoftwareVersion() {
-        if (softwareVersion != null) {
-            return softwareVersion;
-        }
-
-        // Preload configuration so that we can change the software version on the fly
-        final Configuration configuration;
-        try {
-            final ConfigurationBuilder configurationBuilder =
-                    ConfigurationBuilder.create().withConfigDataType(AddressBookTestingToolConfig.class);
-            configuration = DefaultConfiguration.buildBasicConfiguration(
-                    configurationBuilder, getAbsolutePath("settings.txt"), List.of());
-        } catch (final IOException e) {
-            throw new UncheckedIOException("unable to load settings.txt", e);
-        }
-
-        final int version =
-                configuration.getConfigData(AddressBookTestingToolConfig.class).softwareVersion();
-        this.softwareVersion = new BasicSoftwareVersion(version);
-
-        logger.info(STARTUP.getMarker(), "returning software version {}", softwareVersion);
-        return softwareVersion;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public SemanticVersion getSemanticVersion() {
         if (semanticVersion != null) {
             return semanticVersion;

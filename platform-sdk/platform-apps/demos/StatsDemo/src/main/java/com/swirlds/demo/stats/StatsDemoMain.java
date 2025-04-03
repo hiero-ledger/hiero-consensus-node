@@ -321,14 +321,6 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
      * {@inheritDoc}
      */
     @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
     }

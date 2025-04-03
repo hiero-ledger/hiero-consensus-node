@@ -125,16 +125,6 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
      */
     @Override
     @NonNull
-    public SoftwareVersion getSoftwareVersion() {
-        logger.info(STARTUP.getMarker(), "returning software version {}", softwareVersion);
-        return softwareVersion;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
     public SemanticVersion getSemanticVersion() {
         logger.info(STARTUP.getMarker(), "returning software version {}", semanticVersion);
         return semanticVersion;

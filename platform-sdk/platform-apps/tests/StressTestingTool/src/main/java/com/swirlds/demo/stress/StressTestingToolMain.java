@@ -255,14 +255,6 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
      * {@inheritDoc}
      */
     @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return SOFTWARE_VERSION;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
     }
