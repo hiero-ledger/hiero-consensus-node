@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.PASSED_UNEXPECTED
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.PENDING;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.RUNNING;
 import static com.hedera.services.bdd.spec.HapiSpecSetup.setupFrom;
+import static com.hedera.services.bdd.spec.infrastructure.HapiClients.clientsFor;
 import static com.hedera.services.bdd.spec.keys.DefaultKeyGen.DEFAULT_KEY_GEN;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.doIfNotInterrupted;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsString;
@@ -63,6 +64,7 @@ import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera;
+import com.hedera.services.bdd.junit.hedera.remote.RemoteNetwork;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.fees.FeesAndRatesProvider;
@@ -598,7 +600,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     @Override
     public void execute() throws Throwable {
         if (targetNetwork == null) {
-            targetNetwork = RemoteNetworkFactory.newWithTargetFrom(hapiSetup.remoteNodesYmlLoc());
+            buildRemoteNetwork();
         }
         targetNetwork.awaitReady(NETWORK_ACTIVE_TIMEOUT);
         run();
@@ -733,10 +735,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     private boolean init() {
         if (targetNetwork == null) {
-            targetNetwork = RemoteNetworkFactory.newWithTargetFrom(hapiSetup.remoteNodesYmlLoc());
-            hapiSetup.addOverrides(Map.of(
-                    "default.shard", "" + targetNetwork.shard(),
-                    "default.realm", "" + targetNetwork.realm()));
+            buildRemoteNetwork();
         }
         if (!propertiesToPreserve.isEmpty()) {
             final var missingProperties = propertiesToPreserve.stream()
@@ -776,6 +775,18 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             return false;
         }
         return true;
+    }
+
+    private void buildRemoteNetwork() {
+        try {
+            targetNetwork = RemoteNetworkFactory.newWithTargetFrom(hapiSetup.remoteNodesYmlLoc());
+            hapiSetup.addOverrides(Map.of(
+                    "default.shard", "" + targetNetwork.shard(),
+                    "default.realm", "" + targetNetwork.realm()));
+        } catch (Exception ignore) {
+            targetNetwork = RemoteNetwork.newRemoteNetwork(
+                    hapiSetup.nodes(), clientsFor(hapiSetup), HapiPropertySource.shard, HapiPropertySource.realm);
+        }
     }
 
     private void tearDown() {
