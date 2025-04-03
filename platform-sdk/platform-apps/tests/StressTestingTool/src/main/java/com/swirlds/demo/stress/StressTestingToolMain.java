@@ -32,7 +32,6 @@ import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.Browser;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -47,7 +46,6 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class StressTestingToolMain implements SwirldMain<StressTestingToolState> {
     private static final Logger logger = LogManager.getLogger(StressTestingToolMain.class);
-    private static final BasicSoftwareVersion SOFTWARE_VERSION = new BasicSoftwareVersion(1);
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
@@ -249,14 +247,6 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
     @Override
     public ConsensusStateEventHandler<StressTestingToolState> newConsensusStateEvenHandler() {
         return new StressTestingToolConsensusStateEventHandler();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return SOFTWARE_VERSION;
     }
 
     /**

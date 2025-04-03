@@ -77,7 +77,6 @@ import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
@@ -303,7 +302,6 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     /** defines how many queries should be sent in each second for querying a leaf in the latest signed state */
     private long queriesSentPerSec = -1;
 
-    private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
@@ -891,14 +889,6 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         }
 
         logger.info(LOGM_STARTUP, "Platform Status Change {} ", newStatus);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
     }
 
     /**

@@ -29,7 +29,6 @@ import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.Browser;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -75,7 +74,6 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
     /** is the simulation running fast now? */
     private boolean isFast = false;
 
-    private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
@@ -206,14 +204,6 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
     @NonNull
     public ConsensusStateEventHandler<CryptocurrencyDemoState> newConsensusStateEvenHandler() {
         return new CryptocurrencyDemoConsensusStateEventHandler();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
     }
 
     /**

@@ -78,7 +78,6 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.StartupStateUtils;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.util.BootstrapUtils;
@@ -130,14 +129,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
 
     public ServicesMain() {
         // No-op, everything must be initialized in the main() entrypoint
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public @NonNull SoftwareVersion getSoftwareVersion() {
-        return hederaOrThrow().getSoftwareVersion();
     }
 
     /**

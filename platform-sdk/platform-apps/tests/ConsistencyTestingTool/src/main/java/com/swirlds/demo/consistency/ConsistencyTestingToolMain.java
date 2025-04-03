@@ -13,9 +13,7 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.SwirldMain;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -32,11 +30,6 @@ import org.hiero.consensus.model.node.NodeId;
 public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTestingToolState> {
 
     private static final Logger logger = LogManager.getLogger(ConsistencyTestingToolMain.class);
-
-    /**
-     * The default software version of this application
-     */
-    private static final SoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
 
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
@@ -118,16 +111,6 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
     @NonNull
     public ConsensusStateEventHandler<ConsistencyTestingToolState> newConsensusStateEvenHandler() {
         return new ConsistencyTestingToolConsensusStateEventHandler(new PlatformStateFacade());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public SoftwareVersion getSoftwareVersion() {
-        logger.info(STARTUP.getMarker(), "returning software version {}", softwareVersion);
-        return softwareVersion;
     }
 
     /**
