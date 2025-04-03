@@ -35,7 +35,6 @@ import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.CacheConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.ContractsConfig;
-import com.hedera.node.config.data.CryptoCreateWithAliasConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.ExpiryConfig;
 import com.hedera.node.config.data.FeesConfig;
@@ -152,7 +151,6 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(CacheConfig.class)
                 .withConfigDataType(ConsensusConfig.class)
                 .withConfigDataType(ContractsConfig.class)
-                .withConfigDataType(CryptoCreateWithAliasConfig.class)
                 .withConfigDataType(EntitiesConfig.class)
                 .withConfigDataType(ExpiryConfig.class)
                 .withConfigDataType(FeesConfig.class)
