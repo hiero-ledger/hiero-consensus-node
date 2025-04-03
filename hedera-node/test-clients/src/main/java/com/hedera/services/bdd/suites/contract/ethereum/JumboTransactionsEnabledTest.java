@@ -183,61 +183,89 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
                     jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[test.txnSize], test.type)));
         }
+
+        @HapiTest
+        @Order(12)
+        @DisplayName(
+                "Jumbo Ethereum txn works when alias account is updated to threshold key (following token creation pattern)")
+        public Stream<DynamicTest> jumboTxnAliasWithThresholdKeyPattern() {
+            final var cryptoKey = "cryptoKey";
+            final var thresholdKey = "thresholdKey";
+            final var aliasCreationTxn = "aliasCreation";
+            final var ethereumCallTxn = "jumboTxnFromThresholdKeyAccount";
+            final var contract = CONTRACT_CALLDATA_SIZE;
+            final var function = FUNCTION;
+            final var payload = new byte[127 * 1024];
+
+            final AtomicReference<byte[]> rawPublicKey = new AtomicReference<>();
+            final AtomicReference<AccountCreationDetails> creationDetails = new AtomicReference<>();
+
+            return hapiTest(
+
+                    // Create SECP key and extract raw bytes
+                    newKeyNamed(cryptoKey)
+                            .shape(SECP256K1_ON)
+                            .exposingKeyTo(
+                                    k -> rawPublicKey.set(k.getECDSASecp256K1().toByteArray())),
+
+                    // Create alias account via cryptoTransfer
+                    cryptoTransfer(tinyBarsFromToWithAlias(GENESIS, cryptoKey, 2 * ONE_HUNDRED_HBARS))
+                            .via(aliasCreationTxn),
+
+                    // Extract AccountCreationDetails for EVM address and account ID
+                    getTxnRecord(aliasCreationTxn)
+                            .exposingCreationDetailsTo(details -> creationDetails.set(details.getFirst())),
+
+                    // Create threshold key using SECP key and contract
+                    newKeyNamed(thresholdKey)
+                            .shape(threshOf(1, PREDEFINED_SHAPE, CONTRACT).signedWith(sigs(cryptoKey, contract))),
+
+                    // Update alias account to use threshold key
+                    sourcing(
+                            () -> cryptoUpdate(asAccountString(creationDetails.get().createdId()))
+                                    .key(thresholdKey)
+                                    .signedBy(GENESIS, cryptoKey)),
+
+                    // Submit jumbo Ethereum txn, signed with SECP key
+                    sourcing(() -> ethereumCall(contract, function, payload)
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .markAsJumboTxn()
+                            .nonce(0)
+                            .signingWith(cryptoKey)
+                            .payingWith(RELAYER)
+                            .gasLimit(1_000_000L)
+                            .via(ethereumCallTxn)),
+                    getTxnRecord(ethereumCallTxn).logged());
+        }
+
+        @HapiTest
+        @Order(8)
+        @DisplayName("Jumbo transaction with multiple signatures should pass")
+        public Stream<DynamicTest> jumboTransactionWithMultipleShouldPass() {
+            final var cryptoKey = "cryptoKey";
+            final var payload = new byte[10 * 1024];
+            return hapiTest(
+                    newKeyNamed(cryptoKey).shape(SECP_256K1_SHAPE),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, cryptoKey, ONE_HUNDRED_HBARS)),
+
+                    cryptoCreate("test"),
+                    cryptoCreate("test2"),
+                    cryptoCreate("test3"),
+                    cryptoCreate("test4"),
+                    cryptoCreate("test5"),
+
+                    sourcing(() -> ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .markAsJumboTxn()
+                            .nonce(0)
+                            .signedBy(cryptoKey, "test", "test2", "test3", "test4", "test5")
+                            .payingWith(RELAYER)
+                            .gasLimit(1_000_000L)
+                            .via("ethereumCallTxn")));
+        }
     }
 
-    @HapiTest
-    @Order(12)
-    @DisplayName(
-            "Jumbo Ethereum txn works when alias account is updated to threshold key (following token creation pattern)")
-    public Stream<DynamicTest> jumboTxnAliasWithThresholdKeyPattern() {
-        final var cryptoKey = "cryptoKey";
-        final var thresholdKey = "thresholdKey";
-        final var aliasCreationTxn = "aliasCreation";
-        final var ethereumCallTxn = "jumboTxnFromThresholdKeyAccount";
-        final var contract = CONTRACT_CALLDATA_SIZE;
-        final var function = FUNCTION;
-        final var payload = new byte[127 * 1024];
 
-        final AtomicReference<byte[]> rawPublicKey = new AtomicReference<>();
-        final AtomicReference<AccountCreationDetails> creationDetails = new AtomicReference<>();
-
-        return hapiTest(
-
-                // Create SECP key and extract raw bytes
-                newKeyNamed(cryptoKey)
-                        .shape(SECP256K1_ON)
-                        .exposingKeyTo(
-                                k -> rawPublicKey.set(k.getECDSASecp256K1().toByteArray())),
-
-                // Create alias account via cryptoTransfer
-                cryptoTransfer(tinyBarsFromToWithAlias(GENESIS, cryptoKey, 2 * ONE_HUNDRED_HBARS))
-                        .via(aliasCreationTxn),
-
-                // Extract AccountCreationDetails for EVM address and account ID
-                getTxnRecord(aliasCreationTxn)
-                        .exposingCreationDetailsTo(details -> creationDetails.set(details.getFirst())),
-
-                // Create threshold key using SECP key and contract
-                newKeyNamed(thresholdKey)
-                        .shape(threshOf(1, PREDEFINED_SHAPE, CONTRACT).signedWith(sigs(cryptoKey, contract))),
-
-                // Update alias account to use threshold key
-                sourcing(
-                        () -> cryptoUpdate(asAccountString(creationDetails.get().createdId()))
-                                .key(thresholdKey)
-                                .signedBy(GENESIS, cryptoKey)),
-
-                // Submit jumbo Ethereum txn, signed with SECP key
-                sourcing(() -> ethereumCall(contract, function, payload)
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .markAsJumboTxn()
-                        .nonce(0)
-                        .signingWith(cryptoKey)
-                        .payingWith(RELAYER)
-                        .gasLimit(1_000_000L)
-                        .via(ethereumCallTxn)),
-                getTxnRecord(ethereumCallTxn).logged());
-    }
 
     @Nested
     @OrderedInIsolation
@@ -315,15 +343,21 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         public Stream<DynamicTest> jumboTxnWithWrongSignatureShouldFail() {
             var payload = new byte[10 * 1024];
             return hapiTest(
-                    newKeyNamed("string").shape(ED25519),
+                    // Create SECP key A to generate alias account
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+
+                    // Create separate SECP key B to sign with (invalid signer)
+                    newKeyNamed("unrelatedKey").shape(SECP_256K1_SHAPE),
+
+                    // Submit jumbo Ethereum txn with wrong key
                     ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
                             .markAsJumboTxn()
-                            .signingWith("string")
-                            .payingWith(RELAYER)
+                            .signingWith("unrelatedKey")        // <-- this doesn't match alias account
+                            .payingWith(SECP_256K1_SOURCE_KEY)  // <-- payer is the alias
                             .gasLimit(1_000_000L)
-                            .hasPrecheck(INVALID_SIGNATURE));
+                            .hasPrecheck(INVALID_SIGNATURE)
+            );
         }
 
         @HapiTest
