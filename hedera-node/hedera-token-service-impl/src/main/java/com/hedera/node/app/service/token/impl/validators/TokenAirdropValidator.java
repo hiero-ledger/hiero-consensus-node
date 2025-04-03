@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.validators;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_TOKEN_TRANSFER_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
@@ -94,6 +95,9 @@ public class TokenAirdropValidator {
             // process fungible token transfers if any.
             // PureChecks validates there is only one debit, so findFirst should return one item
             if (!xfers.transfers().isEmpty()) {
+                validateTrue(
+                        token.tokenType() == TokenType.FUNGIBLE_COMMON,
+                        ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON);
                 final var senderAccountAmount = xfers.transfers().stream()
                         .filter(item -> item.amount() < 0)
                         .findFirst();
@@ -101,8 +105,7 @@ public class TokenAirdropValidator {
                 final var senderAccount =
                         getIfUsableForAliasedId(senderId, accountStore, context.expiryValidator(), INVALID_ACCOUNT_ID);
                 // 1. Validate token associations
-                validateFungibleTransfers(
-                        context.payer(), senderAccount, tokenId, senderAccountAmount.get(), tokenRelStore);
+                validateFungibleTransfers(senderAccount, tokenId, senderAccountAmount.get(), tokenRelStore);
                 totalFungibleTransfers += xfers.transfers().size();
 
                 // Verify that the current total number of (counted) fungible transfers does not exceed the limit
@@ -193,7 +196,6 @@ public class TokenAirdropValidator {
     }
 
     private static void validateFungibleTransfers(
-            final AccountID payer,
             final Account senderAccount,
             final TokenID tokenId,
             final AccountAmount senderAmount,

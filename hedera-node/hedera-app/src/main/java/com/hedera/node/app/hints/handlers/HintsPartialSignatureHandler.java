@@ -24,9 +24,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Singleton
 public class HintsPartialSignatureHandler implements TransactionHandler {
+    private static final Logger log = LogManager.getLogger(HintsPartialSignatureHandler.class);
+
     @NonNull
     private final ConcurrentMap<Bytes, HintsContext.Signing> signings;
 
@@ -88,7 +92,7 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
     public void handle(@NonNull final HandleContext context) throws HandleException {
         requireNonNull(context);
         final var op = context.body().hintsPartialSignatureOrThrow();
-        final var creator = context.creatorInfo().nodeId();
+        final var creatorId = context.creatorInfo().nodeId();
         final var hintsStore = context.storeFactory().readableStore(ReadableHintsStore.class);
         final var crs = requireNonNull(hintsStore.crsIfKnown());
         final boolean isValid = Boolean.TRUE.equals(cache.get(new PartialSignature(
@@ -98,7 +102,9 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
                             op.message(),
                             b -> hintsContext.newSigning(
                                     b, requireNonNull(currentRoster.get()), () -> signings.remove(op.message())))
-                    .incorporateValid(crs, creator, op.partialSignature());
+                    .incorporateValid(crs, creatorId, op.partialSignature());
+        } else {
+            log.warn("Ignoring invalid partial signature on '{}' from node{}", op.message(), creatorId);
         }
     }
 

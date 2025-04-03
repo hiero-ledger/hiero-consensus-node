@@ -4,6 +4,7 @@ package com.swirlds.platform.gossip;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_UNDEFINED;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.state.Startable;
@@ -61,7 +62,6 @@ import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
@@ -151,7 +151,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final SoftwareVersion appVersion,
+            @NonNull final SemanticVersion appVersion,
             @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
@@ -314,7 +314,7 @@ public class SyncGossip implements ConnectionTracker, Gossip {
             final PlatformContext platformContext,
             final ThreadManager threadManager,
             final NodeId selfId,
-            final SoftwareVersion appVersion,
+            final SemanticVersion appVersion,
             final Supplier<ReservedSignedState> getLatestCompleteState,
             final SyncMetrics syncMetrics,
             final Supplier<PlatformStatus> platformStatusSupplier,
