@@ -44,14 +44,12 @@ public class NodeMetrics {
                 final var averageMetric = metrics.getOrCreate(new RunningAverageMetric.Config(APP_CATEGORY, name)
                         .withDescription("Active round % average for node " + nodeId));
                 activeRoundsAverages.put(nodeId, averageMetric);
-                log.info("Registered active round % average metric for node {}", nodeId);
             }
 
             if (!activeRoundsSnapshots.containsKey(nodeId)) {
                 final var snapshot = metrics.getOrCreate(new DoubleGauge.Config(APP_CATEGORY, snapshotName)
                         .withDescription("Active round % snapshot for node " + nodeId));
                 activeRoundsSnapshots.put(nodeId, snapshot);
-                log.info("Registered active round % snapshot metric for node {}", nodeId);
             }
         }
     }
@@ -69,10 +67,5 @@ public class NodeMetrics {
         if (activeRoundsSnapshots.containsKey(nodeId)) {
             activeRoundsSnapshots.get(nodeId).set(activePercent);
         }
-        log.info(
-                "Updated active round avg for node {}: snapshot {} average {}",
-                nodeId,
-                activeRoundsSnapshots.get(nodeId).get(),
-                activeRoundsAverages.get(nodeId).get());
     }
 }

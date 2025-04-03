@@ -263,12 +263,6 @@ public class NodeRewardManager {
             final var activeRounds = Math.max(roundsLastPeriod - missedJudges, 0);
             final var activePercent = activeRounds == 0 ? 0 : ((double) ((activeRounds * 100) / roundsLastPeriod));
             metrics.updateNodeActiveMetrics(nodeId, activePercent);
-            log.info(
-                    "Node {} active percent: {} active rounds {}, roundsLastPeriod {}",
-                    nodeId,
-                    activePercent,
-                    activeRounds,
-                    roundsLastPeriod);
         });
     }
 
