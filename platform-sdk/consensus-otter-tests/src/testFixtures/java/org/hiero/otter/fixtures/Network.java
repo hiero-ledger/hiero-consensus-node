@@ -1,4 +1,4 @@
-package com.swirlds.common.poc.impl;
+package org.hiero.otter.fixtures;
 
 import java.time.Duration;
 import java.util.List;

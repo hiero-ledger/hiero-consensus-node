@@ -1,4 +1,4 @@
-package com.swirlds.common.poc.impl;
+package org.hiero.otter.fixtures;
 
 public interface EventGenerator {
 

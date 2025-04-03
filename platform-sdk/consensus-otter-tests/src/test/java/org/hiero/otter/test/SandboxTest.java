@@ -1,23 +1,22 @@
-package com.swirlds.common.poc;
+package org.hiero.otter.test;
 
-import static com.swirlds.common.poc.impl.EventGenerator.UNLIMITED;
-import static com.swirlds.common.poc.impl.Validator.EventStreamConfig.ignoreNode;
-import static com.swirlds.common.poc.impl.Validator.LogErrorConfig.ignoreMarkers;
-import static com.swirlds.common.poc.impl.Validator.RatioConfig.within;
-import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
-import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
+import static org.hiero.otter.fixtures.EventGenerator.UNLIMITED;
+import static org.hiero.otter.fixtures.Validator.EventStreamConfig.ignoreNode;
+import static org.hiero.otter.fixtures.Validator.LogErrorConfig.ignoreMarkers;
+import static org.hiero.otter.fixtures.Validator.RatioConfig.within;
 
-import com.swirlds.common.poc.impl.ConsensusTest;
-import com.swirlds.common.poc.impl.EventGenerator.Distribution;
-import com.swirlds.common.poc.impl.EventGenerator.Rate;
-import com.swirlds.common.poc.impl.InstrumentedNode;
-import com.swirlds.common.poc.impl.Network;
-import com.swirlds.common.poc.impl.Node;
-import com.swirlds.common.poc.impl.TestEnvironment;
-import com.swirlds.common.poc.impl.TimeManager;
-import com.swirlds.common.poc.impl.Validator.Profile;
+import com.swirlds.logging.legacy.LogMarker;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.otter.fixtures.EventGenerator.Distribution;
+import org.hiero.otter.fixtures.EventGenerator.Rate;
+import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.Network;
+import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.OtterTest;
+import org.hiero.otter.fixtures.TestEnvironment;
+import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.Validator.Profile;
 
 public class SandboxTest {
 
@@ -25,7 +24,7 @@ public class SandboxTest {
     private static final Duration ONE_MINUTE = Duration.ofMinutes(1);
     private static final Duration TWO_MINUTES = Duration.ofMinutes(2);
 
-    @ConsensusTest
+    @OtterTest
     void testConsistencyNDReconnect(TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -53,14 +52,15 @@ public class SandboxTest {
 
         // Validations
         env.validator()
-                .assertLogErrors(ignoreMarkers(SOCKET_EXCEPTIONS, TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT))
+                .assertLogErrors(ignoreMarkers(
+                        LogMarker.SOCKET_EXCEPTIONS, LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT))
                 .assertStdOut()
                 .eventStream(ignoreNode(node))
                 .reconnectEventStream(node)
                 .validateRemaining(Profile.DEFAULT);
     }
 
-    @ConsensusTest
+    @OtterTest
     void testBranching(TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
