@@ -6,7 +6,7 @@ import java.util.function.BiFunction;
 import java.util.function.IntBinaryOperator;
 import java.util.function.LongBinaryOperator;
 import java.util.function.ToDoubleBiFunction;
-import org.hiero.consensus.utility.ByteUtils;
+import org.hiero.base.utility.ByteUtils;
 
 /**
  * Holds two integers that can be updated atomically

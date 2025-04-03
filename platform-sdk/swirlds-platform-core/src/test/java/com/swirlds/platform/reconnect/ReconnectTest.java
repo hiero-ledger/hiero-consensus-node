@@ -2,7 +2,7 @@
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -38,8 +38,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.IntStream;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
