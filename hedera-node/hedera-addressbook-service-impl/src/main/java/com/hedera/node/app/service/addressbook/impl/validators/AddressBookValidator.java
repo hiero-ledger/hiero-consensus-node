@@ -95,7 +95,7 @@ public class AddressBookValidator {
         validateFalse(endpointList.size() > nodesConfig.maxGossipEndpoint(), GOSSIP_ENDPOINTS_EXCEEDED_LIMIT);
         // for phase 2: The first in the list is used as the Internal IP address in config.txt,
         // the second in the list is used as the External IP address in config.txt
-        validateFalse(endpointList.size() < 2, INVALID_GOSSIP_ENDPOINT);
+        validateFalse(endpointList.isEmpty(), INVALID_GOSSIP_ENDPOINT);
 
         for (final var endpoint : endpointList) {
             validateFalse(
