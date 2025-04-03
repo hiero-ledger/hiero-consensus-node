@@ -46,6 +46,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Manages the node rewards for the network. This includes tracking the number of rounds in the current staking
@@ -55,6 +57,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class NodeRewardManager {
+    private static final Logger log = LogManager.getLogger(NodeRewardManager.class);
     private final ConfigProvider configProvider;
     private final EntityIdFactory entityIdFactory;
     private final ExchangeRateManager exchangeRateManager;
@@ -87,14 +90,14 @@ public class NodeRewardManager {
             roundsThisStakingPeriod = nodeRewardInfo.numRoundsInStakingPeriod();
             nodeRewardInfo
                     .nodeActivities()
-                    .forEach(activity -> missedJudgeCounts.put(activity.nodeId(),
-                            activity.numMissedJudgeRounds()));
+                    .forEach(activity -> missedJudgeCounts.put(activity.nodeId(), activity.numMissedJudgeRounds()));
         }
     }
 
     /**
      * Updates node rewards state at the end of a block given the collected node fees.
-     * @param state the state
+     *
+     * @param state             the state
      * @param nodeFeesCollected the fees collected into node accounts in the block
      */
     public void onCloseBlock(@NonNull final State state, final long nodeFeesCollected) {
@@ -248,20 +251,24 @@ public class NodeRewardManager {
         return true;
     }
 
-    private void updateNodeMetrics(final List<RosterEntry> rosterEntries,
-                                   final WritableNodeRewardsStoreImpl nodeRewardStore) {
+    private void updateNodeMetrics(
+            final List<RosterEntry> rosterEntries, final WritableNodeRewardsStoreImpl nodeRewardStore) {
         final long roundsLastPeriod = nodeRewardStore.get().numRoundsInStakingPeriod();
         metrics.registerMissingNodeMetrics(rosterEntries);
-        final var missedJudgeCounts = nodeRewardStore.get()
-                .nodeActivities()
-                .stream()
+        final var missedJudgeCounts = nodeRewardStore.get().nodeActivities().stream()
                 .collect(toMap(NodeActivity::nodeId, NodeActivity::numMissedJudgeRounds));
         rosterEntries.forEach(node -> {
             final var nodeId = node.nodeId();
             final var missedJudges = missedJudgeCounts.getOrDefault(nodeId, 0L);
             final var activeRounds = roundsLastPeriod - missedJudges;
-            final var activePercent = (double) activeRounds / roundsLastPeriod;
+            final var activePercent = ((double) ((activeRounds * 100) / roundsLastPeriod));
             metrics.updateNodeActiveMetrics(nodeId, activePercent);
+            log.info(
+                    "Node {} active percent: {} active rounds {}, roundsLastPeriod {}",
+                    nodeId,
+                    activePercent,
+                    activeRounds,
+                    roundsLastPeriod);
         });
     }
 

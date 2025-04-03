@@ -1,24 +1,26 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.metrics;
+
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.Metrics;
-import org.jspecify.annotations.NonNull;
-
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static java.util.Objects.requireNonNull;
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jspecify.annotations.NonNull;
 
 @Singleton
 public class NodeMetrics {
     private static final String APP_CATEGORY = "app_";
     private static final String FORMAT_INTEGER = " %d";
+    private static final Logger log = LogManager.getLogger(NodeMetrics.class);
     private final Map<Long, RunningAverageMetric> activeRoundsAverages = new HashMap<>();
     private final Map<Long, DoubleGauge> activeRoundsSnapshots = new HashMap<>();
     private final Metrics metrics;
@@ -43,12 +45,14 @@ public class NodeMetrics {
                 final var averageMetric = metrics.getOrCreate(new RunningAverageMetric.Config(APP_CATEGORY, name)
                         .withDescription("Active round % average for node " + nodeId));
                 activeRoundsAverages.put(nodeId, averageMetric);
+                log.info("Registered active round % average metric for node {}", nodeId);
             }
 
             if (!activeRoundsSnapshots.containsKey(nodeId)) {
                 final var snapshot = metrics.getOrCreate(new DoubleGauge.Config(APP_CATEGORY, snapshotName)
                         .withDescription("Active round % snapshot for node " + nodeId));
                 activeRoundsSnapshots.put(nodeId, snapshot);
+                log.info("Registered active round % snapshot metric for node {}", nodeId);
             }
         }
     }
