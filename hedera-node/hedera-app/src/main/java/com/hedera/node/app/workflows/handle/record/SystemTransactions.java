@@ -297,7 +297,8 @@ public class SystemTransactions {
                 stack.commitFullStack();
             });
             systemContext.dispatchAdmin(b -> {
-                final var isSystemAccount = nodeInfo.nodeId() <= ledgerConfig.numSystemAccounts();
+                final var isSystemAccount =
+                        nodeInfo.accountId().accountNumOrThrow() <= ledgerConfig.numSystemAccounts();
                 final var nodeCreate = NodeCreateTransactionBody.newBuilder()
                         .adminKey(adminKey)
                         .accountId(nodeInfo.accountId())
