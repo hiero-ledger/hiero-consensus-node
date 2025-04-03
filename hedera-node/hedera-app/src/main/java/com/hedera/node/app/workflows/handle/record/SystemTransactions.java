@@ -17,7 +17,6 @@ import static com.hedera.node.app.workflows.handle.HandleOutput.failInvalidStrea
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
-import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.roster.RosterUtils.formatNodeName;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
@@ -92,8 +91,6 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -125,7 +122,6 @@ public class SystemTransactions {
 
     private final InitTrigger initTrigger;
     private final BlocklistParser blocklistParser = new BlocklistParser();
-    private final AtomicInteger nextDispatchNonce = new AtomicInteger(1);
     private final FileServiceImpl fileService;
     private final ParentTxnFactory parentTxnFactory;
     private final StreamMode streamMode;
@@ -138,6 +134,8 @@ public class SystemTransactions {
     private final ExchangeRateManager exchangeRateManager;
     private final HederaRecordCache recordCache;
     private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+
+    private int nextDispatchNonce = 1;
 
     /**
      * Constructs a new {@link SystemTransactions}.
@@ -172,6 +170,13 @@ public class SystemTransactions {
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.recordCache = requireNonNull(recordCache);
         this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
+    }
+
+    /**
+     * Used to reset the system transaction dispatch nonce at the start of a round.
+     */
+    public void resetNextDispatchNonce() {
+        nextDispatchNonce = 1;
     }
 
     /**
@@ -559,7 +564,6 @@ public class SystemTransactions {
         final var creatorInfo = networkInfo.addressBook().getFirst();
         final var validDuration =
                 new Duration(config.getConfigData(HederaConfig.class).transactionMaxValidDuration());
-        final AtomicBoolean firstHandled = new AtomicBoolean(true);
 
         return new SystemContext() {
             @Override
@@ -570,7 +574,7 @@ public class SystemTransactions {
                         .transactionID(TransactionID.newBuilder()
                                 .accountID(systemAdminId)
                                 .transactionValidStart(asTimestamp(now()))
-                                .nonce(nextDispatchNonce.getAndIncrement())
+                                .nonce(nextDispatchNonce++)
                                 .build());
                 spec.accept(builder);
                 dispatch(builder.build(), 0);
@@ -584,7 +588,7 @@ public class SystemTransactions {
                         .transactionID(TransactionID.newBuilder()
                                 .accountID(systemAdminId)
                                 .transactionValidStart(asTimestamp(now()))
-                                .nonce(nextDispatchNonce.getAndIncrement())
+                                .nonce(nextDispatchNonce++)
                                 .build());
                 spec.accept(builder);
                 dispatchCreation(builder.build(), entityNum);
@@ -599,7 +603,7 @@ public class SystemTransactions {
             private void dispatch(final @NonNull TransactionBody body, final long entityNum) {
                 // System dispatches never have child transactions, so one nano is enough to separate them
                 final var now = nextConsTime.getAndUpdate(then -> then.plusNanos(1));
-                if (streamMode == BOTH) {
+                if (streamMode != BLOCKS) {
                     blockRecordManager.startUserTransaction(now, state);
                 }
                 final var handleOutput =
@@ -611,9 +615,6 @@ public class SystemTransactions {
                 }
                 if (streamMode != RECORDS) {
                     handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
-                    if (firstHandled.compareAndSet(true, false)) {
-                        blockStreamManager.setRoundFirstTransactionTime(now);
-                    }
                 }
             }
 
@@ -752,7 +753,7 @@ public class SystemTransactions {
                         .transactionID(TransactionID.newBuilder()
                                 .accountID(systemAdminId)
                                 .transactionValidStart(asTimestamp(now()))
-                                .nonce(nextDispatchNonce.getAndIncrement())
+                                .nonce(nextDispatchNonce++)
                                 .build());
                 spec.accept(bodyBuilder);
                 final var body = bodyBuilder.build();

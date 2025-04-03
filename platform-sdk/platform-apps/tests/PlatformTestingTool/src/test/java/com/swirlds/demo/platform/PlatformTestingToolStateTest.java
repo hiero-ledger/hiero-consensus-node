@@ -227,8 +227,10 @@ class PlatformTestingToolStateTest {
         final TestTransactionWrapper testTransactionWrapper = getTransactionWithRandomType(300);
 
         final EventCore eventCore = mock(EventCore.class);
-        final GossipEvent gossipEvent =
-                new GossipEvent(eventCore, null, List.of(Bytes.wrap(testTransactionWrapper.toByteArray())));
+        final GossipEvent gossipEvent = GossipEvent.newBuilder()
+                .eventCore(eventCore)
+                .transactions(Bytes.wrap(testTransactionWrapper.toByteArray()))
+                .build();
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         platformEvent = new PlatformEvent(gossipEvent);
 
@@ -247,7 +249,10 @@ class PlatformTestingToolStateTest {
 
         final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
         final EventCore eventCore = mock(EventCore.class);
-        final GossipEvent gossipEvent = new GossipEvent(eventCore, null, List.of(stateSignatureTransactionBytes));
+        final GossipEvent gossipEvent = GossipEvent.newBuilder()
+                .eventCore(eventCore)
+                .transactions(stateSignatureTransactionBytes)
+                .build();
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         platformEvent = new PlatformEvent(gossipEvent);
 
@@ -266,13 +271,11 @@ class PlatformTestingToolStateTest {
         final Bytes stateSignatureTransactionBytes = main.encodeSystemTransaction(stateSignatureTransaction);
 
         final EventCore eventCore = mock(EventCore.class);
-        final GossipEvent gossipEvent = new GossipEvent(
-                eventCore,
-                null,
-                List.of(
-                        stateSignatureTransactionBytes,
-                        stateSignatureTransactionBytes,
-                        stateSignatureTransactionBytes));
+        final GossipEvent gossipEvent = GossipEvent.newBuilder()
+                .eventCore(eventCore)
+                .transactions(List.of(
+                        stateSignatureTransactionBytes, stateSignatureTransactionBytes, stateSignatureTransactionBytes))
+                .build();
         when(eventCore.timeCreated()).thenReturn(Timestamp.DEFAULT);
         platformEvent = new PlatformEvent(gossipEvent);
 

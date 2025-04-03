@@ -2,16 +2,20 @@
 package com.hedera.node.app.hints.impl;
 
 import static com.hedera.node.app.hints.impl.HintsControllerImpl.decodeCrsUpdate;
+import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.SplittableRandom;
 import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 class HintsLibraryImplTest {
@@ -45,14 +49,14 @@ class HintsLibraryImplTest {
     }
 
     @Test
-    void generatesNewBlsKeyPair() {
-        assertNotNull(subject.newBlsKeyPair());
+    void generatesNewBlsPrivateKey() {
+        assertNotNull(subject.newBlsPrivateKey());
     }
 
     @Test
     void computesAndValidateHints() {
         final var crs = subject.newCrs(1024);
-        final var blsPrivateKey = subject.newBlsKeyPair();
+        final var blsPrivateKey = subject.newBlsPrivateKey();
         final var hints = subject.computeHints(crs, blsPrivateKey, 1, 16);
         assertNotNull(hints);
         assertNotEquals(hints, Bytes.EMPTY);
@@ -62,38 +66,50 @@ class HintsLibraryImplTest {
     }
 
     @Test
-    void preprocessesHints() {
-        final var crs = subject.newCrs(4);
+    void preprocessesHintsIntoUsableKeys() {
+        final var initialCrs = subject.newCrs(64);
         byte[] entropyBytes = new byte[32];
         RANDOM.nextBytes(entropyBytes);
-        final var newCrs = subject.updateCrs(crs, Bytes.wrap(entropyBytes));
-        final var decodedCrsUpdate = decodeCrsUpdate(crs.length(), newCrs);
+        final var newCrs = subject.updateCrs(initialCrs, Bytes.wrap(entropyBytes));
+        final var decodedCrsUpdate = decodeCrsUpdate(initialCrs.length(), newCrs);
+        final var crs = decodedCrsUpdate.crs();
 
-        final var newCrsBytes = decodedCrsUpdate.crs();
-        final var blsPrivateKey = subject.newBlsKeyPair();
+        final int numParties = 4;
+        // (FUTURE) Understand why this test doesn't pass with List.of(1, 2, 3)
+        final List<Integer> ids = List.of(0, 1, 2);
+        final Map<Integer, Bytes> privateKeys = IntStream.range(0, numParties)
+                .boxed()
+                .collect(toMap(Function.identity(), i -> subject.newBlsPrivateKey()));
 
-        final SortedMap<Integer, Bytes> hintsForAllParties = new TreeMap<>();
-        hintsForAllParties.put(1, subject.computeHints(newCrsBytes, blsPrivateKey, 1, 4));
-        hintsForAllParties.put(2, subject.computeHints(newCrsBytes, blsPrivateKey, 2, 4));
-        hintsForAllParties.put(3, subject.computeHints(newCrsBytes, blsPrivateKey, 3, 4));
+        final SortedMap<Integer, Bytes> hintsKeys = new TreeMap<>();
+        final List<Integer> knownParties = ids;
+        for (final int partyId : knownParties) {
+            hintsKeys.put(partyId, subject.computeHints(crs, privateKeys.get(partyId), partyId, numParties));
+        }
 
         final SortedMap<Integer, Long> weights = new TreeMap<>();
-        weights.put(1, 200L);
-        weights.put(2, 300L);
-        weights.put(3, 400L);
-        final var aggregationAndVerificationKeys = subject.preprocess(newCrsBytes, hintsForAllParties, weights, 4);
-        assertNotNull(aggregationAndVerificationKeys);
-        assertNotEquals(aggregationAndVerificationKeys.aggregationKey(), new byte[0]);
-        assertNotEquals(aggregationAndVerificationKeys.verificationKey(), new byte[0]);
+        for (final int partyId : knownParties) {
+            weights.put(partyId, 1L);
+        }
+        final var keys = subject.preprocess(crs, hintsKeys, weights, numParties);
+        final var ak = Bytes.wrap(keys.aggregationKey());
+        final var vk = Bytes.wrap(keys.verificationKey());
+        assertEquals(1712L, ak.length());
+        assertEquals(1288L, vk.length());
 
-        assertEquals(1712, aggregationAndVerificationKeys.aggregationKey().length);
-        assertEquals(1288, aggregationAndVerificationKeys.verificationKey().length);
+        final var message = Bytes.wrap("Hello World");
+        final List<Integer> signingParties = ids;
+        final var signatures = signingParties.stream()
+                .collect(toMap(Function.identity(), partyId -> subject.signBls(message, privateKeys.get(partyId))));
+        signatures.forEach((partyId, s) -> assertTrue(subject.verifyBls(crs, s, message, ak, partyId)));
+        final var sig = subject.aggregateSignatures(crs, ak, vk, signatures);
+        assertTrue(subject.verifyAggregate(sig, message, vk, 1, 3));
     }
 
     @Test
     void signsAndVerifiesBlsSignature() {
         final var message = "Hello World".getBytes();
-        final var blsPrivateKey = subject.newBlsKeyPair();
+        final var blsPrivateKey = subject.newBlsPrivateKey();
         final var crs = subject.newCrs(8);
         final int partyId = 0;
         final var extendedPublicKey = subject.computeHints(crs, blsPrivateKey, partyId, 4);
@@ -118,13 +134,13 @@ class HintsLibraryImplTest {
         // When CRS is for n, then signers should be  n - 1
         final var crs = subject.newCrs(4);
 
-        final var secretKey1 = subject.newBlsKeyPair();
+        final var secretKey1 = subject.newBlsPrivateKey();
         final var hints1 = subject.computeHints(crs, secretKey1, 0, 4);
 
-        final var secretKey2 = subject.newBlsKeyPair();
+        final var secretKey2 = subject.newBlsPrivateKey();
         final var hints2 = subject.computeHints(crs, secretKey2, 1, 4);
 
-        final var secretKey3 = subject.newBlsKeyPair();
+        final var secretKey3 = subject.newBlsPrivateKey();
         final var hints3 = subject.computeHints(crs, secretKey3, 2, 4);
 
         final SortedMap<Integer, Bytes> hintsForAllParties = new TreeMap<>();
@@ -149,9 +165,6 @@ class HintsLibraryImplTest {
                 Bytes.wrap(keys.aggregationKey()),
                 Bytes.wrap(keys.verificationKey()),
                 Map.of(0, signature1, 1, signature2, 2, signature3));
-
-        assertNotNull(aggregatedSignature);
-        assertNotEquals(aggregatedSignature, Bytes.EMPTY);
 
         final var isValid =
                 subject.verifyAggregate(aggregatedSignature, message, Bytes.wrap(keys.verificationKey()), 1, 4);

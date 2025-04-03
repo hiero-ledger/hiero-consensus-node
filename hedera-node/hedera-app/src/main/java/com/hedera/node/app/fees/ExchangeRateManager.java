@@ -266,7 +266,7 @@ public final class ExchangeRateManager {
      * @param consensusTime The consensus time to use for the exchange rate.
      * @return The amount in tinybars.
      */
-    public long getTinybarsFromTinyCents(final long amount, @NonNull final Instant consensusTime) {
+    public long getTinybarsFromTinycents(final long amount, @NonNull final Instant consensusTime) {
         final var rate = activeRate(consensusTime);
         return getAFromB(amount, rate.hbarEquiv(), rate.centEquiv());
     }
