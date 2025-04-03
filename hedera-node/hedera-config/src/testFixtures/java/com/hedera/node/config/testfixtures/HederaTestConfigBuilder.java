@@ -25,7 +25,6 @@ import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ApiPermissionConfig;
 import com.hedera.node.config.data.AtomicBatchConfig;
-import com.hedera.node.config.data.AutoCreationConfig;
 import com.hedera.node.config.data.AutoRenew2Config;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.BalancesConfig;
@@ -43,7 +42,6 @@ import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
-import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
@@ -56,7 +54,6 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.node.config.data.TraceabilityConfig;
 import com.hedera.node.config.data.TssConfig;
-import com.hedera.node.config.data.UtilPrngConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.CongestionMultipliers;
 import com.hedera.node.config.types.EntityScaleFactors;
@@ -143,7 +140,6 @@ public final class HederaTestConfigBuilder {
                 // These data types, converters, and validators are defined by services.
                 .withConfigDataType(AccountsConfig.class)
                 .withConfigDataType(ApiPermissionConfig.class)
-                .withConfigDataType(AutoCreationConfig.class)
                 .withConfigDataType(AutoRenew2Config.class)
                 .withConfigDataType(AutoRenewConfig.class)
                 .withConfigDataType(BalancesConfig.class)
@@ -159,7 +155,6 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(FilesConfig.class)
                 .withConfigDataType(GrpcConfig.class)
                 .withConfigDataType(HederaConfig.class)
-                .withConfigDataType(LazyCreationConfig.class)
                 .withConfigDataType(LedgerConfig.class)
                 .withConfigDataType(NettyConfig.class)
                 .withConfigDataType(NetworkAdminConfig.class)
@@ -170,7 +165,6 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(TokensConfig.class)
                 .withConfigDataType(TopicsConfig.class)
                 .withConfigDataType(TraceabilityConfig.class)
-                .withConfigDataType(UtilPrngConfig.class)
                 .withConfigDataType(VersionConfig.class)
                 .withConfigDataType(NodesConfig.class)
                 .withConfigDataType(TssConfig.class)
