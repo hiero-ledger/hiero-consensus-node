@@ -7,6 +7,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.Metrics;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,7 +15,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jspecify.annotations.NonNull;
 
 @Singleton
 public class NodeMetrics {
@@ -70,5 +70,10 @@ public class NodeMetrics {
         if (activeRoundsSnapshots.containsKey(nodeId)) {
             activeRoundsSnapshots.get(nodeId).set(activePercent);
         }
+        log.info(
+                "Updated active round avg for node {}: snapshot {} average {}",
+                nodeId,
+                activeRoundsSnapshots.get(nodeId).get(),
+                activeRoundsAverages.get(nodeId).get());
     }
 }
