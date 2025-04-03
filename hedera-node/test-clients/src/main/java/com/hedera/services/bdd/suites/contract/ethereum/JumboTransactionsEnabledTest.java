@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.PropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
-import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
@@ -34,7 +33,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -49,6 +48,7 @@ import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -66,10 +66,9 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class JumboTransactionsEnabledTest implements LifecycleTest {
 
-    private static final String CONTRACT = "CalldataSize";
     private static final String CONTRACT_CALLDATA_SIZE = "CalldataSize";
     private static final String FUNCTION = "callme";
-    private static final int SMALL_TXN_SIZE = 6 * 1024;
+    private static final int SIX_KB_SIZE = 6 * 1024;
     private static final int MAX_ALLOWED_SIZE = 127 * 1024;
     private static final int ABOVE_MAX_SIZE = 129 * 1024;
     private static final int OVERSIZED_TXN_SIZE = 130 * 1024;
@@ -120,7 +119,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
     @HapiTest
     @Order(2)
-    @DisplayName("Update the config")
+    @DisplayName("Update the config before running Jumbo txns")
     public Stream<DynamicTest> updateTheConfig() {
         return hapiTest(
                 // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),
@@ -173,51 +172,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .gasLimit(1_000_000L));
     }
 
-    @HapiTest
-    @Order(4)
-    @DisplayName("Jumbo transaction send to the wrong gRPC endpoint")
-    public Stream<DynamicTest> sendToTheWrongGRPCEndpoint() {
-        final var sixKbPayload = new byte[6 * 1024];
-        final var moreThenSixKbPayload = new byte[6 * 1024 + 1];
-        final var limitPayload = new byte[128 * 1024];
-        final var tooBigPayload = new byte[130 * 1024];
 
-        return hapiTest(
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                ethereumCall(CONTRACT, FUNCTION, sixKbPayload)
-                        .markAsJumboTxn()
-                        // Override the hedera functionality to make the framework send the request to the wrong
-                        // endpoint
-                        .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L)
-                        .orUnavailableStatus(),
-                ethereumCall(CONTRACT, FUNCTION, moreThenSixKbPayload)
-                        .markAsJumboTxn()
-                        // Override the hedera functionality to make the framework send the request to the wrong
-                        // endpoint
-                        .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L)
-                        .orUnavailableStatus(),
-                ethereumCall(CONTRACT, FUNCTION, limitPayload)
-                        .markAsJumboTxn()
-                        // Override the hedera functionality to make the framework send the request to the wrong
-                        // endpoint
-                        .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L)
-                        .orUnavailableStatus(),
-                ethereumCall(CONTRACT, FUNCTION, tooBigPayload)
-                        .markAsJumboTxn()
-                        // Override the hedera functionality to make the framework send the request to the wrong
-                        // endpoint
-                        .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L)
-                        .orUnavailableStatus());
     @Nested
     @OrderedInIsolation
     @DisplayName("Jumbo Ethereum Transactions Positive Tests")
@@ -226,104 +181,107 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 new TestCombination(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM),
                 new TestCombination(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP2930),
                 new TestCombination(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP1559),
-                new TestCombination(SMALL_TXN_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM),
-                new TestCombination(SMALL_TXN_SIZE, EthTxData.EthTransactionType.EIP2930),
-                new TestCombination(SMALL_TXN_SIZE, EthTxData.EthTransactionType.EIP1559));
+                new TestCombination(SIX_KB_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM),
+                new TestCombination(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP2930),
+                new TestCombination(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP1559));
 
-        @HapiTest
-        @Order(4)
-        @DisplayName("Jumbo Ethereum transactions should pass for valid sizes")
-        // JUMBO_P_01, JUMBO_P_02, JUMBO_P_03, JUMBO_P_04
-        public Stream<DynamicTest> jumboTxnWithEthereumDataLessThanAllowedKbShouldPass() {
-            return positiveBoundariesTestCases.flatMap(test -> hapiTest(
-                    logIt("Valid Jumbo Txn with size: " + (test.txnSize / 1024) + "KB" + " and type: " + test.type),
-                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                    jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[test.txnSize], test.type)));
-        }
 
-        @HapiTest
-        @Order(12)
-        @DisplayName(
-                "Jumbo Ethereum txn works when alias account is updated to threshold key (following token creation pattern)")
-        public Stream<DynamicTest> jumboTxnAliasWithThresholdKeyPattern() {
-            final var cryptoKey = "cryptoKey";
-            final var thresholdKey = "thresholdKey";
-            final var aliasCreationTxn = "aliasCreation";
-            final var ethereumCallTxn = "jumboTxnFromThresholdKeyAccount";
-            final var contract = CONTRACT_CALLDATA_SIZE;
-            final var function = FUNCTION;
-            final var payload = new byte[127 * 1024];
 
-            final AtomicReference<byte[]> rawPublicKey = new AtomicReference<>();
-            final AtomicReference<AccountCreationDetails> creationDetails = new AtomicReference<>();
+            @HapiTest
+            @Order(5)
+            @DisplayName("Jumbo Ethereum transactions should pass for valid sizes")
+            // JUMBO_P_01, JUMBO_P_02, JUMBO_P_03, JUMBO_P_04
+            public Stream<DynamicTest> jumboTxnWithEthereumDataLessThanAllowedKbShouldPass() {
+                return positiveBoundariesTestCases.flatMap(test -> hapiTest(
+                        logIt("Valid Jumbo Txn with size: " + (test.txnSize / 1024) + "KB" + " and type: " + test.type),
+                        newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
+                        jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[test.txnSize], test.type)));
+            }
 
-            return hapiTest(
+            @HapiTest
+            @Order(6)
+            @DisplayName("Jumbo Ethereum txn works when alias account is updated to threshold key")
+            // JUMBO_P_13
+            public Stream<DynamicTest> jumboTxnAliasWithThresholdKeyPattern() {
+                final var cryptoKey = "cryptoKey";
+                final var thresholdKey = "thresholdKey";
+                final var aliasCreationTxn = "aliasCreation";
+                final var ethereumCallTxn = "jumboTxnFromThresholdKeyAccount";
+                final var contract = CONTRACT_CALLDATA_SIZE;
+                final var payload = new byte[127 * 1024];
 
-                    // Create SECP key and extract raw bytes
-                    newKeyNamed(cryptoKey)
-                            .shape(SECP256K1_ON)
-                            .exposingKeyTo(
-                                    k -> rawPublicKey.set(k.getECDSASecp256K1().toByteArray())),
+                final AtomicReference<byte[]> rawPublicKey = new AtomicReference<>();
+                final AtomicReference<AccountCreationDetails> creationDetails = new AtomicReference<>();
 
-                    // Create alias account via cryptoTransfer
-                    cryptoTransfer(tinyBarsFromToWithAlias(GENESIS, cryptoKey, 2 * ONE_HUNDRED_HBARS))
-                            .via(aliasCreationTxn),
+                return hapiTest(
 
-                    // Extract AccountCreationDetails for EVM address and account ID
-                    getTxnRecord(aliasCreationTxn)
-                            .exposingCreationDetailsTo(details -> creationDetails.set(details.getFirst())),
+                        // Create SECP key and extract raw bytes
+                        newKeyNamed(cryptoKey)
+                                .shape(SECP256K1_ON)
+                                .exposingKeyTo(
+                                        k -> rawPublicKey.set(k.getECDSASecp256K1().toByteArray())),
 
-                    // Create threshold key using SECP key and contract
-                    newKeyNamed(thresholdKey)
-                            .shape(threshOf(1, PREDEFINED_SHAPE, CONTRACT).signedWith(sigs(cryptoKey, contract))),
+                        // Create alias account via cryptoTransfer
+                        cryptoTransfer(tinyBarsFromToWithAlias(GENESIS, cryptoKey, 2 * ONE_HUNDRED_HBARS))
+                                .via(aliasCreationTxn),
 
-                    // Update alias account to use threshold key
-                    sourcing(
-                            () -> cryptoUpdate(asAccountString(creationDetails.get().createdId()))
-                                    .key(thresholdKey)
-                                    .signedBy(GENESIS, cryptoKey)),
+                        // Extract AccountCreationDetails for EVM address and account ID
+                        getTxnRecord(aliasCreationTxn)
+                                .exposingCreationDetailsTo(details -> creationDetails.set(details.getFirst())),
 
-                    // Submit jumbo Ethereum txn, signed with SECP key
-                    sourcing(() -> ethereumCall(contract, function, payload)
-                            .type(EthTxData.EthTransactionType.EIP1559)
-                            .markAsJumboTxn()
-                            .nonce(0)
-                            .signingWith(cryptoKey)
-                            .payingWith(RELAYER)
-                            .gasLimit(1_000_000L)
-                            .via(ethereumCallTxn)),
-                    getTxnRecord(ethereumCallTxn).logged());
-        }
+                        // Create threshold key using SECP key and contract
+                        newKeyNamed(thresholdKey)
+                                .shape(threshOf(1, PREDEFINED_SHAPE, CONTRACT).signedWith(sigs(cryptoKey, contract))),
 
-        @HapiTest
-        @Order(8)
-        @DisplayName("Jumbo transaction with multiple signatures should pass")
-        public Stream<DynamicTest> jumboTransactionWithMultipleShouldPass() {
-            final var cryptoKey = "cryptoKey";
-            final var payload = new byte[10 * 1024];
-            return hapiTest(
-                    newKeyNamed(cryptoKey).shape(SECP_256K1_SHAPE),
-                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, cryptoKey, ONE_HUNDRED_HBARS)),
+                        // Update alias account to use threshold key
+                        sourcing(
+                                () -> cryptoUpdate(asAccountString(creationDetails.get().createdId()))
+                                        .key(thresholdKey)
+                                        .signedBy(GENESIS, cryptoKey)),
 
-                    cryptoCreate("test"),
-                    cryptoCreate("test2"),
-                    cryptoCreate("test3"),
-                    cryptoCreate("test4"),
-                    cryptoCreate("test5"),
+                        // Submit jumbo Ethereum txn, signed with SECP key
+                        sourcing(() -> ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                                .type(EthTxData.EthTransactionType.EIP1559)
+                                .markAsJumboTxn()
+                                .nonce(0)
+                                .signingWith(cryptoKey)
+                                .payingWith(RELAYER)
+                                .gasLimit(1_000_000L)
+                                .via(ethereumCallTxn)),
+                        getTxnRecord(ethereumCallTxn).logged());
+            }
 
-                    sourcing(() -> ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
-                            .type(EthTxData.EthTransactionType.EIP1559)
-                            .markAsJumboTxn()
-                            .nonce(0)
-                            .signedBy(cryptoKey, "test", "test2", "test3", "test4", "test5")
-                            .payingWith(RELAYER)
-                            .gasLimit(1_000_000L)
-                            .via("ethereumCallTxn")));
-        }
+            @HapiTest
+            @Order(7)
+            @DisplayName("Jumbo transaction with multiple signatures should pass")
+            // JUMBO_P_13
+            public Stream<DynamicTest> jumboTransactionWithMultipleSignaturesShouldPass() {
+                final var cryptoKey = "cryptoKey";
+                final var payload = new byte[10 * 1024];
+                return hapiTest(
+                        newKeyNamed(cryptoKey).shape(SECP_256K1_SHAPE),
+                        newKeyNamed("test").shape(SECP_256K1_SHAPE),
+                        newKeyNamed("test2").shape(SECP_256K1_SHAPE),
+                        newKeyNamed("test3").shape(SECP_256K1_SHAPE),
+                        newKeyNamed("test4").shape(SECP_256K1_SHAPE),
+                        newKeyNamed("test5").shape(SECP_256K1_SHAPE),
+
+                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, cryptoKey, ONE_HUNDRED_HBARS)),
+                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test", ONE_HUNDRED_HBARS)),
+                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test2", ONE_HUNDRED_HBARS)),
+                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test3", ONE_HUNDRED_HBARS)),
+                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test4", ONE_HUNDRED_HBARS)),
+                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test5", ONE_HUNDRED_HBARS)),
+
+                        sourcing(() -> ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                                .type(EthTxData.EthTransactionType.EIP1559)
+                                .markAsJumboTxn()
+                                .signedBy(cryptoKey, "test", "test2", "test3", "test4", "test5")
+                                .payingWith(RELAYER)
+                                .gasLimit(1_000_000L)));
+            }
     }
-
-
 
     @Nested
     @OrderedInIsolation
@@ -333,40 +291,71 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 new TestCombination(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM),
                 new TestCombination(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.EIP2930),
                 new TestCombination(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.EIP1559));
+
         private final Stream<TestCombination> oversizedCases = Stream.of(
                 new TestCombination(OVERSIZED_TXN_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM),
                 new TestCombination(OVERSIZED_TXN_SIZE, EthTxData.EthTransactionType.EIP2930),
                 new TestCombination(OVERSIZED_TXN_SIZE, EthTxData.EthTransactionType.EIP1559));
 
-        private final Stream<Integer> insufficientFeeCases = Stream.of(SMALL_TXN_SIZE, MAX_ALLOWED_SIZE);
+        private final Stream<Integer> insufficientFeeCases = Stream.of(SIX_KB_SIZE, MAX_ALLOWED_SIZE);
 
         private static byte[] corruptedPayload() {
             return Arrays.copyOf("corruptedPayload".getBytes(StandardCharsets.UTF_8), 128 * 1024);
         }
 
-    @HapiTest
-    @Order(5)
-    @DisplayName("Ethereum Call jumbo transaction with ethereum data overflow should fail")
-    public Stream<DynamicTest> ethereumCallJumboTxnWithEthereumDataOverflow() {
-        final var size = 131072 + 1; // Exceeding the limit
-        final var payload = new byte[size];
-        return hapiTest(
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT),
-                ethereumCall(CONTRACT, FUNCTION, payload)
-                        .markAsJumboTxn()
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .payingWith(RELAYER)
-                        .gasLimit(1_000_000L)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
-    }
+
+        @HapiTest
+        @Order(8)
+        @DisplayName("Jumbo transaction send to the wrong gRPC endpoint")
+        // JUMBO_N_03, JUMBO_N_04, JUMBO_N_05, JUMBO_N_06
+        public Stream<DynamicTest> sendToTheWrongGRPCEndpoint() {
+            final var sixKbPayload = new byte[6 * 1024];
+            final var moreThenSixKbPayload = new byte[6 * 1024 + 1];
+            final var limitPayload = new byte[127 * 1024];
+            final var tooBigPayload = new byte[130 * 1024];
+
+            return hapiTest(
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
+                    ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, sixKbPayload)
+                            .markAsJumboTxn()
+                            // Override the hedera functionality to make the framework send the request to the wrong
+                            // endpoint
+                            .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .gasLimit(1_000_000L)
+                            .orUnavailableStatus(),
+                    ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, moreThenSixKbPayload)
+                            .markAsJumboTxn()
+                            // Override the hedera functionality to make the framework send the request to the wrong
+                            // endpoint
+                            .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .gasLimit(1_000_000L)
+                            .orUnavailableStatus(),
+                    ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, limitPayload)
+                            .markAsJumboTxn()
+                            // Override the hedera functionality to make the framework send the request to the wrong
+                            // endpoint
+                            .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .gasLimit(1_000_000L)
+                            .orUnavailableStatus(),
+                    ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, tooBigPayload)
+                            .markAsJumboTxn()
+                            // Override the hedera functionality to make the framework send the request to the wrong
+                            // endpoint
+                            .withOverriddenHederaFunctionality(HederaFunctionality.TokenAirdrop)
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .gasLimit(1_000_000L)
+                            .orUnavailableStatus());
+        }
+
+
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail for above max size data with TRANSACTION_OVERSIZE")
-        @Order(5)
+        @Order(9)
         // JUMBO_N_01
         public Stream<DynamicTest> jumboTxnWithAboveMaxDataShouldFail() {
             return aboveMaxCases.flatMap(test -> hapiTest(
@@ -378,30 +367,31 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .hasPrecheck(TRANSACTION_OVERSIZE)));
         }
 
-    @HapiTest
-    @Order(6)
-    @DisplayName("Allows Ethereum jumbo contract create jumbo above max transaction size of 6kb")
-    public Stream<DynamicTest> ethereumContractCreateJumboTxnMoreThen6Kb() {
-        final var contract = "TokenCreateContract";
-        return hapiTest(
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
-                        .via("autoAccount"),
-                uploadInitCode(contract),
-                ethereumContractCreate(contract)
-                        .markAsJumboTxn()
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .payingWith(RELAYER)
-                        .nonce(0)
-                        .maxGasAllowance(ONE_HUNDRED_HBARS)
-                        .gasLimit(1_000_000L)
-                        .via("payTxn"));
-    }
+        @HapiTest
+        @Order(10)
+        @DisplayName("Allows Ethereum jumbo contract create jumbo above max transaction size of 6kb")
+        public Stream<DynamicTest> ethereumContractCreateJumboTxnMoreThen6Kb() {
+            final var contract = "TokenCreateContract";
+            return hapiTest(
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
+                            .via("autoAccount"),
+                    uploadInitCode(contract),
+                    ethereumContractCreate(contract)
+                            .markAsJumboTxn()
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .signingWith(SECP_256K1_SOURCE_KEY)
+                            .payingWith(RELAYER)
+                            .nonce(0)
+                            .maxGasAllowance(ONE_HUNDRED_HBARS)
+                            .gasLimit(1_000_000L)
+                            .via("payTxn"));
+        }
+
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail for oversized data with grpc unavailable status")
-        @Order(6)
+        @Order(11)
         // JUMBO_N_02
         public Stream<DynamicTest> jumboTxnWithOversizedDataShouldFail() {
             return oversizedCases.flatMap(test -> hapiTest(
@@ -415,7 +405,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail with corrupted payload")
-        @Order(6)
+        @Order(12)
         // JUMBO_N_17
         public Stream<DynamicTest> jumboTxnWithCorruptedPayloadShouldFail() {
             var corruptedTypes = Stream.of(
@@ -435,86 +425,86 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .hasPrecheck(TRANSACTION_OVERSIZE)));
         }
 
-    @HapiTest
-    @Order(7)
-    @DisplayName("Non-jumbo transaction bigger then 6kb should fail")
-    public Stream<DynamicTest> nonJumboTransactionBiggerThen6kb() {
-        return hapiTest(
-                cryptoCreate("receiver"),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, "receiver", ONE_HUNDRED_HBARS))
-                        .memo(StringUtils.repeat("a", 6145))
-                        .hasKnownStatus(TRANSACTION_OVERSIZE)
-                        .orUnavailableStatus());
-    }
+        @HapiTest
+        @Order(13)
+        @DisplayName("Non-jumbo transaction bigger then 6kb should fail")
+        // JUMBO_N_07
+        public Stream<DynamicTest> nonJumboTransactionBiggerThen6kb() {
+            return hapiTest(
+                    cryptoCreate("receiver"),
+                    cryptoTransfer(tinyBarsFromTo(GENESIS, "receiver", ONE_HUNDRED_HBARS))
+                            .memo(StringUtils.repeat("a", 6145))
+                            .hasKnownStatus(TRANSACTION_OVERSIZE)
+                            .orUnavailableStatus());
+        }
 
-    @HapiTest
-    @Order(8)
-    @DisplayName("Three jumbo transactions one after the other")
-    public Stream<DynamicTest> treeJumboTransactionOneAfterTheOther() {
-        final var payload = new byte[127 * 1024];
-        return hapiTest(
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
-                        .via("autoAccount"),
-                ethereumCall(CONTRACT, FUNCTION, payload)
-                        .markAsJumboTxn()
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L),
-                sleepFor(1000),
-                ethereumCall(CONTRACT, FUNCTION, payload)
-                        .markAsJumboTxn()
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L),
-                sleepFor(1000),
-                ethereumCall(CONTRACT, FUNCTION, payload)
-                        .markAsJumboTxn()
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L));
-    }
+        @HapiTest
+        @Order(14)
+        @DisplayName("Three jumbo transactions one after the other")
+        // JUMBO_N_08
+        public Stream<DynamicTest> treeJumboTransactionOneAfterTheOther() {
+            final var payload = new byte[127 * 1024];
+            return hapiTest(
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
+                            .via("autoAccount"),
+                    ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                            .markAsJumboTxn()
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .gasLimit(1_000_000L),
+                    sleepFor(1000),
+                    ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                            .markAsJumboTxn()
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .gasLimit(1_000_000L),
+                    sleepFor(1000),
+                    ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                            .markAsJumboTxn()
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .gasLimit(1_000_000L));
+        }
+
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail with wrong signature")
-        @Order(7)
+        @Order(15)
         // JUMBO_N_16
         public Stream<DynamicTest> jumboTxnWithWrongSignatureShouldFail() {
             var payload = new byte[10 * 1024];
             return hapiTest(
-                    // Create SECP key A to generate alias account
-                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-
-                    // Create separate SECP key B to sign with (invalid signer)
                     newKeyNamed("unrelatedKey").shape(SECP_256K1_SHAPE),
 
                     // Submit jumbo Ethereum txn with wrong key
                     ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
                             .markAsJumboTxn()
-                            .signingWith("unrelatedKey")        // <-- this doesn't match alias account
-                            .payingWith(SECP_256K1_SOURCE_KEY)  // <-- payer is the alias
+                            .signingWith("unrelatedKey")
+                            .payingWith(RELAYER)
                             .gasLimit(1_000_000L)
-                            .hasPrecheck(INVALID_SIGNATURE)
+                            .hasPrecheck(INVALID_ACCOUNT_ID)
             );
         }
 
-    @HapiTest
-    @Order(9)
-    @DisplayName("Mix of jumbo and non-jumbo transactions")
-    public Stream<DynamicTest> mixOfJumboAndNonJumboTransactions() {
-        final var payload = new byte[50 * 1024];
-        return hapiTest(
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
-                        .via("autoAccount"),
-                ethereumCall(CONTRACT, FUNCTION, payload)
-                        .markAsJumboTxn()
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L),
-                cryptoCreate("receiver"),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, "receiver", ONE_HUNDRED_HBARS)));
+        @HapiTest
+        @Order(16)
+        @DisplayName("Mix of jumbo and non-jumbo transactions")
+        public Stream<DynamicTest> mixOfJumboAndNonJumboTransactions() {
+            final var payload = new byte[50 * 1024];
+            return hapiTest(
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
+                            .via("autoAccount"),
+                    ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                            .markAsJumboTxn()
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .gasLimit(1_000_000L),
+                    cryptoCreate("receiver"),
+                    cryptoTransfer(tinyBarsFromTo(GENESIS, "receiver", ONE_HUNDRED_HBARS)));
+        }
+
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail due to insufficient payer balance")
-        @Order(8)
+        @Order(17)
         // JUMBO_N_14
         public Stream<DynamicTest> jumboTxnWithInsufficientPayerBalanceShouldFail() {
             return insufficientFeeCases.flatMap(txnSize -> hapiTest(
