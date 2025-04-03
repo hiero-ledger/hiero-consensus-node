@@ -149,7 +149,7 @@ public class HintsControllerImpl implements HintsController {
                     : Instant.MAX;
             publications.forEach(publication -> {
                 if (!publication.adoptionTime().isAfter(cutoffTime)) {
-                    maybeUpdateForHintsKey(crsState.crs(), publication);
+                    updateHintsKey(crsState.crs(), publication);
                 }
             });
         }
@@ -178,11 +178,11 @@ public class HintsControllerImpl implements HintsController {
         if (hintsStore.getCrsState().stage() != COMPLETED || construction.hasHintsScheme()) {
             return;
         }
-        if (construction.hasPreprocessingStartTime() && isActive) {
-            final var crs = hintsStore.getCrsState().crs();
-            if (!votes.containsKey(selfId) && preprocessingVoteFuture == null) {
-                preprocessingVoteFuture =
-                        startPreprocessingVoteFuture(asInstant(construction.preprocessingStartTimeOrThrow()), crs);
+        if (construction.hasPreprocessingStartTime()) {
+            if (isActive && !votes.containsKey(selfId) && preprocessingVoteFuture == null) {
+                preprocessingVoteFuture = startPreprocessingVoteFuture(
+                        asInstant(construction.preprocessingStartTimeOrThrow()),
+                        hintsStore.getCrsState().crs());
             }
         } else {
             final var crs = hintsStore.getCrsState().crs();
@@ -386,7 +386,7 @@ public class HintsControllerImpl implements HintsController {
      *
      * @return the generated entropy
      */
-    public Bytes generateEntropy() {
+    private Bytes generateEntropy() {
         byte[] entropyBytes = new byte[32];
         SECURE_RANDOM.nextBytes(entropyBytes);
         return Bytes.wrap(entropyBytes);
@@ -442,7 +442,7 @@ public class HintsControllerImpl implements HintsController {
                 log.info("Completed hinTS Scheme for construction #{}", construction.constructionId());
                 // If this just completed the active construction, update the signing context
                 if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                    context.setConstruction(construction);
+                    context.setConstructions(construction);
                 }
             });
             return true;
@@ -546,13 +546,28 @@ public class HintsControllerImpl implements HintsController {
     private void maybeUpdateForHintsKey(@NonNull final Bytes crs, @NonNull final HintsKeyPublication publication) {
         requireNonNull(publication);
         requireNonNull(crs);
+        if (publication.partyId() == expectedPartyId(publication.nodeId())) {
+            updateHintsKey(crs, publication);
+        }
+    }
+
+    /**
+     * Updates the hinTS key for the given node and party id. This includes updating the node and party id
+     * mappings and starting a validation future for the hinTS key.
+     * @param crs the CRS
+     * @param publication the publication
+     */
+    private void updateHintsKey(@NonNull final Bytes crs, @NonNull final HintsKeyPublication publication) {
         final int partyId = publication.partyId();
         final long nodeId = publication.nodeId();
-        if (partyId == expectedPartyId(nodeId)) {
-            nodePartyIds.put(nodeId, partyId);
-            partyNodeIds.put(partyId, nodeId);
-            validationFutures.put(publication.adoptionTime(), validationFuture(crs, partyId, publication.hintsKey()));
-        }
+        nodePartyIds.put(nodeId, partyId);
+        partyNodeIds.put(partyId, nodeId);
+        validationFutures.put(publication.adoptionTime(), validationFuture(crs, partyId, publication.hintsKey()));
+        log.info(
+                "Updated hinTS key for node #{} (weight={} of target threshold={})",
+                nodeId,
+                weights.targetWeightOf(nodeId),
+                weights.targetWeightThreshold());
     }
 
     /**

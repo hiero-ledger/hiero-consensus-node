@@ -18,6 +18,7 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -46,9 +47,9 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
      */
     private final V0540RosterBaseSchema baseSchema = new V0540RosterBaseSchema();
     /**
-     * A callback to run when a candidate roster is adopted.
+     * A callback to invoke with an outgoing roster being replaced by a new roster hash.
      */
-    private final Runnable onAdopt;
+    private final BiConsumer<Roster, Roster> onAdopt;
     /**
      * The test to use to determine if a candidate roster may be adopted at an upgrade boundary.
      */
@@ -66,7 +67,7 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
     private final PlatformStateFacade platformStateFacade;
 
     public V0540RosterSchema(
-            @NonNull final Runnable onAdopt,
+            @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Predicate<Roster> canAdopt,
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory,
             @NonNull final Supplier<State> stateSupplier,
@@ -87,7 +88,7 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
     @Override
     public void restart(@NonNull final MigrationContext ctx) {
         requireNonNull(ctx);
-        if (!RosterTransplantSchema.super.restart(ctx, rosterStoreFactory)) {
+        if (!RosterTransplantSchema.super.restart(ctx, onAdopt, rosterStoreFactory)) {
             final var startupNetworks = ctx.startupNetworks();
             final var rosterStore = rosterStoreFactory.apply(ctx.newStates());
             final var activeRoundNumber = ctx.roundNumber() + 1;
@@ -108,8 +109,8 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
                     log.info("No candidate roster to adopt in round {}", activeRoundNumber);
                 } else if (canAdopt.test(candidateRoster)) {
                     log.info("Adopting candidate roster in round {}", activeRoundNumber);
+                    onAdopt.accept(requireNonNull(rosterStore.getActiveRoster()), candidateRoster);
                     rosterStore.adoptCandidateRoster(activeRoundNumber);
-                    onAdopt.run();
                 } else {
                     log.info("Rejecting candidate roster in round {}", activeRoundNumber);
                 }

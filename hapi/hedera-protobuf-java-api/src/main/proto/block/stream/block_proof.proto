@@ -212,6 +212,21 @@ message BlockProof {
      * the value of `block_signature`.
      */
     repeated MerkleSiblingHash sibling_hashes = 5;
+
+    oneof verification_reference {
+        /**
+         * The id of the hinTS scheme this signature verifies under.
+         */
+        uint64 scheme_id = 6;
+
+        /**
+         * The explicit hinTS key this signature verifies under; useful when
+         * the verifier can easily check whether a chain-of-trust proof
+         * exists for a key, but does does not have any context of the
+         * latest hinTS schemes published in the block stream.
+         */
+        bytes verification_key = 7;
+    }
 }
 
 /**
