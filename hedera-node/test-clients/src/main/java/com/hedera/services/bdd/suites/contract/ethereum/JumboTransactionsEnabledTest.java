@@ -19,13 +19,13 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumContractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -48,7 +48,6 @@ import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -172,7 +171,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .gasLimit(1_000_000L));
     }
 
-
     @Nested
     @OrderedInIsolation
     @DisplayName("Jumbo Ethereum Transactions Positive Tests")
@@ -185,102 +183,98 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 new TestCombination(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP2930),
                 new TestCombination(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP1559));
 
+        @HapiTest
+        @Order(5)
+        @DisplayName("Jumbo Ethereum transactions should pass for valid sizes")
+        // JUMBO_P_01, JUMBO_P_02, JUMBO_P_03, JUMBO_P_04
+        public Stream<DynamicTest> jumboTxnWithEthereumDataLessThanAllowedKbShouldPass() {
+            return positiveBoundariesTestCases.flatMap(test -> hapiTest(
+                    logIt("Valid Jumbo Txn with size: " + (test.txnSize / 1024) + "KB" + " and type: " + test.type),
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
+                    jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[test.txnSize], test.type)));
+        }
 
+        @HapiTest
+        @Order(6)
+        @DisplayName("Jumbo Ethereum txn works when alias account is updated to threshold key")
+        // JUMBO_P_13
+        public Stream<DynamicTest> jumboTxnAliasWithThresholdKeyPattern() {
+            final var cryptoKey = "cryptoKey";
+            final var thresholdKey = "thresholdKey";
+            final var aliasCreationTxn = "aliasCreation";
+            final var ethereumCallTxn = "jumboTxnFromThresholdKeyAccount";
+            final var contract = CONTRACT_CALLDATA_SIZE;
+            final var payload = new byte[127 * 1024];
 
-            @HapiTest
-            @Order(5)
-            @DisplayName("Jumbo Ethereum transactions should pass for valid sizes")
-            // JUMBO_P_01, JUMBO_P_02, JUMBO_P_03, JUMBO_P_04
-            public Stream<DynamicTest> jumboTxnWithEthereumDataLessThanAllowedKbShouldPass() {
-                return positiveBoundariesTestCases.flatMap(test -> hapiTest(
-                        logIt("Valid Jumbo Txn with size: " + (test.txnSize / 1024) + "KB" + " and type: " + test.type),
-                        newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                        jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[test.txnSize], test.type)));
-            }
+            final AtomicReference<byte[]> rawPublicKey = new AtomicReference<>();
+            final AtomicReference<AccountCreationDetails> creationDetails = new AtomicReference<>();
 
-            @HapiTest
-            @Order(6)
-            @DisplayName("Jumbo Ethereum txn works when alias account is updated to threshold key")
-            // JUMBO_P_13
-            public Stream<DynamicTest> jumboTxnAliasWithThresholdKeyPattern() {
-                final var cryptoKey = "cryptoKey";
-                final var thresholdKey = "thresholdKey";
-                final var aliasCreationTxn = "aliasCreation";
-                final var ethereumCallTxn = "jumboTxnFromThresholdKeyAccount";
-                final var contract = CONTRACT_CALLDATA_SIZE;
-                final var payload = new byte[127 * 1024];
+            return hapiTest(
 
-                final AtomicReference<byte[]> rawPublicKey = new AtomicReference<>();
-                final AtomicReference<AccountCreationDetails> creationDetails = new AtomicReference<>();
+                    // Create SECP key and extract raw bytes
+                    newKeyNamed(cryptoKey)
+                            .shape(SECP256K1_ON)
+                            .exposingKeyTo(
+                                    k -> rawPublicKey.set(k.getECDSASecp256K1().toByteArray())),
 
-                return hapiTest(
+                    // Create alias account via cryptoTransfer
+                    cryptoTransfer(tinyBarsFromToWithAlias(GENESIS, cryptoKey, 2 * ONE_HUNDRED_HBARS))
+                            .via(aliasCreationTxn),
 
-                        // Create SECP key and extract raw bytes
-                        newKeyNamed(cryptoKey)
-                                .shape(SECP256K1_ON)
-                                .exposingKeyTo(
-                                        k -> rawPublicKey.set(k.getECDSASecp256K1().toByteArray())),
+                    // Extract AccountCreationDetails for EVM address and account ID
+                    getTxnRecord(aliasCreationTxn)
+                            .exposingCreationDetailsTo(details -> creationDetails.set(details.getFirst())),
 
-                        // Create alias account via cryptoTransfer
-                        cryptoTransfer(tinyBarsFromToWithAlias(GENESIS, cryptoKey, 2 * ONE_HUNDRED_HBARS))
-                                .via(aliasCreationTxn),
+                    // Create threshold key using SECP key and contract
+                    newKeyNamed(thresholdKey)
+                            .shape(threshOf(1, PREDEFINED_SHAPE, CONTRACT).signedWith(sigs(cryptoKey, contract))),
 
-                        // Extract AccountCreationDetails for EVM address and account ID
-                        getTxnRecord(aliasCreationTxn)
-                                .exposingCreationDetailsTo(details -> creationDetails.set(details.getFirst())),
+                    // Update alias account to use threshold key
+                    sourcing(() -> cryptoUpdate(
+                                    asAccountString(creationDetails.get().createdId()))
+                            .key(thresholdKey)
+                            .signedBy(GENESIS, cryptoKey)),
 
-                        // Create threshold key using SECP key and contract
-                        newKeyNamed(thresholdKey)
-                                .shape(threshOf(1, PREDEFINED_SHAPE, CONTRACT).signedWith(sigs(cryptoKey, contract))),
+                    // Submit jumbo Ethereum txn, signed with SECP key
+                    sourcing(() -> ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .markAsJumboTxn()
+                            .nonce(0)
+                            .signingWith(cryptoKey)
+                            .payingWith(RELAYER)
+                            .gasLimit(1_000_000L)
+                            .via(ethereumCallTxn)),
+                    getTxnRecord(ethereumCallTxn).logged());
+        }
 
-                        // Update alias account to use threshold key
-                        sourcing(
-                                () -> cryptoUpdate(asAccountString(creationDetails.get().createdId()))
-                                        .key(thresholdKey)
-                                        .signedBy(GENESIS, cryptoKey)),
-
-                        // Submit jumbo Ethereum txn, signed with SECP key
-                        sourcing(() -> ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
-                                .type(EthTxData.EthTransactionType.EIP1559)
-                                .markAsJumboTxn()
-                                .nonce(0)
-                                .signingWith(cryptoKey)
-                                .payingWith(RELAYER)
-                                .gasLimit(1_000_000L)
-                                .via(ethereumCallTxn)),
-                        getTxnRecord(ethereumCallTxn).logged());
-            }
-
-            @HapiTest
-            @Order(7)
-            @DisplayName("Jumbo transaction with multiple signatures should pass")
-            // JUMBO_P_13
-            public Stream<DynamicTest> jumboTransactionWithMultipleSignaturesShouldPass() {
-                final var cryptoKey = "cryptoKey";
-                final var payload = new byte[10 * 1024];
-                return hapiTest(
-                        newKeyNamed(cryptoKey).shape(SECP_256K1_SHAPE),
-                        newKeyNamed("test").shape(SECP_256K1_SHAPE),
-                        newKeyNamed("test2").shape(SECP_256K1_SHAPE),
-                        newKeyNamed("test3").shape(SECP_256K1_SHAPE),
-                        newKeyNamed("test4").shape(SECP_256K1_SHAPE),
-                        newKeyNamed("test5").shape(SECP_256K1_SHAPE),
-
-                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, cryptoKey, ONE_HUNDRED_HBARS)),
-                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test", ONE_HUNDRED_HBARS)),
-                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test2", ONE_HUNDRED_HBARS)),
-                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test3", ONE_HUNDRED_HBARS)),
-                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test4", ONE_HUNDRED_HBARS)),
-                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test5", ONE_HUNDRED_HBARS)),
-
-                        sourcing(() -> ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
-                                .type(EthTxData.EthTransactionType.EIP1559)
-                                .markAsJumboTxn()
-                                .signedBy(cryptoKey, "test", "test2", "test3", "test4", "test5")
-                                .payingWith(RELAYER)
-                                .gasLimit(1_000_000L)));
-            }
+        @HapiTest
+        @Order(7)
+        @DisplayName("Jumbo transaction with multiple signatures should pass")
+        // JUMBO_P_13
+        public Stream<DynamicTest> jumboTransactionWithMultipleSignaturesShouldPass() {
+            final var cryptoKey = "cryptoKey";
+            final var payload = new byte[10 * 1024];
+            return hapiTest(
+                    newKeyNamed(cryptoKey).shape(SECP_256K1_SHAPE),
+                    newKeyNamed("test").shape(SECP_256K1_SHAPE),
+                    newKeyNamed("test2").shape(SECP_256K1_SHAPE),
+                    newKeyNamed("test3").shape(SECP_256K1_SHAPE),
+                    newKeyNamed("test4").shape(SECP_256K1_SHAPE),
+                    newKeyNamed("test5").shape(SECP_256K1_SHAPE),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, cryptoKey, ONE_HUNDRED_HBARS)),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test", ONE_HUNDRED_HBARS)),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test2", ONE_HUNDRED_HBARS)),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test3", ONE_HUNDRED_HBARS)),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test4", ONE_HUNDRED_HBARS)),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, "test5", ONE_HUNDRED_HBARS)),
+                    sourcing(() -> ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                            .type(EthTxData.EthTransactionType.EIP1559)
+                            .markAsJumboTxn()
+                            .signedBy(cryptoKey, "test", "test2", "test3", "test4", "test5")
+                            .payingWith(RELAYER)
+                            .gasLimit(1_000_000L)));
+        }
     }
 
     @Nested
@@ -302,7 +296,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         private static byte[] corruptedPayload() {
             return Arrays.copyOf("corruptedPayload".getBytes(StandardCharsets.UTF_8), 128 * 1024);
         }
-
 
         @HapiTest
         @Order(8)
@@ -351,7 +344,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .gasLimit(1_000_000L)
                             .orUnavailableStatus());
         }
-
 
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail for above max size data with TRANSACTION_OVERSIZE")
@@ -480,8 +472,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .signingWith("unrelatedKey")
                             .payingWith(RELAYER)
                             .gasLimit(1_000_000L)
-                            .hasPrecheck(INVALID_ACCOUNT_ID)
-            );
+                            .hasPrecheck(INVALID_ACCOUNT_ID));
         }
 
         @HapiTest

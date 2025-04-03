@@ -161,8 +161,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     }
 
     private void validateHevmTransaction(HederaEvmTransaction hevmTransaction) {
-        final var maxJumboEthereumCallDataSize = configuration
-            .getConfigData(JumboTransactionsConfig.class).ethereumMaxCallDataSize();
+        final var maxJumboEthereumCallDataSize =
+                configuration.getConfigData(JumboTransactionsConfig.class).ethereumMaxCallDataSize();
 
         if (hevmTransaction.payload().length() > maxJumboEthereumCallDataSize) {
             throw new HandleException(TRANSACTION_OVERSIZE);
