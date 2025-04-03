@@ -92,6 +92,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static final String SHARED_NETWORK_NAME = "SHARED_NETWORK";
     private static final GrpcPinger GRPC_PINGER = new GrpcPinger();
     private static final PrometheusClient PROMETHEUS_CLIENT = new PrometheusClient();
+    private static final int DEFAULT_BLOCK_ITEM_BATCH_SIZE = 256;
 
     private static int nextGrpcPort;
     private static int nextNodeOperatorPort;
@@ -352,11 +353,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private void updateSubProcessNodeOneConfigForLocalBlockNode(HederaNode node) {
         try {
             // Create block node config for this container
-            List<BlockNodeConfig> blockNodes = List.of(new BlockNodeConfig("127.0.0.1", 8080));
+            List<BlockNodeConfig> blockNodes = List.of(new BlockNodeConfig("127.0.0.1", 8080, 1));
 
-            BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(
-                    blockNodes, 256 // default batch size
-                    );
+            BlockNodeConnectionInfo connectionInfo =
+                    new BlockNodeConnectionInfo(blockNodes, DEFAULT_BLOCK_ITEM_BATCH_SIZE);
 
             // Write the config to this consensus node's block-nodes.json
             Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
@@ -373,11 +373,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         try {
             // Create block node config for this container
             List<BlockNodeConfig> blockNodes =
-                    List.of(new BlockNodeConfig(container.getHost(), container.getGrpcPort()));
+                    List.of(new BlockNodeConfig(container.getHost(), container.getGrpcPort(), 1));
 
-            BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(
-                    blockNodes, 256 // default batch size
-                    );
+            BlockNodeConnectionInfo connectionInfo =
+                    new BlockNodeConnectionInfo(blockNodes, DEFAULT_BLOCK_ITEM_BATCH_SIZE);
 
             // Write the config to this consensus node's block-nodes.json
             Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
@@ -396,11 +395,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         try {
             // Create block node config for simulator servers
             List<BlockNodeConfig> blockNodes = new ArrayList<>();
-            blockNodes.add(new BlockNodeConfig("localhost", sim.getPort()));
+            blockNodes.add(new BlockNodeConfig("localhost", sim.getPort(), 1));
 
-            BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(
-                    blockNodes, 256 // default batch size
-                    );
+            BlockNodeConnectionInfo connectionInfo =
+                    new BlockNodeConnectionInfo(blockNodes, DEFAULT_BLOCK_ITEM_BATCH_SIZE);
 
             // Write the config to this consensus node's block-nodes.json
             Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");

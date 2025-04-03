@@ -50,6 +50,15 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private volatile StreamObserver<PublishStreamRequest> requestObserver;
     private volatile Thread requestWorker;
 
+    protected BlockNodeConnection() {
+        // Default constructor for NoOpConnection
+        this.node = null;
+        this.grpcServiceClient = null;
+        this.blockNodeConnectionManager = null;
+        this.blockStreamStateManager = null;
+        this.scheduler = null;
+    }
+
     /**
      * Construct a new BlockNodeConnection.
      *
@@ -76,7 +85,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     /**
      * Establish the bidirectional streaming to block nodes.
      */
-    public Void establishStream() {
+    public void establishStream() {
         synchronized (isActiveLock) {
             synchronized (channelLock) {
                 requestObserver = grpcServiceClient.bidi(blockNodeConnectionManager.getGrpcEndPoint(), this);
@@ -84,7 +93,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 startRequestWorker();
             }
         }
-        return null;
     }
 
     private void startRequestWorker() {
@@ -249,10 +257,11 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                     }
                 }
                 stopWorkerThread();
-                removeFromActiveConnections(node);
-                scheduleReconnect();
+                setCurrentBlockNumber(-1);
             }
         }
+
+        blockNodeConnectionManager.handleConnectionError(this);
     }
 
     private void handleAcknowledgement(@NonNull PublishStreamResponse.Acknowledgement acknowledgement) {
@@ -355,10 +364,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         }
     }
 
-    private void removeFromActiveConnections(BlockNodeConfig node) {
-        blockNodeConnectionManager.disconnectFromNode(node);
-    }
-
     /**
      * If connection is active sends a request to the block node, otherwise does nothing.
      *
@@ -377,12 +382,11 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
     private void scheduleReconnect() {
         logger.debug("Scheduling reconnect for block node {}:{}", node.address(), node.port());
-        setCurrentBlockNumber(-1);
         blockNodeConnectionManager.scheduleReconnect(this);
     }
 
     /**
-     * If connection is active it closes it, otherwise does nothing.
+     * Idempotent operation that closes this connection (if active)
      */
     public void close() {
         synchronized (isActiveLock) {
@@ -413,7 +417,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     }
 
     /**
-     * Returns the block node configuration this connection.
+     * Returns the block node configuration for this connection.
      *
      * @return the block node configuration
      */

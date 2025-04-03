@@ -100,6 +100,7 @@ import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
@@ -553,6 +554,14 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     @NonNull
     public SoftwareVersion getSoftwareVersion() {
         return version;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public SemanticVersion getSemanticVersion() {
+        return version.getPbjSemanticVersion();
     }
 
     /*==================================================================================================================
@@ -1378,8 +1387,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
 
         logger.info("Initializing block node connections with timeout {}", timeout);
         boolean connected = daggerApp.blockNodeConnectionManager().waitForConnection(timeout);
-        if (blockStreamConfig.shutdownNodeOnNoBlockNodes() && !connected) {
-            logger.error("No block node connections established within timeout, shutting down");
+        final var blockNodeConnectionConfig =
+                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+        if (blockNodeConnectionConfig.shutdownNodeOnNoBlockNodes() && !connected) {
+            logger.fatal("No block node connections established within timeout, shutting down");
             this.shutdown();
             System.exit(1);
         }

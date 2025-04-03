@@ -33,7 +33,7 @@ public class BlockNodeConfigExtractorImpl implements BlockNodeConfigExtractor {
 
             // Convert proto config to internal config objects
             this.allNodes = protoConfig.nodes().stream()
-                    .map(node -> new BlockNodeConfig(node.address(), node.port()))
+                    .map(node -> new BlockNodeConfig(node.address(), node.port(), node.priority()))
                     .collect(Collectors.toList());
 
             logger.info("Loaded block node configuration from {}", configPath);

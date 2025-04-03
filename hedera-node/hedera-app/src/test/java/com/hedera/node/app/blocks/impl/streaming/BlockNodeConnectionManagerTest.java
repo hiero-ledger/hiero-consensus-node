@@ -3,6 +3,8 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -22,10 +24,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,29 +37,28 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class BlockNodeConnectionManagerTest {
     private static final Duration INITIAL_DELAY = Duration.ofMillis(10);
 
-    @LoggingSubject
-    BlockNodeConnectionManager blockNodeConnectionManager;
-
     @LoggingTarget
     private LogCaptor logCaptor;
+
+    @LoggingSubject
+    private BlockNodeConnectionManager blockNodeConnectionManager;
 
     @Mock
     private Supplier<Void> mockSupplier;
 
     @Mock
-    BlockNodeConnection mockConnection;
+    private BlockNodeConnection mockConnection;
 
     @Mock
-    BlockStreamStateManager mockStateManager;
+    private BlockStreamStateManager mockStateManager;
 
-    @Mock
-    BlockNodeConfigExtractorImpl blockNodeConfigExtractorImpl;
+    private static BlockNodeConfigExtractorImpl blockNodeConfigExtractorImpl;
 
     private static Server testServer;
 
     @BeforeAll
     static void beforeAll() throws IOException {
-        final var blockNodeConfigExtractorImpl = new BlockNodeConfigExtractorImpl("./src/test/resources/bootstrap");
+        blockNodeConfigExtractorImpl = new BlockNodeConfigExtractorImpl("./src/test/resources/bootstrap");
         final int testServerPort =
                 blockNodeConfigExtractorImpl.getAllNodes().getFirst().port();
         testServer = ServerBuilder.forPort(testServerPort)
@@ -72,6 +70,11 @@ class BlockNodeConnectionManagerTest {
     @BeforeEach
     void setUp() {
         blockNodeConnectionManager = new BlockNodeConnectionManager(blockNodeConfigExtractorImpl, mockStateManager);
+    }
+
+    @AfterAll
+    static void afterAll() {
+        testServer.shutdownNow();
     }
 
     @Test
@@ -105,13 +108,35 @@ class BlockNodeConnectionManagerTest {
     }
 
     @Test
-    void testScheduleReconnect() throws InterruptedException {
-        when(mockConnection.getNodeConfig()).thenReturn(new BlockNodeConfig("localhost", 8080));
-        when(mockConnection.getIsActiveLock()).thenReturn(new ReentrantLock());
+    void testScheduleReconnect_WithPriority() throws InterruptedException {
+        when(mockConnection.getNodeConfig())
+                .thenReturn(BlockNodeConfig.newBuilder()
+                        .address("localhost")
+                        .port(8080)
+                        .priority(1)
+                        .build());
 
         blockNodeConnectionManager.scheduleReconnect(mockConnection);
+
+        // There should be no immediate attempt to establish a stream
         verify(mockConnection, times(0)).establishStream();
 
+        Thread.sleep(BlockNodeConnectionManager.INITIAL_RETRY_DELAY.plusMillis(100));
+
+        final var retryLog = logCaptor.debugLogs().stream()
+                .filter(log -> log.contains("Retrying in"))
+                .findFirst();
+        assertThat(retryLog).isNotEmpty();
+        verify(mockConnection, times(1)).establishStream();
+    }
+
+    @Test
+    void testScheduleReconnect_WithoutPriority() throws InterruptedException {
+        given(mockConnection.getNodeConfig())
+                .willReturn(BlockNodeConfig.newBuilder().build());
+        blockNodeConnectionManager.scheduleReconnect(mockConnection);
+
+        verify(mockConnection, never()).establishStream(); // there should be no immediate attempt to establish a stream
         final var initialDelay = BlockNodeConnectionManager.INITIAL_RETRY_DELAY;
         Thread.sleep(initialDelay.plusMillis(100));
 
@@ -119,9 +144,16 @@ class BlockNodeConnectionManagerTest {
         verify(mockConnection, times(1)).establishStream();
     }
 
-    @AfterAll
-    static void afterAll() {
-        testServer.shutdownNow();
+    @Test
+    void testEstablishConnection_PrioritizesNodes() {
+        // Establishes connections indirectly via waitForConnections
+        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+
+        final List<String> infoLogs = logCaptor.infoLogs();
+        assertThat(infoLogs.get(0)).contains("Establishing connection to primary block node");
+
+        // Verify the order of connection attempts: The high priority node should be the first
+        assertThat(infoLogs.get(1)).contains("Connecting to block node localhost:8080");
     }
 
     private List<String> generateExpectedRetryLogs(Duration delay) {
@@ -136,8 +168,6 @@ class BlockNodeConnectionManagerTest {
     }
 
     private static class BlockStreamServiceTestImpl extends BlockStreamServiceGrpc.BlockStreamServiceImplBase {
-        private static final Logger logger = LogManager.getLogger(BlockStreamServiceTestImpl.class);
-
         @Override
         public StreamObserver<PublishStreamRequest> publishBlockStream(
                 StreamObserver<PublishStreamResponse> responseObserver) {

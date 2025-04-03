@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.exceptions;
+package org.hiero.consensus.utility.exceptions;
 
 import com.swirlds.logging.legacy.LogMarker;
 
