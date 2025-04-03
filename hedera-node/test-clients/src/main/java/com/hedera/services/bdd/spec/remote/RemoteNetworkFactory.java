@@ -32,7 +32,8 @@ public class RemoteNetworkFactory {
             final RemoteNetworkSpec networkSpec = yamlIn.load(fin);
             log.info("Loaded remote network spec from {}: {}", remoteNodesYmlLoc, networkSpec);
             final var connectInfos = networkSpec.connectInfos();
-            return RemoteNetwork.newRemoteNetwork(connectInfos, new HapiClients(() -> connectInfos));
+            return RemoteNetwork.newRemoteNetwork(
+                    connectInfos, new HapiClients(() -> connectInfos), networkSpec.getShard(), networkSpec.getRealm());
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read remote nodes YAML file: " + remoteNodesYmlLoc, e);
         }

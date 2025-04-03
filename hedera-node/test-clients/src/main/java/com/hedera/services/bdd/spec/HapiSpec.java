@@ -734,6 +734,9 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     private boolean init() {
         if (targetNetwork == null) {
             targetNetwork = RemoteNetworkFactory.newWithTargetFrom(hapiSetup.remoteNodesYmlLoc());
+            hapiSetup.addOverrides(Map.of(
+                    "default.shard", "" + targetNetwork.shard(),
+                    "default.realm", "" + targetNetwork.realm()));
         }
         if (!propertiesToPreserve.isEmpty()) {
             final var missingProperties = propertiesToPreserve.stream()
