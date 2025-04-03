@@ -17,7 +17,6 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -63,9 +62,6 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
             throw new RuntimeException(e);
         }
     }
-
-    /** The software version of this application. */
-    private BasicSoftwareVersion softwareVersion;
 
     /** The semantic version of this application. */
     private SemanticVersion semanticVersion;
