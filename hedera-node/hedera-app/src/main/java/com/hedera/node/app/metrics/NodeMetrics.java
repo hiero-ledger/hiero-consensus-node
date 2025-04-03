@@ -34,7 +34,7 @@ public class NodeMetrics {
      *
      * @param rosterEntries the list of roster entries
      */
-    public void registerMissingNodeMetrics(@NonNull List<RosterEntry> rosterEntries) {
+    public void registerNodeMetrics(@NonNull List<RosterEntry> rosterEntries) {
         for (final var entry : rosterEntries) {
             final var nodeId = entry.nodeId();
             final String name = "nodeActivePercent_node" + nodeId;

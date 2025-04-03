@@ -47,7 +47,7 @@ class NodeMetricsTest {
     }
 
     @Test
-    void registerMissingNodeMetrics() {
+    void registerNodeMetrics() {
         long nodeId = 1L;
         RosterEntry entry = new RosterEntry(nodeId, 0, Bytes.EMPTY, List.of());
         List<RosterEntry> roster = List.of(entry);
@@ -55,7 +55,7 @@ class NodeMetricsTest {
         when(metrics.getOrCreate(any(RunningAverageMetric.Config.class))).thenReturn(averageMetric);
         when(metrics.getOrCreate(any(DoubleGauge.Config.class))).thenReturn(doubleGauge);
 
-        nodeMetrics.registerMissingNodeMetrics(roster);
+        nodeMetrics.registerNodeMetrics(roster);
 
         double activePercent = 0.75;
         nodeMetrics.updateNodeActiveMetrics(nodeId, activePercent);
@@ -65,7 +65,7 @@ class NodeMetricsTest {
     }
 
     @Test
-    void registerMissingNodeMetricsDuplicateEntriesRegistersOnlyOnce() {
+    void registerNodeMetricsDuplicateEntriesRegistersOnlyOnce() {
         long nodeId = 2L;
         RosterEntry entry1 = new RosterEntry(nodeId, 0, Bytes.EMPTY, List.of());
         RosterEntry entry2 = new RosterEntry(nodeId, 0, Bytes.EMPTY, List.of());
@@ -74,7 +74,7 @@ class NodeMetricsTest {
         when(metrics.getOrCreate(any(RunningAverageMetric.Config.class))).thenReturn(averageMetric);
         when(metrics.getOrCreate(any(DoubleGauge.Config.class))).thenReturn(doubleGauge);
 
-        nodeMetrics.registerMissingNodeMetrics(roster);
+        nodeMetrics.registerNodeMetrics(roster);
 
         double activePercent = 0.9;
         nodeMetrics.updateNodeActiveMetrics(nodeId, activePercent);
@@ -92,7 +92,7 @@ class NodeMetricsTest {
     }
 
     @Test
-    void registerMissingNodeMetricsConfigurationPassedToMetrics() {
+    void registerNodeMetricsConfigurationPassedToMetrics() {
         long nodeId = 4L;
         RosterEntry entry = new RosterEntry(nodeId, 0, Bytes.EMPTY, List.of());
         List<RosterEntry> roster = List.of(entry);
@@ -100,7 +100,7 @@ class NodeMetricsTest {
         when(metrics.getOrCreate(any(RunningAverageMetric.Config.class))).thenReturn(averageMetric);
         when(metrics.getOrCreate(any(DoubleGauge.Config.class))).thenReturn(doubleGauge);
 
-        nodeMetrics.registerMissingNodeMetrics(roster);
+        nodeMetrics.registerNodeMetrics(roster);
 
         ArgumentCaptor<RunningAverageMetric.Config> avgConfigCaptor =
                 ArgumentCaptor.forClass(RunningAverageMetric.Config.class);

@@ -254,7 +254,7 @@ public class NodeRewardManager {
     private void updateNodeMetrics(
             final List<RosterEntry> rosterEntries, final WritableNodeRewardsStoreImpl nodeRewardStore) {
         final long roundsLastPeriod = nodeRewardStore.get().numRoundsInStakingPeriod();
-        metrics.registerMissingNodeMetrics(rosterEntries);
+        metrics.registerNodeMetrics(rosterEntries);
         final var missedJudgeCounts = nodeRewardStore.get().nodeActivities().stream()
                 .collect(toMap(NodeActivity::nodeId, NodeActivity::numMissedJudgeRounds));
         rosterEntries.forEach(node -> {
