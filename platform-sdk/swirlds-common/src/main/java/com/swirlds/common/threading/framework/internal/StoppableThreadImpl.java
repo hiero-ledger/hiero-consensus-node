@@ -14,7 +14,6 @@ import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.threading.framework.Stoppable;
 import com.swirlds.common.threading.framework.ThreadSeed;
 import com.swirlds.common.threading.framework.TypedStoppableThread;
-import com.swirlds.common.utility.DurationUtils;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
@@ -22,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.DurationUtils;
 import org.hiero.consensus.model.utility.StackTrace;
 import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
 
