@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
-import static com.swirlds.common.utility.CompareTo.isGreaterThan;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
+import static org.hiero.base.utility.CompareTo.isGreaterThan;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.platform.gossip.IntakeEventCounter;

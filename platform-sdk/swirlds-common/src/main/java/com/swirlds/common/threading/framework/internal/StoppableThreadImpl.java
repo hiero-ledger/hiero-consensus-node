@@ -2,11 +2,11 @@
 package com.swirlds.common.threading.framework.internal;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MILLISECONDS;
-import static com.swirlds.common.utility.CompareTo.isGreaterThan;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.THREADS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.hiero.base.utility.CompareTo.isGreaterThan;
 import static org.hiero.consensus.model.utility.StackTrace.getStackTrace;
 import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.retryIfInterrupted;
 

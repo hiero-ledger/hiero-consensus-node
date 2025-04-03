@@ -4,7 +4,7 @@ package com.swirlds.platform.recovery;
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignature;
-import static com.swirlds.common.utility.CompareTo.isLessThan;
+import static org.hiero.base.utility.CompareTo.isLessThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
 

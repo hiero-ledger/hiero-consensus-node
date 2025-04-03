@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
-import static com.swirlds.common.utility.CompareTo.isGreaterThan;
-import static com.swirlds.common.utility.CompareTo.isLessThan;
 import static com.swirlds.common.utility.NonCryptographicHashing.hash64;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static org.hiero.base.utility.CompareTo.isGreaterThan;
+import static org.hiero.base.utility.CompareTo.isLessThan;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;

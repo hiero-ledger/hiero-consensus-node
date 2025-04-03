@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.utility;
+package org.hiero.base.utility;
 
-import static com.swirlds.common.utility.CompareTo.isGreaterThan;
-import static com.swirlds.common.utility.CompareTo.isGreaterThanOrEqualTo;
-import static com.swirlds.common.utility.CompareTo.isLessThan;
-import static com.swirlds.common.utility.CompareTo.isLessThanOrEqualTo;
+import static org.hiero.base.utility.CompareTo.isGreaterThan;
+import static org.hiero.base.utility.CompareTo.isGreaterThanOrEqualTo;
+import static org.hiero.base.utility.CompareTo.isLessThan;
+import static org.hiero.base.utility.CompareTo.isLessThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
