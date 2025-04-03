@@ -180,7 +180,7 @@ class HandleWorkflowTest {
     void writesEachMigrationStateChangeWithBlockTimestamp() {
         given(round.iterator()).willReturn(List.of(event).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
-        given(systemTransactions.startupWorkConsTimeFor(any())).willReturn(NOW);
+        given(systemTransactions.restartSystemChangesTimeAt(any())).willReturn(NOW);
         final var firstBuilder = StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT));
         final var secondBuilder =
                 StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT, StateChange.DEFAULT));
