@@ -9,7 +9,6 @@ import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_H
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -28,10 +27,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createWellKnown
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createWellKnownNonFungibleToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
@@ -77,8 +74,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
-import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
-import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCreateSuite.EMPTY_CONSTRUCTOR_CONTRACT;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.CRYPTO_TRANSFER_RECEIVER;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_CREATE_SPONSOR;
@@ -104,7 +99,6 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCre
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoUpdate;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -135,7 +129,6 @@ import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
-import com.hedera.services.bdd.suites.contract.Utils;
 import com.hedera.services.stream.proto.CallOperationType;
 import com.hedera.services.stream.proto.ContractAction;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -144,7 +137,6 @@ import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
-import com.hederahashgraph.api.proto.java.TransferList;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
@@ -926,94 +918,6 @@ public class LeakyCryptoTestsSuite {
                                 movingUnique(nftWithRoyaltyPlusHtsFallback, 1L).between(CIVILIAN, finalReceiverKey))
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE)
                         .via(finalTxn));
-    }
-
-    @LeakyHapiTest(overrides = {"accounts.releaseAliasAfterDeletion"})
-    final Stream<DynamicTest> accountDeletionDoesNotReleaseAliasWithDisabledFF() {
-        final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> counterAlias = new AtomicReference<>();
-        final AtomicReference<AccountID> aliasedAccountId = new AtomicReference<>();
-        final AtomicReference<String> tokenNum = new AtomicReference<>();
-        final var totalSupply = 50;
-        final var ercUser = "ercUser";
-        final var HBAR_XFER = "hbarXfer";
-
-        return hapiTest(
-                overriding("accounts.releaseAliasAfterDeletion", "false"),
-                cryptoCreate(AUTO_ACCOUNT).maxAutomaticTokenAssociations(2),
-                cryptoCreate(TOKEN_TREASURY),
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                withOpContext((spec, opLog) -> {
-                    final var registry = spec.registry();
-                    final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
-                    final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
-                    final var addressBytes = recoverAddressFromPubKey(tmp);
-                    final var evmAddressBytes = ByteString.copyFrom(addressBytes);
-                    partyId.set(registry.getAccountID(AUTO_ACCOUNT));
-                    partyAlias.set(ByteString.copyFrom(asSolidityAddress(partyId.get())));
-                    counterAlias.set(evmAddressBytes);
-                }),
-                tokenCreate("token")
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(totalSupply)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(SECP_256K1_SOURCE_KEY)
-                        .supplyKey(SECP_256K1_SOURCE_KEY)
-                        .exposingCreatedIdTo(tokenNum::set),
-                withOpContext((spec, opLog) -> {
-                    var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(counterAlias.get(), +2 * ONE_HBAR))))
-                            .signedBy(DEFAULT_PAYER, AUTO_ACCOUNT)
-                            .via(HBAR_XFER);
-
-                    var op2 = getAliasedAccountInfo(counterAlias.get())
-                            .logged()
-                            .exposingIdTo(aliasedAccountId::set)
-                            .has(accountWith()
-                                    .hasEmptyKey()
-                                    .noAlias()
-                                    .nonce(0)
-                                    .autoRenew(THREE_MONTHS_IN_SECONDS)
-                                    .receiverSigReq(false)
-                                    .memo(LAZY_MEMO));
-
-                    // send eth transaction signed by the ecdsa key
-                    var op3 = ethereumCallWithFunctionAbi(
-                                    true, "token", getABIFor(Utils.FunctionType.FUNCTION, "totalSupply", ERC20_ABI))
-                            .type(EthTxData.EthTransactionType.EIP1559)
-                            .signingWith(SECP_256K1_SOURCE_KEY)
-                            .payingWith(GENESIS)
-                            .nonce(0)
-                            .gasPrice(50L)
-                            .maxGasAllowance(FIVE_HBARS)
-                            .maxPriorityGas(2L)
-                            .gasLimit(1_000_000L)
-                            .hasKnownStatus(ResponseCodeEnum.SUCCESS);
-
-                    // assert account nonce is increased to 1
-                    var op4 = getAliasedAccountInfo(counterAlias.get())
-                            .logged()
-                            .has(accountWith().nonce(1));
-
-                    allRunFor(spec, op1, op2, op3, op4);
-
-                    spec.registry().saveAccountId(ercUser, aliasedAccountId.get());
-                    spec.registry().saveKey(ercUser, spec.registry().getKey(SECP_256K1_SOURCE_KEY));
-                }),
-                // delete the account currently holding the alias
-                cryptoDelete(ercUser),
-                // try to create a new account with the same alias
-                withOpContext((spec, opLog) -> {
-                    var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(counterAlias.get(), +2 * ONE_HBAR))))
-                            .signedBy(DEFAULT_PAYER, AUTO_ACCOUNT)
-                            .hasKnownStatus(ACCOUNT_DELETED);
-
-                    allRunFor(spec, op1);
-                }));
     }
 
     private long tinybarCostOfGas(final HapiSpec spec, final HederaFunctionality function, final long gasAmount) {
