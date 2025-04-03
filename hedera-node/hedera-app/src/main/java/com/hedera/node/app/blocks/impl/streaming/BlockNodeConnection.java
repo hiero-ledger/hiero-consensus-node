@@ -11,7 +11,6 @@ import io.grpc.stub.StreamObserver;
 import io.helidon.webclient.grpc.GrpcServiceClient;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -91,6 +90,27 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 requestObserver = grpcServiceClient.bidi(blockNodeConnectionManager.getGrpcEndPoint(), this);
                 isActive.set(true);
                 startRequestWorker();
+            }
+        }
+    }
+
+    /**
+     * Try to establish the bidirectional streaming to block node.
+     */
+    public void tryEstablishStream() {
+        synchronized (isActiveLock) {
+            synchronized (channelLock) {
+                requestObserver = grpcServiceClient.bidi(blockNodeConnectionManager.getGrpcEndPoint(), this);
+
+                // try to stream the next block header
+                // TODO: how to get the next block header here?
+                final PublishStreamRequest nextHeaderRequest = null;
+
+                // TODO: how to know if block node is ready to accept the rest of the block and that we can continue
+                // streaming with this connection?
+                requestObserver.onNext(nextHeaderRequest);
+
+                isActive.set(true);
             }
         }
     }
@@ -264,6 +284,28 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         blockNodeConnectionManager.handleConnectionError(this);
     }
 
+    private void handleEndOfStreamError() {
+        synchronized (isActiveLock) {
+            if (isActive.compareAndSet(true, false)) {
+                synchronized (channelLock) {
+                    if (requestObserver != null) {
+                        try {
+                            requestObserver.onCompleted();
+                        } catch (Exception e) {
+                            logger.warn("Error while completing request observer during stream failure", e);
+                        }
+                        requestObserver = null;
+                    }
+                }
+                stopWorkerThread();
+                setCurrentBlockNumber(-1);
+            }
+        }
+
+        // Go into a longer exponential backoff and switch connection priority
+        blockNodeConnectionManager.handleEndOfStreamError(this);
+    }
+
     private void handleAcknowledgement(@NonNull PublishStreamResponse.Acknowledgement acknowledgement) {
         if (acknowledgement.hasBlockAck()) {
             var blockAck = acknowledgement.blockAck();
@@ -303,35 +345,18 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         }
 
         switch (responseCode) {
-            case STREAM_ITEMS_INTERNAL_ERROR -> {
+            case STREAM_ITEMS_INTERNAL_ERROR, STREAM_ITEMS_PERSISTENCE_FAILED -> {
                 // The block node had an internal error and cannot continue processing.
                 // We should wait for a short period before attempting to reconnect
                 // to avoid overwhelming the node if it's having issues
                 logger.warn(
-                        "[{}] Block node {}:{} reported internal error at block {}. Will attempt reconnect after delay.",
+                        "[{}] Block node {}:{} reported an error at block {}. Will attempt to reestablish the stream later.",
                         Thread.currentThread().getName(),
                         node.address(),
                         node.port(),
                         blockNumber);
 
-                // Schedule a delayed reconnect after the last verified block + 1
-                long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
-
-                // Schedule stream restart after some delay
-                // FUTURE: here we could add exponential backoff logic and or establishing the stream to other
-                // connections from config
-                scheduler.schedule(
-                        () -> {
-                            logger.debug(
-                                    "[{}] Attempting reconnect after internal error for node {}:{} at block {}",
-                                    Thread.currentThread().getName(),
-                                    node.address(),
-                                    node.port(),
-                                    restartBlockNumber);
-                            restartStreamAtBlock(restartBlockNumber);
-                        },
-                        5,
-                        TimeUnit.SECONDS);
+                handleEndOfStreamError();
             }
             case STREAM_ITEMS_BEHIND -> {
                 // The block node is "behind" the publisher.
@@ -513,9 +538,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     }
 
     /**
-     * Ends the current stream and restarts a new stream at a specific block number.
-     * This method will close the current connection, establish a new stream,
-     * and start processing from the specified block number.
+     * Restarts a new stream at a specific block number.
+     * This method will establish a new stream and start processing from the specified block number.
      *
      * @param blockNumber the block number to restart at
      */

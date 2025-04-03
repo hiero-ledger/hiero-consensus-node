@@ -159,6 +159,56 @@ public class BlockNodeConnectionManager {
     }
 
     /**
+     * Handles end of stream errors from a BlockNodeConnection by removing the failed connection
+     *
+     * @param connection the connection that received the end of stream error
+     */
+    public void handleEndOfStreamError(@NonNull final BlockNodeConnection connection) {
+        synchronized (connectionLock) {
+            // If available, make the secondary connection the primary connection
+            if (Objects.equals(connection, primary) && !secondaryActive()) {
+                primary = secondary;
+            }
+            connectionsInRetry.putIfAbsent(connection.getNodeConfig(), connection);
+        }
+        scheduleTryEstablishStream(connection);
+    }
+
+    /**
+     * Schedules an attempt to reestablish stream for the given Block Node connection.
+     *
+     * @param connection the connection to schedule an attempt to reestablish stream for
+     */
+    public void scheduleTryEstablishStream(@NonNull final BlockNodeConnection connection) {
+        requireNonNull(connection);
+
+        // Avoid duplicate retry attempts
+        synchronized (connectionLock) {
+            if (connectionsInRetry.containsKey(connection.getNodeConfig())) {
+                logger.info("Skipping reconnect, already in retry: {}", blockNodeName(connection.getNodeConfig()));
+                return;
+            }
+        }
+
+        retryExecutor.execute(() -> {
+            try {
+                retry(
+                        () -> {
+                            connection.tryEstablishStream();
+                            synchronized (connectionLock) {
+                                connectionsInRetry.remove(connection.getNodeConfig());
+                            }
+                            return true;
+                        },
+                        INITIAL_RETRY_DELAY);
+            } catch (Exception e) {
+                final var node = connection.getNodeConfig();
+                logger.error("Failed to re-establish stream to block node {}", blockNodeName(node), e);
+            }
+        });
+    }
+
+    /**
      * Retries the given action with exponential backoff.
      *
      * @param action the action to retry
