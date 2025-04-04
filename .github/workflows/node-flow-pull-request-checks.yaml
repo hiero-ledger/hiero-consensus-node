@@ -179,28 +179,6 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  # No longer executed on pull requests. May be executed when manually
-  # running the workflow on a given branch or commit. Added to the extended
-  # test suites and will be executed on at least 1 commit every 3 hours.
-  # (takes > 20 minutes)
-  hapi-tests-time-consuming:
-    name: HAPI Tests (Time Consuming)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
-    # Add this if back in after CITR Pager duty reporting service is in place
-    # if: ${{ github.event_name == 'workflow_dispatch' }}
-    with:
-      custom-job-label: Standard
-      enable-unit-tests: false
-      enable-hapi-tests-time-consuming: true
-      enable-network-log-capture: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
   snyk-scan:
     name: Snyk Scan
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
