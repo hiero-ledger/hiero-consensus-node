@@ -3,9 +3,9 @@ package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertIteratorEquality;
 import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_BOUND;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,7 +14,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContexts;
-import com.swirlds.common.utility.CompareTo;
 import com.swirlds.platform.test.fixtures.event.preconsensus.PcesTestFilesGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -25,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.base.utility.CompareTo;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;

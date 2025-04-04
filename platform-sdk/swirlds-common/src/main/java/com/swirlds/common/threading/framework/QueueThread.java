@@ -2,7 +2,7 @@
 package com.swirlds.common.threading.framework;
 
 import java.util.concurrent.BlockingQueue;
-import org.hiero.consensus.utility.Clearable;
+import org.hiero.base.utility.Clearable;
 
 /**
  * A thread that continuously takes elements from a queue and handles them.

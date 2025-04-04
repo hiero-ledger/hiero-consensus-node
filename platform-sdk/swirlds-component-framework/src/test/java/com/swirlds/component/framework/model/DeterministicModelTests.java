@@ -12,8 +12,8 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerT
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.assertj.core.api.Fail.fail;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.randomInstant;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

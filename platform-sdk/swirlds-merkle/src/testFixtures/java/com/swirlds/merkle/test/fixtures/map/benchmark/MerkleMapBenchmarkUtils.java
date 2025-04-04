@@ -3,7 +3,7 @@ package com.swirlds.merkle.test.fixtures.map.benchmark;
 
 import com.swirlds.merkle.map.MerkleMap;
 import java.util.Random;
-import org.hiero.consensus.utility.test.fixtures.RandomUtils;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 
 public final class MerkleMapBenchmarkUtils {
 

@@ -22,7 +22,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.utility.Clearable;
+import org.hiero.base.utility.Clearable;
 
 /**
  * A single point responsible for executing the 3 phases of reconnect:
