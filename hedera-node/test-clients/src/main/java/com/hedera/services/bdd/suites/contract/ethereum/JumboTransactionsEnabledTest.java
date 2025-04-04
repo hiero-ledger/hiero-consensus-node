@@ -435,7 +435,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         @DisplayName("Three jumbo transactions one after the other")
         // JUMBO_N_08
         public Stream<DynamicTest> treeJumboTransactionOneAfterTheOther() {
-            final var payload = new byte[127 * 1024];
+            final var payload = new byte[128 * 1024 - 100];
             return hapiTest(
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
