@@ -8,7 +8,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
-import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
@@ -60,8 +59,42 @@ public class HintsServiceImpl implements HintsService {
     }
 
     @Override
+    public void initCurrentRoster(@NonNull final Roster roster) {
+        requireNonNull(roster);
+        currentRoster.set(roster);
+    }
+
+    @Override
     public boolean isReady() {
         return component.signingContext().isReady();
+    }
+
+    @Override
+    public long activeSchemeId() {
+        return component.signingContext().activeSchemeIdOrThrow();
+    }
+
+    @Override
+    public Bytes activeVerificationKey() {
+        return component.signingContext().verificationKeyOrThrow();
+    }
+
+    @Override
+    public void manageRosterAdoption(
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Roster previousRoster,
+            @NonNull final Roster adoptedRoster,
+            @NonNull final Bytes adoptedRosterHash,
+            final boolean forceHandoff) {
+        requireNonNull(hintsStore);
+        requireNonNull(previousRoster);
+        requireNonNull(adoptedRoster);
+        requireNonNull(adoptedRosterHash);
+        if (hintsStore.updateAtHandoff(previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff)) {
+            final var activeConstruction = requireNonNull(hintsStore.getActiveConstruction());
+            component.signingContext().setConstructions(activeConstruction);
+            logger.info("Updated hinTS construction in signing context to #{}", activeConstruction.constructionId());
+        }
     }
 
     @Override
@@ -84,7 +117,9 @@ public class HintsServiceImpl implements HintsService {
                     controller.advanceConstruction(now, hintsStore, isActive);
                 }
             }
-            case HANDOFF -> hintsStore.updateForHandoff(activeRosters);
+            case HANDOFF -> {
+                // No-op
+            }
         }
         currentRoster.set(activeRosters.findRelatedRoster(activeRosters.currentRosterHash()));
     }
@@ -120,12 +155,6 @@ public class HintsServiceImpl implements HintsService {
         requireNonNull(registry);
         registry.register(new V059HintsSchema());
         registry.register(new V060HintsSchema(component.signingContext(), library));
-    }
-
-    @Override
-    public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
-        requireNonNull(hintsStore);
-        component.signingContext().setConstruction(requireNonNull(hintsStore.getNextConstruction()));
     }
 
     @Override

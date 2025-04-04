@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -52,14 +55,21 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void writePbjItem(@NonNull BlockItem item) {
-        throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
+    public void closeCompleteBlock() {
+        this.fileBlockItemWriter.closeCompleteBlock();
+        this.grpcBlockItemWriter.closeCompleteBlock();
     }
 
     @Override
-    public void closeBlock() {
-        this.fileBlockItemWriter.closeBlock();
-        this.grpcBlockItemWriter.closeBlock();
+    public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
+        requireNonNull(pendingProof);
+        this.fileBlockItemWriter.flushPendingBlock(pendingProof);
+        this.grpcBlockItemWriter.flushPendingBlock(pendingProof);
+    }
+
+    @Override
+    public void writePbjItem(@NonNull BlockItem item) {
+        throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
     }
 
     @Override

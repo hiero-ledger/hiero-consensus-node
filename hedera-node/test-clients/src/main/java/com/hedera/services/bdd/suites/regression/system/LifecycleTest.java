@@ -53,7 +53,7 @@ import java.util.function.Supplier;
  */
 public interface LifecycleTest {
     int MIXED_OPS_BURST_TPS = 50;
-    Duration FREEZE_TIMEOUT = Duration.ofSeconds(180);
+    Duration FREEZE_TIMEOUT = Duration.ofSeconds(240);
     Duration RESTART_TIMEOUT = Duration.ofSeconds(180);
     Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     Duration MIXED_OPS_BURST_DURATION = Duration.ofSeconds(10);

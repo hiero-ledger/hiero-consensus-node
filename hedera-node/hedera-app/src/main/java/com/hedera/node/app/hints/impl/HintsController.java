@@ -63,7 +63,7 @@ public interface HintsController {
      * ongoing construction.
      *
      * @param publication the hint key publication
-     * @param crs
+     * @param crs the current CRS
      */
     void addHintsKeyPublication(@NonNull ReadableHintsStore.HintsKeyPublication publication, final Bytes crs);
 
