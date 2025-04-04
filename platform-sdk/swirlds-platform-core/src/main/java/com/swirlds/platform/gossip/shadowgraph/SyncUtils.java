@@ -463,8 +463,7 @@ public final class SyncUtils {
 
         final long minimumSearchThreshold =
                 Math.max(myEventWindow.getExpiredThreshold(), theirEventWindow.getAncientThreshold());
-        return s ->
-                s.getEvent().getAncientIndicator(ancientMode) >= minimumSearchThreshold && !knownShadows.contains(s);
+        return s -> ancientMode.selectIndicator(s.getEvent()) >= minimumSearchThreshold && !knownShadows.contains(s);
     }
 
     /**
@@ -498,17 +497,6 @@ public final class SyncUtils {
         }
 
         return creatorsWithForks; // total number of unique creators with more than one tip
-    }
-
-    /**
-     * Performs a topological sort on the given list of events (i.e. where parents always come before their children).
-     *
-     * @param sendList The list of events to sort.
-     */
-    static void sort(@NonNull final List<PlatformEvent> sendList) {
-        // Note: regardless of ancient mode, sorting uses generations and not birth rounds.
-        //       Sorting by generations yields a list in topological order, sorting by birth rounds does not.
-        sendList.sort((PlatformEvent e1, PlatformEvent e2) -> (int) (e1.getGeneration() - e2.getGeneration()));
     }
 
     /**

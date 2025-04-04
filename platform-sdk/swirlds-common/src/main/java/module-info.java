@@ -138,12 +138,12 @@ module com.swirlds.common {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.metrics.impl;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.utility;
     requires transitive com.fasterxml.jackson.core;
     requires transitive com.fasterxml.jackson.databind;
     requires transitive io.prometheus.simpleclient;
     requires transitive lazysodium.java;
     requires transitive org.apache.logging.log4j;
-    requires org.hiero.consensus.utility;
     requires com.sun.jna;
     requires io.github.classgraph;
     requires io.prometheus.simpleclient.httpserver;

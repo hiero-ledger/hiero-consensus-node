@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.rules;
 
-import static org.hiero.consensus.event.creator.EventCreationStatus.RATE_LIMITED;
+import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LIMITED;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.event.creator.EventCreationRule;
-import org.hiero.consensus.event.creator.EventCreationStatus;
+import org.hiero.consensus.event.creator.impl.EventCreationStatus;
 
 /**
  * Combines multiple {@link EventCreationRule} objects into a single object. Allows event creation if all the contained

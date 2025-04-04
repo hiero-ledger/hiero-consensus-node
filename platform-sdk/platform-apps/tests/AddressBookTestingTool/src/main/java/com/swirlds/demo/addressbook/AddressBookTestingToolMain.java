@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.constructable.ClassConstructorPair;
@@ -65,6 +66,9 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
 
     /** The software version of this application. */
     private BasicSoftwareVersion softwareVersion;
+
+    /** The semantic version of this application. */
+    private SemanticVersion semanticVersion;
 
     /** The platform. */
     private Platform platform;
@@ -150,6 +154,34 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
 
         logger.info(STARTUP.getMarker(), "returning software version {}", softwareVersion);
         return softwareVersion;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public SemanticVersion getSemanticVersion() {
+        if (semanticVersion != null) {
+            return semanticVersion;
+        }
+
+        // Preload configuration so that we can change the software version on the fly
+        final Configuration configuration;
+        try {
+            final ConfigurationBuilder configurationBuilder =
+                    ConfigurationBuilder.create().withConfigDataType(AddressBookTestingToolConfig.class);
+            configuration = DefaultConfiguration.buildBasicConfiguration(
+                    configurationBuilder, getAbsolutePath("settings.txt"), List.of());
+        } catch (final IOException e) {
+            throw new UncheckedIOException("unable to load settings.txt", e);
+        }
+
+        final int version =
+                configuration.getConfigData(AddressBookTestingToolConfig.class).softwareVersion();
+        this.semanticVersion = SemanticVersion.newBuilder().major(version).build();
+
+        logger.info(STARTUP.getMarker(), "returning semantic version {}", semanticVersion);
+        return semanticVersion;
     }
 
     @Override
