@@ -23,7 +23,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.RealmID;
-import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.ShardID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
@@ -40,6 +39,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
+import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
@@ -83,18 +83,11 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.internal.CryptoUtils;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -103,22 +96,13 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.SecureRandom;
-import java.security.cert.CertificateEncodingException;
-import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
-import java.util.Spliterators;
 import java.util.function.Function;
-import java.util.stream.StreamSupport;
 import org.apache.tuweni.bytes.Bytes32;
-import org.hiero.consensus.model.node.NodeId;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -159,8 +143,6 @@ public class TransactionExecutorsTest {
             "{\"pc\":0,\"op\":96,\"gas\":\"0x13458\",\"gasCost\":\"0x3\",\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
     private static final NodeInfo DEFAULT_NODE_INFO =
             new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), true);
-
-    public static final Metrics NO_OP_METRICS = new NoOpMetrics();
 
     @Mock
     private SignatureVerifier signatureVerifier;
@@ -386,7 +368,6 @@ public class TransactionExecutorsTest {
         final var configBuilder = HederaTestConfigBuilder.create();
         overrides.forEach(configBuilder::withValue);
         final var config = configBuilder.getOrCreateConfig();
-        final var networkInfo = fakeNetworkInfo();
         final var servicesRegistry = new FakeServicesRegistry();
         final var appContext = new AppContextImpl(
                 InstantSource.system(),
@@ -394,7 +375,7 @@ public class TransactionExecutorsTest {
                 UNAVAILABLE_GOSSIP,
                 () -> config,
                 () -> DEFAULT_NODE_INFO,
-                () -> NO_OP_METRICS,
+                () -> AppTestBase.NO_OP_METRICS,
                 new AppThrottleFactory(
                         () -> config,
                         () -> state,
@@ -414,7 +395,7 @@ public class TransactionExecutorsTest {
                         bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion()),
                 new ConfigProviderImpl().getConfiguration(),
                 config,
-                NO_OP_METRICS,
+                AppTestBase.NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,
                 configProvider,
@@ -487,7 +468,7 @@ public class TransactionExecutorsTest {
         Set.of(
                         new EntityIdService(),
                         new ConsensusServiceImpl(),
-                        new ContractServiceImpl(appContext, NO_OP_METRICS),
+                        new ContractServiceImpl(appContext, AppTestBase.NO_OP_METRICS),
                         new FileServiceImpl(),
                         new FreezeServiceImpl(),
                         new ScheduleServiceImpl(appContext),
@@ -502,77 +483,6 @@ public class TransactionExecutorsTest {
                 .forEach(servicesRegistry::register);
     }
 
-    private static NetworkInfo fakeNetworkInfo() {
-        final AccountID someAccount = idFactory.newAccountId(12345);
-        final var addressBook = new AddressBook(StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(
-                                RandomAddressBookBuilder.create(new Random())
-                                        .withSize(1)
-                                        .withRealKeysEnabled(true)
-                                        .build()
-                                        .iterator(),
-                                0),
-                        false)
-                .map(address ->
-                        address.copySetMemo("0.0." + (address.getNodeId().id() + 3)))
-                .toList());
-        return new NetworkInfo() {
-            @NonNull
-            @Override
-            public Bytes ledgerId() {
-                throw new UnsupportedOperationException("Not implemented");
-            }
-
-            @NonNull
-            @Override
-            public NodeInfo selfNodeInfo() {
-                return new NodeInfoImpl(
-                        0,
-                        someAccount,
-                        0,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        getCertBytes(randomX509Certificate()),
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        true);
-            }
-
-            @NonNull
-            @Override
-            public List<NodeInfo> addressBook() {
-                return List.of(new NodeInfoImpl(
-                        0,
-                        someAccount,
-                        0,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        getCertBytes(randomX509Certificate()),
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        false));
-            }
-
-            @Override
-            public NodeInfo nodeInfo(final long nodeId) {
-                return new NodeInfoImpl(
-                        0,
-                        someAccount,
-                        0,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        Bytes.EMPTY,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        false);
-            }
-
-            @Override
-            public boolean containsNode(final long nodeId) {
-                return addressBook.contains(NodeId.of(nodeId));
-            }
-
-            @Override
-            public void updateFrom(final State state) {
-                throw new UnsupportedOperationException("Not implemented");
-            }
-        };
-    }
-
     private Bytes resourceAsBytes(@NonNull final String loc) {
         try {
             try (final var in = TransactionExecutorsTest.class.getClassLoader().getResourceAsStream(loc)) {
@@ -581,29 +491,6 @@ public class TransactionExecutorsTest {
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
-        }
-    }
-
-    public static X509Certificate randomX509Certificate() {
-        try {
-            final SecureRandom secureRandom = CryptoUtils.getDetRandom();
-
-            final KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
-            rsaKeyGen.initialize(3072, secureRandom);
-            final KeyPair rsaKeyPair1 = rsaKeyGen.generateKeyPair();
-
-            final String name = "CN=Bob";
-            return CryptoStatic.generateCertificate(name, rsaKeyPair1, name, rsaKeyPair1, secureRandom);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static Bytes getCertBytes(X509Certificate certificate) {
-        try {
-            return Bytes.wrap(certificate.getEncoded());
-        } catch (CertificateEncodingException e) {
-            throw new RuntimeException(e);
         }
     }
 

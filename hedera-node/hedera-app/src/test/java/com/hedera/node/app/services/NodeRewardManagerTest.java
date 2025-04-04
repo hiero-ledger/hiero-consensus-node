@@ -2,8 +2,6 @@
 package com.hedera.node.app.services;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_KEY;
@@ -17,8 +15,6 @@ import static org.mockito.Mockito.*;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -47,8 +43,6 @@ import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.CommittableWritableStates;
-import com.swirlds.state.spi.ReadableSingletonStateBase;
-import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
@@ -82,9 +76,6 @@ class NodeRewardManagerTest {
     private State state;
 
     private WritableStates writableStates;
-
-    @Mock(strictness = Mock.Strictness.LENIENT)
-    private ReadableStates readableStates;
 
     @Mock
     private SystemTransactions systemTransactions;
@@ -201,7 +192,11 @@ class NodeRewardManagerTest {
                         .activeRosterHash(Bytes.wrap("ACTIVE"))
                         .build())
                 .build());
+        final WritableSingletonStateBase<RosterState> rosterSingletonState =
+                new WritableSingletonStateBase<>(ROSTER_STATES_KEY, rosterStateRef::get, rosterStateRef::set);
         stateRef.set(platformState);
+        final WritableSingletonStateBase<PlatformState> platformSingletonState =
+                new WritableSingletonStateBase<>(PLATFORM_STATE_KEY, stateRef::get, stateRef::set);
         if (networkStakingRewards == null) {
             networkStakingRewardsRef.set(NetworkStakingRewards.newBuilder()
                     .totalStakedStart(0)
@@ -215,38 +210,16 @@ class NodeRewardManagerTest {
         }
 
         lenient().when(state.getWritableStates(BlockStreamService.NAME)).thenReturn(writableStates);
-        lenient().when(state.getReadableStates(BlockStreamService.NAME)).thenReturn(readableStates);
-        lenient().when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
-        lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(readableStates);
         lenient().when(state.getWritableStates(TokenService.NAME)).thenReturn(writableStates);
-        lenient().when(state.getReadableStates(RosterService.NAME)).thenReturn(readableStates);
         lenient().when(state.getWritableStates(RosterService.NAME)).thenReturn(writableStates);
-        lenient().when(state.getReadableStates(EntityIdService.NAME)).thenReturn(readableStates);
         lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(writableStates);
+        lenient().when(state.getWritableStates(PlatformStateService.NAME)).thenReturn(writableStates);
 
         given(writableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY)).willReturn(nodeRewardsState);
-        given(readableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY)).willReturn(nodeRewardsState);
-        given(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
-                .willReturn(new WritableSingletonStateBase<>(PLATFORM_STATE_KEY, stateRef::get, stateRef::set));
-        given(readableStates.<RosterState>getSingleton(ROSTER_STATES_KEY))
-                .willReturn(
-                        new WritableSingletonStateBase<>(ROSTER_STATES_KEY, rosterStateRef::get, rosterStateRef::set));
-        given(readableStates.getSingleton(ENTITY_ID_STATE_KEY))
-                .willReturn(new ReadableSingletonStateBase<>(
-                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build()));
-        given(readableStates.getSingleton(ENTITY_COUNTS_KEY))
-                .willReturn(new ReadableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY,
-                        () -> EntityCounts.newBuilder().numNodes(1).build()));
         final var networkRewardState = new WritableSingletonStateBase<>(
                 STAKING_NETWORK_REWARDS_KEY, networkStakingRewardsRef::get, networkStakingRewardsRef::set);
-        final var readableNetworkRewardState =
-                new ReadableSingletonStateBase<>(STAKING_NETWORK_REWARDS_KEY, networkStakingRewardsRef::get);
-        given(readableStates.<NetworkStakingRewards>getSingleton(STAKING_NETWORK_REWARDS_KEY))
-                .willReturn(networkRewardState);
         given(writableStates.<NetworkStakingRewards>getSingleton(STAKING_NETWORK_REWARDS_KEY))
                 .willReturn(networkRewardState);
-        //        given(readableNetworkRewardState.get()).willReturn(networkStakingRewardsRef.get());
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
                         WritableRosterStore.ROSTER_KEY)
                 .build();
@@ -257,12 +230,13 @@ class NodeRewardManagerTest {
                                 RosterEntry.newBuilder().nodeId(0L).build(),
                                 RosterEntry.newBuilder().nodeId(1L).build()))
                         .build());
-        lenient().when(readableStates.<ProtoBytes, Roster>get(ROSTER_KEY)).thenReturn(rosters);
+        given(writableStates.<ProtoBytes, Roster>get(ROSTER_KEY)).willReturn(rosters);
+        given(writableStates.<RosterState>getSingleton(ROSTER_STATES_KEY)).willReturn(rosterSingletonState);
         final var readableAccounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_KEY)
                 .value(asAccount(0, 0, 801), Account.DEFAULT)
                 .build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
         given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
+        given(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY)).willReturn(platformSingletonState);
     }
 
     private PlatformState platformStateWithFreezeTime(@Nullable final Instant freezeTime) {

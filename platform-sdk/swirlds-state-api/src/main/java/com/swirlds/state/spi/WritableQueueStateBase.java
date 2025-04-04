@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.spi;
 
+import static com.swirlds.state.spi.DeferringListener.agreedDeferCommitOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -66,16 +67,31 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
     }
 
     /**
+     * Recreates the state of this queue in the given {@link WritableQueueStateBase} instance.
+     * @param that the queue to recreate the state in
+     */
+    public void recreateIn(@NonNull final WritableQueueStateBase<E> that) {
+        addedElements.forEach(element -> that.add(element));
+        for (int i = 0, n = readElements.size(); i < n; i++) {
+            that.poll();
+        }
+    }
+
+    /**
      * Flushes all changes into the underlying data store. This method should <strong>ONLY</strong>
      * be called by the code that created the {@link WritableQueueStateBase} instance or owns it. Don't
      * cast and commit unless you own the instance!
      */
     public final void commit() {
+        if (agreedDeferCommitOrThrow(listeners)) {
+            listeners.forEach(QueueChangeListener::commitDeferred);
+            return;
+        }
         // We only want to remove from the data source elements we actually read from there; not
         // any elements we read from the list of items added in this changeset; if we have peeked
         // a non-zero number of elements from the added list, then we need to subtract one if the
         // peeked element is not null, since it was only peeked and not read
-        final var numReadFromAdded =
+        final int numReadFromAdded =
                 currentAddedElementIndex > 0 ? currentAddedElementIndex - (peekedElement == null ? 0 : 1) : 0;
         for (int i = 0, n = readElements.size() - numReadFromAdded; i < n; i++) {
             removeFromDataSource();
@@ -150,7 +166,15 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
     @Override
     public Iterator<E> iterator() {
         final var iterator = iterateOnDataSource();
+        final int numReadFromAdded =
+                currentAddedElementIndex > 0 ? currentAddedElementIndex - (peekedElement == null ? 0 : 1) : 0;
+        for (int i = 0, n = readElements.size() - numReadFromAdded; i < n; i++) {
+            iterator.next();
+        }
         final var addedElementsIterator = addedElements.iterator();
+        for (int i = 0; i < numReadFromAdded; i++) {
+            addedElementsIterator.next();
+        }
         final var numAddedElements = addedElements.size();
         return new Iterator<>() {
             @Override
