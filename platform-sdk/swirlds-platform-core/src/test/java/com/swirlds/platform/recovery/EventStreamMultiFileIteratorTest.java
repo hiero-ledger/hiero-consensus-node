@@ -8,7 +8,7 @@ import static com.swirlds.platform.recovery.RecoveryTestUtils.truncateFile;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.writeRandomEventStream;
 import static com.swirlds.platform.recovery.internal.EventStreamLowerBound.UNBOUNDED;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;

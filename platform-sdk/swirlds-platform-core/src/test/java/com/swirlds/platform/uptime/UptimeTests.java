@@ -4,7 +4,7 @@ package com.swirlds.platform.uptime;
 import static com.swirlds.platform.test.fixtures.addressbook.RosterTestUtils.addRandomRosterEntryToRoster;
 import static com.swirlds.platform.test.fixtures.addressbook.RosterTestUtils.dropRosterEntryFromRoster;
 import static com.swirlds.platform.uptime.UptimeData.NO_ROUND;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
