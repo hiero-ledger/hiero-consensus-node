@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.turtle.signedstate;
 
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -24,22 +23,24 @@ public interface SignedStatesTestCollector {
     /**
      * Clear the internal state of this collector.
      *
-     * @param merkleStates the roots used to clear specific signed states
+     * @param roundNumbers the round numbers to use to clear specific signed states
      */
-    void clear(@NonNull final Set<MerkleNodeState> merkleStates);
+    void clear(@NonNull final Set<Long> roundNumbers);
 
     /**
      * Get the collected reserved signed states.
      *
      * @return the collected reserved signed states
      */
+    @NonNull
     Map<Long, ReservedSignedState> getCollectedSignedStates();
 
     /**
      * Get filtered signed states by specified state roots.
      *
-     * @param merkleStates the roots collection to use as a filter
+     * @param roundNumbers the round numbers to use as a filter
      * @return the filtered signed states
      */
-    List<ReservedSignedState> getFilteredSignedStates(@NonNull final Set<MerkleNodeState> merkleStates);
+    @NonNull
+    List<ReservedSignedState> getFilteredSignedStates(@NonNull final Set<Long> roundNumbers);
 }

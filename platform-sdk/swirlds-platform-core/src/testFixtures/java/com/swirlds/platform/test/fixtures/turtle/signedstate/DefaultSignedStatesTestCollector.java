@@ -3,7 +3,6 @@ package com.swirlds.platform.test.fixtures.turtle.signedstate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
@@ -43,9 +42,9 @@ public class DefaultSignedStatesTestCollector implements SignedStatesTestCollect
      * {@inheritDoc}
      */
     @Override
-    public void clear(@NonNull final Set<MerkleNodeState> merkleRoots) {
-        for (final MerkleNodeState merkleRoot : merkleRoots) {
-            final ReservedSignedState removedState = collectedSignedStates.remove(merkleRoot);
+    public void clear(@NonNull final Set<Long> roundNumbers) {
+        for (final Long roundNumber : roundNumbers) {
+            final ReservedSignedState removedState = collectedSignedStates.remove(roundNumber);
             if (removedState != null) {
                 removedState.close();
             }
@@ -66,9 +65,9 @@ public class DefaultSignedStatesTestCollector implements SignedStatesTestCollect
      */
     @Override
     @NonNull
-    public List<ReservedSignedState> getFilteredSignedStates(@NonNull final Set<MerkleNodeState> merkleStates) {
+    public List<ReservedSignedState> getFilteredSignedStates(@NonNull final Set<Long> roundNumbers) {
         return collectedSignedStates.entrySet().stream()
-                .filter(s -> merkleStates.contains(s.getKey()))
+                .filter(s -> roundNumbers.contains(s.getKey()))
                 .map(Map.Entry::getValue)
                 .toList();
     }
