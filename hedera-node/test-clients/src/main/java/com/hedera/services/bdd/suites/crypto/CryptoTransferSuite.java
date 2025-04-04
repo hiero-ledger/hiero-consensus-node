@@ -1816,7 +1816,7 @@ public class CryptoTransferSuite {
                         .supplyKey(TOKEN_TREASURY)
                         .withCustom(fixedHtsFee(1, fungible, collector))
                         .initialSupply(0L),
-                mintToken(nft, List.of(copyFromUtf8("HODL"))),
+                mintToken(nft, List.of(copyFromUtf8("test"))),
                 cryptoTransfer(movingUnique(nft, 1L).between(TOKEN_TREASURY, party)),
                 tokenDissociate(collector, fungible),
                 cryptoTransfer(movingUnique(nft, 1L).between(party, counterparty))
