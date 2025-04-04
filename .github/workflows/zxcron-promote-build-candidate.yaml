@@ -81,6 +81,7 @@ jobs:
     needs: determine-build-candidate
     outputs:
       build-candidate-tag: ${{ steps.tag-build-candidate.outputs.build-candidate-tag }}
+      build-commit-list: ${{ steps.tag-build-candidate.outputs.build-commit-list }}
     if: ${{ needs.determine-build-candidate.result == 'success' && needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
@@ -115,9 +116,16 @@ jobs:
           BUILD_TAG="$(printf "build-%05d" "${BUILD_INDEX}")"
           git tag --annotate ${BUILD_TAG} --message "chore: tagging commit for build promotion"
           git push --set-upstream origin --tags
+          
+          PREV_BUILD_TAG=$(printf "build-%05d" $((10#${BUILD_INDEX} - 1)))
+          
+          COMMIT_LIST=$(git log --oneline --pretty=format:"%ad - %an <%ae>: %H" --date=short "${PREV_BUILD_TAG}..${BUILD_TAG}")
+          
           echo "build-candidate-tag=${BUILD_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "build-commit-list=${COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
+          
           echo "### Build Promotion Tag Information" >> "${GITHUB_STEP_SUMMARY}"
-          echo "build-tag=${BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "build-tag=${BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"          
 
       - name: Increment Build Promotion Index
         uses: step-security/increment@c2cdc97bbfdf3f5ef530d5c1f28311ff8f0c70f4 # v2.0.1
@@ -194,6 +202,22 @@ jobs:
                         {
                           "type": "mrkdwn",
                           "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.promote-build-candidate.outputs.build-candidate-tag }}>"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Commits in ${{ needs.promote-build-candidate.outputs.build-candidate-tag }}*"
+                      },
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ needs.promote-build-candidate.outputs.build-commit-list }}"
                         }
                       ]
                     }

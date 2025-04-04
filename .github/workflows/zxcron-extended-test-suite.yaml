@@ -32,6 +32,7 @@ jobs:
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
       xts-tag-commit-author: ${{ steps.check-tags-exist.outputs.xts-tag-commit-author }}
       xts-tag-commit-email: ${{ steps.check-tags-exist.outputs.xts-tag-commit-email }}
+      interim-commit-list: ${{ steps.check-tags-exist.outputs.interim-commit-list }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
@@ -79,6 +80,11 @@ jobs:
             gh run cancel ${{ github.run_id }}
           fi
 
+          # Get the list of commits between the previous XTS Pass and the current commit
+          LATEST_XTS_PASS_TAG=$(git tag --list --sort=-version:refname "xts-pass-*" | head --lines 1)
+          LATEST_XTS_PASS_COMMIT=$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")
+          COMMIT_LIST=$(git log --oneline --pretty=format:"%ad - %an <%ae>: %H" --date=short "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")
+
           # Check if the tag exists on the main branch
           set +e
           git branch --contains "${XTS_COMMIT}" | grep --quiet main >/dev/null 2>&1
@@ -96,6 +102,7 @@ jobs:
             echo "xts-tag-commit=${XTS_COMMIT}" >> $GITHUB_OUTPUT
             echo "xts-tag-commit-author=${AUTHOR_NAME} <${AUTHOR_EMAIL}>" >> $GITHUB_OUTPUT
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> $GITHUB_OUTPUT
+            echo "interim-commit-list=${COMMIT_LIST}" >> $GITHUB_OUTPUT
             echo "### XTS-Candidate commit found" >>  $GITHUB_STEP_SUMMARY
             echo "xts-tag-commit=${XTS_COMMIT}" >> $GITHUB_STEP_SUMMARY
 
@@ -360,6 +367,22 @@ jobs:
                           "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
                         }
                       ]
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Interim Commit List*"
+                      },
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ needs.fetch-xts-candidate.outputs.interim-commit-list }}"
+                        }
+                      ]
                     }
                   ]
                 }
@@ -580,6 +603,22 @@ jobs:
                         {
                           "type": "mrkdwn",
                           "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Interim Commit List*"
+                      },
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ needs.fetch-xts-candidate.outputs.interim-commit-list }}"
                         }
                       ]
                     }
