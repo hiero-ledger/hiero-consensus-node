@@ -271,7 +271,8 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     sourcing(() -> ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
                             .type(EthTxData.EthTransactionType.EIP1559)
                             .markAsJumboTxn()
-                            .signedBy(cryptoKey, "test", "test2", "test3", "test4", "test5")
+                            .signingWith(cryptoKey)
+                            .signedBy("test", "test2", "test3", "test4", "test5")
                             .payingWith(RELAYER)
                             .gasLimit(1_000_000L)));
         }
