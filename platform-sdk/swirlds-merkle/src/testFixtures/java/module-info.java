@@ -12,6 +12,7 @@ open module com.swirlds.merkle.test.fixtures {
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.merkle;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.utility;
     requires transitive com.fasterxml.jackson.annotation;
     requires transitive com.fasterxml.jackson.core;
     requires transitive com.fasterxml.jackson.databind;
