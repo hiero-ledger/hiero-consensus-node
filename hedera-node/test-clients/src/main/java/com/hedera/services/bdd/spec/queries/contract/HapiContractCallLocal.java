@@ -46,6 +46,7 @@ public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
     private String abi;
     private String contract;
     private Object[] params;
+    private boolean asWrongEvmAddress = false;
     private Optional<Long> gas = Optional.empty();
     private Optional<Long> maxResultSize = Optional.empty();
     private Optional<String> details = Optional.empty();
@@ -96,6 +97,11 @@ public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
     public HapiContractCallLocal(String contract, byte[] rawParams) {
         this.contract = contract;
         this.explicitRawParams = rawParams;
+    }
+
+    public HapiContractCallLocal asWrongEvmAddress() {
+        asWrongEvmAddress = true;
+        return this;
     }
 
     public HapiContractCallLocal has(ContractFnResultAsserts provider) {
@@ -236,7 +242,7 @@ public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
                 .setMaxResultSize(maxResultSize.orElse(spec.setup().defaultMaxLocalCallRetBytes()));
 
         final var effContract = contract.startsWith("0x") ? contract.substring(2) : contract;
-        if (effContract.length() == HEXED_EVM_ADDRESS_LEN) {
+        if (effContract.length() == HEXED_EVM_ADDRESS_LEN || asWrongEvmAddress) {
             opBuilder.setContractID(ContractID.newBuilder()
                     .setShardNum(SHARD)
                     .setRealmNum(REALM)

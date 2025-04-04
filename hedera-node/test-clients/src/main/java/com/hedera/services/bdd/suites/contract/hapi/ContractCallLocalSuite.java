@@ -76,6 +76,9 @@ public class ContractCallLocalSuite {
     private static final String SECOND_MEMO = "secondMemo";
     private static final String SYMBOL = "ħT";
     private static final int DECIMALS = 13;
+    private static final String DECIMALS_ABI = "{\"constant\": true,\"inputs\": [],\"name\": \"decimals\","
+            + "\"outputs\": [{\"name\": \"\",\"type\": \"uint8\"}],\"payable\": false,"
+            + "\"type\": \"function\"}";
 
     @HapiTest
     final Stream<DynamicTest> htsOwnershipCheckWorksWithAliasAddress() {
@@ -201,6 +204,15 @@ public class ContractCallLocalSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> invalidEvmAddressFails() {
+        return hapiTest(contractCallLocalWithFunctionAbi("0x1abcdf", DECIMALS_ABI)
+                .asWrongEvmAddress()
+                .nodePayment(1_234_567)
+                .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_CONTRACT_ID));
+    }
+
+    // TODO Glib: Should we fail on deleted contract?
+    @HapiTest
     final Stream<DynamicTest> successOnDeletedContract() {
         return hapiTest(
                 // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
@@ -260,14 +272,10 @@ public class ContractCallLocalSuite {
 
     @HapiTest
     final Stream<DynamicTest> erc20Query() {
-        final var decimalsABI = "{\"constant\": true,\"inputs\": [],\"name\": \"decimals\","
-                + "\"outputs\": [{\"name\": \"\",\"type\": \"uint8\"}],\"payable\": false,"
-                + "\"type\": \"function\"}";
-
         return hapiTest(
                 tokenCreate(TOKEN).decimals(DECIMALS).symbol(SYMBOL).asCallableContract(),
-                contractCallLocalWithFunctionAbi(TOKEN, decimalsABI)
-                        .has(resultWith().resultThruAbi(decimalsABI, isLiteralResult(new Object[] {DECIMALS}))));
+                contractCallLocalWithFunctionAbi(TOKEN, DECIMALS_ABI)
+                        .has(resultWith().resultThruAbi(DECIMALS_ABI, isLiteralResult(new Object[] {DECIMALS}))));
     }
 
     // https://github.com/hashgraph/hedera-services/pull/5485

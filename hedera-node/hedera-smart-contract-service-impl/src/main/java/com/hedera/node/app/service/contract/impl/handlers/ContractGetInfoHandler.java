@@ -9,7 +9,6 @@ import static com.hedera.node.app.service.token.api.AccountSummariesApi.hexedEvm
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.summarizeStakingInfo;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.tokenRelationshipsOf;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -18,19 +17,18 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.contract.ContractGetInfoQuery;
 import com.hedera.hapi.node.contract.ContractGetInfoResponse;
 import com.hedera.hapi.node.contract.ContractGetInfoResponse.ContractInfo;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.fees.usage.contract.ContractGetInfoUsage;
-import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.LedgerConfig;
@@ -38,7 +36,6 @@ import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -47,7 +44,7 @@ import javax.inject.Singleton;
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CONTRACT_GET_INFO}.
  */
 @Singleton
-public class ContractGetInfoHandler extends PaidQueryHandler {
+public class ContractGetInfoHandler extends AbstractContractPaidQueryHandler<ContractGetInfoQuery> {
     private static final long BYTES_PER_EVM_KEY_VALUE_PAIR = 64;
     private final EntityIdFactory entityIdFactory;
 
@@ -59,6 +56,7 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
     @Inject
     public ContractGetInfoHandler(
             @NonNull final InstantSource instantSource, @NonNull final EntityIdFactory entityIdFactory) {
+        super(entityIdFactory, Query::contractGetInfoOrThrow, e -> e.contractIDOrElse(ContractID.DEFAULT));
         this.instantSource = requireNonNull(instantSource);
         this.entityIdFactory = requireNonNull(entityIdFactory);
     }
@@ -79,7 +77,12 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
     @Override
     public void validate(@NonNull final QueryContext context) throws PreCheckException {
         requireNonNull(context);
-        validateFalsePreCheck(contractFrom(context) == null, INVALID_CONTRACT_ID);
+        final ContractID contractId;
+        if ((contractId = getContractId(context)) == null) {
+            throw new PreCheckException(INVALID_CONTRACT_ID);
+        } else if (contractAccountFrom(context, contractId) == null) {
+            throw new PreCheckException(INVALID_CONTRACT_ID);
+        }
     }
 
     @Override
@@ -88,7 +91,7 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
         requireNonNull(header);
         final var contractGetInfo = ContractGetInfoResponse.newBuilder().header(header);
         if (header.nodeTransactionPrecheckCode() == OK && header.responseType() == ANSWER_ONLY) {
-            final var contract = requireNonNull(contractFrom(context));
+            final var contract = requireNonNull(contractAccountFrom(context, getContractId(context)));
             final var config = context.configuration();
             contractGetInfo.contractInfo(infoFor(
                     contract,
@@ -107,7 +110,7 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
     @Override
     public Fees computeFees(@NonNull final QueryContext context) {
         return context.feeCalculator().legacyCalculate(sigValueObj -> {
-            final var contract = contractFrom(context);
+            final var contract = contractAccountFrom(context, getContractId(context));
             if (contract == null) {
                 return CONSTANT_FEE_DATA;
             } else {
@@ -157,12 +160,5 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
             builder.tokenRelationships(tokenRelationshipsOf(contract, tokenStore, tokenRelationStore, maxReturnedRels));
         }
         return builder.build();
-    }
-
-    private @Nullable Account contractFrom(@NonNull final QueryContext context) {
-        final var accountsStore = context.createStore(ReadableAccountStore.class);
-        final var contractId = context.query().contractGetInfoOrThrow().contractIDOrElse(ContractID.DEFAULT);
-        final var contract = accountsStore.getContractById(contractId);
-        return (contract == null || !contract.smartContract()) ? null : contract;
     }
 }
