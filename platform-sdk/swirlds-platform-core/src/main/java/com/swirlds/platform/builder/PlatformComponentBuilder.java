@@ -961,7 +961,8 @@ public class PlatformComponentBuilder {
                                 .get()
                                 .run(),
                         blocks.intakeEventCounter(),
-                        blocks.platformStateFacade());
+                        blocks.platformStateFacade(),
+                        blocks.stateRootFunction());
             } else {
                 gossip = new SyncGossip(
                         blocks.platformContext(),
@@ -978,7 +979,8 @@ public class PlatformComponentBuilder {
                                 .get()
                                 .run(),
                         blocks.intakeEventCounter(),
-                        blocks.platformStateFacade());
+                        blocks.platformStateFacade(),
+                        blocks.stateRootFunction());
             }
         }
         return gossip;

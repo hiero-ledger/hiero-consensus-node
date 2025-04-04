@@ -23,7 +23,6 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -87,7 +86,6 @@ class DependencyMigrationTest extends MerkleTestBase {
                             new ServicesSoftwareVersion(CURRENT_VERSION),
                             VERSIONED_CONFIG,
                             VERSIONED_CONFIG,
-                            mock(Metrics.class),
                             startupNetworks,
                             storeMetricsService,
                             configProvider,
@@ -105,7 +103,6 @@ class DependencyMigrationTest extends MerkleTestBase {
                             null,
                             VERSIONED_CONFIG,
                             VERSIONED_CONFIG,
-                            mock(Metrics.class),
                             startupNetworks,
                             storeMetricsService,
                             configProvider,
@@ -123,7 +120,6 @@ class DependencyMigrationTest extends MerkleTestBase {
                             new ServicesSoftwareVersion(CURRENT_VERSION),
                             null,
                             null,
-                            mock(Metrics.class),
                             startupNetworks,
                             storeMetricsService,
                             configProvider,
@@ -132,165 +128,152 @@ class DependencyMigrationTest extends MerkleTestBase {
         }
 
         @Test
-        void metricsRequired() {
-            final var subject = new OrderedServiceMigrator();
-            Assertions.assertThatThrownBy(() -> subject.doMigrations(
-                            merkleTree,
-                            servicesRegistry,
-                            null,
-                            new ServicesSoftwareVersion(CURRENT_VERSION),
-                            VERSIONED_CONFIG,
-                            VERSIONED_CONFIG,
-                            null,
-                            startupNetworks,
-                            storeMetricsService,
-                            configProvider,
-                            TEST_PLATFORM_STATE_FACADE))
-                    .isInstanceOf(NullPointerException.class);
-        }
-    }
+        @DisplayName("Service migrations are ordered as expected")
+        void expectedMigrationOrdering() {
+            final var orderedInvocations = new LinkedList<>();
 
-    @Test
-    @DisplayName("Service migrations are ordered as expected")
-    void expectedMigrationOrdering() {
-        final var orderedInvocations = new LinkedList<>();
+            // Given: register four services, each with their own schema migration, that will add an object to
+            // orderedInvocations during migration. We'll do this to track the order of the service migrations
+            final var servicesRegistry = new ServicesRegistryImpl(registry, DEFAULT_CONFIG);
+            // Define the Entity ID Service:
+            final EntityIdService entityIdService = new EntityIdService() {
+                @Override
+                public void registerSchemas(@NonNull final SchemaRegistry registry) {
+                    registry.register(new Schema(VERSION) {
+                        @NonNull
+                        public Set<StateDefinition> statesToCreate() {
+                            return Set.of(
+                                    StateDefinition.singleton(ENTITY_ID_STATE_KEY, EntityNumber.PROTOBUF),
+                                    StateDefinition.singleton(ENTITY_COUNTS_KEY, EntityCounts.PROTOBUF));
+                        }
 
-        // Given: register four services, each with their own schema migration, that will add an object to
-        // orderedInvocations during migration. We'll do this to track the order of the service migrations
-        final var servicesRegistry = new ServicesRegistryImpl(registry, DEFAULT_CONFIG);
-        // Define the Entity ID Service:
-        final EntityIdService entityIdService = new EntityIdService() {
-            @Override
-            public void registerSchemas(@NonNull final SchemaRegistry registry) {
-                registry.register(new Schema(VERSION) {
-                    @NonNull
-                    public Set<StateDefinition> statesToCreate() {
-                        return Set.of(
-                                StateDefinition.singleton(ENTITY_ID_STATE_KEY, EntityNumber.PROTOBUF),
-                                StateDefinition.singleton(ENTITY_COUNTS_KEY, EntityCounts.PROTOBUF));
-                    }
-
-                    public void migrate(@NonNull MigrationContext ctx) {
-                        orderedInvocations.add("EntityIdService#migrate");
-                    }
-                });
-            }
-        };
-        // Define Service A:
-        final var serviceA = new Service() {
-            @NonNull
-            @Override
-            public String getServiceName() {
-                return "A-Service";
-            }
-
-            @Override
-            public void registerSchemas(@NonNull final SchemaRegistry registry) {
-                registry.register(new Schema(VERSION) {
-                    public void migrate(@NonNull MigrationContext ctx) {
-                        orderedInvocations.add("A-Service#migrate");
-                    }
-                });
-            }
-        };
-        // Define Service B:
-        final var serviceB = new Service() {
-            @NonNull
-            @Override
-            public String getServiceName() {
-                return "B-Service";
-            }
-
-            @Override
-            public void registerSchemas(@NonNull final SchemaRegistry registry) {
-                registry.register(new Schema(VERSION) {
-                    public void migrate(@NonNull MigrationContext ctx) {
-                        orderedInvocations.add("B-Service#migrate");
-                    }
-                });
-            }
-        };
-        // Define DependentService:
-        final DependentService dsService = new DependentService() {
-            @Override
-            public void registerSchemas(@NonNull final SchemaRegistry registry) {
-                registry.register(new Schema(VERSION) {
-                    public void migrate(@NonNull MigrationContext ctx) {
-                        orderedInvocations.add("DependentService#migrate");
-                    }
-                });
-            }
-        };
-        // Intentionally register the services in a different order than the expected migration order
-        List.of(dsService, serviceA, entityIdService, serviceB).forEach(servicesRegistry::register);
-
-        // When: the migrations are run
-        final var subject = new OrderedServiceMigrator();
-        subject.doMigrations(
-                merkleTree,
-                servicesRegistry,
-                null,
-                new ServicesSoftwareVersion(
-                        SemanticVersion.newBuilder().major(1).build()),
-                VERSIONED_CONFIG,
-                VERSIONED_CONFIG,
-                mock(Metrics.class),
-                startupNetworks,
-                storeMetricsService,
-                configProvider,
-                TEST_PLATFORM_STATE_FACADE);
-
-        // Then: we verify the migrations were run in the expected order
-        Assertions.assertThat(orderedInvocations)
-                .containsExactly(
-                        // EntityIdService should be migrated first
-                        "EntityIdService#migrate",
-                        // And the rest are migrated by service name
-                        "A-Service#migrate",
-                        "B-Service#migrate",
-                        "DependentService#migrate");
-    }
-
-    // This class represents a service that depends on EntityIdService. This class will create a simple mapping from an
-    // entity ID to a string value.
-    private static class DependentService implements Service {
-        static final String NAME = "TokenService";
-        static final String STATE_KEY = "ACCOUNTS";
-
-        @NonNull
-        @Override
-        public String getServiceName() {
-            return NAME;
-        }
-
-        public void registerSchemas(@NonNull final SchemaRegistry registry) {
-            // Schema #1 - initial schema
-            registry.register(new Schema(VERSION) {
+                        public void migrate(@NonNull MigrationContext ctx) {
+                            orderedInvocations.add("EntityIdService#migrate");
+                        }
+                    });
+                }
+            };
+            // Define Service A:
+            final var serviceA = new Service() {
                 @NonNull
                 @Override
-                public Set<StateDefinition> statesToCreate() {
-                    return Set.of(StateDefinition.inMemory(STATE_KEY, EntityNumber.PROTOBUF, ProtoString.PROTOBUF));
+                public String getServiceName() {
+                    return "A-Service";
                 }
 
-                public void migrate(@NonNull final MigrationContext ctx) {
-                    WritableStates dsWritableStates = ctx.newStates();
-                    dsWritableStates
-                            .get(STATE_KEY)
-                            .put(new EntityNumber(INITIAL_ENTITY_ID - 1), new ProtoString("previously added"));
-                    dsWritableStates
-                            .get(STATE_KEY)
-                            .put(new EntityNumber(INITIAL_ENTITY_ID), new ProtoString("last added"));
+                @Override
+                public void registerSchemas(@NonNull final SchemaRegistry registry) {
+                    registry.register(new Schema(VERSION) {
+                        public void migrate(@NonNull MigrationContext ctx) {
+                            orderedInvocations.add("A-Service#migrate");
+                        }
+                    });
                 }
-            });
+            };
+            // Define Service B:
+            final var serviceB = new Service() {
+                @NonNull
+                @Override
+                public String getServiceName() {
+                    return "B-Service";
+                }
 
-            // Schema #2 - schema that adds new mappings, dependent on EntityIdService
-            registry.register(new Schema(SemanticVersion.newBuilder().major(2).build()) {
-                public void migrate(@NonNull final MigrationContext ctx) {
-                    final WritableStates dsWritableStates = ctx.newStates();
-                    dsWritableStates.get(STATE_KEY).put(new EntityNumber(1L), new ProtoString("newly-added 1"));
-                    dsWritableStates.get(STATE_KEY).put(new EntityNumber(2L), new ProtoString("newly-added 2"));
+                @Override
+                public void registerSchemas(@NonNull final SchemaRegistry registry) {
+                    registry.register(new Schema(VERSION) {
+                        public void migrate(@NonNull MigrationContext ctx) {
+                            orderedInvocations.add("B-Service#migrate");
+                        }
+                    });
                 }
-            });
+            };
+            // Define DependentService:
+            final DependentService dsService = new DependentService() {
+                @Override
+                public void registerSchemas(@NonNull final SchemaRegistry registry) {
+                    registry.register(new Schema(VERSION) {
+                        public void migrate(@NonNull MigrationContext ctx) {
+                            orderedInvocations.add("DependentService#migrate");
+                        }
+                    });
+                }
+            };
+            // Intentionally register the services in a different order than the expected migration order
+            List.of(dsService, serviceA, entityIdService, serviceB).forEach(servicesRegistry::register);
+
+            // When: the migrations are run
+            final var subject = new OrderedServiceMigrator();
+            subject.doMigrations(
+                    merkleTree,
+                    servicesRegistry,
+                    null,
+                    new ServicesSoftwareVersion(
+                            SemanticVersion.newBuilder().major(1).build()),
+                    VERSIONED_CONFIG,
+                    VERSIONED_CONFIG,
+                    startupNetworks,
+                    storeMetricsService,
+                    configProvider,
+                    TEST_PLATFORM_STATE_FACADE);
+
+            // Then: we verify the migrations were run in the expected order
+            Assertions.assertThat(orderedInvocations)
+                    .containsExactly(
+                            // EntityIdService should be migrated first
+                            "EntityIdService#migrate",
+                            // And the rest are migrated by service name
+                            "A-Service#migrate",
+                            "B-Service#migrate",
+                            "DependentService#migrate");
+        }
+
+        // This class represents a service that depends on EntityIdService. This class will create a simple mapping from
+        // an
+        // entity ID to a string value.
+        private static class DependentService implements Service {
+            static final String NAME = "TokenService";
+            static final String STATE_KEY = "ACCOUNTS";
+
+            @NonNull
+            @Override
+            public String getServiceName() {
+                return NAME;
+            }
+
+            public void registerSchemas(@NonNull final SchemaRegistry registry) {
+                // Schema #1 - initial schema
+                registry.register(new Schema(VERSION) {
+                    @NonNull
+                    @Override
+                    public Set<StateDefinition> statesToCreate() {
+                        return Set.of(StateDefinition.inMemory(STATE_KEY, EntityNumber.PROTOBUF, ProtoString.PROTOBUF));
+                    }
+
+                    public void migrate(@NonNull final MigrationContext ctx) {
+                        WritableStates dsWritableStates = ctx.newStates();
+                        dsWritableStates
+                                .get(STATE_KEY)
+                                .put(new EntityNumber(INITIAL_ENTITY_ID - 1), new ProtoString("previously added"));
+                        dsWritableStates
+                                .get(STATE_KEY)
+                                .put(new EntityNumber(INITIAL_ENTITY_ID), new ProtoString("last added"));
+                    }
+                });
+
+                // Schema #2 - schema that adds new mappings, dependent on EntityIdService
+                registry.register(
+                        new Schema(SemanticVersion.newBuilder().major(2).build()) {
+                            public void migrate(@NonNull final MigrationContext ctx) {
+                                final WritableStates dsWritableStates = ctx.newStates();
+                                dsWritableStates
+                                        .get(STATE_KEY)
+                                        .put(new EntityNumber(1L), new ProtoString("newly-added 1"));
+                                dsWritableStates
+                                        .get(STATE_KEY)
+                                        .put(new EntityNumber(2L), new ProtoString("newly-added 2"));
+                            }
+                        });
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 import static org.hiero.consensus.utility.test.fixtures.RandomUtils.nextInt;
@@ -97,7 +98,7 @@ class StateRegistryTests {
         final InputOutputStream io = new InputOutputStream();
         io.getOutput().writeMerkleTree(dir, stateToSerialize);
         io.startReading();
-        final TestMerkleStateRoot deserializedState = io.getInput().readMerkleTree(dir, 5);
+        final TestMerkleStateRoot deserializedState = io.getInput().readMerkleTree(CONFIGURATION, dir, 5);
         states.add(deserializedState);
         assertEquals(
                 states.size(),

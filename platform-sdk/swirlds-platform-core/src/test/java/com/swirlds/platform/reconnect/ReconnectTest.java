@@ -191,6 +191,8 @@ final class ReconnectTest {
                 state,
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
-                platformStateFacade);
+                platformStateFacade,
+                // FIXME
+                null);
     }
 }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
+import static com.swirlds.state.merkle.StateUtils.computeLabel;
+import static com.swirlds.state.merkle.StateUtils.getVirtualMapKey;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapGet;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapGetSize;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapIterate;
@@ -23,6 +25,7 @@ import java.util.Iterator;
 public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
 
     /** The backing merkle data structure to use */
+    @NonNull
     private final VirtualMap virtualMap;
 
     @NonNull
@@ -34,17 +37,19 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     /**
      * Create a new instance
      *
+     * @param serviceName
      * @param stateKey
      * @param keyCodec
      * @param valueCodec
      * @param virtualMap the backing merkle structure to use
      */
     public OnDiskReadableKVState(
-            String stateKey,
+            @NonNull final String serviceName,
+            @NonNull final String stateKey,
             @NonNull final Codec<K> keyCodec,
             @NonNull final Codec<V> valueCodec,
             @NonNull final VirtualMap virtualMap) {
-        super(stateKey);
+        super(serviceName, stateKey);
         this.keyCodec = requireNonNull(keyCodec);
         this.valueCodec = requireNonNull(valueCodec);
         this.virtualMap = requireNonNull(virtualMap);
@@ -53,35 +58,35 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     /** {@inheritDoc} */
     @Override
     protected V readFromDataSource(@NonNull K key) {
-        final var kb = keyCodec.toBytes(key);
-        final var value = virtualMap.get(kb, valueCodec);
+        final var value = virtualMap.get(getVirtualMapKey(serviceName, stateKey, key, keyCodec), valueCodec);
         // Log to transaction state log, what was read
-        logMapGet(getStateKey(), key, value);
+        logMapGet(computeLabel(serviceName, stateKey), key, value);
         return value;
     }
 
     /** {@inheritDoc} */
     @NonNull
     @Override
-    protected Iterator<K> iterateFromDataSource() {
+    public Iterator<K> iterateFromDataSource() {
         // Log to transaction state log, what was iterated
-        logMapIterate(getStateKey(), virtualMap, keyCodec);
-        return new OnDiskIterator<>(virtualMap, keyCodec);
+        logMapIterate(computeLabel(serviceName, stateKey), virtualMap, keyCodec);
+        return new OnDiskIterator<>(virtualMap, keyCodec, getVirtualMapKey(serviceName, stateKey));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Deprecated
     public long size() {
         final var size = virtualMap.size();
         // Log to transaction state log, size of map
-        logMapGetSize(getStateKey(), size);
+        logMapGetSize(computeLabel(serviceName, stateKey), size);
         return size;
     }
 
     @Override
     public void warm(@NonNull final K key) {
-        final var kb = keyCodec.toBytes(key);
-        virtualMap.warm(kb);
+        virtualMap.warm(getVirtualMapKey(serviceName, stateKey, key, keyCodec));
     }
 }

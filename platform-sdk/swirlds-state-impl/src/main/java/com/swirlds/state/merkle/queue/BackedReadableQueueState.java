@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.queue;
 
+import static com.swirlds.state.merkle.StateUtils.computeLabel;
+import static com.swirlds.state.merkle.logging.StateLogger.logQueuePeek;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.state.spi.ReadableQueueState;
@@ -13,19 +15,23 @@ import java.util.Iterator;
  * An implementation of {@link ReadableQueueState} that uses a merkle {@link QueueNode} as the backing store.
  * @param <E> The type of elements in the queue.
  */
-public class ReadableQueueStateImpl<E> extends ReadableQueueStateBase<E> {
+public class BackedReadableQueueState<E> extends ReadableQueueStateBase<E> {
+
     private final QueueNode<E> dataSource;
 
     /** Create a new instance */
-    public ReadableQueueStateImpl(@NonNull final String stateKey, @NonNull final QueueNode<E> node) {
-        super(stateKey);
+    public BackedReadableQueueState(
+            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final QueueNode<E> node) {
+        super(serviceName, stateKey);
         this.dataSource = requireNonNull(node);
     }
 
     @Nullable
     @Override
     protected E peekOnDataSource() {
-        return dataSource.peek();
+        final var value = dataSource.peek();
+        logQueuePeek(computeLabel(serviceName, stateKey), value);
+        return value;
     }
 
     @NonNull

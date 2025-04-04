@@ -167,6 +167,10 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
+                        // FIXME
+                        (virtualMap) -> {
+                            throw new UnsupportedOperationException();
+                        },
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -197,6 +201,10 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
+                        // FIXME
+                        (virtualMap) -> {
+                            throw new UnsupportedOperationException();
+                        },
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -231,6 +239,10 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
+                        // FIXME
+                        (virtualMap) -> {
+                            throw new UnsupportedOperationException();
+                        },
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -277,6 +289,10 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
+                        // FIXME
+                        (virtualMap) -> {
+                            throw new UnsupportedOperationException();
+                        },
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)

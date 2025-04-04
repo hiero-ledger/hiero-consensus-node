@@ -34,6 +34,7 @@ import com.hedera.hapi.node.token.TokenUpdateNftsTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler;
@@ -362,8 +363,9 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
                 .balance(10)
                 .build());
         writableNftStore = new WritableNftStore(
-                new MapWritableStates(
-                        Map.of("NFTS", MapWritableKVState.builder("NFTS").build())),
+                new MapWritableStates(Map.of(
+                        "NFTS",
+                        MapWritableKVState.builder(TokenService.NAME, "NFTS").build())),
                 writableEntityCounters);
 
         final var txn = new TokenUpdateNftBuilder()

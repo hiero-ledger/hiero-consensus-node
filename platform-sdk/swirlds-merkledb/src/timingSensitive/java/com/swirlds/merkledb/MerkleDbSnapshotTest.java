@@ -158,7 +158,7 @@ class MerkleDbSnapshotTest {
         MerkleDb.resetDefaultInstancePath();
         final MerkleDataInputStream in =
                 new MerkleDataInputStream(Files.newInputStream(snapshotFile, StandardOpenOption.READ));
-        final MerkleInternal restoredStateRoot = in.readMerkleTree(snapshotDir, Integer.MAX_VALUE);
+        final MerkleInternal restoredStateRoot = in.readMerkleTree(CONFIGURATION, snapshotDir, Integer.MAX_VALUE);
 
         verify(restoredStateRoot);
 
@@ -223,7 +223,7 @@ class MerkleDbSnapshotTest {
         MerkleDb.resetDefaultInstancePath();
         final MerkleDataInputStream in =
                 new MerkleDataInputStream(Files.newInputStream(snapshotFile, StandardOpenOption.READ));
-        final MerkleInternal restoredStateRoot = in.readMerkleTree(snapshotDir, Integer.MAX_VALUE);
+        final MerkleInternal restoredStateRoot = in.readMerkleTree(CONFIGURATION, snapshotDir, Integer.MAX_VALUE);
 
         verify(restoredStateRoot);
 

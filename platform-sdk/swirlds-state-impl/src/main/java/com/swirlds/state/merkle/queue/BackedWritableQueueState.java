@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.queue;
 
+import static com.swirlds.state.merkle.StateUtils.computeLabel;
+import static com.swirlds.state.merkle.logging.StateLogger.logQueueAdd;
+import static com.swirlds.state.merkle.logging.StateLogger.logQueueRemove;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.state.spi.WritableQueueStateBase;
@@ -11,11 +14,13 @@ import java.util.Iterator;
  * An implementation of {@link com.swirlds.state.spi.WritableQueueState} based on {@link QueueNode}.
  * @param <E> The type of element in the queue
  */
-public class WritableQueueStateImpl<E> extends WritableQueueStateBase<E> {
+public class BackedWritableQueueState<E> extends WritableQueueStateBase<E> {
+
     private final QueueNode<E> dataSource;
 
-    public WritableQueueStateImpl(@NonNull final String stateKey, @NonNull final QueueNode<E> node) {
-        super(stateKey);
+    public BackedWritableQueueState(
+            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final QueueNode<E> node) {
+        super(serviceName, stateKey);
         this.dataSource = requireNonNull(node);
     }
 
@@ -28,10 +33,14 @@ public class WritableQueueStateImpl<E> extends WritableQueueStateBase<E> {
     @Override
     protected void addToDataSource(@NonNull E element) {
         dataSource.add(element);
+        // Log to transaction state log, what was added
+        logQueueAdd(computeLabel(serviceName, stateKey), element);
     }
 
     @Override
     protected void removeFromDataSource() {
-        dataSource.remove();
+        final var removedValue = dataSource.remove();
+        // Log to transaction state log, what was added
+        logQueueRemove(computeLabel(serviceName, stateKey), removedValue);
     }
 }

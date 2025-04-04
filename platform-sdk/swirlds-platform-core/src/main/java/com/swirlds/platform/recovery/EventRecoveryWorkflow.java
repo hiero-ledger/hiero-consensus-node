@@ -137,7 +137,13 @@ public final class EventRecoveryWorkflow {
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
 
         try (final ReservedSignedState initialState = SignedStateFileReader.readStateFile(
-                        signedStateFile, platformStateFacade, platformContext)
+                        signedStateFile,
+                        // FIXME
+                        (virtualMap) -> {
+                            throw new UnsupportedOperationException();
+                        },
+                        platformStateFacade,
+                        platformContext)
                 .reservedSignedState()) {
             logger.info(
                     STARTUP.getMarker(),

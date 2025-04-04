@@ -13,7 +13,10 @@ import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.logging.legacy.LogMarker;
+import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
@@ -64,7 +67,10 @@ public class StateEditorLoad extends StateEditorOperation {
         try (final MerkleDataInputStream in =
                 new MerkleDataInputStream(new BufferedInputStream(new FileInputStream(fileName.toFile())))) {
 
-            subtree = in.readMerkleTree(fileName.getParent(), Integer.MAX_VALUE);
+            final Configuration configuration =
+                    DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
+
+            subtree = in.readMerkleTree(configuration, fileName.getParent(), Integer.MAX_VALUE);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }

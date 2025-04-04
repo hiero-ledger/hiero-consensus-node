@@ -18,7 +18,6 @@ import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
@@ -185,7 +184,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     latestVersion,
                     config,
                     config,
-                    mock(Metrics.class),
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
@@ -220,7 +218,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             versions[1],
                             config,
                             config,
-                            mock(Metrics.class),
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
@@ -238,7 +235,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             null,
                             config,
                             config,
-                            mock(Metrics.class),
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
@@ -256,7 +252,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             versions[1],
                             null,
                             null,
-                            mock(Metrics.class),
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
@@ -274,25 +269,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             versions[1],
                             null,
                             config,
-                            mock(Metrics.class),
-                            new HashMap<>(),
-                            migrationStateChanges,
-                            startupNetworks,
-                            TEST_PLATFORM_STATE_FACADE))
-                    .isInstanceOf(NullPointerException.class);
-        }
-
-        @Test
-        @DisplayName("Calling migrate with a null metrics throws NPE")
-        void nullMetricsThrows() {
-            //noinspection ConstantConditions
-            assertThatThrownBy(() -> schemaRegistry.migrate(
-                            merkleTree,
-                            versions[0],
-                            versions[1],
-                            config,
-                            config,
-                            null,
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
@@ -310,7 +286,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             versions[4],
                             config,
                             config,
-                            mock(Metrics.class),
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
@@ -332,7 +307,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     versions[1],
                     config,
                     config,
-                    mock(Metrics.class),
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
@@ -356,7 +330,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     versions[5],
                     config,
                     config,
-                    mock(Metrics.class),
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
@@ -381,7 +354,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     versions[5],
                     config,
                     config,
-                    mock(Metrics.class),
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
@@ -414,7 +386,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     versions[7],
                     config,
                     config,
-                    mock(Metrics.class),
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
@@ -585,7 +556,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         versions[1],
                         config,
                         config,
-                        mock(Metrics.class),
                         new HashMap<>(),
                         migrationStateChanges,
                         startupNetworks,
@@ -614,7 +584,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         versions[2],
                         config,
                         config,
-                        mock(Metrics.class),
                         new HashMap<>(),
                         migrationStateChanges,
                         startupNetworks,
@@ -654,7 +623,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         versions[3],
                         config,
                         config,
-                        mock(Metrics.class),
                         new HashMap<>(),
                         migrationStateChanges,
                         startupNetworks,
@@ -699,7 +667,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                                 versions[2],
                                 config,
                                 config,
-                                mock(Metrics.class),
                                 new HashMap<>(),
                                 migrationStateChanges,
                                 startupNetworks,
