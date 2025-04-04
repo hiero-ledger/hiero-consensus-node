@@ -1,2 +1,2 @@
-module org.hiero.otter {
-}
+// SPDX-License-Identifier: Apache-2.0
+module org.hiero.otter {}

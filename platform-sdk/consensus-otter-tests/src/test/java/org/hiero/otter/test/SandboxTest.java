@@ -1,6 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static org.hiero.otter.fixtures.EventGenerator.UNLIMITED;
+import static org.hiero.otter.fixtures.TransactionGenerator.UNLIMITED;
 import static org.hiero.otter.fixtures.Validator.EventStreamConfig.ignoreNode;
 import static org.hiero.otter.fixtures.Validator.LogErrorConfig.ignoreMarkers;
 import static org.hiero.otter.fixtures.Validator.RatioConfig.within;
@@ -8,14 +9,14 @@ import static org.hiero.otter.fixtures.Validator.RatioConfig.within;
 import com.swirlds.logging.legacy.LogMarker;
 import java.time.Duration;
 import java.util.List;
-import org.hiero.otter.fixtures.EventGenerator.Distribution;
-import org.hiero.otter.fixtures.EventGenerator.Rate;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.TransactionGenerator.Distribution;
+import org.hiero.otter.fixtures.TransactionGenerator.Rate;
 import org.hiero.otter.fixtures.Validator.Profile;
 
 public class SandboxTest {
@@ -25,7 +26,7 @@ public class SandboxTest {
     private static final Duration TWO_MINUTES = Duration.ofMinutes(2);
 
     @OtterTest
-    void testConsistencyNDReconnect(TestEnvironment env) {
+    void testConsistencyNDReconnect(TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -52,8 +53,8 @@ public class SandboxTest {
 
         // Validations
         env.validator()
-                .assertLogErrors(ignoreMarkers(
-                        LogMarker.SOCKET_EXCEPTIONS, LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT))
+                .assertLogErrors(
+                        ignoreMarkers(LogMarker.SOCKET_EXCEPTIONS, LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT))
                 .assertStdOut()
                 .eventStream(ignoreNode(node))
                 .reconnectEventStream(node)
@@ -61,28 +62,24 @@ public class SandboxTest {
     }
 
     @OtterTest
-    void testBranching(TestEnvironment env) {
+    void testBranching(TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
         // Setup simulation
         network.addNodes(3);
-        final InstrumentedNode nodeX =
-                network.addInstrumentedNode();
+        final InstrumentedNode nodeX = network.addInstrumentedNode();
         network.start(ONE_MINUTE);
-        env.generator().generateTransactions(
-                UNLIMITED,
-                Rate.regularRateWithTps(1000),
-                Distribution.UNIFORM);
+        env.generator().generateTransactions(UNLIMITED, Rate.regularRateWithTps(1000), Distribution.UNIFORM);
 
-        // Wait for one minutes
+        // Wait for one minute
         timeManager.waitFor(TEN_SECONDS);
 
         // Start branching
         nodeX.setBranchingProbability(0.5);
 
-        // Wait for 10,000 events
-        timeManager.waitForEvents(10_000);
+        // Wait for one minute
+        timeManager.waitFor(ONE_MINUTE);
 
         // Validations
         env.validator()
@@ -90,5 +87,4 @@ public class SandboxTest {
                 .staleRatio(within(0.0, 0.1))
                 .validateRemaining(Profile.HASHGRAPH);
     }
-
 }
