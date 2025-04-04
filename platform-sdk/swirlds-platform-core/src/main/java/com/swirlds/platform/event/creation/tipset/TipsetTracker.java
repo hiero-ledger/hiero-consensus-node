@@ -115,6 +115,10 @@ public class TipsetTracker {
 
         final List<Tipset> parentTipsets = getParentTipsets(event.getMetadata().getAllParents());
 
+        // Do not advance the self generation in the tipset for two reasons:
+        // 1. We just created this event, and it does not yet have a generation to use because it
+        // will be assigned by the orphan buffer later.
+        // 2. There is use in advancing the self generation because it does not contribute to the advancement score
         final Tipset eventTipset;
         if (parentTipsets.isEmpty()) {
             eventTipset = new Tipset(roster)
@@ -125,7 +129,6 @@ public class TipsetTracker {
         }
 
         tipsets.put(event.getDescriptor(), eventTipset);
-        latestGenerations = latestGenerations.increment(selfId);
 
         return eventTipset;
     }

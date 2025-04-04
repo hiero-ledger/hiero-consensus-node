@@ -47,6 +47,15 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      */
     private NodeId senderId;
 
+    /**
+     * The non-deterministic generation calculated locally by each node. NGen is calculated for every event added to the
+     * hashgraph. The value can differ between nodes for the same event and must only ever be used for determining one
+     * of the several valid topological orderings, or determining which event is higher in the hashgraph than another (a
+     * higher number indicates the event is higher in the hashgraph). NGen will be
+     * {@link EventConstants#GENERATION_UNDEFINED} until set at the appropriate point in the pipeline.
+     */
+    private long nGen = EventConstants.GENERATION_UNDEFINED;
+
     /** The consensus data for this event */
     private EventConsensusData consensusData;
     /**
@@ -181,21 +190,22 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * Get the non-deterministic generation of the event.
+     * The non-deterministic generation of this event.
      *
-     * @return the non-deterministic generation of the event
+     * @return the non-deterministic generation of this event. A value of {@link EventConstants#GENERATION_UNDEFINED} if
+     * none has been set yet.
      */
     public long getNGen() {
-        return this.metadata.getNGen();
+        return nGen;
     }
 
     /**
-     * Set the non-deterministic generation of the event.
+     * Sets the non-deterministic generation of this event.
      *
-     * @param nGen the nGen value to set
+     * @param nGen the non-deterministic generation value to set
      */
     public void setNGen(final long nGen) {
-        this.metadata.setNGen(nGen);
+        this.nGen = nGen;
     }
 
     /**

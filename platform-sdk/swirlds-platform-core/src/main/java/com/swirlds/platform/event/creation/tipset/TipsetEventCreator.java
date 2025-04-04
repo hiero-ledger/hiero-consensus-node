@@ -204,9 +204,8 @@ public class TipsetEventCreator implements EventCreator {
     public PlatformEvent maybeCreateEvent() {
         final UnsignedEvent event = maybeCreateUnsignedEvent();
         if (event != null) {
-            final PlatformEvent signedEvent = signEvent(event);
-            lastSelfEvent = signedEvent;
-            return signedEvent;
+            lastSelfEvent = signEvent(event);
+            return lastSelfEvent;
         }
         return null;
     }
