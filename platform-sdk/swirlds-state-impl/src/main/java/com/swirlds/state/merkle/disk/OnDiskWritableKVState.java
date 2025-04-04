@@ -9,11 +9,11 @@ import static com.swirlds.state.merkle.logging.StateLogger.logMapRemove;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableKVStateBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Iterator;
 
 /**
@@ -24,35 +24,31 @@ import java.util.Iterator;
  * @param <V> The type of value for the state
  */
 public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V> {
-    /** The backing merkle data structure */
-    private final VirtualMap<OnDiskKey<K>, OnDiskValue<V>> virtualMap;
 
+    /** The backing merkle data structure */
+    private final VirtualMap virtualMap;
+
+    @NonNull
     private final Codec<K> keyCodec;
-    private final long keyClassId;
+
+    @NonNull
     private final Codec<V> valueCodec;
-    private final long valueClassId;
 
     /**
      * Create a new instance
      *
      * @param stateKey     the state key
-     * @param keyClassId   the class ID for the key
      * @param keyCodec     the codec for the key
-     * @param valueClassId the class ID for the value
      * @param valueCodec   the codec for the value
      * @param virtualMap   the backing merkle data structure to use
      */
     public OnDiskWritableKVState(
             String stateKey,
-            final long keyClassId,
-            @Nullable final Codec<K> keyCodec,
-            final long valueClassId,
+            @NonNull final Codec<K> keyCodec,
             @NonNull final Codec<V> valueCodec,
-            @NonNull final VirtualMap<OnDiskKey<K>, OnDiskValue<V>> virtualMap) {
+            @NonNull final VirtualMap virtualMap) {
         super(stateKey);
-        this.keyClassId = keyClassId;
         this.keyCodec = keyCodec;
-        this.valueClassId = valueClassId;
         this.valueCodec = valueCodec;
         this.virtualMap = requireNonNull(virtualMap);
     }
@@ -60,9 +56,8 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
     /** {@inheritDoc} */
     @Override
     protected V readFromDataSource(@NonNull K key) {
-        final var k = new OnDiskKey<>(keyClassId, keyCodec, key);
-        final var v = virtualMap.get(k);
-        final var value = v == null ? null : v.getValue();
+        final var kb = keyCodec.toBytes(key);
+        final var value = virtualMap.get(kb, valueCodec);
         // Log to transaction state log, what was read
         logMapGet(getStateKey(), key, value);
         return value;
@@ -73,15 +68,16 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
     @Override
     protected Iterator<K> iterateFromDataSource() {
         // Log to transaction state log, what was iterated
-        logMapIterate(getStateKey(), virtualMap);
-        return new OnDiskIterator<>(virtualMap);
+        logMapIterate(getStateKey(), virtualMap, keyCodec);
+        return new OnDiskIterator<>(virtualMap, keyCodec);
     }
 
     /** {@inheritDoc} */
     @Override
     protected void putIntoDataSource(@NonNull K key, @NonNull V value) {
-        final var k = new OnDiskKey<>(keyClassId, keyCodec, key);
-        virtualMap.put(k, new OnDiskValue<>(valueClassId, valueCodec, value));
+        final Bytes kb = keyCodec.toBytes(key);
+        assert kb != null;
+        virtualMap.put(kb, value, valueCodec);
         // Log to transaction state log, what was put
         logMapPut(getStateKey(), key, value);
     }
@@ -89,8 +85,8 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
     /** {@inheritDoc} */
     @Override
     protected void removeFromDataSource(@NonNull K key) {
-        final var k = new OnDiskKey<>(keyClassId, keyCodec, key);
-        final var removed = virtualMap.remove(k);
+        final var k = keyCodec.toBytes(key);
+        final var removed = virtualMap.remove(k, valueCodec);
         // Log to transaction state log, what was removed
         logMapRemove(getStateKey(), key, removed);
     }

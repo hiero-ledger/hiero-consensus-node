@@ -16,9 +16,7 @@ import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.VirtualStateAccessor;
@@ -42,14 +40,8 @@ import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
  *
  * <p>This implementation is supposed to work with {@link TeacherPullVirtualTreeView} on the
  * teacher side.
- *
- * @param <K>
- * 		The key
- * @param <V>
- * 		The value
  */
-public final class LearnerPullVirtualTreeView<K extends VirtualKey, V extends VirtualValue>
-        extends VirtualTreeViewBase<K, V> implements LearnerTreeView<Long> {
+public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView<Long> {
 
     /**
      * Reconnect configuration.
@@ -59,7 +51,7 @@ public final class LearnerPullVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * Handles removal of old nodes.
      */
-    private final ReconnectNodeRemover<K, V> nodeRemover;
+    private final ReconnectNodeRemover nodeRemover;
 
     /**
      * Received nodes statistics.
@@ -69,7 +61,7 @@ public final class LearnerPullVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * A {@link RecordAccessor} for getting access to the original records.
      */
-    private final RecordAccessor<K, V> originalRecords;
+    private final RecordAccessor originalRecords;
 
     /**
      * Node traversal order. Defines the order in which node requests will be sent to the teacher.
@@ -104,11 +96,11 @@ public final class LearnerPullVirtualTreeView<K extends VirtualKey, V extends Vi
      */
     public LearnerPullVirtualTreeView(
             final ReconnectConfig reconnectConfig,
-            final VirtualRootNode<K, V> root,
-            final RecordAccessor<K, V> originalRecords,
+            final VirtualRootNode root,
+            final RecordAccessor originalRecords,
             final VirtualStateAccessor originalState,
             final VirtualStateAccessor reconnectState,
-            final ReconnectNodeRemover<K, V> nodeRemover,
+            final ReconnectNodeRemover nodeRemover,
             final NodeTraversalOrder traversalOrder,
             @NonNull final ReconnectMapStats mapStats) {
         super(root, originalState, reconnectState);
@@ -200,14 +192,14 @@ public final class LearnerPullVirtualTreeView<K extends VirtualKey, V extends Vi
         final boolean isLeaf = isLeaf(path);
         traversalOrder.nodeReceived(path, isClean);
 
-        if (isLeaf) {
-            if (!isClean) {
-                final VirtualLeafRecord<K, V> leaf = in.readSerializable(false, VirtualLeafRecord::new);
-                mapStats.incrementLeafData(1, 0);
-                assert path == leaf.getPath();
-                nodeRemover.newLeafNode(path, leaf.getKey());
-                root.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
+        if (isLeaf && !isClean) {
+            final VirtualLeafBytes leaf = VirtualReconnectUtils.readLeafRecord(in);
+            if (path != leaf.path()) {
+                throw new IOException("Leaf record path mismatch: " + path + " != " + leaf.path());
             }
+            mapStats.incrementLeafData(1, 0);
+            nodeRemover.newLeafNode(path, leaf.keyBytes());
+            root.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
         }
     }
 

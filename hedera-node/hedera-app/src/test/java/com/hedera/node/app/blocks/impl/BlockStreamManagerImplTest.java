@@ -844,7 +844,7 @@ class BlockStreamManagerImplTest {
         lenient().when(round.iterator()).thenReturn(mockIterator);
         lenient().when(mockIterator.next()).thenReturn(mockEvent);
         lenient().when(mockEvent.getConsensusTimestamp()).thenReturn(CONSENSUS_NOW);
-        lenient().when(boundaryStateChangeListener.flushChanges()).thenReturn(FAKE_STATE_CHANGES);
+        lenient().when(boundaryStateChangeListener.summarizeCommittedChanges()).thenReturn(FAKE_STATE_CHANGES);
         lenient()
                 .doAnswer(invocationOnMock -> {
                     lastAItem.set(invocationOnMock.getArgument(1));
