@@ -73,6 +73,7 @@ public class ReconnectPeerProtocol implements PeerProtocol {
 
     private final Time time;
     private final PlatformContext platformContext;
+    private ReconnectTeacher reconnectTeacher;
 
     /**
      * @param threadManager           responsible for creating and managing threads
@@ -143,6 +144,14 @@ public class ReconnectPeerProtocol implements PeerProtocol {
         final boolean acquiredPermit = reconnectController.acquireLearnerPermit();
         if (acquiredPermit) {
             initiatedBy = InitiatedBy.SELF;
+        } else {
+            // we might be a teacher; if we are, tell it to break connection and we will sort things out on next
+            // initiate
+            // better way would be to run that code based on platform event, but this will be done as part of #18418
+            var teacher = this.reconnectTeacher;
+            if (teacher != null) {
+                teacher.breakConnection();
+            }
         }
         return acquiredPermit;
     }
@@ -294,20 +303,21 @@ public class ReconnectPeerProtocol implements PeerProtocol {
      */
     private void teacher(final Connection connection) {
         try (final ReservedSignedState state = teacherState) {
-            new ReconnectTeacher(
-                            platformContext,
-                            time,
-                            threadManager,
-                            connection,
-                            reconnectSocketTimeout,
-                            connection.getSelfId(),
-                            connection.getOtherId(),
-                            state.get().getRound(),
-                            reconnectMetrics,
-                            configuration,
-                            platformStateFacade)
-                    .execute(state.get());
+            this.reconnectTeacher = new ReconnectTeacher(
+                    platformContext,
+                    time,
+                    threadManager,
+                    connection,
+                    reconnectSocketTimeout,
+                    connection.getSelfId(),
+                    connection.getOtherId(),
+                    state.get().getRound(),
+                    reconnectMetrics,
+                    configuration,
+                    platformStateFacade);
+            this.reconnectTeacher.execute(state.get());
         } finally {
+            reconnectTeacher = null;
             teacherThrottle.reconnectAttemptFinished();
             teacherState = null;
             // cancel the permit acquired in shouldAccept() so that we can start learning if we need to

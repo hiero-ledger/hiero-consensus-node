@@ -249,4 +249,16 @@ public class ReconnectTeacher {
         connection.getDos().writeSerializable(signedState.getSigSet(), true);
         connection.getDos().flush();
     }
+
+    /**
+     * Forcefully close the teaching connection and let entire learning process fail. This should allow system
+     * to reevaluate what to use what connection for, for example letting ourselves to start learning session against
+     * different node.
+     */
+    public void breakConnection() {
+        logger.warn(
+                RECONNECT.getMarker(),
+                "Forcefully breaking connection while teaching, most probably due to falling behind ourselves");
+        connection.disconnect();
+    }
 }
