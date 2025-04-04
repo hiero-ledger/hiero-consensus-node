@@ -2,8 +2,8 @@
 package com.swirlds.platform.recovery;
 
 import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.randomPositiveLong;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomPositiveLong;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -31,13 +31,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.crypto.RunningHash;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

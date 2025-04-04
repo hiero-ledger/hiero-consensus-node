@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
-import org.hiero.consensus.utility.exceptions.PlatformException;
+import org.hiero.base.utility.exceptions.PlatformException;
 
 public class ConcurrentFuturePool<V> extends ConcurrentLinkedQueue<Future<V>> {
 

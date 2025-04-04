@@ -3,8 +3,8 @@ package com.swirlds.platform.gossip.permits;
 
 import static com.swirlds.common.units.TimeUnit.UNIT_NANOSECONDS;
 import static com.swirlds.common.units.TimeUnit.UNIT_SECONDS;
-import static com.swirlds.common.utility.CompareTo.isLessThan;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.utility.CompareTo.isLessThan;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
