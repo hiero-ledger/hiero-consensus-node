@@ -13,14 +13,14 @@ import java.util.Set;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
- * A container for collecting reserved signed states using List.
+ * A container for collecting reserved signed states for each round.
  */
 public class DefaultSignedStatesTestCollector implements SignedStatesTestCollector {
 
-    final Map<MerkleNodeState, ReservedSignedState> collectedSignedStates = new HashMap<>();
+    final Map<Long, ReservedSignedState> collectedSignedStates = new HashMap<>();
     final NodeId selfNodeId;
 
-    public DefaultSignedStatesTestCollector(final NodeId selfNodeId) {
+    public DefaultSignedStatesTestCollector(@NonNull final NodeId selfNodeId) {
         this.selfNodeId = selfNodeId;
     }
 
@@ -32,10 +32,10 @@ public class DefaultSignedStatesTestCollector implements SignedStatesTestCollect
         try (signedState) {
             assertThat(collectedSignedStates)
                     .withFailMessage(String.format(
-                            "SignedState with root %s has been already produced by node %d",
-                            signedState.get().getState().getRoot(), selfNodeId.id()))
-                    .doesNotContainKey(signedState.get().getState());
-            collectedSignedStates.put(signedState.get().getState(), signedState);
+                            "SignedState from round %s has been already produced by node %d",
+                            signedState.get().getRound(), selfNodeId.id()))
+                    .doesNotContainKey(signedState.get().getRound());
+            collectedSignedStates.put(signedState.get().getRound(), signedState);
         }
     }
 
@@ -56,12 +56,17 @@ public class DefaultSignedStatesTestCollector implements SignedStatesTestCollect
      * {@inheritDoc}
      */
     @Override
-    public Map<MerkleNodeState, ReservedSignedState> getCollectedSignedStates() {
+    @NonNull
+    public Map<Long, ReservedSignedState> getCollectedSignedStates() {
         return collectedSignedStates;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public List<ReservedSignedState> getFilteredSignedStates(@NonNull Set<MerkleNodeState> merkleStates) {
+    @NonNull
+    public List<ReservedSignedState> getFilteredSignedStates(@NonNull final Set<MerkleNodeState> merkleStates) {
         return collectedSignedStates.entrySet().stream()
                 .filter(s -> merkleStates.contains(s.getKey()))
                 .map(Map.Entry::getValue)

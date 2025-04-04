@@ -33,7 +33,7 @@ public interface SignedStatesTestCollector {
      *
      * @return the collected reserved signed states
      */
-    Map<MerkleNodeState, ReservedSignedState> getCollectedSignedStates();
+    Map<Long, ReservedSignedState> getCollectedSignedStates();
 
     /**
      * Get filtered signed states by specified state roots.

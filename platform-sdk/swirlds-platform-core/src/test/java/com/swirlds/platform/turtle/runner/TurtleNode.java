@@ -165,7 +165,7 @@ public class TurtleNode {
         platform = platformComponentBuilder.build();
     }
 
-    private void wireConsensusRoundsTestCollector(final PlatformWiring platformWiring) {
+    private void wireConsensusRoundsTestCollector(@NonNull final PlatformWiring platformWiring) {
         final ComponentWiring<ConsensusRoundsTestCollector, Void> consensusRoundsTestCollectorWiring =
                 new ComponentWiring<>(
                         model, ConsensusRoundsTestCollector.class, TaskSchedulerConfiguration.parse("DIRECT"));
@@ -211,12 +211,12 @@ public class TurtleNode {
     }
 
     @NonNull
-    public ConsensusRoundsTestCollector getConsensusRoundsHolder() {
+    public ConsensusRoundsTestCollector getConsensusRoundsTestCollector() {
         return consensusRoundsTestCollector;
     }
 
     @NonNull
-    public SignedStatesTestCollector getSignedStateHolder() {
+    public SignedStatesTestCollector getSignedStatesTestCollector() {
         return signedStatesTestCollector;
     }
 }

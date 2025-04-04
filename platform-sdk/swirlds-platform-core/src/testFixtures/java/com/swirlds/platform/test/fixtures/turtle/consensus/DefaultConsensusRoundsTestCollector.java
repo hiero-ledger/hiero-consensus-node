@@ -19,7 +19,7 @@ public class DefaultConsensusRoundsTestCollector implements ConsensusRoundsTestC
     final Map<Long, ConsensusRound> collectedRounds = new TreeMap<>();
     final NodeId selfNodeId;
 
-    public DefaultConsensusRoundsTestCollector(final NodeId selfNodeId) {
+    public DefaultConsensusRoundsTestCollector(@NonNull final NodeId selfNodeId) {
         this.selfNodeId = selfNodeId;
     }
 
