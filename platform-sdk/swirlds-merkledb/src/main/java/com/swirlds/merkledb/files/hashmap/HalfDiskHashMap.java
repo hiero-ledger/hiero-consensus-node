@@ -503,6 +503,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         } finally {
             writingThread = null;
             oneTransactionsData = null;
+            currentSubmitTask.set(null);
         }
         return dataFileReader;
     }

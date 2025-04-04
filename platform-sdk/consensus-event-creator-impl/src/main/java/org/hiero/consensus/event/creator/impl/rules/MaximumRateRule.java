@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.rules;
 
-import static org.hiero.consensus.event.creator.EventCreationStatus.RATE_LIMITED;
+import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LIMITED;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.event.creator.EventCreationRule;
-import org.hiero.consensus.event.creator.EventCreationStatus;
-import org.hiero.consensus.event.creator.impl.EventCreationConfig;
+import org.hiero.consensus.event.creator.impl.EventCreationStatus;
+import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 
 /**
  * Throttles event creation rate over time.

@@ -347,7 +347,7 @@ public class PlatformComponentBuilder {
             eventSignatureValidator = new DefaultEventSignatureValidator(
                     blocks.platformContext(),
                     CryptoStatic::verifySignature,
-                    blocks.appVersion().getPbjSemanticVersion(),
+                    blocks.appVersion(),
                     blocks.rosterHistory().getPreviousRoster(),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.intakeEventCounter());
@@ -485,7 +485,7 @@ public class PlatformComponentBuilder {
                     data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
-                    blocks.appVersion().getPbjSemanticVersion(),
+                    blocks.appVersion(),
                     blocks.transactionPoolNexus());
 
             eventCreationManager = new DefaultEventCreationManager(
@@ -771,7 +771,7 @@ public class PlatformComponentBuilder {
             issDetector = new DefaultIssDetector(
                     blocks.platformContext(),
                     blocks.rosterHistory().getCurrentRoster(),
-                    blocks.appVersion().getPbjSemanticVersion(),
+                    blocks.appVersion(),
                     ignorePreconsensusSignatures,
                     roundToIgnore);
         }
@@ -1213,7 +1213,7 @@ public class PlatformComponentBuilder {
                     blocks.platformContext(),
                     blocks.swirldStateManager(),
                     blocks.statusActionSubmitterReference().get(),
-                    blocks.appVersion().getPbjSemanticVersion(),
+                    blocks.appVersion(),
                     blocks.platformStateFacade());
         }
         return transactionHandler;

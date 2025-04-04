@@ -3,7 +3,7 @@ package com.swirlds.platform.event;
 
 import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignatureBytes;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.serializePlatformEvent;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -191,14 +191,11 @@ class EventDeduplicatorTests {
                         .build());
                 duplicateEvent.setHash(platformEvent.getHash());
 
-                if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-                    if (duplicateEvent.getDescriptor().eventDescriptor().birthRound() < minimumRoundNonAncient) {
-                        ancientEventCount++;
-                    }
-                } else {
-                    if (duplicateEvent.getDescriptor().eventDescriptor().generation() < minimumGenerationNonAncient) {
-                        ancientEventCount++;
-                    }
+                final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
+                        ? minimumRoundNonAncient
+                        : minimumGenerationNonAncient;
+                if (ancientMode.selectIndicator(duplicateEvent.getDescriptor()) < ancientThreshold) {
+                    ancientEventCount++;
                 }
 
                 validateEmittedEvent(

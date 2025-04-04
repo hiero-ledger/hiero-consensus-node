@@ -189,8 +189,10 @@ public class ProofControllerImpl implements ProofController {
             return;
         }
         targetMetadata = metadata;
-        if (targetMetadata == null && isActive) {
-            ensureProofKeyPublished();
+        if (targetMetadata == null) {
+            if (isActive) {
+                ensureProofKeyPublished();
+            }
         } else if (construction.hasAssemblyStartTime()) {
             boolean stillCollectingSignatures = true;
             final long elapsedSeconds = Math.max(

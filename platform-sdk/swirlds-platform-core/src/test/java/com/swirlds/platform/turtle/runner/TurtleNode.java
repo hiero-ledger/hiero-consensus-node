@@ -34,9 +34,7 @@ import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsTestCollector;
@@ -114,7 +112,8 @@ public class TurtleNode {
         model = WiringModelBuilder.create(platformContext.getMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
-        final SoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
+        final SemanticVersion softwareVersion =
+                SemanticVersion.newBuilder().major(1).build();
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         final var version = SemanticVersion.newBuilder().major(1).build();
         MerkleDb.resetDefaultInstancePath();
