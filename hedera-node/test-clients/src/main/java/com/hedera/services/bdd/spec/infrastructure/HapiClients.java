@@ -153,7 +153,7 @@ public class HapiClients {
         stubSequences.putIfAbsent(channelUri, new AtomicInteger());
     }
 
-    private HapiClients(final Supplier<List<NodeConnectInfo>> nodeInfosSupplier) {
+    public HapiClients(@NonNull final Supplier<List<NodeConnectInfo>> nodeInfosSupplier) {
         this.nodes = Collections.emptyList();
         this.nodeInfos = nodeInfosSupplier.get();
         stubIds = nodeInfos.stream().collect(Collectors.toMap(NodeConnectInfo::getAccount, NodeConnectInfo::uri));
