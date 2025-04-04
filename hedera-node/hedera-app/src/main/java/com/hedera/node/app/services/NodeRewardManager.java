@@ -219,14 +219,14 @@ public class NodeRewardManager {
             final var targetPayInTinycents = BigInteger.valueOf(nodesConfig.targetYearlyNodeRewardsUsd())
                     .multiply(USD_TO_TINYCENTS.toBigInteger())
                     .divide(BigInteger.valueOf(nodesConfig.numPeriodsToTargetUsd()));
-            final var minimumRewardInTinycents = exchangeRateManager.getTinybarsFromTinycents(
+            final var minimumRewardInTinycents = exchangeRateManager.getTinybarsFromTinyCents(
                     Math.max(
                             0L,
                             BigInteger.valueOf(nodesConfig.minPerPeriodNodeRewardUsd())
                                     .multiply(USD_TO_TINYCENTS.toBigInteger())
                                     .longValue()),
                     now);
-            final long nodeReward = exchangeRateManager.getTinybarsFromTinycents(targetPayInTinycents.longValue(), now);
+            final long nodeReward = exchangeRateManager.getTinybarsFromTinyCents(targetPayInTinycents.longValue(), now);
             final var perActiveNodeReward = Math.max(minimumRewardInTinycents, nodeReward - prePaidRewards);
 
             systemTransactions.dispatchNodeRewards(
