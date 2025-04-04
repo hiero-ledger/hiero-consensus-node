@@ -11,6 +11,7 @@ import io.grpc.stub.StreamObserver;
 import io.helidon.webclient.grpc.GrpcServiceClient;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -65,6 +66,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @param blockNodeConnectionManager the connection manager for block node connections
      * @param blockStreamStateManager the block stream state manager for block node connections
      * @param grpcServiceClient the gRPC client to establish the bidirectional streaming to block node connections
+     * @param scheduler the scheduler for the connection
      */
     public BlockNodeConnection(
             @NonNull final BlockNodeConfig nodeConfig,
@@ -90,27 +92,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 requestObserver = grpcServiceClient.bidi(blockNodeConnectionManager.getGrpcEndPoint(), this);
                 isActive.set(true);
                 startRequestWorker();
-            }
-        }
-    }
-
-    /**
-     * Try to establish the bidirectional streaming to block node.
-     */
-    public void tryEstablishStream() {
-        synchronized (isActiveLock) {
-            synchronized (channelLock) {
-                requestObserver = grpcServiceClient.bidi(blockNodeConnectionManager.getGrpcEndPoint(), this);
-
-                // try to stream the next block header
-                // TODO: how to get the next block header here?
-                final PublishStreamRequest nextHeaderRequest = null;
-
-                // TODO: how to know if block node is ready to accept the rest of the block and that we can continue
-                // streaming with this connection?
-                requestObserver.onNext(nextHeaderRequest);
-
-                isActive.set(true);
             }
         }
     }
@@ -264,46 +245,22 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     }
 
     private void handleStreamFailure() {
-        synchronized (isActiveLock) {
-            if (isActive.compareAndSet(true, false)) {
-                synchronized (channelLock) {
-                    if (requestObserver != null) {
-                        try {
-                            requestObserver.onCompleted();
-                        } catch (Exception e) {
-                            logger.warn("Error while completing request observer during stream failure", e);
-                        }
-                        requestObserver = null;
-                    }
-                }
-                stopWorkerThread();
-                setCurrentBlockNumber(-1);
-            }
-        }
-
+        close();
         blockNodeConnectionManager.handleConnectionError(this);
     }
 
     private void handleEndOfStreamError() {
-        synchronized (isActiveLock) {
-            if (isActive.compareAndSet(true, false)) {
-                synchronized (channelLock) {
-                    if (requestObserver != null) {
-                        try {
-                            requestObserver.onCompleted();
-                        } catch (Exception e) {
-                            logger.warn("Error while completing request observer during stream failure", e);
-                        }
-                        requestObserver = null;
-                    }
-                }
-                stopWorkerThread();
-                setCurrentBlockNumber(-1);
-            }
-        }
-
-        // Go into a longer exponential backoff and switch connection priority
-        blockNodeConnectionManager.handleEndOfStreamError(this);
+        scheduler.schedule(
+                () -> {
+                    logger.debug(
+                            "[{}] Attempting reconnect after internal error for node {}:{} at block {}",
+                            Thread.currentThread().getName(),
+                            node.address(),
+                            node.port());
+                    blockNodeConnectionManager.handleConnectionError(this);
+                },
+                5,
+                TimeUnit.SECONDS);
     }
 
     private void handleAcknowledgement(@NonNull PublishStreamResponse.Acknowledgement acknowledgement) {
@@ -338,11 +295,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
         // Always end the stream when we receive an end of stream message
         logger.debug("Ending stream for node {}:{}", node.address(), node.port());
-        synchronized (isActiveLock) {
-            synchronized (channelLock) {
-                close();
-            }
-        }
+        close();
 
         switch (responseCode) {
             case STREAM_ITEMS_INTERNAL_ERROR, STREAM_ITEMS_PERSISTENCE_FAILED -> {
@@ -363,7 +316,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 // The consensus node has sent a block later than this block node
                 // can process. We should restart the stream at the block immediately
                 // following the block where the node fell behind.
-                // Restart the stream at the block immediately following where the node fell behind
                 long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
                 logger.warn(
                         "[{}] Block node {}:{} reported it is behind. Will restart stream at block {}",
@@ -405,31 +357,31 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         }
     }
 
-    private void scheduleReconnect() {
-        logger.debug("Scheduling reconnect for block node {}:{}", node.address(), node.port());
-        blockNodeConnectionManager.scheduleReconnect(this);
-    }
-
     /**
      * Idempotent operation that closes this connection (if active)
      */
     public void close() {
         synchronized (isActiveLock) {
             if (isActive.compareAndSet(true, false)) {
-                synchronized (channelLock) {
-                    if (requestObserver != null) {
-                        try {
-                            requestObserver.onCompleted();
-                        } catch (Exception e) {
-                            logger.warn("Error while completing request observer", e);
-                        }
-                        requestObserver = null;
-                    }
-                }
-                stopWorkerThread();
+                closeObserver();
+                setCurrentBlockNumber(-1);
             }
         }
         logger.debug("Closed connection to block node {}:{}", node.address(), node.port());
+    }
+
+    private void closeObserver() {
+        synchronized (channelLock) {
+            if (requestObserver != null) {
+                try {
+                    requestObserver.onCompleted();
+                } catch (Exception e) {
+                    logger.warn("Error while completing request observer", e);
+                }
+                requestObserver = null;
+            }
+        }
+        stopWorkerThread();
     }
 
     /**

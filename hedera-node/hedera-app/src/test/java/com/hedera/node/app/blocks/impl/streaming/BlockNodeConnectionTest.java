@@ -709,8 +709,9 @@ class BlockNodeConnectionTest {
         verify(scheduler).schedule(any(Runnable.class), eq(5L), eq(TimeUnit.SECONDS));
 
         // Verify log messages for internal error
-        final String expectedWarningLog = "Block node " + TEST_ADDRESS + ":" + TEST_PORT
-                + " reported internal error at block " + TEST_BLOCK_NUMBER + ". Will attempt reconnect after delay.";
+        final String expectedWarningLog =
+                "Block node " + TEST_ADDRESS + ":" + TEST_PORT + " reported an error at block " + TEST_BLOCK_NUMBER
+                        + ". Will attempt to reestablish the stream later.";
         assertTrue(
                 logCaptor.warnLogs().stream().anyMatch(log -> log.contains(expectedWarningLog)),
                 "Expected warning log message not found: " + expectedWarningLog);
