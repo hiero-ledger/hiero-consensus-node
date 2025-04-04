@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.grpc.impl;
+package com.hedera.node.app.grpc.impl.usage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.node.app.grpc.impl.GrpcLoggingInterceptor.UserAgentType;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import io.grpc.Metadata;
 import io.grpc.Metadata.Key;
@@ -23,11 +22,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-class GrpcLoggingInterceptorTest {
+class GrpcUsageTrackerTest {
 
     private static final Key<String> userAgentHeaderKey = Key.of("X-User-Agent", Metadata.ASCII_STRING_MARSHALLER);
 
     static LogCaptor accessLogCaptor = new LogCaptor(LogManager.getLogger("grpc-access-log"));
+
+
 
     @AfterEach
     void afterEach() {
@@ -43,7 +44,7 @@ class GrpcLoggingInterceptorTest {
     @ParameterizedTest
     @MethodSource("testRpcNameArgs")
     void testRpcName(final String fullMethodName, final String expectedServiceName, final String expectedMethodName) {
-        final GrpcLoggingInterceptor interceptor = new GrpcLoggingInterceptor();
+        final GrpcUsageTracker interceptor = new GrpcUsageTracker(null);
         final ServerCall<String, String> serverCall = mock(ServerCall.class);
         final Metadata metadata = new Metadata();
         metadata.put(userAgentHeaderKey, "hiero-sdk-java/2.1.3");
@@ -76,7 +77,7 @@ class GrpcLoggingInterceptorTest {
     @ParameterizedTest
     @MethodSource("testUserAgentArgs")
     void testUserAgent(final String userAgent, final String expectedAgentType, final String expectedAgentVersion) {
-        final GrpcLoggingInterceptor interceptor = new GrpcLoggingInterceptor();
+        final GrpcUsageTracker interceptor = new GrpcUsageTracker(null);
         final ServerCall<String, String> serverCall = mock(ServerCall.class);
         final Metadata metadata = new Metadata();
         if (userAgent != null) {
