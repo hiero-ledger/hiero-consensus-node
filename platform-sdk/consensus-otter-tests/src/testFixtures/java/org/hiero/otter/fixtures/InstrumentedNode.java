@@ -7,7 +7,7 @@ package org.hiero.otter.fixtures;
  * <p>An instrumented node is a node that has additional instrumentation for testing purposes.
  * For example, it can exhibit malicious or erroneous behavior.
  */
-public interface InstrumentedNode {
+public interface InstrumentedNode extends Node {
 
     /**
      * Set the branching probability for the instrumented node.

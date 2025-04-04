@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import com.swirlds.logging.api.Logger;
+import com.swirlds.logging.api.Loggers;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -81,7 +83,10 @@ public interface Validator {
      *
      * <p>This configuration can for example be used to specify errors that are expected and can be ignored.
      */
-    interface LogErrorConfig {
+    class LogErrorConfig {
+
+        private static final Logger log = Loggers.getLogger(LogErrorConfig.class);
+
         /**
          * Creates a configuration to ignore specific log markers.
          *
@@ -90,14 +95,18 @@ public interface Validator {
          */
         @NonNull
         static LogErrorConfig ignoreMarkers(@NonNull final LogMarker... markers) {
-            throw new UnsupportedOperationException("Not implemented yet");
+            log.warn("Creating a log error config is not implemented yet.");
+            return new LogErrorConfig();
         }
     }
 
     /**
      * Configuration for the event stream validator that checks the event stream for unexpected entries.
      */
-    interface EventStreamConfig {
+    class EventStreamConfig {
+
+        private static final Logger log = Loggers.getLogger(EventStreamConfig.class);
+
         /**
          * Creates a configuration to ignore the event streams of specific nodes.
          *
@@ -106,7 +115,8 @@ public interface Validator {
          */
         @NonNull
         static EventStreamConfig ignoreNode(@NonNull final Node... nodes) {
-            throw new UnsupportedOperationException("Not implemented yet");
+            log.warn("Creating an event stream config is not implemented yet.");
+            return new EventStreamConfig();
         }
     }
 
@@ -114,7 +124,10 @@ public interface Validator {
      * Configuration for the consensus ratio validator that checks whether the ratio of transactions
      * that have been executed (and therefore reached consensus) is within the given range.
      */
-    interface RatioConfig {
+    class RatioConfig {
+
+        private static final Logger log = Loggers.getLogger(RatioConfig.class);
+
         /**
          * Creates a configuration to check whether the ratio is within the given range.
          *
@@ -124,7 +137,8 @@ public interface Validator {
          */
         @NonNull
         static RatioConfig within(final double min, final double max) {
-            throw new UnsupportedOperationException("Not implemented yet");
+            log.warn("Creating a ratio config is not implemented yet.");
+            return new RatioConfig();
         }
     }
 

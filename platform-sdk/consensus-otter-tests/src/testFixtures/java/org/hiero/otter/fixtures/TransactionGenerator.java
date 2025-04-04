@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import com.swirlds.logging.api.Logger;
+import com.swirlds.logging.api.Loggers;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -29,6 +31,8 @@ public interface TransactionGenerator {
      */
     class Rate {
 
+        private static final Logger log = Loggers.getLogger(Rate.class);
+
         /**
          * Creates a rate that generates transactions at a fixed frequency.
          *
@@ -37,7 +41,8 @@ public interface TransactionGenerator {
          */
         @NonNull
         public static Rate regularRateWithTps(final int tps) {
-            throw new UnsupportedOperationException("Not implemented yet");
+            log.warn("Creating a regular rate with TPS is not implemented yet.");
+            return new Rate();
         }
     }
 
