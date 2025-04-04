@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.rules;
 
-import static org.hiero.consensus.event.creator.EventCreationStatus.OVERLOADED;
+import static org.hiero.consensus.event.creator.impl.EventCreationStatus.OVERLOADED;
 
 import com.swirlds.common.context.PlatformContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.LongSupplier;
-import org.hiero.consensus.event.creator.EventCreationRule;
-import org.hiero.consensus.event.creator.EventCreationStatus;
-import org.hiero.consensus.event.creator.impl.EventCreationConfig;
+import org.hiero.consensus.event.creator.impl.EventCreationStatus;
+import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 
 /**
  * Prevents event creations when the system is stressed and unable to keep up with its work load.

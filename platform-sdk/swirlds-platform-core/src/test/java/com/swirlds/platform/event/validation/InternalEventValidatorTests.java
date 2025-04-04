@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.validation;
 
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.model.event.EventConstants.GENERATION_UNDEFINED;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -141,13 +141,10 @@ class InternalEventValidatorTests {
         final ArrayList<EventDescriptor> parents = new ArrayList<>();
         parents.add(null);
         final GossipEvent nullParent = GossipEvent.newBuilder()
-                .eventCore(EventCore.newBuilder()
-                        .timeCreated(wholeEvent.eventCore().timeCreated())
-                        .version(wholeEvent.eventCore().version())
-                        .parents(parents)
-                        .build())
+                .eventCore(wholeEvent.eventCore())
                 .signature(wholeEvent.signature())
                 .transactions(wholeEvent.transactions())
+                .parents(parents)
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(nullParent);
         assertNull(multinodeValidator.validateEvent(platformEvent));
@@ -179,20 +176,12 @@ class InternalEventValidatorTests {
         assertEquals(2, exitedIntakePipelineCount.get());
 
         final GossipEvent shortDescriptorHash = GossipEvent.newBuilder()
-                .eventCore(EventCore.newBuilder()
-                        .timeCreated(validEvent.eventCore().timeCreated())
-                        .version(validEvent.eventCore().version())
-                        .parents(EventDescriptor.newBuilder()
-                                .hash(validEvent
-                                        .eventCore()
-                                        .parents()
-                                        .getFirst()
-                                        .hash()
-                                        .getBytes(1, DigestType.SHA_384.digestLength() - 2))
-                                .build())
-                        .build())
+                .eventCore(validEvent.eventCore())
                 .signature(validEvent.signature())
                 .transactions(validEvent.transactions())
+                .parents(EventDescriptor.newBuilder()
+                        .hash(validEvent.parents().getFirst().hash().getBytes(1, DigestType.SHA_384.digestLength() - 2))
+                        .build())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(shortDescriptorHash);
         assertNull(multinodeValidator.validateEvent(platformEvent));

@@ -6,7 +6,7 @@ import com.swirlds.virtualmap.test.fixtures.TestValue;
 import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.stream.LongStream;
-import org.hiero.consensus.utility.test.fixtures.RandomUtils;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 
 /**
  * A utility class to help build random states.

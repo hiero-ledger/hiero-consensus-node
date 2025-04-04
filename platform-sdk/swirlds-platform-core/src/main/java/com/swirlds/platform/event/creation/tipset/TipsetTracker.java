@@ -68,13 +68,7 @@ public class TipsetTracker {
         this.selfId = Objects.requireNonNull(selfId);
         this.latestGenerations = new Tipset(roster);
 
-        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-            tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true,
-                    ed -> ed.eventDescriptor().birthRound());
-        } else {
-            tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true,
-                    ed -> ed.eventDescriptor().generation());
-        }
+        tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, ancientMode::selectIndicator);
 
         ancientEventLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
@@ -184,27 +178,18 @@ public class TipsetTracker {
         return eventTipset;
     }
 
-    private void logIfAncient(@NonNull final EventDescriptorWrapper descriptor) {
-        if (eventWindow.isAncient(descriptor)) {
-            // Note: although we don't immediately return from this method, the tipsets.put()
-            // will not update the data structure for an ancient event. We should never
-            // enter this bock of code. This log is here as a canary to alert us if we somehow do.
-            if (ancientMode.equals(AncientMode.BIRTH_ROUND_THRESHOLD)) {
+    private void logIfAncient(@NonNull final EventDescriptorWrapper eventDescriptorWrapper) {
+            if (eventWindow.isAncient(eventDescriptorWrapper)) {
+                // Note: although we don't immediately return from this method, the tipsets.put()
+                // will not update the data structure for an ancient event. We should never
+                // enter this bock of code. This log is here as a canary to alert us if we somehow do.
                 ancientEventLogger.error(
                         EXCEPTION.getMarker(),
-                        "Rejecting ancient event from {} with birth round {}. Current event window is {}",
-                        descriptor.creator(),
-                        descriptor.eventDescriptor().birthRound(),
-                        eventWindow);
-            } else {
-                ancientEventLogger.error(
-                        EXCEPTION.getMarker(),
-                        "Rejecting ancient event from {} with generation {}. Current event window is {}",
-                        descriptor.creator(),
-                        descriptor.eventDescriptor().generation(),
+                        "Rejecting ancient event from {} with threshold {}. Current event window is {}",
+                        eventDescriptorWrapper.creator(),
+                        ancientMode.selectIndicator(eventDescriptorWrapper),
                         eventWindow);
             }
-        }
     }
 
     /**

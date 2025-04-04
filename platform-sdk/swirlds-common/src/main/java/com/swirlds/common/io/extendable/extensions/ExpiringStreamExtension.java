@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.extendable.extensions;
 
-import static com.swirlds.common.utility.CompareTo.isGreaterThan;
+import static org.hiero.base.utility.CompareTo.isGreaterThan;
 
 import java.io.IOException;
 import java.time.Duration;

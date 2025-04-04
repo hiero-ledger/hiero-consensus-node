@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.creation.rules;
 
-import static org.hiero.consensus.event.creator.EventCreationStatus.PLATFORM_STATUS;
+import static org.hiero.consensus.event.creator.impl.EventCreationStatus.PLATFORM_STATUS;
 
 import com.swirlds.platform.pool.TransactionPoolNexus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.Supplier;
-import org.hiero.consensus.event.creator.EventCreationRule;
-import org.hiero.consensus.event.creator.EventCreationStatus;
+import org.hiero.consensus.event.creator.impl.EventCreationStatus;
+import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**

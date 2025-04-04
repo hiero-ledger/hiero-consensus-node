@@ -2,7 +2,7 @@
 package com.swirlds.platform.event.orphan;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -240,12 +240,10 @@ class OrphanBufferTests {
             latestConsensusRound += maybeAdvanceRound.apply(random);
             final AncientMode ancientMode =
                     useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
+            final long ancientThreshold =
+                    useBirthRoundForAncient ? Math.max(1, latestConsensusRound - 26 + 1) : minimumGenerationNonAncient;
             final EventWindow eventWindow = new EventWindow(
-                    latestConsensusRound,
-                    ancientMode.selectIndicator(
-                            minimumGenerationNonAncient, Math.max(1, latestConsensusRound - 26 + 1)),
-                    1 /* ignored in this context */,
-                    ancientMode);
+                    latestConsensusRound, ancientThreshold, 1 /* ignored in this context */, ancientMode);
             unorphanedEvents.addAll(orphanBuffer.setEventWindow(eventWindow));
 
             for (final PlatformEvent unorphanedEvent : unorphanedEvents) {
@@ -394,11 +392,11 @@ class OrphanBufferTests {
         final long minimumGenerationNonAncient = 100;
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
-        final EventWindow eventWindow = new EventWindow(
-                latestConsensusRound,
-                ancientMode.selectIndicator(minimumGenerationNonAncient, minimumBirthRoundNonAncient),
-                1 /* ignored in this context */,
-                ancientMode);
+        final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
+                ? minimumBirthRoundNonAncient
+                : minimumGenerationNonAncient;
+        final EventWindow eventWindow =
+                new EventWindow(latestConsensusRound, ancientThreshold, 1 /* ignored in this context */, ancientMode);
 
         // Create two ancient events to serve as parents
         final PlatformEvent selfParent =
@@ -452,11 +450,11 @@ class OrphanBufferTests {
         final long minimumGenerationNonAncient = 100;
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
-        final EventWindow eventWindow = new EventWindow(
-                latestConsensusRound,
-                ancientMode.selectIndicator(minimumGenerationNonAncient, minimumBirthRoundNonAncient),
-                1 /* ignored in this context */,
-                ancientMode);
+        final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
+                ? minimumBirthRoundNonAncient
+                : minimumGenerationNonAncient;
+        final EventWindow eventWindow =
+                new EventWindow(latestConsensusRound, ancientThreshold, 1 /* ignored in this context */, ancientMode);
 
         // Genesis event, ancient
         final PlatformEvent node0AncientEvent =
@@ -545,11 +543,11 @@ class OrphanBufferTests {
         final long minimumGenerationNonAncient = 100;
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
-        final EventWindow eventWindow = new EventWindow(
-                latestConsensusRound,
-                ancientMode.selectIndicator(minimumGenerationNonAncient, minimumBirthRoundNonAncient),
-                1 /* ignored in this context */,
-                ancientMode);
+        final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
+                ? minimumBirthRoundNonAncient
+                : minimumGenerationNonAncient;
+        final EventWindow eventWindow =
+                new EventWindow(latestConsensusRound, ancientThreshold, 1 /* ignored in this context */, ancientMode);
 
         // Genesis events, ancient
         final PlatformEvent node0AncientEvent =

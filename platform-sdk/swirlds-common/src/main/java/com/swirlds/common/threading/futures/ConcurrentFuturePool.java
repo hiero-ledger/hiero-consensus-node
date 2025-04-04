@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.threading.futures;
 
-import com.swirlds.common.exceptions.PlatformException;
 import com.swirlds.logging.legacy.LogMarker;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -11,6 +10,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
+import org.hiero.base.utility.exceptions.PlatformException;
 
 public class ConcurrentFuturePool<V> extends ConcurrentLinkedQueue<Future<V>> {
 

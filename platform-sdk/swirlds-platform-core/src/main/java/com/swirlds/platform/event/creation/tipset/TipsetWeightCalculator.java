@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.event.creator.impl.EventCreationConfig;
+import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -201,7 +201,7 @@ public class TipsetWeightCalculator {
      * Figure out what advancement weight we would get if we created an event with a given list of parents.
      *
      * @param otherParents the proposed other parents of an event
-     * @param selfParent the proposed self parent of an event
+     * @param selfParent   the proposed self parent of an event
      * @return the advancement weight we would get by creating an event with the given parents
      */
     public TipsetAdvancementWeight getTheoreticalAdvancementWeight(
@@ -221,9 +221,9 @@ public class TipsetWeightCalculator {
                         EXCEPTION.getMarker(),
                         "When looking at possible parents, we should never "
                                 + "consider ancient parents that are not self parents. "
-                                + "Parent ID = {}, parent generation = {}, minimum generation non-ancient = {}",
-                        otherParent.getDescriptor().creator(),
-                        otherParent.getDescriptor().eventDescriptor().generation(),
+                                + "Parent ID = {}, parent ancient threshold = {}, minimum threshold non-ancient = {}",
+                        otherParent.getCreatorId(),
+                        tipsetTracker.getEventWindow().getAncientMode().selectIndicator(otherParent.getDescriptor()),
                         tipsetTracker.getEventWindow());
                 continue;
             }

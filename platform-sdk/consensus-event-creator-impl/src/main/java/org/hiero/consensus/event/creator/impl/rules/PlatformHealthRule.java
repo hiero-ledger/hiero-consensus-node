@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.rules;
 
-import static com.swirlds.common.utility.CompareTo.isLessThanOrEqualTo;
-import static org.hiero.consensus.event.creator.EventCreationStatus.OVERLOADED;
+import static org.hiero.base.utility.CompareTo.isLessThanOrEqualTo;
+import static org.hiero.consensus.event.creator.impl.EventCreationStatus.OVERLOADED;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.function.Supplier;
-import org.hiero.consensus.event.creator.EventCreationRule;
-import org.hiero.consensus.event.creator.EventCreationStatus;
+import org.hiero.consensus.event.creator.impl.EventCreationStatus;
 
 /**
  * A rule that permits event creation only when the platform is considered to be in a healthy state.
