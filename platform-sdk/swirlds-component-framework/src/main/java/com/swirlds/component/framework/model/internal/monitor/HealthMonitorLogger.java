@@ -5,7 +5,6 @@ import static com.swirlds.common.units.TimeUnit.UNIT_NANOSECONDS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.CompareTo;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CompareTo;
 
 /**
  * Encapsulates logging for the wiring health monitor.

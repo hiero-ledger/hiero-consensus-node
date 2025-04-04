@@ -4,7 +4,7 @@ package com.swirlds.platform.event.report;
 import static com.swirlds.common.formatting.StringFormattingUtils.commaSeparatedNumber;
 import static com.swirlds.common.formatting.TextEffect.BRIGHT_RED;
 import static com.swirlds.common.formatting.TextEffect.BRIGHT_YELLOW;
-import static com.swirlds.common.utility.CompareTo.isGreaterThan;
+import static org.hiero.base.utility.CompareTo.isGreaterThan;
 
 import com.swirlds.common.formatting.UnitFormatter;
 import com.swirlds.common.io.IOIterator;

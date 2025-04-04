@@ -13,10 +13,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.Test;
 
 class ConsensusRoundTests {

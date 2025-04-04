@@ -4,7 +4,7 @@ package com.swirlds.platform.sequence.set;
 import com.swirlds.platform.sequence.Shiftable;
 import java.util.List;
 import java.util.function.Consumer;
-import org.hiero.consensus.utility.Clearable;
+import org.hiero.base.utility.Clearable;
 
 /**
  * <p>
