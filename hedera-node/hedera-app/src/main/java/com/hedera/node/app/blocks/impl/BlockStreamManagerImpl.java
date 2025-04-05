@@ -4,9 +4,6 @@ package com.hedera.node.app.blocks.impl;
 import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
-import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
-import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
@@ -18,7 +15,6 @@ import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static java.util.Objects.requireNonNull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
@@ -106,9 +102,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final BlockHashManager blockHashManager;
     private final RunningHashManager runningHashManager;
     private final boolean streamToBlockNodes;
-
-    // The status of pending work
-    private PendingWork pendingWork = NONE;
+    private boolean postUpgradeWorkDone = false;
     // The last time at which interval-based processing was done
     private Instant lastIntervalProcessTime = Instant.EPOCH;
     // The last platform-assigned time
@@ -183,6 +177,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private boolean hasCheckedForPendingBlocks = false;
 
+    @NonNull
+    private final AtomicBoolean systemEntitiesCreatedFlag;
+
     @Inject
     public BlockStreamManagerImpl(
             @NonNull final BlockHashSigner blockHashSigner,
@@ -194,6 +191,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
             @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final AtomicBoolean systemEntitiesCreatedFlag,
             @NonNull final Lifecycle lifecycle) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.networkInfo = requireNonNull(networkInfo);
@@ -218,6 +216,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.blockHashManager = new BlockHashManager(config);
         this.runningHashManager = new RunningHashManager();
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
+        this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
         final var hashFuture = initialStateHash.hashFuture();
         endRoundStateHashes.put(lastRoundOfPrevBlock, hashFuture);
         log.info(
@@ -261,7 +260,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             boundaryStateChangeListener.setBoundaryTimestamp(blockTimestamp);
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
-            pendingWork = classifyPendingWork(blockStreamInfo, version);
+            postUpgradeWorkDone = !impliesPostUpgradeWorkPending(blockStreamInfo, version);
             lastHandleTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
             lastIntervalProcessTime = asInstant(blockStreamInfo.lastIntervalProcessTimeOrElse(EPOCH));
             blockHashManager.startBlock(blockStreamInfo, lastBlockHash);
@@ -331,17 +330,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void confirmPendingWorkFinished() {
-        if (pendingWork == NONE) {
+    public void confirmPostUpgradeWorkFinished() {
+        if (postUpgradeWorkDone) {
             // Should never happen but throwing IllegalStateException might make the situation even worse, so just log
-            log.error("HandleWorkflow confirmed finished work but none was pending");
+            log.error("HandleWorkflow confirmed post-upgrade work done but none was already done.");
         }
-        pendingWork = NONE;
+        postUpgradeWorkDone = true;
     }
 
     @Override
-    public @NonNull PendingWork pendingWork() {
-        return pendingWork;
+    public boolean isPostUpgradeWorkDone() {
+        return postUpgradeWorkDone;
     }
 
     @Override
@@ -389,6 +388,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var writableState = state.getWritableStates(BlockStreamService.NAME);
             final var blockStreamInfoState = writableState.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY);
             final var boundaryTimestamp = boundaryStateChangeListener.boundaryTimestampOrThrow();
+
+            // Post upgrade work is considered 'not done' only when:
+            // 1. System entities are created (genesis work is done) AND
+            // 2. The current post upgrade work is not done
+            // Otherwise, if genesis work is not done, postUpgradeWorkDone should be true
+            final boolean persistPostUpgradeWorkDone = !systemEntitiesCreatedFlag.get() || postUpgradeWorkDone;
+
             blockStreamInfoState.put(new BlockStreamInfo(
                     blockNumber,
                     blockTimestamp(),
@@ -399,7 +405,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     outputTreeStatus.numLeaves(),
                     outputTreeStatus.rightmostHashes(),
                     boundaryTimestamp,
-                    pendingWork != POST_UPGRADE_WORK,
+                    persistPostUpgradeWorkDone,
                     version,
                     asTimestamp(lastIntervalProcessTime),
                     asTimestamp(lastHandleTime)));
@@ -553,30 +559,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
     }
 
-    /**
-     * Classifies the type of work pending, if any, given the block stream info from state and the current
-     * software version.
-     *
-     * @param blockStreamInfo the block stream info
-     * @param version         the version
-     * @return the type of pending work given the block stream info and version
-     */
-    @VisibleForTesting
-    static PendingWork classifyPendingWork(
+    private boolean impliesPostUpgradeWorkPending(
             @NonNull final BlockStreamInfo blockStreamInfo, @NonNull final SemanticVersion version) {
-        requireNonNull(version);
-        requireNonNull(blockStreamInfo);
-        if (EPOCH.equals(blockStreamInfo.lastHandleTimeOrElse(EPOCH))) {
-            return GENESIS_WORK;
-        } else if (impliesPostUpgradeWorkPending(blockStreamInfo, version)) {
-            return POST_UPGRADE_WORK;
-        } else {
-            return NONE;
+        // Post upgrade work should only be considered pending when:
+        // 1. System entities have been created (systemEntitiesCreatedFlag is true) AND
+        // 2. Either: version doesn't match OR flag in blockStreamInfo indicates work not done
+        if (!systemEntitiesCreatedFlag.get()) {
+            // If genesis work is not done, post upgrade work is considered NOT pending
+            return false;
         }
-    }
 
-    private static boolean impliesPostUpgradeWorkPending(
-            @NonNull final BlockStreamInfo blockStreamInfo, @NonNull final SemanticVersion version) {
+        // If system entities are created, check version and persisted flag
         return !version.equals(blockStreamInfo.creationSoftwareVersion()) || !blockStreamInfo.postUpgradeWorkDone();
     }
 
@@ -596,7 +589,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
 
         // During freeze round, we should close the block regardless of other conditions
-        if (roundNumber == freezeRoundNumber) {
+        // or round number is <= 1 as round 1 is written to disk.
+        if (roundNumber == freezeRoundNumber || roundNumber <= 1) {
             return true;
         }
 

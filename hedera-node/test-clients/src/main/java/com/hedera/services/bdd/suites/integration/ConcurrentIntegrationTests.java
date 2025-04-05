@@ -35,7 +35,6 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildUpgradeZipFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.mutateNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
@@ -43,6 +42,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.prepareUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingVersion;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -219,7 +219,7 @@ public class ConcurrentIntegrationTests {
                         .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY),
                 getAccountBalance("somebody").hasTinyBars(0L),
                 // Trigger block closure to ensure block is closed
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
+                waitUntilNextBlock().withBackgroundTraffic(true));
     }
 
     @EmbeddedHapiTest(MANIPULATES_EVENT_VERSION)
@@ -250,8 +250,8 @@ public class ConcurrentIntegrationTests {
                 getAccountBalance("treasury")
                         .hasTinyBars(spec -> amount ->
                                 Optional.ofNullable(amount == ONE_HUNDRED_HBARS ? "Fee was not recharged" : null)),
-                // Trigger block closure to ensure block is closed
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
+                // Make sure genesis block is closed
+                waitUntilNextBlock().withBackgroundTraffic(true));
     }
 
     @GenesisHapiTest

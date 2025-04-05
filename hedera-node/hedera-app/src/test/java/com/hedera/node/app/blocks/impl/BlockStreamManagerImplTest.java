@@ -2,8 +2,6 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
-import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
 import static com.hedera.node.app.blocks.BlockStreamService.FAKE_RESTART_BLOCK_HASH;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
@@ -70,6 +68,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -166,52 +165,6 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void classifiesPendingGenesisWorkByIntervalTime() {
-        assertSame(
-                BlockStreamManager.PendingWork.GENESIS_WORK,
-                BlockStreamManagerImpl.classifyPendingWork(BlockStreamInfo.DEFAULT, SemanticVersion.DEFAULT));
-    }
-
-    @Test
-    void classifiesPriorVersionHasPostUpgradeWorkWithDifferentVersionButIntervalTime() {
-        assertSame(
-                POST_UPGRADE_WORK,
-                BlockStreamManagerImpl.classifyPendingWork(
-                        BlockStreamInfo.newBuilder()
-                                .creationSoftwareVersion(
-                                        SemanticVersion.newBuilder().major(1).build())
-                                .lastHandleTime(new Timestamp(1234567, 890))
-                                .build(),
-                        CREATION_VERSION));
-    }
-
-    @Test
-    void classifiesNonGenesisBlockOfSameVersionWithWorkNotDoneStillHasPostUpgradeWork() {
-        assertEquals(
-                POST_UPGRADE_WORK,
-                BlockStreamManagerImpl.classifyPendingWork(
-                        BlockStreamInfo.newBuilder()
-                                .creationSoftwareVersion(CREATION_VERSION)
-                                .lastHandleTime(new Timestamp(1234567, 890))
-                                .build(),
-                        CREATION_VERSION));
-    }
-
-    @Test
-    void classifiesNonGenesisBlockOfSameVersionWithWorkDoneAsNoWork() {
-        assertSame(
-                NONE,
-                BlockStreamManagerImpl.classifyPendingWork(
-                        BlockStreamInfo.newBuilder()
-                                .postUpgradeWorkDone(true)
-                                .creationSoftwareVersion(CREATION_VERSION)
-                                .lastIntervalProcessTime(new Timestamp(1234567, 890))
-                                .lastHandleTime(new Timestamp(1234567, 890))
-                                .build(),
-                        CREATION_VERSION));
-    }
-
-    @Test
     void canUpdateDistinguishedTimes() {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1L));
         subject = new BlockStreamManagerImpl(
@@ -224,6 +177,7 @@ class BlockStreamManagerImplTest {
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 TEST_PLATFORM_STATE_FACADE,
+                new AtomicBoolean(true),
                 lifecycle);
         assertSame(Instant.EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
@@ -247,6 +201,7 @@ class BlockStreamManagerImplTest {
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 TEST_PLATFORM_STATE_FACADE,
+                new AtomicBoolean(true),
                 lifecycle);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
@@ -257,7 +212,7 @@ class BlockStreamManagerImplTest {
                 1,
                 0,
                 blockStreamInfoWith(
-                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build(), false),
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
@@ -274,11 +229,11 @@ class BlockStreamManagerImplTest {
         // Start the round that will be block N
         subject.startRound(round, state);
         assertTrue(subject.hasLedgerId());
-        assertSame(POST_UPGRADE_WORK, subject.pendingWork());
-        subject.confirmPendingWorkFinished();
-        assertSame(NONE, subject.pendingWork());
+        assertSame(false, subject.isPostUpgradeWorkDone());
+        subject.confirmPostUpgradeWorkFinished();
+        assertSame(true, subject.isPostUpgradeWorkDone());
         // We don't fail hard on duplicate calls to confirm post-upgrade work
-        assertDoesNotThrow(() -> subject.confirmPendingWorkFinished());
+        assertDoesNotThrow(() -> subject.confirmPostUpgradeWorkFinished());
 
         // Assert the internal state of the subject has changed as expected and the writer has been opened
         verify(boundaryStateChangeListener).setBoundaryTimestamp(CONSENSUS_NOW);
@@ -346,7 +301,7 @@ class BlockStreamManagerImplTest {
                 1,
                 0,
                 blockStreamInfoWith(
-                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build(), false),
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
@@ -387,7 +342,7 @@ class BlockStreamManagerImplTest {
                 1,
                 0,
                 blockStreamInfoWith(
-                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build(), false),
                 platformStateWithFreezeTime(null),
                 aWriter);
         final AtomicReference<BlockHeader> writtenHeader = new AtomicReference<>();
@@ -405,11 +360,11 @@ class BlockStreamManagerImplTest {
         // Start the round that will be block N
         subject.startRound(round, state);
         assertTrue(subject.hasLedgerId());
-        assertSame(POST_UPGRADE_WORK, subject.pendingWork());
-        subject.confirmPendingWorkFinished();
-        assertSame(NONE, subject.pendingWork());
+        assertSame(false, subject.isPostUpgradeWorkDone());
+        subject.confirmPostUpgradeWorkFinished();
+        assertSame(true, subject.isPostUpgradeWorkDone());
         // We don't fail hard on duplicate calls to confirm post-upgrade work
-        assertDoesNotThrow(() -> subject.confirmPendingWorkFinished());
+        assertDoesNotThrow(() -> subject.confirmPostUpgradeWorkFinished());
 
         // Assert the internal state of the subject has changed as expected and the writer has been opened
         verify(boundaryStateChangeListener).setBoundaryTimestamp(CONSENSUS_NOW);
@@ -441,7 +396,7 @@ class BlockStreamManagerImplTest {
                 2,
                 0,
                 blockStreamInfoWith(
-                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build(), false),
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
@@ -485,7 +440,7 @@ class BlockStreamManagerImplTest {
         givenSubjectWith(
                 2,
                 2, // Use time-based blocks with 2 second period
-                blockStreamInfoWith(resultHashes, CREATION_VERSION),
+                blockStreamInfoWith(resultHashes, CREATION_VERSION, false),
                 platformStateWithFreezeTime(CONSENSUS_NOW),
                 aWriter);
         givenEndOfRoundSetup();
@@ -572,7 +527,7 @@ class BlockStreamManagerImplTest {
         givenSubjectWith(
                 1,
                 0,
-                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION, false),
                 platformStateWithFreezeTime(null),
                 aWriter,
                 bWriter);
@@ -653,7 +608,7 @@ class BlockStreamManagerImplTest {
                 1,
                 2,
                 blockStreamInfoWith(
-                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build(), false),
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
@@ -701,7 +656,7 @@ class BlockStreamManagerImplTest {
                 1,
                 2,
                 blockStreamInfoWith(
-                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build(), false),
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
@@ -729,7 +684,7 @@ class BlockStreamManagerImplTest {
                 1,
                 2,
                 blockStreamInfoWith(
-                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build(), false),
                 platformStateWithFreezeTime(Instant.ofEpochSecond(1001)),
                 aWriter);
         givenEndOfRoundSetup();
@@ -769,7 +724,7 @@ class BlockStreamManagerImplTest {
                 2,
                 0,
                 blockStreamInfoWith(
-                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build(), false),
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
@@ -792,16 +747,93 @@ class BlockStreamManagerImplTest {
         subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
 
         // First round (not mod 2)
-        given(round.getRoundNum()).willReturn(1L);
+        given(round.getRoundNum()).willReturn(3L);
         subject.startRound(round, state);
-        subject.endRound(state, 1L);
+        subject.endRound(state, 3L);
         verify(aWriter, never()).closeCompleteBlock();
 
         // Second round (mod 2)
-        given(round.getRoundNum()).willReturn(2L);
+        given(round.getRoundNum()).willReturn(4L);
         subject.startRound(round, state);
-        subject.endRound(state, 2L);
+        subject.endRound(state, 4L);
         verify(aWriter).closeCompleteBlock();
+    }
+
+    @Test
+    void setsPostUpgradeWorkDoneWhenSameVersionAndWorkDone() {
+        // Given
+        final var version = SemanticVersion.DEFAULT;
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY,
+                        version, // Same version as the subject's
+                        true), // Post upgrade work is already done
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+
+        // When
+        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        // Then
+        assertSame(true, subject.isPostUpgradeWorkDone());
+    }
+
+    @Test
+    void setsPostUpgradeWorkPendingWhenDifferentVersion() {
+        // Given
+        final var currentVersion = SemanticVersion.DEFAULT;
+        final var previousVersion =
+                SemanticVersion.DEFAULT.copyBuilder().patch(999).build();
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY,
+                        previousVersion, // Different version
+                        true), // Post upgrade work was done
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+
+        // When
+        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        // Then
+        assertSame(false, subject.isPostUpgradeWorkDone());
+    }
+
+    @Test
+    void setsPostUpgradeWorkPendingWhenSameVersionButWorkNotDone() {
+        // Given
+        final var version = SemanticVersion.DEFAULT;
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY,
+                        version, // Same version
+                        false), // Post upgrade work was not done
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+
+        // When
+        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        // Then
+        assertSame(false, subject.isPostUpgradeWorkDone());
     }
 
     private void givenSubjectWith(
@@ -809,6 +841,16 @@ class BlockStreamManagerImplTest {
             final int blockPeriod,
             @NonNull final BlockStreamInfo blockStreamInfo,
             @NonNull final PlatformState platformState,
+            @NonNull final BlockItemWriter... writers) {
+        givenSubjectWith(roundsPerBlock, blockPeriod, blockStreamInfo, platformState, SemanticVersion.DEFAULT, writers);
+    }
+
+    private void givenSubjectWith(
+            final int roundsPerBlock,
+            final int blockPeriod,
+            @NonNull final BlockStreamInfo blockStreamInfo,
+            @NonNull final PlatformState platformState,
+            @NonNull final SemanticVersion version,
             @NonNull final BlockItemWriter... writers) {
         final AtomicInteger nextWriter = new AtomicInteger(0);
         final var config = HederaTestConfigBuilder.create()
@@ -825,8 +867,9 @@ class BlockStreamManagerImplTest {
                 networkInfo,
                 boundaryStateChangeListener,
                 hashInfo,
-                SemanticVersion.DEFAULT,
+                version,
                 TEST_PLATFORM_STATE_FACADE,
+                new AtomicBoolean(true),
                 lifecycle);
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
         given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
@@ -880,7 +923,9 @@ class BlockStreamManagerImplTest {
     }
 
     private BlockStreamInfo blockStreamInfoWith(
-            @NonNull final Bytes resultHashes, @NonNull final SemanticVersion creationVersion) {
+            @NonNull final Bytes resultHashes,
+            @NonNull final SemanticVersion creationVersion,
+            final boolean postUpgradeWorkDone) {
         return BlockStreamInfo.newBuilder()
                 .blockNumber(N_MINUS_1_BLOCK_NO)
                 .creationSoftwareVersion(creationVersion)
@@ -888,6 +933,7 @@ class BlockStreamManagerImplTest {
                 .trailingOutputHashes(resultHashes)
                 .lastIntervalProcessTime(CONSENSUS_THEN)
                 .lastHandleTime(CONSENSUS_THEN)
+                .postUpgradeWorkDone(postUpgradeWorkDone)
                 .blockTime(asTimestamp(CONSENSUS_NOW.minusSeconds(5))) // Add block time to track last block creation
                 .build();
     }

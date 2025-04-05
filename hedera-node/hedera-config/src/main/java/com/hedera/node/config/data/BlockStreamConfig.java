@@ -35,7 +35,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean compressFilesOnCreation,
         @ConfigProperty(defaultValue = "32") @NetworkProperty int hashCombineBatchSize,
         @ConfigProperty(defaultValue = "1") @NetworkProperty int roundsPerBlock,
-        @ConfigProperty(defaultValue = "0") @Min(0) @NetworkProperty Duration blockPeriod,
+        @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty Duration blockPeriod,
         @ConfigProperty(defaultValue = "2") @NetworkProperty long waitPeriodForActiveConnection,
         @ConfigProperty(defaultValue = "localhost") String grpcAddress,
         @ConfigProperty(defaultValue = "8080") @Min(0) @Max(65535) int grpcPort) {

@@ -3,7 +3,6 @@ package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
@@ -142,7 +141,7 @@ public class HandleWorkflow {
     private final CurrentPlatformStatus currentPlatformStatus;
     private final BlockHashSigner blockHashSigner;
 
-    @Nullable
+    @NonNull
     private final AtomicBoolean systemEntitiesCreatedFlag;
 
     // The last second since the epoch at which the metrics were updated; this does not affect transaction handling
@@ -180,7 +179,7 @@ public class HandleWorkflow {
             @NonNull final CongestionMetrics congestionMetrics,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
             @NonNull final BlockHashSigner blockHashSigner,
-            @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
+            @NonNull final AtomicBoolean systemEntitiesCreatedFlag,
             @NonNull final NodeRewardManager nodeRewardManager) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
@@ -354,16 +353,13 @@ public class HandleWorkflow {
                     case RECORDS -> blockRecordManager
                             .consTimeOfLastHandledTxn()
                             .equals(Instant.EPOCH);
-                    case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
+                    case BLOCKS, BOTH -> !systemEntitiesCreatedFlag.get();
                 };
         if (isGenesis) {
             final var genesisEventTime = round.iterator().next().getConsensusTimestamp();
             logger.info("Doing genesis setup before {}", genesisEventTime);
             systemTransactions.doGenesisSetup(genesisEventTime, state);
             transactionsDispatched = true;
-            if (streamMode != RECORDS) {
-                blockStreamManager.confirmPendingWorkFinished();
-            }
             logger.info(SYSTEM_ENTITIES_CREATED_MSG);
             requireNonNull(systemEntitiesCreatedFlag).set(true);
         }
@@ -403,9 +399,7 @@ public class HandleWorkflow {
             }
         }
         if (streamMode != RECORDS) {
-            type = switch (blockStreamManager.pendingWork()) {
-                case POST_UPGRADE_WORK -> POST_UPGRADE_TRANSACTION;
-                default -> ORDINARY_TRANSACTION;};
+            type = blockStreamManager.isPostUpgradeWorkDone() ? ORDINARY_TRANSACTION : POST_UPGRADE_TRANSACTION;
         }
         final var userTxn =
                 parentTxnFactory.createUserTxn(state, creator, txn, consensusNow, type, stateSignatureTxnCallback);
@@ -661,7 +655,7 @@ public class HandleWorkflow {
                     logger.info("Doing post-upgrade setup @ {}", parentTxn.consensusNow());
                     systemTransactions.doPostUpgradeSetup(dispatch);
                     if (streamMode != RECORDS) {
-                        blockStreamManager.confirmPendingWorkFinished();
+                        blockStreamManager.confirmPostUpgradeWorkFinished();
                     }
                 }
                 hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);

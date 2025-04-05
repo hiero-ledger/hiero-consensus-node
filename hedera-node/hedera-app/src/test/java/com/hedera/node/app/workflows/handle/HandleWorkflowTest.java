@@ -47,6 +47,7 @@ import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
@@ -232,7 +233,7 @@ class HandleWorkflowTest {
                 congestionMetrics,
                 () -> PlatformStatus.ACTIVE,
                 blockHashSigner,
-                null,
+                new AtomicBoolean(true),
                 nodeRewardManager);
     }
 }

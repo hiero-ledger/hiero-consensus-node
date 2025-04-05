@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleMetrics;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
@@ -13,12 +14,10 @@ import com.hedera.node.app.workflows.prehandle.PreHandleWorkflowInjectionModule;
 import com.hedera.node.app.workflows.query.QueryWorkflowInjectionModule;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.SoftwareVersion;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import javax.inject.Singleton;
@@ -35,10 +34,9 @@ import javax.inject.Singleton;
         })
 public interface WorkflowsInjectionModule {
     @Provides
-    @Nullable
     @Singleton
-    static AtomicBoolean provideMaybeSystemEntitiesCreatedFlag(@NonNull final InitTrigger initTrigger) {
-        return initTrigger == InitTrigger.GENESIS ? new AtomicBoolean(false) : null;
+    static AtomicBoolean provideMaybeSystemEntitiesCreatedFlag(@NonNull final EntityCounts entityCounts) {
+        return entityCounts.numAccounts() == 0 ? new AtomicBoolean(false) : new AtomicBoolean(true);
     }
 
     @Provides
