@@ -18,6 +18,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
@@ -37,7 +38,6 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.Dispatch;
@@ -147,7 +147,7 @@ class ChildDispatchFactoryTest {
                 exchangeRateManager,
                 transactionChecker,
                 deduplicationCache,
-                ServicesSoftwareVersion::new);
+                SemanticVersion.DEFAULT);
     }
 
     @Test

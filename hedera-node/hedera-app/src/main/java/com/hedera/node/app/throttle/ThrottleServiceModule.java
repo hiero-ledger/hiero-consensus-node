@@ -14,14 +14,12 @@ import com.hedera.node.app.throttle.annotations.IngestThrottle;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.IntSupplier;
 import javax.inject.Singleton;
 
@@ -39,7 +37,7 @@ public interface ThrottleServiceModule {
             @NonNull final NetworkInfo networkInfo,
             @NonNull final ConfigProvider configProvider,
             @NonNull final Metrics metrics,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final SemanticVersion softwareVersionFactory) {
         final var throttleMetrics = new ThrottleMetrics(metrics, FRONTEND_THROTTLE);
         final IntSupplier frontendThrottleSplit =
                 () -> networkInfo.addressBook().size();

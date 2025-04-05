@@ -117,6 +117,7 @@ class V0540RosterSchemaTest {
         given(ctx.startupNetworks()).willReturn(startupNetworks);
         given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
         given(rosterStore.getActiveRoster()).willReturn(ROSTER);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
 
         subject.restart(ctx);
 
@@ -130,7 +131,8 @@ class V0540RosterSchemaTest {
         given(ctx.startupNetworks()).willReturn(startupNetworks);
         given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
         given(rosterStore.getActiveRoster()).willReturn(ROSTER);
-        given(ctx.isUpgrade(any(), any())).willReturn(true);
+        given(ctx.isUpgrade(any())).willReturn(true);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
 
         subject.restart(ctx);
 
@@ -145,9 +147,10 @@ class V0540RosterSchemaTest {
         given(ctx.startupNetworks()).willReturn(startupNetworks);
         given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
         given(rosterStore.getActiveRoster()).willReturn(ROSTER);
-        given(ctx.isUpgrade(any(), any())).willReturn(true);
+        given(ctx.isUpgrade(any())).willReturn(true);
         given(rosterStore.getCandidateRoster()).willReturn(ROSTER);
         given(canAdopt.test(ROSTER)).willReturn(false);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
 
         subject.restart(ctx);
 
@@ -162,10 +165,11 @@ class V0540RosterSchemaTest {
         given(ctx.startupNetworks()).willReturn(startupNetworks);
         given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
         given(rosterStore.getActiveRoster()).willReturn(ROSTER);
-        given(ctx.isUpgrade(any(), any())).willReturn(true);
+        given(ctx.isUpgrade(any())).willReturn(true);
         given(rosterStore.getCandidateRoster()).willReturn(ROSTER);
         given(canAdopt.test(ROSTER)).willReturn(true);
         given(ctx.roundNumber()).willReturn(ROUND_NO);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
 
         subject.restart(ctx);
 

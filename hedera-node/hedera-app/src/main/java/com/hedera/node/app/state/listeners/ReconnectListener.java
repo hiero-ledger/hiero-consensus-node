@@ -14,12 +14,10 @@ import com.hedera.node.config.ConfigProvider;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Executor;
-import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -38,13 +36,13 @@ public class ReconnectListener implements ReconnectCompleteListener {
     private final EntityIdFactory entityIdFactory;
 
     @NonNull
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final SemanticVersion softwareVersionFactory;
 
     @Inject
     public ReconnectListener(
             @NonNull @Named("FreezeService") final Executor executor,
             @NonNull final ConfigProvider configProvider,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
+            @NonNull final SemanticVersion softwareVersionFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
         this.executor = requireNonNull(executor);
         this.configProvider = requireNonNull(configProvider);

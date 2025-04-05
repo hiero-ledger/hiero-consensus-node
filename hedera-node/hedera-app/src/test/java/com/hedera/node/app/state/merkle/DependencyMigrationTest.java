@@ -18,7 +18,6 @@ import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.constructable.ConstructableRegistry;
@@ -84,7 +83,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                             null,
                             servicesRegistry,
                             null,
-                            new ServicesSoftwareVersion(CURRENT_VERSION),
+                            CURRENT_VERSION,
                             VERSIONED_CONFIG,
                             VERSIONED_CONFIG,
                             mock(Metrics.class),
@@ -120,7 +119,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                             merkleTree,
                             servicesRegistry,
                             null,
-                            new ServicesSoftwareVersion(CURRENT_VERSION),
+                            CURRENT_VERSION,
                             null,
                             null,
                             mock(Metrics.class),
@@ -138,7 +137,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                             merkleTree,
                             servicesRegistry,
                             null,
-                            new ServicesSoftwareVersion(CURRENT_VERSION),
+                            CURRENT_VERSION,
                             VERSIONED_CONFIG,
                             VERSIONED_CONFIG,
                             null,
@@ -230,8 +229,7 @@ class DependencyMigrationTest extends MerkleTestBase {
                 merkleTree,
                 servicesRegistry,
                 null,
-                new ServicesSoftwareVersion(
-                        SemanticVersion.newBuilder().major(1).build()),
+                SemanticVersion.newBuilder().major(1).build(),
                 VERSIONED_CONFIG,
                 VERSIONED_CONFIG,
                 mock(Metrics.class),

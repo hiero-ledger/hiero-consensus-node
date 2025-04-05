@@ -2,13 +2,13 @@
 package com.hedera.node.app.services;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -40,8 +40,8 @@ public interface ServiceMigrator {
     List<StateChanges.Builder> doMigrations(
             @NonNull MerkleNodeState state,
             @NonNull ServicesRegistry servicesRegistry,
-            @Nullable SoftwareVersion previousVersion,
-            @NonNull SoftwareVersion currentVersion,
+            @Nullable SemanticVersion previousVersion,
+            @NonNull SemanticVersion currentVersion,
             @NonNull Configuration appConfig,
             @NonNull Configuration platformConfig,
             @NonNull Metrics metrics,

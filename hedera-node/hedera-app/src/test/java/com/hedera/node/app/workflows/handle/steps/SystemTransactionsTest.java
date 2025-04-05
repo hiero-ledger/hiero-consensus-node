@@ -43,14 +43,12 @@ import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
-import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -117,7 +115,7 @@ class SystemTransactionsTest {
     private HederaRecordCache recordCache;
 
     @Mock
-    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private SemanticVersion softwareVersionFactory;
 
     @LoggingSubject
     private SystemTransactions subject;

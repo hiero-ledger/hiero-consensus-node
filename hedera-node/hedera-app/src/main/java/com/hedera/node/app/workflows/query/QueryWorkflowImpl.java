@@ -49,7 +49,6 @@ import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
@@ -88,7 +87,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
     private final OpWorkflowMetrics workflowMetrics;
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final SemanticVersion softwareVersionFactory;
 
     /**
      * Indicates if the QueryWorkflow should charge for handling queries.
@@ -133,7 +132,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
             final boolean shouldCharge,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final SemanticVersion softwareVersionFactory) {
         this.stateAccessor = requireNonNull(stateAccessor, "stateAccessor must not be null");
         this.submissionManager = requireNonNull(submissionManager, "submissionManager must not be null");
         this.ingestChecker = requireNonNull(ingestChecker, "ingestChecker must not be null");
