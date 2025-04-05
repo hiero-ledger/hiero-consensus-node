@@ -9,6 +9,8 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
 
 /**
@@ -161,4 +163,18 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param timeout the maximum time to wait for block stream shutdown
      */
     void awaitFatalShutdown(@NonNull Duration timeout);
+
+    /**
+     * Tracks that the given event hash has appeared in the current block.
+     * @param eventHash the event hash to track
+     */
+    void trackEventHash(@NonNull Hash eventHash);
+
+    /**
+     * Returns the index of the given event hash in the current block, if it has appeared.
+     * The index is the position of the event in the block, starting from 0.
+     * @param eventHash the event hash to look up
+     * @return the index of the event hash in the current block, if it has appeared
+     */
+    Optional<Integer> getEventIndex(@NonNull Hash eventHash);
 }

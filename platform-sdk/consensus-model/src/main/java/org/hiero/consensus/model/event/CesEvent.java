@@ -127,6 +127,12 @@ public class CesEvent extends AbstractSerializableHashable
         return platformEvent.consensusTransactionIterator();
     }
 
+    @NonNull
+    @Override
+    public Iterator<EventDescriptorWrapper> allParentsIterator() {
+        return platformEvent.allParentsIterator();
+    }
+
     @Override
     public long getConsensusOrder() {
         return platformEvent.getConsensusOrder();
