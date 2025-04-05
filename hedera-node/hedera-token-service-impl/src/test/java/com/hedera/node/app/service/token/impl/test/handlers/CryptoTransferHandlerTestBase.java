@@ -59,6 +59,11 @@ class CryptoTransferHandlerTestBase extends StepsBase {
             .senderAccountID(ACCOUNT_ID_3333)
             .receiverAccountID(ACCOUNT_ID_4444)
             .build();
+    protected static final NftTransfer SERIAL_2_FROM_3333_TO_4444 = NftTransfer.newBuilder()
+            .serialNumber(2)
+            .senderAccountID(ACCOUNT_ID_3333)
+            .receiverAccountID(ACCOUNT_ID_4444)
+            .build();
     protected static final NftTransfer SERIAL_2_FROM_4444_TO_3333 = NftTransfer.newBuilder()
             .serialNumber(2)
             .senderAccountID(ACCOUNT_ID_4444)

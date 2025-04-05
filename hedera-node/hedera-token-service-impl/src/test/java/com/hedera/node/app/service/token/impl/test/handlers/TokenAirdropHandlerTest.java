@@ -253,7 +253,6 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                 .token(TOKEN_2468)
                 .nftTransfers(
                         SERIAL_1_FROM_3333_TO_4444,
-                        SERIAL_2_FROM_4444_TO_3333,
                         SERIAL_1_FROM_3333_TO_4444.copyBuilder().serialNumber(3).build())
                 .build());
         given(pureChecksContext.body()).willReturn(txn);
@@ -325,7 +324,7 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
                 // Valid nft token transfers
                 TokenTransferList.newBuilder()
                         .token(token9753)
-                        .nftTransfers(SERIAL_1_FROM_3333_TO_4444, SERIAL_2_FROM_4444_TO_3333)
+                        .nftTransfers(SERIAL_1_FROM_3333_TO_4444, SERIAL_2_FROM_3333_TO_4444)
                         .build()));
         given(pureChecksContext.body()).willReturn(txn);
 
