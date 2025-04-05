@@ -102,11 +102,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
 
-                // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),
-                // so we can't toggle it via overriding(). Instead, we need to upgrade to the config version.
-                prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
-
                 // send jumbo payload to non jumbo endpoint
                 contractCall(CONTRACT, FUNCTION, jumboPayload)
                         .gas(1_000_000L)
@@ -238,7 +233,9 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @Order(8)
     @DisplayName("Three jumbo transactions one after the other")
     public Stream<DynamicTest> treeJumboTransactionOneAfterTheOther() {
-        final var payload = new byte[127 * 1024];
+        // The payload is 100 bytes short from 128kb. The reason is that the max size of the transaction is 128kb but
+        // when we send the payload we don't send it purly. There are additional ~100 bytes of data.
+        final var payload = new byte[128 * 1024 - 100];
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
