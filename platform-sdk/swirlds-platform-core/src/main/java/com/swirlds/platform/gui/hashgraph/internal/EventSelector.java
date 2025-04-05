@@ -76,7 +76,7 @@ public class EventSelector implements MouseListener {
             final int xEvent = metadata.xpos(null, e);
             final int yEvent = metadata.ypos(e);
             final double distanceSquared = Math.pow(xEvent - xClicked, 2) + Math.pow(yEvent - yClicked, 2);
-            if (distanceSquared <= rSquared) {
+            if (distanceSquared <= rSquared - 20) {
                 if (selectedEvent == e) {
                     selectedEvent = null;
                 } else {

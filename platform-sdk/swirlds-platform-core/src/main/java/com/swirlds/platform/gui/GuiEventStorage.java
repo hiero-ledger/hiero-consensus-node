@@ -3,6 +3,7 @@ package com.swirlds.platform.gui;
 
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
@@ -18,6 +19,7 @@ import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -36,6 +38,7 @@ public class GuiEventStorage {
     private final SimpleLinker linker;
     private final Configuration configuration;
     private ConsensusRound lastConsensusRound;
+    private Map<GossipEvent, BranchedEventMetadata> branchedEventsMetadata;
 
     /**
      * Creates an empty instance
@@ -141,5 +144,14 @@ public class GuiEventStorage {
      */
     public synchronized @Nullable ConsensusRound getLastConsensusRound() {
         return lastConsensusRound;
+    }
+
+    public Map<GossipEvent, BranchedEventMetadata> getBranchedEventsMetadata() {
+        return branchedEventsMetadata;
+    }
+
+    public void setBranchedEventsMetadata(
+            @NonNull final Map<GossipEvent, BranchedEventMetadata> branchedEventsMetadata) {
+        this.branchedEventsMetadata = branchedEventsMetadata;
     }
 }

@@ -4,6 +4,7 @@ package com.swirlds.platform.gui.hashgraph.internal;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants.HASHGRAPH_PICTURE_FONT;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants;
@@ -27,12 +28,17 @@ import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.Serial;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import javax.swing.JPanel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * This panel has the hashgraph picture, and appears in the window to the right of all the settings.
@@ -51,6 +57,10 @@ public class HashgraphPicture extends JPanel {
 
     private AddressBookMetadata nonExpandedMetadata;
     private AddressBookMetadata expandedMetadata;
+    private Long startGen;
+
+    /** used to store events coordinates for a given branch for each forking node */
+    private final Map<Long, Map<Integer, BranchCoordinates>> nodeIdToBranchIndexToCoordinates = new HashMap<>();
 
     public HashgraphPicture(final HashgraphGuiSource hashgraphSource, final HashgraphPictureOptions options) {
         this.hashgraphSource = hashgraphSource;
@@ -88,13 +98,14 @@ public class HashgraphPicture extends JPanel {
 
             List<EventImpl> events;
             if (options.displayLatestEvents()) {
-                final long startGen = Math.max(
+                startGen = Math.max(
                         hashgraphSource.getMaxGeneration() - options.getNumGenerationsDisplay() + 1,
                         EventConstants.FIRST_GENERATION);
                 options.setStartGeneration(startGen);
                 events = hashgraphSource.getEvents(startGen, options.getNumGenerationsDisplay());
             } else {
-                events = hashgraphSource.getEvents(options.getStartGeneration(), options.getNumGenerationsDisplay());
+                startGen = options.getStartGeneration();
+                events = hashgraphSource.getEvents(startGen, options.getNumGenerationsDisplay());
             }
             // in case the state has events from creators that don't exist, don't show them
             if (events == null) { // in case a screen refresh happens before any events
@@ -105,7 +116,8 @@ public class HashgraphPicture extends JPanel {
                     .filter(e -> addressBook.getIndexOfNodeId(e.getCreatorId()) < numMem)
                     .toList();
 
-            pictureMetadata = new PictureMetadata(fm, this.getSize(), currentMetadata, events);
+            pictureMetadata = new PictureMetadata(
+                    fm, this.getSize(), currentMetadata, events, hashgraphSource, nodeIdToBranchIndexToCoordinates);
 
             selector.setMetadata(pictureMetadata);
             selector.setEventsInPicture(events);
@@ -128,17 +140,76 @@ public class HashgraphPicture extends JPanel {
 
             final int d = pictureMetadata.getD();
 
+            if (nodeIdToBranchIndexToCoordinates.isEmpty()) {
+                for (final NodeId nodeId : hashgraphSource.getAddressBook().getNodeIdSet()) {
+                    nodeIdToBranchIndexToCoordinates.put(nodeId.id(), new HashMap<>());
+                }
+            }
+
             // for each event, draw 2 downward lines to its parents
             for (final EventImpl event : events) {
                 drawLinksToParents(g, event);
+            }
+
+            // reload branched events if such exist. Different generations are being displayed in the Gui,
+            // so we have to reposition branched events in case they fall in or out of the display generation range.
+            if (!hashgraphSource.getEventStorage().getBranchedEventsMetadata().isEmpty()) {
+                reloadBranchedEvents();
             }
 
             // for each event, draw its circle
             for (final EventImpl event : events) {
                 drawEventCircle(g, event, options, d);
             }
+
+            final var selectedEvent =
+                    events.stream().filter(selector::isSelected).toList().getFirst();
+            if (selectedEvent != null) {
+                // if we have a selected event draw it last, so that all labels and lines connected to it can be easily
+                // seen
+                drawEventCircle(g, selectedEvent, options, d);
+            }
         } catch (final Exception e) {
             logger.error(EXCEPTION.getMarker(), "error while painting", e);
+        }
+    }
+
+    // iterate over all of the created branched events and select only the ones falling in the currently displayed
+    // generation range, so that only they are drawn
+    private void reloadBranchedEvents() {
+        for (final Entry<Long, Map<Integer, BranchCoordinates>> nodeIdToBranchIndexToCoordinatesEntry :
+                nodeIdToBranchIndexToCoordinates.entrySet()) {
+            final Map<Integer, BranchCoordinates> branchIndexToCoordinates =
+                    nodeIdToBranchIndexToCoordinatesEntry.getValue();
+            for (final Entry<Integer, BranchCoordinates> branchIndexToCoordinatesEntry :
+                    branchIndexToCoordinates.entrySet()) {
+                final Map<GossipEvent, Integer> reloadedXCoordinates = new LinkedHashMap<>();
+
+                final BranchCoordinates branchCoordinates = branchIndexToCoordinatesEntry.getValue();
+                // Start displaying the reloaded branch from the leftmost X coordinate of the branch that was recorded
+                // on the first branch drawing occurrence
+                int xPos = branchCoordinates.getFarMostLeftX();
+                for (final Entry<GossipEvent, Integer> branchIndexToAllXCoordinatesEntry :
+                        branchCoordinates.getAllXCoordinates().entrySet()) {
+                    final GossipEvent branchedEvent = branchIndexToAllXCoordinatesEntry.getKey();
+
+                    if (hashgraphSource
+                            .getEventStorage()
+                            .getBranchedEventsMetadata()
+                            .containsKey(branchedEvent)) {
+                        final long generation = hashgraphSource
+                                .getEventStorage()
+                                .getBranchedEventsMetadata()
+                                .get(branchedEvent)
+                                .getGeneration();
+                        if (generation >= startGen) {
+                            reloadedXCoordinates.put(branchedEvent, xPos);
+                            xPos += pictureMetadata.getD() / 2;
+                        }
+                    }
+                }
+                branchCoordinates.setInsideGenerationRangeXCoordinates(reloadedXCoordinates);
+            }
         }
     }
 
@@ -168,7 +239,7 @@ public class HashgraphPicture extends JPanel {
             g.drawLine(
                     pictureMetadata.xpos(e2, event),
                     pictureMetadata.ypos(event),
-                    pictureMetadata.xpos(e2, event),
+                    pictureMetadata.xpos(e2, e1),
                     pictureMetadata.ypos(e1));
         }
         if (e2 != null && e2.getGeneration() >= pictureMetadata.getMinGen()) {
@@ -254,8 +325,21 @@ public class HashgraphPicture extends JPanel {
         if (options.writeBirthRound()) {
             s += " " + event.getBirthRound();
         }
+
+        final GossipEvent gossipEvent = event.getBaseEvent().getGossipEvent();
+        if (options.showBranches()
+                && hashgraphSource.getEventStorage().getBranchedEventsMetadata().containsKey(gossipEvent)) {
+            s += " " + "\\/ "
+                    + hashgraphSource
+                            .getEventStorage()
+                            .getBranchedEventsMetadata()
+                            .get(gossipEvent)
+                            .branchIndex();
+        }
+
         if (!s.isEmpty()) {
             final Rectangle2D rect = fm.getStringBounds(s, g);
+
             final int x = (int) (pictureMetadata.xpos(e2, event) - rect.getWidth() / 2. - fa / 4.);
             final int y = (int) (pictureMetadata.ypos(event) + rect.getHeight() / 2. - fd / 2);
             g.setColor(HashgraphGuiConstants.LABEL_OUTLINE);
