@@ -1,75 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.modular;
 
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 public class TestProtocol implements Protocol {
 
     private final NodeId selfId;
     private final List<CommunicationEvent> events;
+    private final List<TestPeerProtocol> peerProtocols;
 
-    public TestProtocol(NodeId selfId, List<CommunicationEvent> events) {
+    public TestProtocol(NodeId selfId, List<CommunicationEvent> events, List<TestPeerProtocol> peerProtocols) {
         this.selfId = selfId;
         this.events = events;
+        this.peerProtocols = peerProtocols;
     }
 
     @Override
     public PeerProtocol createPeerInstance(@NonNull NodeId otherId) {
-        return new TestPeerProtocol(selfId, otherId, events);
-    }
-}
-
-class TestPeerProtocol implements PeerProtocol {
-
-    private final NodeId otherId;
-    private final NodeId selfId;
-    private final List<CommunicationEvent> events;
-    int counter = 0;
-    long lastExchange = 0;
-
-    public TestPeerProtocol(NodeId selfId, NodeId otherId, List<CommunicationEvent> events) {
-        this.selfId = selfId;
-        this.otherId = otherId;
-        this.events = events;
+        var tpp = new TestPeerProtocol(selfId, otherId, events);
+        peerProtocols.add(tpp);
+        return tpp;
     }
 
     @Override
-    public boolean shouldInitiate() {
-        return System.currentTimeMillis() - lastExchange > 500;
-    }
-
-    @Override
-    public boolean shouldAccept() {
-        return true;
-    }
-
-    @Override
-    public boolean acceptOnSimultaneousInitiate() {
-        return true;
-    }
-
-    @Override
-    public void runProtocol(Connection connection) throws NetworkProtocolException, IOException, InterruptedException {
-        connection.getDos().writeLong(selfId.id());
-        connection.getDos().writeInt(counter++);
-        connection.getDos().flush();
-        var otherId = connection.getDis().readLong();
-        var otherCounter = connection.getDis().readInt();
-
-        if (otherId != connection.getOtherId().id()) {
-            throw new NetworkProtocolException("Mismatching node id received " + otherId + " expected "
-                    + connection.getOtherId().id());
-        }
-        this.lastExchange = System.currentTimeMillis();
-        synchronized (events) {
-            events.add(new CommunicationEvent(selfId.id(), counter - 1, otherId, otherCounter, this.lastExchange));
-        }
+    public void updatePlatformStatus(@NonNull PlatformStatus status) {
+        // no-op, we don't care
     }
 }

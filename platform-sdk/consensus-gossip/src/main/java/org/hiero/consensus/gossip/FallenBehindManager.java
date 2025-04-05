@@ -13,7 +13,7 @@ public interface FallenBehindManager {
      * @param id
      * 		the id of the node who says we have fallen behind
      */
-    void reportFallenBehind(NodeId id);
+    void reportFallenBehind(@NonNull NodeId id);
 
     /**
      * We have determined that we have not fallen behind, or we have reconnected, so reset everything to the initial

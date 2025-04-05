@@ -11,7 +11,7 @@ public class TestingSyncManager implements FallenBehindManager {
     private boolean fallenBehind = false;
 
     @Override
-    public void reportFallenBehind(NodeId id) {
+    public void reportFallenBehind(@NonNull final NodeId id) {
         // for testing, we conclude we have fallen behind even if just 1 node says so
         fallenBehind = true;
     }
@@ -32,10 +32,10 @@ public class TestingSyncManager implements FallenBehindManager {
     }
 
     @Override
-    public boolean shouldReconnectFrom(final NodeId peerId) {
+    public boolean shouldReconnectFrom(@NonNull final NodeId peerId) {
         return false;
     }
 
     @Override
-    public void addRemovePeers(@NonNull Set<NodeId> added, @NonNull Set<NodeId> removed) {}
+    public void addRemovePeers(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed) {}
 }

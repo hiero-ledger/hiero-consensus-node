@@ -5,14 +5,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.Utilities;
-import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
+import com.swirlds.platform.crypto.KeysAndCerts;
+import com.swirlds.platform.network.topology.DynamicConnectionManagers;
 import com.swirlds.platform.network.topology.NetworkTopology;
-import com.swirlds.platform.network.topology.StaticConnectionManagers;
 import com.swirlds.platform.network.topology.StaticTopology;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.platform.test.fixtures.network.TestConnectionManagerFactory;
 import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.util.List;
 import java.util.Random;
@@ -22,14 +25,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class StaticConnectionManagersTest {
-    @Mock
-    OutboundConnectionCreator connectionCreator;
+class DynamicConnectionManagersTest {
 
     private static List<Arguments> topologicalVariations() {
         return List.of(Arguments.of(10, 10), Arguments.of(20, 20), Arguments.of(50, 40), Arguments.of(60, 40));
@@ -46,7 +45,14 @@ class StaticConnectionManagersTest {
         final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
         final NetworkTopology topology = new StaticTopology(peers, selfId);
 
-        final StaticConnectionManagers managers = new StaticConnectionManagers(topology, connectionCreator);
+        final DynamicConnectionManagers managers = new DynamicConnectionManagers(
+                selfId,
+                peers,
+                mock(PlatformContext.class),
+                mock(ConnectionTracker.class),
+                mock(KeysAndCerts.class),
+                topology,
+                new TestConnectionManagerFactory(selfId));
         final List<NodeId> neighbors = topology.getNeighbors().stream().toList();
         final NodeId neighbor = neighbors.get(r.nextInt(neighbors.size()));
 
@@ -83,15 +89,18 @@ class StaticConnectionManagersTest {
         final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
         final NetworkTopology topology = new StaticTopology(peers, selfId);
 
-        final StaticConnectionManagers managers = new StaticConnectionManagers(topology, connectionCreator);
+        final DynamicConnectionManagers managers = new DynamicConnectionManagers(
+                selfId,
+                peers,
+                mock(PlatformContext.class),
+                mock(ConnectionTracker.class),
+                mock(KeysAndCerts.class),
+                topology,
+                new TestConnectionManagerFactory(selfId));
         final List<NodeId> neighbors = topology.getNeighbors().stream().toList();
         final NodeId neighbor = neighbors.get(r.nextInt(neighbors.size()));
 
         if (topology.shouldConnectTo(neighbor)) {
-            Mockito.when(connectionCreator.createConnection(Mockito.any())).thenAnswer(inv -> {
-                final NodeId peerId = inv.getArgument(0, NodeId.class);
-                return new FakeConnection(selfId, peerId);
-            });
             final ConnectionManager manager = managers.getManager(neighbor);
             assertNotNull(manager, "should have a manager for this connection");
             assertTrue(manager.isOutbound(), "should be outbound connection");
