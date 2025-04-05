@@ -14,12 +14,12 @@ import org.hiero.consensus.model.node.NodeId;
 /**
  * A container for collecting list of consensus rounds produced by the ConsensusEngine using List.
  */
-public class ConsensusRoundsListContainer implements ConsensusRoundsHolder {
+public class DefaultConsensusRoundsTestCollector implements ConsensusRoundsTestCollector {
 
     final Map<Long, ConsensusRound> collectedRounds = new TreeMap<>();
     final NodeId selfNodeId;
 
-    public ConsensusRoundsListContainer(final NodeId selfNodeId) {
+    public DefaultConsensusRoundsTestCollector(@NonNull final NodeId selfNodeId) {
         this.selfNodeId = selfNodeId;
     }
 
@@ -30,8 +30,7 @@ public class ConsensusRoundsListContainer implements ConsensusRoundsHolder {
 
             assertThat(collectedRounds)
                     .withFailMessage(String.format(
-                            "Round with number %d has been already" + " produced by node %d",
-                            roundNumber, selfNodeId.id()))
+                            "Round with number %d has been already produced by node %d", roundNumber, selfNodeId.id()))
                     .doesNotContainKey(roundNumber);
             collectedRounds.put(roundNumber, round);
         }
