@@ -500,24 +500,6 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void maxAutoAssociationUpdateToMoreThanTokenAssociationLimitFails() {
-        final var txn = new CryptoUpdateBuilder().withMaxAutoAssociations(12).build();
-        givenTxnWith(txn);
-
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("entities.limitTokenAssociations", true)
-                .withValue("tokens.maxPerAccount", 11)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(config);
-
-        // changing to less than 2 slots will fail
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT));
-        assertEquals(10, writableStore.get(updateAccountId).maxAutoAssociations());
-    }
-
-    @Test
     void updateMaxAutomaticAssociationsFailAsExpectedWithMoreThanMaxAutoAssociations() {
         final var txn = new CryptoUpdateBuilder().withMaxAutoAssociations(12).build();
         givenTxnWith(txn);

@@ -4,7 +4,6 @@ package com.hedera.node.app.service.token.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ID_REPEATED_IN_TOKEN_LIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
@@ -237,22 +236,6 @@ class TokenAssociateToAccountHandlerTest {
         }
 
         @Test
-        void exceedsTokenAssociationLimitForAccount() {
-            // There are 3 tokens already associated with the account we're putting in the transaction, so we
-            // need maxTokensPerAccount to be at least 3
-            mockConfig(2000L, true, 3);
-            final var txn = newAssociateTxn(toPbj(KNOWN_TOKEN_WITH_FREEZE));
-            given(context.body()).willReturn(txn);
-            given(context.storeFactory()).willReturn(storeFactory);
-            given(storeFactory.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
-            given(storeFactory.writableStore(WritableTokenRelationStore.class)).willReturn(writableTokenRelStore);
-
-            assertThatThrownBy(() -> subject.handle(context))
-                    .isInstanceOf(HandleException.class)
-                    .has(responseCode(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED));
-        }
-
-        @Test
         void tokenAlreadyAssociatedWithAccount() {
             mockContext();
             final var txn = newAssociateTxn(toPbj(KNOWN_TOKEN_WITH_KYC));
@@ -270,7 +253,7 @@ class TokenAssociateToAccountHandlerTest {
         void tokensAssociateToAccountWithNoTokenRels() {
             // Set maxTokensPerAccount to a value that will fail if areTokenAssociationsLimited
             // is incorrectly ignored
-            mockConfig(2000L, false, 4);
+            mockConfig(2000L, 4);
             given(context.storeFactory()).willReturn(storeFactory);
             given(storeFactory.readableStore(ReadableTokenStore.class)).willReturn(readableTokenStore);
 
@@ -470,13 +453,13 @@ class TokenAssociateToAccountHandlerTest {
         }
 
         private void mockContext(final long maxNumTokenRels, final long maxTokensPerAccount) {
-            mockConfig(maxNumTokenRels, false, (int) maxTokensPerAccount);
+            mockConfig(maxNumTokenRels, (int) maxTokensPerAccount);
 
             given(storeFactory.readableStore(ReadableTokenStore.class)).willReturn(readableTokenStore);
         }
 
         // The context passed in needs to be a mock
-        private void mockConfig(final long maxAggregateRels, final boolean limitedRels, final int maxRelsPerAccount) {
+        private void mockConfig(final long maxAggregateRels, final int maxRelsPerAccount) {
             lenient().when(storeFactory.readableStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
             final var config = mock(Configuration.class);
             lenient().when(context.configuration()).thenReturn(config);
@@ -486,7 +469,6 @@ class TokenAssociateToAccountHandlerTest {
             lenient().when(config.getConfigData(TokensConfig.class)).thenReturn(tokensConfig);
             final var entitiesConfig = mock(EntitiesConfig.class);
             lenient().when(config.getConfigData(EntitiesConfig.class)).thenReturn(entitiesConfig);
-            lenient().when(entitiesConfig.limitTokenAssociations()).thenReturn(limitedRels);
         }
     }
 }

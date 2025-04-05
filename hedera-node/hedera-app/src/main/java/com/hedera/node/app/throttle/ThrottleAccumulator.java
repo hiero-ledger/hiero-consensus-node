@@ -57,7 +57,6 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.AutoCreationConfig;
 import com.hedera.node.config.data.ContractsConfig;
-import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -591,11 +590,9 @@ public class ThrottleAccumulator {
                 configuration.getConfigData(AutoCreationConfig.class).enabled();
         final boolean isLazyCreationEnabled =
                 configuration.getConfigData(LazyCreationConfig.class).enabled();
-        final boolean unlimitedAutoAssociations =
-                configuration.getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
         if ((isAutoCreationEnabled || isLazyCreationEnabled) && implicitCreationsCount > 0) {
             return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now);
-        } else if (unlimitedAutoAssociations && autoAssociationsCount > 0) {
+        } else if (autoAssociationsCount > 0) {
             return shouldThrottleBasedOnAutoAssociations(manager, autoAssociationsCount, now);
         } else {
             return !manager.allReqsMetAt(now);

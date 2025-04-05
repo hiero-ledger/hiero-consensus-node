@@ -19,11 +19,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_R
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
-import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.CREATE_SLOT_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
@@ -352,8 +350,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         // When the account is created, it can be created with some auto-association slots. But we have some
         // additional ledger-wide limits we need to check as well.
         validateFalse(
-                cryptoCreateValidator.tooManyAutoAssociations(
-                        op.maxAutomaticTokenAssociations(), ledgerConfig, entitiesConfig, tokensConfig),
+                cryptoCreateValidator.tooManyAutoAssociations(op.maxAutomaticTokenAssociations(), ledgerConfig),
                 INVALID_MAX_AUTO_ASSOCIATIONS);
 
         // This proxy field has been deprecated. We do not allow people to use it.
@@ -453,20 +450,14 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var op = feeContext.body().cryptoCreateAccountOrThrow();
         final var keySize =
                 op.hasKey() ? getAccountKeyStorageSize(CommonPbjConverters.fromPbj(op.keyOrElse(Key.DEFAULT))) : 0L;
-        final var unlimitedAutoAssociations =
-                feeContext.configuration().getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
-        final var maxAutoAssociationsSize =
-                !unlimitedAutoAssociations && op.maxAutomaticTokenAssociations() > 0 ? INT_SIZE : 0L;
-        final var baseSize = op.memo().length() + keySize + maxAutoAssociationsSize;
+        final var baseSize = op.memo().length() + keySize;
         final var lifeTime = op.autoRenewPeriodOrElse(Duration.DEFAULT).seconds();
         final var feeCalculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
         final var fee = feeCalculator
                 .addBytesPerTransaction(baseSize + (2 * LONG_SIZE) + BOOL_SIZE)
                 .addRamByteSeconds((CRYPTO_ENTITY_SIZES.fixedBytesInAccountRepr() + baseSize) * lifeTime)
                 .addNetworkRamByteSeconds(BASIC_ENTITY_ID_SIZE * USAGE_PROPERTIES.legacyReceiptStorageSecs());
-        if (!unlimitedAutoAssociations && op.maxAutomaticTokenAssociations() > 0) {
-            fee.addRamByteSeconds(op.maxAutomaticTokenAssociations() * lifeTime * CREATE_SLOT_MULTIPLIER);
-        }
+
         if (IMMUTABILITY_SENTINEL_KEY.equals(op.key())) {
             final var lazyCreationFee = feeContext.dispatchComputeFees(UPDATE_TXN_BODY_BUILDER, feeContext.payer());
             return fee.calculate().plus(lazyCreationFee);

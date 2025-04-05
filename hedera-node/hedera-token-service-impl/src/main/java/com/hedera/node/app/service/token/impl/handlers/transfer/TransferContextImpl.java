@@ -110,7 +110,7 @@ public class TransferContextImpl implements TransferContext {
     }
 
     @Override
-    public void createFromAlias(final Bytes alias, final int reqMaxAutoAssociations) {
+    public void createFromAlias(final Bytes alias) {
         // if it is a serialized proto key, auto-create account
         if (AliasUtils.isOfEvmAddressSize(alias)) {
             // if it is an evm address create a hollow account
@@ -123,12 +123,8 @@ public class TransferContextImpl implements TransferContext {
             // Only EVM addresses and key aliases are supported when creating a new account.
             throw new HandleException(INVALID_ALIAS_KEY);
         }
-        // if this auto creation is from a token transfer, check if auto creation from tokens is enabled
-        if (reqMaxAutoAssociations > 0) {
-            validateTrue(tokensConfig.autoCreationsIsEnabled(), NOT_SUPPORTED);
-        }
         // Keep the created account in the resolutions map
-        final var createdAccount = autoAccountCreator.create(alias, reqMaxAutoAssociations);
+        final var createdAccount = autoAccountCreator.create(alias);
         resolutions.put(alias, createdAccount);
     }
 

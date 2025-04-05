@@ -644,7 +644,6 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
         given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
@@ -690,7 +689,6 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
         given(lazyCreationConfig.enabled()).willReturn(true);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
@@ -734,7 +732,6 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
         given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
@@ -777,7 +774,6 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
         given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
@@ -821,7 +817,6 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
         given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
@@ -863,7 +858,6 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
         given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
@@ -906,7 +900,6 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
         given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
@@ -948,7 +941,6 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
         given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
@@ -1704,7 +1696,6 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
         given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(ALIASES_KEY)).willReturn(aliases);
