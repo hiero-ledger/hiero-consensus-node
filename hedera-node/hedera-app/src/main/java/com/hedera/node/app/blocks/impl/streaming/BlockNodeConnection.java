@@ -10,6 +10,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.stub.StreamObserver;
 import io.helidon.webclient.grpc.GrpcServiceClient;
 import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -22,6 +24,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class BlockNodeConnection implements StreamObserver<PublishStreamResponse> {
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
+    private final ScheduledExecutorService scheduler;
 
     private final BlockNodeConfig node;
     private final GrpcServiceClient grpcServiceClient;
@@ -59,13 +62,15 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             @NonNull final BlockNodeConfig nodeConfig,
             @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
             @NonNull final BlockStreamStateManager blockStreamStateManager,
-            @NonNull final GrpcServiceClient grpcServiceClient) {
+            @NonNull final GrpcServiceClient grpcServiceClient,
+            @NonNull final ScheduledExecutorService scheduler) {
         this.node = requireNonNull(nodeConfig, "nodeConfig must not be null");
         this.blockNodeConnectionManager =
                 requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
         this.blockStreamStateManager =
                 requireNonNull(blockStreamStateManager, "blockStreamStateManager must not be null");
         this.grpcServiceClient = requireNonNull(grpcServiceClient, "grpcServiceClient must not be null");
+        this.scheduler = requireNonNull(scheduler, "scheduler must not be null");
     }
 
     /**
@@ -280,16 +285,74 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 blockNumber,
                 responseCode);
 
-        // For all error codes, restart after the last verified block + 1
-        long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
-        logger.debug(
-                "[{}] Restarting stream at block {} due to {} for node {}:{}",
-                Thread.currentThread().getName(),
-                restartBlockNumber,
-                responseCode,
-                node.address(),
-                node.port());
-        endStreamAndRestartAtBlock(restartBlockNumber);
+        // Always end the stream when we receive an end of stream message
+        logger.debug("Ending stream for node {}:{}", node.address(), node.port());
+        synchronized (isActiveLock) {
+            synchronized (channelLock) {
+                close();
+            }
+        }
+
+        switch (responseCode) {
+            case STREAM_ITEMS_INTERNAL_ERROR -> {
+                // The block node had an internal error and cannot continue processing.
+                // We should wait for a short period before attempting to reconnect
+                // to avoid overwhelming the node if it's having issues
+                logger.warn(
+                        "[{}] Block node {}:{} reported internal error at block {}. Will attempt reconnect after delay.",
+                        Thread.currentThread().getName(),
+                        node.address(),
+                        node.port(),
+                        blockNumber);
+
+                // Schedule a delayed reconnect after the last verified block + 1
+                long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
+
+                // Schedule stream restart after some delay
+                // FUTURE: here we could add exponential backoff logic and or establishing the stream to other
+                // connections from config
+                scheduler.schedule(
+                        () -> {
+                            logger.debug(
+                                    "[{}] Attempting reconnect after internal error for node {}:{} at block {}",
+                                    Thread.currentThread().getName(),
+                                    node.address(),
+                                    node.port(),
+                                    restartBlockNumber);
+                            restartStreamAtBlock(restartBlockNumber);
+                        },
+                        5,
+                        TimeUnit.SECONDS);
+            }
+            case STREAM_ITEMS_BEHIND -> {
+                // The block node is "behind" the publisher.
+                // The consensus node has sent a block later than this block node
+                // can process. We should restart the stream at the block immediately
+                // following the block where the node fell behind.
+                // Restart the stream at the block immediately following where the node fell behind
+                long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
+                logger.warn(
+                        "[{}] Block node {}:{} reported it is behind. Will restart stream at block {}",
+                        Thread.currentThread().getName(),
+                        node.address(),
+                        node.port(),
+                        restartBlockNumber);
+
+                restartStreamAtBlock(restartBlockNumber);
+            }
+            default -> {
+                // By default, restart after the last verified block + 1
+                long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
+                logger.debug(
+                        "[{}] Restarting stream at block {} due to {} for node {}:{}",
+                        Thread.currentThread().getName(),
+                        restartBlockNumber,
+                        responseCode,
+                        node.address(),
+                        node.port());
+                restartStreamAtBlock(restartBlockNumber);
+            }
+        }
     }
 
     private void removeFromActiveConnections(BlockNodeConfig node) {
@@ -452,19 +515,17 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      *
      * @param blockNumber the block number to restart at
      */
-    public void endStreamAndRestartAtBlock(long blockNumber) {
-        logger.debug(
-                "Ending stream and restarting at block {} for node {}:{}", blockNumber, node.address(), node.port());
+    public void restartStreamAtBlock(long blockNumber) {
+        logger.debug("Restarting stream at block {} for node {}:{}", blockNumber, node.address(), node.port());
 
         synchronized (isActiveLock) {
             synchronized (channelLock) {
-                close();
                 setCurrentBlockNumber(blockNumber);
                 establishStream();
             }
         }
 
-        logger.debug("Stream ended and restarted at block {} for node {}:{}", blockNumber, node.address(), node.port());
+        logger.debug("Stream restarted at block {} for node {}:{}", blockNumber, node.address(), node.port());
     }
 
     /**
