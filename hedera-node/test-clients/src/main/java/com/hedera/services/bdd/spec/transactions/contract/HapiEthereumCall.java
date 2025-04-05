@@ -26,6 +26,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.meta.ActionableContractCall;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileCreate;
+import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.suites.contract.Utils;
 import com.hedera.services.bdd.utils.Signing;
 import com.hederahashgraph.api.proto.java.EthereumTransactionBody;
@@ -44,6 +45,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -78,6 +80,9 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     private Integer chainId = CHAIN_ID;
     private boolean wrongRecId;
     private boolean isJumboTxn = false;
+
+    @Nullable
+    public static AtomicInteger successfulJumboTransactions = null;
 
     public HapiEthereumCall withExplicitParams(final Supplier<String> supplier) {
         explicitHexedParams = Optional.of(supplier);
@@ -438,5 +443,18 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     public HapiEthereumCall markAsJumboTxn() {
         isJumboTxn = true;
         return this;
+    }
+
+    @Override
+    protected void assertExpectationsGiven(HapiSpec spec) throws Throwable {
+        if (successfulJumboTransactions != null) {
+            final var op = getTxnRecord(extractTxnId(txnSubmitted))
+                    .assertingNothingAboutHashes()
+                    .noLogging();
+            CustomSpecAssert.allRunFor(spec, op);
+            final var success = op.getResponseRecord().getReceipt().getStatus().equals(ResponseCodeEnum.SUCCESS)
+                    || op.getResponseRecord().getReceipt().getStatus().equals(ResponseCodeEnum.WRONG_NONCE);
+            successfulJumboTransactions.getAndAdd(success ? 1 : 0);
+        }
     }
 }

@@ -71,6 +71,7 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
     Optional<Integer> maxAutomaticAssociations = Optional.empty();
     Optional<Integer> alreadyUsedAutomaticAssociations = Optional.empty();
     private Optional<Consumer<AccountID>> idObserver = Optional.empty();
+    private Optional<Consumer<Long>> ethereumNonceObserver = Optional.empty();
 
     @Nullable
     private Consumer<Key> keyObserver = null;
@@ -143,6 +144,11 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
 
     public HapiGetAccountInfo exposingIdTo(Consumer<AccountID> obs) {
         this.idObserver = Optional.of(obs);
+        return this;
+    }
+
+    public HapiGetAccountInfo exposingEthereumNonceTo(Consumer<Long> obs) {
+        this.ethereumNonceObserver = Optional.of(obs);
         return this;
     }
 
@@ -301,6 +307,8 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
             exposingExpiryTo.ifPresent(cb ->
                     cb.accept(infoResponse.getAccountInfo().getExpirationTime().getSeconds()));
             idObserver.ifPresent(cb -> cb.accept(infoResponse.getAccountInfo().getAccountID()));
+            ethereumNonceObserver.ifPresent(
+                    cb -> cb.accept(infoResponse.getAccountInfo().getEthereumNonce()));
             Optional.ofNullable(keyObserver)
                     .ifPresent(cb -> cb.accept(infoResponse.getAccountInfo().getKey()));
             Optional.ofNullable(ledgerIdObserver)

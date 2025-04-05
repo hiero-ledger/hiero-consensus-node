@@ -6,13 +6,14 @@ import com.hedera.node.config.NodeProperty;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import java.util.List;
+import java.util.Set;
 
 @ConfigData("jumboTransactions")
 public record JumboTransactionsConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean isEnabled,
         @ConfigProperty(defaultValue = "133120") @NetworkProperty int maxTxnSize,
         @ConfigProperty(defaultValue = "131072") @NetworkProperty int ethereumMaxCallDataSize,
-        @ConfigProperty(defaultValue = "callEthereum") @NodeProperty List<String> grpcMethodNames,
+        @ConfigProperty(defaultValue = "callEthereum") @NodeProperty Set<String> grpcMethodNames,
         @ConfigProperty(defaultValue = "EthereumTransaction") @NodeProperty
-                List<HederaFunctionality> allowedHederaFunctionalities) {}
+                Set<HederaFunctionality> allowedHederaFunctionalities,
+        @ConfigProperty(defaultValue = "133120") @NetworkProperty long maxBytesPerSec) {}
