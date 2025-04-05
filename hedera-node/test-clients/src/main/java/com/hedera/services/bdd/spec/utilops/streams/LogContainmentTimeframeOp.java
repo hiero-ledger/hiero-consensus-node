@@ -90,15 +90,23 @@ public class LogContainmentTimeframeOp extends UtilOp {
         List<String> missingPatterns = new ArrayList<>();
 
         spec.targetNetworkOrThrow().nodesFor(selector).forEach(node -> {
-            final var logContents = rethrowIO(() -> Files.readString(node.getExternalPath(path)));
-            final var logLines = logContents.split("\n");
+            final var logLines =
+                    rethrowIO(() -> Files.lines(node.getExternalPath(path))).toList();
 
             // Filter logs to only those within the timeframe
             List<String> relevantLogs = new ArrayList<>();
             for (String line : logLines) {
-                String timestamp = line.substring(0, 23); // "2025-03-17 21:36:20.275"
-                LocalDateTime logTime = LocalDateTime.parse(timestamp, LOG_TIMESTAMP_FORMAT);
-                Instant logInstant = logTime.atZone(ZoneId.systemDefault()).toInstant();
+                LocalDateTime logTime;
+                try {
+                    final String timestamp = line.substring(0, 23); // "2025-03-17 21:36:20.275"
+                    logTime = LocalDateTime.parse(timestamp, LOG_TIMESTAMP_FORMAT);
+                } catch (Exception e) {
+                    // Skip lines that don't match the expected timestamp format
+                    continue;
+                }
+
+                final Instant logInstant =
+                        logTime.atZone(ZoneId.systemDefault()).toInstant();
 
                 if (logInstant.isAfter(startTime) && logInstant.isBefore(startTime.plus(timeframe))) {
                     relevantLogs.add(line);

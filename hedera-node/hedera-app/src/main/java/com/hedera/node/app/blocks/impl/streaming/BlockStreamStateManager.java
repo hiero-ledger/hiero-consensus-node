@@ -89,8 +89,9 @@ public class BlockStreamStateManager {
      */
     public void createRequestFromCurrentItems(@NonNull BlockState blockState) {
         // Create BlockItemSet by adding all items at once
-        final BlockItemSet itemSet =
-                BlockItemSet.newBuilder().blockItems(blockState.items()).build();
+        final BlockItemSet itemSet = BlockItemSet.newBuilder()
+                .blockItems(new ArrayList<>(blockState.items()))
+                .build();
 
         // Create the request and add it to the list
         final PublishStreamRequest request =
