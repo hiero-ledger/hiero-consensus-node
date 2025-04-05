@@ -310,7 +310,7 @@ jobs:
           fi
 
       - name: Install SSH key
-        uses: step-security/ssh-key-action@dfbe08d4d30e35c572b26d0012a8205cb1924b51 # v2.7.0
+        uses: step-security/ssh-key-action@f1316fac9982b07b13cadd1b0c20b6c00db5e92a # v2.7.1
         with:
           name: jrs-ssh-keyfile
           key: ${{ secrets.jrs-ssh-key-file }}
