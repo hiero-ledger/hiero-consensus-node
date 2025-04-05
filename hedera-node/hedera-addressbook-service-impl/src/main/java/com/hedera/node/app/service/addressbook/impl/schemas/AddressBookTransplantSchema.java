@@ -14,6 +14,8 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,7 +40,7 @@ public interface AddressBookTransplantSchema {
     }
 
     /**
-     * Set the node metadata in the state from the provided network, for whatever nodes they are available.
+     * Set the node metadata in the state from the provided network, for whatever nodes are available.
      *
      * @param network the network from which to extract the node metadata
      * @param writableStates the state in which to store the node metadata
@@ -49,10 +51,35 @@ public interface AddressBookTransplantSchema {
         network.nodeMetadata().stream()
                 .filter(NodeMetadata::hasNode)
                 .map(NodeMetadata::nodeOrThrow)
-                .forEach(node -> {
-                    adoptedNodeCount.getAndIncrement();
-                    nodes.put(new EntityNumber(node.nodeId()), node);
+                .forEach(networkNode -> {
+                    final EntityNumber nodeIdAsEntId = EntityNumber.newBuilder()
+                            .number(networkNode.nodeId())
+                            .build();
+
+                    // Only insert a new node definition if it doesn't already exist in state
+                    // (FUTURE) The `if` condition gating these insertions won't be necessary once we no longer support
+                    // network loading via a fallback config.txt
+                    final var maybeStateNode = nodes.get(nodeIdAsEntId);
+                    if (!nodeDefsMatch(networkNode, maybeStateNode)) {
+                        adoptedNodeCount.getAndIncrement();
+                        nodes.put(nodeIdAsEntId, networkNode);
+                    }
                 });
         return adoptedNodeCount.get();
+    }
+
+    static boolean nodeDefsMatch(@Nullable final Node node1, @Nullable final Node node2) {
+        if (node1 == node2) return true;
+        if (node1 == null || node2 == null) return false;
+
+        return node1.nodeId() == node2.nodeId()
+                && Objects.equals(node1.accountId(), node2.accountId())
+                && Objects.equals(node1.description(), node2.description())
+                && Objects.equals(node1.gossipEndpoint(), node2.gossipEndpoint())
+                && Objects.equals(node1.serviceEndpoint(), node2.serviceEndpoint())
+                && Objects.equals(node1.gossipCaCertificate(), node2.gossipCaCertificate())
+                && Objects.equals(node1.grpcCertificateHash(), node2.grpcCertificateHash())
+                && node1.weight() == node2.weight()
+                && node1.deleted() == node2.deleted();
     }
 }
