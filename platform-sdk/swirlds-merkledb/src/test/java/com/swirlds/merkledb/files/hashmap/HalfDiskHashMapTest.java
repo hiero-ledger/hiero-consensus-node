@@ -5,11 +5,16 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
+import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKeyFixedSize;
 import com.swirlds.merkledb.test.fixtures.files.FilesTestType;
 import com.swirlds.virtualmap.VirtualKey;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Random;
@@ -35,6 +40,18 @@ class HalfDiskHashMapTest {
                 CONFIGURATION, count, tempDirPath.resolve(testType.name()), "HalfDiskHashMapTest", null, false);
         map.printStats();
         return map;
+    }
+
+    private MemoryIndexDiskKeyValueStore createNewTempKV(FilesTestType testType, int count) throws IOException {
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final LongList index = new LongListHeap(count, CONFIGURATION);
+        return new MemoryIndexDiskKeyValueStore(
+                merkleDbConfig,
+                tempDirPath.resolve(testType.name() + "_kv"),
+                "HalfDiskHashMapTestKV",
+                null,
+                null,
+                index);
     }
 
     private static void createSomeData(
@@ -172,6 +189,51 @@ class HalfDiskHashMapTest {
             }
             assertDoesNotThrow(map::endWriting);
         }
+    }
+
+    @Test
+    void testRebuildMap() throws Exception {
+        final FilesTestType testType = FilesTestType.variable;
+        final HalfDiskHashMap map = createNewTempMap(testType, 100);
+
+        map.startWriting();
+        final VirtualKey key1 = testType.createVirtualLongKey(1);
+        map.put(testType.keySerializer.toBytes(key1), key1.hashCode(), 1);
+        final VirtualKey key2 = testType.createVirtualLongKey(2);
+        map.put(testType.keySerializer.toBytes(key2), key2.hashCode(), 2);
+        map.endWriting();
+        map.startWriting();
+        final VirtualKey key3 = testType.createVirtualLongKey(3);
+        map.put(testType.keySerializer.toBytes(key3), key3.hashCode(), 3);
+        final VirtualKey key4 = testType.createVirtualLongKey(4);
+        map.put(testType.keySerializer.toBytes(key4), key4.hashCode(), 4);
+        map.endWriting();
+
+        assertEquals(1, map.get(testType.keySerializer.toBytes(key1), key1.hashCode(), -1));
+        assertEquals(2, map.get(testType.keySerializer.toBytes(key2), key2.hashCode(), -1));
+        assertEquals(3, map.get(testType.keySerializer.toBytes(key3), key3.hashCode(), -1));
+        assertEquals(4, map.get(testType.keySerializer.toBytes(key4), key4.hashCode(), -1));
+
+        final MemoryIndexDiskKeyValueStore kv = createNewTempKV(testType, 100);
+        kv.startWriting();
+        kv.updateValidKeyRange(2, 4);
+        final VirtualLeafBytes rec2 =
+                new VirtualLeafBytes(2, testType.keySerializer.toBytes(key2), key2.hashCode(), Bytes.wrap("12"));
+        kv.put(2, rec2::writeTo, rec2.getSizeInBytes());
+        final VirtualLeafBytes rec3 =
+                new VirtualLeafBytes(3, testType.keySerializer.toBytes(key3), key3.hashCode(), Bytes.wrap("13"));
+        kv.put(3, rec3::writeTo, rec3.getSizeInBytes());
+        final VirtualLeafBytes rec4 =
+                new VirtualLeafBytes(4, testType.keySerializer.toBytes(key4), key4.hashCode(), Bytes.wrap("14"));
+        kv.put(4, rec4::writeTo, rec4.getSizeInBytes());
+        kv.endWriting();
+
+        map.repair(2, 4, kv);
+
+        assertEquals(-1, map.get(testType.keySerializer.toBytes(key1), key1.hashCode(), -1));
+        assertEquals(2, map.get(testType.keySerializer.toBytes(key2), key2.hashCode(), -1));
+        assertEquals(3, map.get(testType.keySerializer.toBytes(key3), key3.hashCode(), -1));
+        assertEquals(4, map.get(testType.keySerializer.toBytes(key4), key4.hashCode(), -1));
     }
 
     private static void printTestUpdate(long start, long count, String msg) {

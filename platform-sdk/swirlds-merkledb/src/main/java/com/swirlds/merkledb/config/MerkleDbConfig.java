@@ -50,6 +50,10 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  * @param indexRebuildingEnforced
  * 		Configuration used to avoid reading stored indexes from a saved state and enforce rebuilding those indexes from
  * 		data files.
+ * @param tablesToRepairHdhm
+ *      Comma-delimited list of data source names, may be empty. When a MerkleDb data source with a name from the
+ *      list is loaded from a snapshot, its key to path map will be rebuilt from path to KV data files. Note that
+ *      to rebuild the map may take very long. Don't enable it for large tables!
  * @param percentHalfDiskHashMapFlushThreads
  *      Percentage, from 0.0 to 100.0, of available processors to use for half disk hash map background flushing
  *      threads.
@@ -81,6 +85,7 @@ public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "16777216") int iteratorInputBufferBytes,
         @ConfigProperty(defaultValue = "false") boolean reconnectKeyLeakMitigationEnabled,
         @ConfigProperty(defaultValue = "false") boolean indexRebuildingEnforced,
+        @ConfigProperty(defaultValue = "") String tablesToRepairHdhm,
         @ConfigProperty(defaultValue = "75.0") double percentHalfDiskHashMapFlushThreads,
         @ConfigProperty(defaultValue = "-1") int numHalfDiskHashMapFlushThreads,
         @ConfigProperty(defaultValue = "1048576") int leafRecordCacheSize,
