@@ -721,7 +721,7 @@ class BlockNodeConnectionTest {
         connection.onError(error);
 
         // Assert - connection manager is notified
-        verify(connectionManager).disconnectFromNode(nodeConfig);
+        verify(connectionManager).handleConnectionError(connection);
 
         // Verify log messages for onError
         final String expectedLog = "[] Error on stream from block node " + TEST_ADDRESS + ":" + TEST_PORT;
@@ -739,7 +739,7 @@ class BlockNodeConnectionTest {
         connection.onCompleted();
 
         // Assert - connection manager is notified
-        verify(connectionManager).disconnectFromNode(nodeConfig);
+        verify(connectionManager).handleConnectionError(connection);
 
         // Verify log messages for onCompleted
         final String expectedLog = "[] Stream completed for block node " + TEST_ADDRESS + ":" + TEST_PORT;
