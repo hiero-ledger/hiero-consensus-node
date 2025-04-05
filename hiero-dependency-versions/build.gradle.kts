@@ -16,7 +16,7 @@ dependencies {
 }
 
 val autoService = "1.1.1"
-val besu = "24.3.3"
+val besu = "24.12.2"
 val bouncycastle = "1.80"
 val dagger = "2.56.1"
 val eclipseCollections = "11.1.0"
@@ -117,6 +117,7 @@ dependencies.constraints {
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
     api("org.junit.jupiter:junit-jupiter-engine:$junit5") { because("org.junit.jupiter.engine") }
     api("org.junit-pioneer:junit-pioneer:2.3.0") { because("org.junitpioneer") }
+    api("org.junit:junit-bom:$junit5")
     api("org.mockito:mockito-core:$mockito") { because("org.mockito") }
     api("org.mockito:mockito-junit-jupiter:$mockito") { because("org.mockito.junit.jupiter") }
     api("org.opentest4j:opentest4j:1.3.0") { because("org.opentest4j") }
