@@ -50,12 +50,10 @@ final class SidecarWriterV6 implements AutoCloseable {
      * Creates a new incremental sidecar file writer on a new file.
      *
      * @param file path to the file to write
-     * @param compressFile true if the file should be gzip compressed
      * @param maxSideCarSizeInBytes the maximum size of a sidecar file in bytes before compression
      * @throws IOException If there was a problem creating the file
      */
-    SidecarWriterV6(@NonNull final Path file, final boolean compressFile, final int maxSideCarSizeInBytes, final int id)
-            throws IOException {
+    SidecarWriterV6(@NonNull final Path file, final int maxSideCarSizeInBytes, final int id) throws IOException {
         this.id = id;
         this.maxSideCarSizeInBytes = maxSideCarSizeInBytes;
         // create parent directories if needed
@@ -69,18 +67,11 @@ final class SidecarWriterV6 implements AutoCloseable {
         }
         // create streams
         final var fout = Files.newOutputStream(file);
-        if (compressFile) {
-            GZIPOutputStream gout = new GZIPOutputStream(fout);
-            hashingDelegateStream = gout;
-            hashingOutputStream = new HashingOutputStream(wholeFileDigest, gout);
-            BufferedOutputStream bout = new BufferedOutputStream(hashingOutputStream);
-            outputStream = new WritableStreamingData(bout);
-        } else {
-            hashingDelegateStream = fout;
-            hashingOutputStream = new HashingOutputStream(wholeFileDigest, fout);
-            BufferedOutputStream bout = new BufferedOutputStream(hashingOutputStream);
-            outputStream = new WritableStreamingData(bout);
-        }
+        GZIPOutputStream gout = new GZIPOutputStream(fout);
+        hashingDelegateStream = gout;
+        hashingOutputStream = new HashingOutputStream(wholeFileDigest, gout);
+        BufferedOutputStream bout = new BufferedOutputStream(hashingOutputStream);
+        outputStream = new WritableStreamingData(bout);
     }
 
     public int id() {

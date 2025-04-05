@@ -29,7 +29,6 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.state.lifecycle.EntityIdFactory;
@@ -81,17 +80,14 @@ public class CryptoTransferValidator {
 
     /**
      * All validations needed for the crypto transfer operation, that include state or config.
-     *
-     * @param op             the crypto transfer operation
-     * @param ledgerConfig   the ledger config
-     * @param hederaConfig   the hedera config
-     * @param tokensConfig   the tokens config
-     * @param accountsConfig
+     * @param op the crypto transfer operation
+     * @param ledgerConfig the ledger config
+     * @param tokensConfig the tokens config
+     * @param accountsConfig the accounts config
      */
     public void validateSemantics(
             @NonNull final CryptoTransferTransactionBody op,
             @NonNull final LedgerConfig ledgerConfig,
-            @NonNull final HederaConfig hederaConfig,
             @NonNull final TokensConfig tokensConfig,
             @NonNull final AccountsConfig accountsConfig) {
         final var transfers = op.transfersOrElse(TransferList.DEFAULT);
@@ -110,8 +106,6 @@ public class CryptoTransferValidator {
         }
 
         // Validate that allowances are enabled, or that no hbar transfers are an allowance transfer
-        final var allowancesEnabled = hederaConfig.allowancesIsEnabled();
-        validateTrue(allowancesEnabled || !isTransferWithApproval(hbarTransfers), NOT_SUPPORTED);
 
         // The loop below will validate the counts for token transfers (both fungible and non-fungible)
         final var tokenTransfers = op.tokenTransfers();
@@ -121,13 +115,11 @@ public class CryptoTransferValidator {
         for (final TokenTransferList tokenTransfer : tokenTransfers) {
             // Validate the fungible token transfer(s) (if present)
             final var fungibleTransfers = tokenTransfer.transfers();
-            validateTrue(allowancesEnabled || !isTransferWithApproval(fungibleTransfers), NOT_SUPPORTED);
             totalFungibleTransfers += fungibleTransfers.size();
 
             // Validate the nft transfer(s) (if present)
             final var nftTransfers = tokenTransfer.nftTransfers();
             validateTrue(nftsEnabled || nftTransfers.isEmpty(), NOT_SUPPORTED);
-            validateTrue(allowancesEnabled || !isNftTransferWithApproval(nftTransfers), NOT_SUPPORTED);
             totalNftTransfers += nftTransfers.size();
 
             // Verify that the current total number of (counted) fungible transfers does not exceed the limit
@@ -137,37 +129,6 @@ public class CryptoTransferValidator {
             // Verify that the current total number of (counted) nft transfers does not exceed the limit
             validateTrue(totalNftTransfers <= ledgerConfig.nftTransfersMaxLen(), BATCH_SIZE_LIMIT_EXCEEDED);
         }
-    }
-
-    /**
-     * Checks if any of the transfers is with approval flag set.
-     *
-     * @param transfers the transfers
-     * @return true if any of the transfers is with approval flag set, false otherwise
-     */
-    private boolean isTransferWithApproval(@NonNull final List<AccountAmount> transfers) {
-        for (final AccountAmount transfer : transfers) {
-            if (transfer.isApproval()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Checks if any of the nft transfers is with approval flag set.
-     *
-     * @param nftTransfers the nft transfers
-     * @return true if any of the nft transfers is with approval flag set, false otherwise
-     */
-    private boolean isNftTransferWithApproval(@NonNull final List<NftTransfer> nftTransfers) {
-        for (final NftTransfer nftTransfer : nftTransfers) {
-            if (nftTransfer.isApproval()) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     public static void validateTokenTransfers(

@@ -13,8 +13,6 @@ public record HederaConfig(
         @ConfigProperty(defaultValue = "0") @NodeProperty long realm,
         @ConfigProperty(defaultValue = "0") @NodeProperty long shard,
         @ConfigProperty(value = "config.version", defaultValue = "0") @NetworkProperty int configVersion,
-        @ConfigProperty(value = "transaction.eip2930.enabled", defaultValue = "true") @NetworkProperty
-                boolean eip2930Enabled,
         @ConfigProperty(value = "nodeTransaction.maxBytes", defaultValue = "2621440") @NetworkProperty
                 int nodeTransactionMaxBytes,
         @ConfigProperty(value = "transaction.maxBytes", defaultValue = "6144") @NetworkProperty int transactionMaxBytes,
@@ -30,10 +28,7 @@ public record HederaConfig(
                 int allowancesMaxTransactionLimit,
         @ConfigProperty(value = "allowances.maxAccountLimit", defaultValue = "100") @NetworkProperty
                 int allowancesMaxAccountLimit,
-        @ConfigProperty(value = "allowances.isEnabled", defaultValue = "true") @NetworkProperty
-                boolean allowancesIsEnabled,
         @ConfigProperty(defaultValue = "data/onboard/exportedAccount.txt") @NodeProperty String accountsExportPath,
-        @ConfigProperty(defaultValue = "false") @NodeProperty boolean exportAccountsOnStartup,
         @ConfigProperty(value = "prefetch.queueCapacity", defaultValue = "70000") @NodeProperty
                 int prefetchQueueCapacity,
         @ConfigProperty(value = "prefetch.threadPoolSize", defaultValue = "4") @NodeProperty int prefetchThreadPoolSize,

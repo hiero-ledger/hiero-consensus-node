@@ -44,7 +44,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 final class BlockRecordWriterV6Test extends AppTestBase {
     /** This build is pre-configured with standard settings for the record stream tests. */
@@ -72,23 +71,19 @@ final class BlockRecordWriterV6Test extends AppTestBase {
 
         appBuilder = appBuilder()
                 .withHapiVersion(VERSION)
-                .withConfigValue("hedera.recordStream.enabled", true)
                 .withConfigValue("hedera.recordStream.logDir", tempDir.toString())
                 .withConfigValue("hedera.recordStream.sidecarDir", "sidecar")
                 .withConfigValue("hedera.recordStream.recordFileVersion", 6)
                 .withConfigValue("hedera.recordStream.signatureFileVersion", 6)
-                .withConfigValue("hedera.recordStream.compressFilesOnCreation", true)
                 .withConfigValue("hedera.recordStream.sidecarMaxSizeMb", 256);
     }
 
-    void createApp(final boolean compress) throws IOException {
-        app = appBuilder
-                .withConfigValue("hedera.recordStream.compressFilesOnCreation", compress)
-                .build();
+    void createApp() throws IOException {
+        app = appBuilder.build();
         config = app.configProvider().getConfiguration().getConfigData(BlockRecordStreamConfig.class);
         hapiVersion = app.hapiVersion();
         writer = new BlockRecordWriterV6(config, selfNodeInfo, SIGNER, fileSystem);
-        final var ext = compress ? ".rcd.gz" : ".rcd";
+        final var ext = ".rcd.gz";
         final var recordDir =
                 fileSystem.getPath(config.logDir(), "record" + asAccountString(selfNodeInfo.accountId()) + "/");
         recordPath = recordDir.resolve("2018-08-24T16_25_42.000000890Z" + ext);
@@ -174,7 +169,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @DisplayName("Check Args to init()")
         @SuppressWarnings("DataFlowIssue")
         void checkArgsToInit() throws IOException {
-            createApp(true);
+            createApp();
             assertThatThrownBy(() -> writer.init(null, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber))
                     .isInstanceOf(NullPointerException.class);
             assertThatThrownBy(() -> writer.init(hapiVersion, null, consensusTime, blockNumber))
@@ -189,11 +184,10 @@ final class BlockRecordWriterV6Test extends AppTestBase {
          * Verify that the filesystem contains the directory based on the config (logDir) and the memo of the node info
          * and all the other criteria for the record file path.
          */
-        @ParameterizedTest(name = "compress={0}")
-        @ValueSource(booleans = {true, false})
+        @Test
         @DisplayName("Record file path is based on block number, consensus time, configuration, and node memo")
-        void recordFileInExpectedLocation(final boolean compress) throws IOException {
-            createApp(compress);
+        void recordFileInExpectedLocation() throws IOException {
+            createApp();
             writer.init(hapiVersion, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber);
             assertThat(Files.exists(recordPath)).isTrue();
         }
@@ -221,7 +215,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @Test
         @DisplayName("Cannot call init() twice")
         void cannotCallInitTwice() throws IOException {
-            createApp(true);
+            createApp();
             writer.init(hapiVersion, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber);
             assertThatThrownBy(() -> writer.init(hapiVersion, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber))
                     .isInstanceOf(IllegalStateException.class);
@@ -230,7 +224,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @Test
         @DisplayName("Cannot call init() after close()")
         void cannotCallInitAfterClose() throws IOException {
-            createApp(true);
+            createApp();
             writer.init(hapiVersion, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber);
             writer.close(ENDING_RUNNING_HASH_OBJ);
             assertThatThrownBy(() -> writer.init(hapiVersion, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber))
@@ -240,7 +234,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @Test
         @DisplayName("Cannot call init() after writeItem()")
         void cannotCallInitAfterWriteItem() throws IOException {
-            createApp(true);
+            createApp();
             final var testItem = TEST_BLOCKS.get(0).get(0);
             writer.init(hapiVersion, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber);
             writer.writeItem(BlockRecordFormatV6.INSTANCE.serialize(testItem, blockNumber, hapiVersion));
@@ -253,7 +247,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @Disabled("This test succeeds individually, but fails when run with the rest of the tests.")
         void couldNotWriteToDisk() throws IOException {
             // Given a record file that already exists but won't work (it is a directory instead of a file!!)
-            createApp(true);
+            createApp();
             Files.createDirectory(recordPath);
 
             // When we attempt to initialize the writer, it fails horribly!
@@ -280,7 +274,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @DisplayName("Cannot write a null record item")
         @SuppressWarnings("DataFlowIssue")
         void cannotWriteNullRecordItem() throws IOException {
-            createApp(true);
+            createApp();
             writer.init(hapiVersion, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber);
             assertThatThrownBy(() -> writer.writeItem(null)).isInstanceOf(NullPointerException.class);
         }
@@ -288,7 +282,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @Test
         @DisplayName("Cannot write without calling init first")
         void cannotWriteWithoutCallingInit() throws IOException {
-            createApp(true);
+            createApp();
             final var testItem = TEST_BLOCKS.get(0).get(0);
             final var testSerItem = BlockRecordFormatV6.INSTANCE.serialize(testItem, blockNumber, hapiVersion);
             assertThatThrownBy(() -> writer.writeItem(testSerItem)).isInstanceOf(IllegalStateException.class);
@@ -297,7 +291,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @Test
         @DisplayName("Cannot write after calling close")
         void cannotWriteAfterCallingClose() throws IOException {
-            createApp(true);
+            createApp();
             final var testItem = TEST_BLOCKS.get(0).get(0);
             final var testSerItem = BlockRecordFormatV6.INSTANCE.serialize(testItem, blockNumber, hapiVersion);
             writer.init(hapiVersion, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber);
@@ -308,9 +302,8 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @ParameterizedTest
         @MethodSource("provideRecordStreamItems")
         @DisplayName("Write a list of record stream items including sidecars")
-        void writingTest(final List<SingleTransactionRecord> singleTransactionRecords, final boolean compress)
-                throws Exception {
-            createApp(compress);
+        void writingTest(final List<SingleTransactionRecord> singleTransactionRecords) throws Exception {
+            createApp();
 
             // For each of the transaction records in the block, convert them into serialized records, and then write
             // them using the writer.
@@ -348,9 +341,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
             // Check that the signature file was created.
             assertThat(Files.exists(sigPath)).isTrue();
             final var messageDigest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
-            final var fileBytes = compress
-                    ? new GZIPInputStream(Files.newInputStream(recordPath)).readAllBytes()
-                    : Files.readAllBytes(recordPath);
+            final var fileBytes = new GZIPInputStream(Files.newInputStream(recordPath)).readAllBytes();
             byte[] fileHash = messageDigest.digest(fileBytes);
             final var dupe = fileSystem.getPath("/sigCheck.rcd");
             SignatureWriterV6.writeSignatureFile(
@@ -368,48 +359,14 @@ final class BlockRecordWriterV6Test extends AppTestBase {
             assertThat(sigBytes).isEqualTo(dupeBytes);
 
             // Check that the sidecar file exists (if the block records produced any sidecars)
-            final var sidecarPath = recordPath
-                    .getParent()
-                    .resolve("sidecar/2018-08-24T16_25_42.000000890Z_01.rcd" + (compress ? ".gz" : ""));
+            final var sidecarPath = recordPath.getParent().resolve("sidecar/2018-08-24T16_25_42.000000890Z_01.rcd.gz");
             assertThat(Files.exists(sidecarPath)).isEqualTo(hasSidecars);
-        }
-
-        @Test
-        @DisplayName("Multiple sidecar files written when sidecar file size limit is reached")
-        void multipleSidecars() throws IOException {
-            appBuilder.withConfigValue("hedera.recordStream.sidecarMaxSizeMb", "1");
-            createApp(false);
-
-            final var singleTransactionRecords = TEST_BLOCKS.get(2);
-
-            // For each of the transaction records in the block, convert them into serialized records, and then write
-            // them using the writer.
-            writer.init(hapiVersion, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber);
-            var previousHash = STARTING_RUNNING_HASH_OBJ.hash();
-            for (final var rec : singleTransactionRecords) {
-                final var serializedRec = BlockRecordFormatV6.INSTANCE.serialize(rec, blockNumber, hapiVersion);
-                previousHash = BlockRecordFormatV6.INSTANCE.computeNewRunningHash(previousHash, List.of(serializedRec));
-                writer.writeItem(serializedRec);
-            }
-            final var endRunningHash = new HashObject(HashAlgorithm.SHA_384, (int) previousHash.length(), previousHash);
-            writer.close(endRunningHash);
-
-            // The particular block we are using has a total of 2084368 bytes of sidecar data if written as a single
-            // file, which is greater than the 1MB limit we set in the config. This means that we should have two
-            // sidecar files, each of which is less than 1MB, and both together should be a little larger than 2084368
-            // bytes since there is some extra header information in 1 file than 2
-            final var sidecar1Path = recordPath.getParent().resolve("sidecar/2018-08-24T16_25_42.000000890Z_01.rcd");
-            final var sidecar2Path = recordPath.getParent().resolve("sidecar/2018-08-24T16_25_42.000000890Z_02.rcd");
-            assertThat(Files.exists(sidecar1Path)).isTrue();
-            assertThat(Files.exists(sidecar2Path)).isTrue();
-            assertThat(Files.size(sidecar1Path)).isLessThanOrEqualTo(1024 * 1024);
-            assertThat(Files.size(sidecar2Path)).isLessThanOrEqualTo(1024 * 1024);
         }
 
         @Test
         @DisplayName("Cannot write to record file leads to major error")
         void cannotWriteToRecordFile() throws IOException {
-            createApp(true);
+            createApp();
             final var singleTransactionRecords = TEST_BLOCKS.get(2);
 
             // Write the first record to the file, then delete the file so that the next write will fail
@@ -431,7 +388,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @Disabled("This test succeeds individually, but fails when run with the rest of the tests.")
         void badSidecarsIsNotFatal() throws IOException {
             // Given a directory for sidecars that has already been created AS A FILE (!!)
-            createApp(true);
+            createApp();
             final var sidecarDir = recordPath.getParent().resolve("sidecar");
             Files.createDirectories(sidecarDir.getParent());
             Files.createFile(sidecarDir);
@@ -466,7 +423,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @DisplayName("Check Args to close()")
         @SuppressWarnings("DataFlowIssue")
         void checkArgsToInit() throws IOException {
-            createApp(true);
+            createApp();
             writer.init(hapiVersion, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber);
             assertThatThrownBy(() -> writer.close(null)).isInstanceOf(NullPointerException.class);
         }
@@ -474,14 +431,14 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @Test
         @DisplayName("Cannot close() before init()")
         void cannotCloseBeforeInit() throws IOException {
-            createApp(true);
+            createApp();
             assertThatThrownBy(() -> writer.close(ENDING_RUNNING_HASH_OBJ)).isInstanceOf(IllegalStateException.class);
         }
 
         @Test
         @DisplayName("Cannot close() twice")
         void cannotCloseTwice() throws IOException {
-            createApp(true);
+            createApp();
             writer.init(hapiVersion, STARTING_RUNNING_HASH_OBJ, consensusTime, blockNumber);
             writer.close(ENDING_RUNNING_HASH_OBJ);
             assertThatThrownBy(() -> writer.close(ENDING_RUNNING_HASH_OBJ)).isInstanceOf(IllegalStateException.class);
@@ -490,7 +447,7 @@ final class BlockRecordWriterV6Test extends AppTestBase {
         @Test
         @DisplayName("Close may throw a horrible exception")
         void cannotWriteToRecordFile() throws IOException {
-            createApp(true);
+            createApp();
             final var singleTransactionRecords = TEST_BLOCKS.get(2);
 
             // Write the first record to the file, then delete the file so that the next write will fail

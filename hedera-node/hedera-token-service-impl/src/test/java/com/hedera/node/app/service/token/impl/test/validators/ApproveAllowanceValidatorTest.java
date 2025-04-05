@@ -48,19 +48,6 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
-    void notSupportedFails() {
-        givenApproveAllowanceTxn(
-                payerId, false, List.of(cryptoAllowance), List.of(tokenAllowance), List.of(nftAllowance));
-        final var configuration = HederaTestConfigBuilder.create()
-                .withValue("hedera.allowances.isEnabled", false)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
-        assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(NOT_SUPPORTED));
-    }
-
-    @Test
     void returnsValidationOnceFailed() {
         // each serial number is considered as one allowance for nft allowances
         givenApproveAllowanceTxn(
