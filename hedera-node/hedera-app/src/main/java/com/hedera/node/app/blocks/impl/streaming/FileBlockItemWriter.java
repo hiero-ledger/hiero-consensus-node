@@ -56,13 +56,10 @@ public class FileBlockItemWriter implements BlockItemWriter {
             Comparator.comparingLong(PROOF_JSON_BLOCK_NUMBER_FN);
 
     /** The file extension for complete block files. */
-    private static final String COMPLETE_BLOCK_EXTENSION = "blk";
+    private static final String COMPLETE_BLOCK_EXTENSION = ".blk";
 
     /** The suffix added to RECORD_EXTENSION when they are compressed. */
     private static final String COMPRESSION_ALGORITHM_EXTENSION = ".gz";
-
-    /** Whether to compress the block files. */
-    private final boolean compressFiles;
 
     /** The node-specific path to the directory where block files are written */
     private final Path nodeScopedBlockDir;
@@ -113,15 +110,13 @@ public class FileBlockItemWriter implements BlockItemWriter {
         this.state = State.UNINITIALIZED;
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
-        this.compressFiles = blockStreamConfig.compressFilesOnCreation();
 
         // Compute directory for block files
         final Path blockDir = fileSystem.getPath(blockStreamConfig.blockFileDir());
         nodeScopedBlockDir = blockDir.resolve("block-" + asAccountString(nodeInfo.accountId()));
 
-        this.completeFileName =
-                name -> name + "." + COMPLETE_BLOCK_EXTENSION + (compressFiles ? COMPRESSION_ALGORITHM_EXTENSION : "");
-        this.pendingFileName = name -> name + ".pnd" + (compressFiles ? COMPRESSION_ALGORITHM_EXTENSION : "");
+        this.completeFileName = name -> name + COMPLETE_BLOCK_EXTENSION + COMPRESSION_ALGORITHM_EXTENSION;
+        this.pendingFileName = name -> name + ".pnd" + COMPRESSION_ALGORITHM_EXTENSION;
     }
 
     /**
@@ -294,15 +289,13 @@ public class FileBlockItemWriter implements BlockItemWriter {
             }
             out = Files.newOutputStream(blockFilePath);
             out = new BufferedOutputStream(out, 1024 * 1024); // 1 MB
-            if (compressFiles) {
-                out = new GZIPOutputStream(out, 1024 * 256); // 256 KB
-                // By wrapping the GZIPOutputStream in a BufferedOutputStream, the code reduces the number of write
-                // operations to the GZIPOutputStream, and therefore the number of synchronized calls. Instead of
-                // writing each small piece of data immediately to the GZIPOutputStream, it writes the data to the
-                // buffer, and only when the buffer is full, it writes all the data to the GZIPOutputStream in one go.
-                // This can significantly improve the performance when writing many small amounts of data.
-                out = new BufferedOutputStream(out, 1024 * 1024 * 4); // 4 MB
-            }
+            out = new GZIPOutputStream(out, 1024 * 256); // 256 KB
+            // By wrapping the GZIPOutputStream in a BufferedOutputStream, the code reduces the number of write
+            // operations to the GZIPOutputStream, and therefore the number of synchronized calls. Instead of
+            // writing each small piece of data immediately to the GZIPOutputStream, it writes the data to the
+            // buffer, and only when the buffer is full, it writes all the data to the GZIPOutputStream in one go.
+            // This can significantly improve the performance when writing many small amounts of data.
+            out = new BufferedOutputStream(out, 1024 * 1024 * 4); // 4 MB
 
             this.writableStreamingData = new WritableStreamingData(out);
         } catch (final IOException e) {
