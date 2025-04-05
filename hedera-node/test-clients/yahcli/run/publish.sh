@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-TAG=${1:-'0.6.4'}
+TAG=${1:-'0.6.5'}
 SCRIPT_SOURCE="${BASH_SOURCE[0]}"
 
 READLINK_OPTS=""

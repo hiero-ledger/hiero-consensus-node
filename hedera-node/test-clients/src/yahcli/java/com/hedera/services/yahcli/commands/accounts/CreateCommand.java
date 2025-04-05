@@ -57,9 +57,22 @@ public class CreateCommand implements Callable<Integer> {
     @CommandLine.Option(
             names = {"-k", "--keyType"},
             paramLabel = "keyType",
-            description = "Type of key to use for the new account: ED25519 or SECP256K1",
+            description =
+                    "Type of key to generate for the new account: ED25519 or SECP256K1 (superseded by --keyfile or --passFile)",
             defaultValue = "ED25519")
     String keyType;
+
+    @CommandLine.Option(
+            names = "--keyFile",
+            paramLabel = "keyFile",
+            description = "Path to the key (PEM) file to use for the new account")
+    String keyFile;
+
+    @CommandLine.Option(
+            names = "--passFile",
+            paramLabel = "passFile",
+            description = "Path to the password file for the existing key (PEM) file")
+    String passFile;
 
     @Override
     public Integer call() throws Exception {
@@ -69,7 +82,7 @@ public class CreateCommand implements Callable<Integer> {
         final var noveltyLoc = config.keysLoc() + File.separator + NOVELTY + ".pem";
         final SigControl sigType = ParseUtils.keyTypeFromParam(keyType);
         // Since we are creating an account, we expect the caller to explicitly specify the key type
-        if (sigType == null) {
+        if (!CreateSuite.existingKeyPresent(keyFile, passFile) && sigType == null) {
             COMMON_MESSAGES.warn("Invalid key type: " + keyType + ". Must be 'ED25519' or 'SECP256K1'");
             return 1;
         }
@@ -85,7 +98,9 @@ public class CreateCommand implements Callable<Integer> {
                 noveltyLoc,
                 sigType,
                 retries,
-                effectiveReceiverSigRequired);
+                effectiveReceiverSigRequired,
+                keyFile,
+                passFile);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
