@@ -81,9 +81,13 @@ jobs:
           fi
 
           # Get the list of commits between the previous XTS Pass and the current commit
+          COMMIT_LIST=""
           LATEST_XTS_PASS_TAG=$(git tag --list --sort=-version:refname "xts-pass-*" | head --lines 1)
-          LATEST_XTS_PASS_COMMIT=$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")
-          COMMIT_LIST=$(git log --oneline --pretty=format:"%ad - %an <%ae>: %H" --date=short "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")
+          if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
+            echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
+            LATEST_XTS_PASS_COMMIT=$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")
+            COMMIT_LIST=$(git log --oneline --pretty=format:"%ad - %an <%ae>: %H" --date=short "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")
+          fi
 
           # Check if the tag exists on the main branch
           set +e
