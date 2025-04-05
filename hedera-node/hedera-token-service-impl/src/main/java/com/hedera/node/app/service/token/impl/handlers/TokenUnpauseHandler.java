@@ -12,6 +12,7 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
+import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -75,8 +76,9 @@ public class TokenUnpauseHandler implements TransactionHandler {
 
         final var op = context.body().tokenUnpause();
         final var tokenStore = context.storeFactory().writableStore(WritableTokenStore.class);
-        var token = tokenStore.get(op.tokenOrElse(TokenID.DEFAULT));
-        validateTrue(token != null, INVALID_TOKEN_ID);
+        var tokenId = op.tokenOrElse(TokenID.DEFAULT);
+        var token = TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
+
         validateTrue(token.hasPauseKey(), TOKEN_HAS_NO_PAUSE_KEY);
 
         final var copyBuilder = token.copyBuilder();
