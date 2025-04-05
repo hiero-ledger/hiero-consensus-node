@@ -106,14 +106,6 @@ then their containing AtomicBatch transaction must be signed by both `batchKey` 
 
 ## Configuration
 
-- ```UtilPrngConfig``` is a configuration class used in the Hedera Hashgraph network.
-  This class is used to configure the behavior of the ```UtilPrngHandler```. The ```UtilPrngConfig```
-  class is a record that contains a single boolean property, isEnabled. This property is
-  annotated with ```@ConfigProperty``` and ```@NetworkProperty```, indicating that it can be
-  configured via the network's configuration file. The isEnabled property determines whether
-  the ```UtilPrngHandler``` allows a transaction to proceed. If isEnabled is set to true, the
-  ```UtilPrngHandler``` will allow the transaction. If isEnabled is set to false,
-  the ```UtilPrngHandler``` will not allow the transaction.
 - ```AtomicBatchConfig``` is a configuration class used in the Hedera Hashgraph network.
   This class is used to configure the behavior of the ```AtomicBatchHandler```. The ```AtomicBatchConfig```
   class is a record that contains three properties:

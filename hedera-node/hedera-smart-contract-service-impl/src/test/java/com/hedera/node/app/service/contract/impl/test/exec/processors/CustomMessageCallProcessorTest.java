@@ -112,8 +112,8 @@ class CustomMessageCallProcessorTest {
 
     @Test
     void delegatesLazyCreationCheck() {
-        given(featureFlags.isImplicitCreationEnabled(config)).willReturn(true);
-        assertTrue(subject.isImplicitCreationEnabled(config));
+        given(featureFlags.isImplicitCreationEnabled()).willReturn(true);
+        assertTrue(subject.isImplicitCreationEnabled());
     }
 
     @Test

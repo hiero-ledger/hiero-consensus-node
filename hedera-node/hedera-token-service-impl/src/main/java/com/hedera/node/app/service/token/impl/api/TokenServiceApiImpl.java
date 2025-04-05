@@ -10,7 +10,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.service.token.api.TokenServiceApi.FreeAliasOnDeletion.YES;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -500,8 +499,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final AccountID deletedId,
             @NonNull final AccountID obtainerId,
             @NonNull final ExpiryValidator expiryValidator,
-            @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder,
-            @NonNull final FreeAliasOnDeletion freeAliasOnDeletion) {
+            @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder) {
         // validate the semantics involving dynamic properties and state.
         // Gets delete and transfer accounts from state
         final var deleteAndTransferAccounts = validateSemantics(deletedId, obtainerId, expiryValidator);
@@ -511,10 +509,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         // commit the account with deleted flag set to true
         final var updatedDeleteAccount = requireNonNull(accountStore.get(deletedId));
         final var builder = updatedDeleteAccount.copyBuilder().deleted(true);
-        if (freeAliasOnDeletion == YES) {
-            accountStore.removeAlias(updatedDeleteAccount.alias());
-            builder.alias(Bytes.EMPTY);
-        }
+        accountStore.removeAlias(updatedDeleteAccount.alias());
+        builder.alias(Bytes.EMPTY);
         accountStore.put(builder.build());
 
         // add the transfer account for this deleted account to record builder.
