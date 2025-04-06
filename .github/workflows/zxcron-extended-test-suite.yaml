@@ -107,7 +107,7 @@ jobs:
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> $GITHUB_OUTPUT
             echo "### XTS-Candidate commit found" >>  $GITHUB_STEP_SUMMARY
             echo "xts-tag-commit=${XTS_COMMIT}" >> $GITHUB_STEP_SUMMARY
-            echo "### Commit List" >> $GIThUB_STEP_SUMMARY
+            echo "### Commit List" >> $GITHUB_STEP_SUMMARY
             echo "${COMMIT_LIST}" >> $GITHUB_STEP_SUMMARY
 
             git push --delete origin "${XTS_CANDIDATE_TAG}"
