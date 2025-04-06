@@ -118,7 +118,7 @@ jobs:
 
           PREV_BUILD_TAG=$(printf "build-%05d" $((10#${BUILD_INDEX} - 1)))
 
-          COMMIT_LIST=$(git log --pretty=format:"[%h-%s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")
+          COMMIT_LIST=$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")
 
           echo "build-candidate-tag=${BUILD_TAG}" >> "${GITHUB_OUTPUT}"
 
