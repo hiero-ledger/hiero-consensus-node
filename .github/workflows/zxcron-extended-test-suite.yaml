@@ -81,12 +81,13 @@ jobs:
           fi
 
           # Get the list of commits between the previous XTS Pass and the current commit
-          COMMIT_LIST=""
+          CLEAN_COMMIT_LIST=""
           LATEST_XTS_PASS_TAG=$(git tag --list --sort=-version:refname "xts-pass-*" | head --lines 1)
           if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
             echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
             LATEST_XTS_PASS_COMMIT=$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")
             COMMIT_LIST=$(git log --oneline --pretty=format:"%ad - %an <%ae>: %H" --date=short "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")
+            CLEAN_COMMIT_LIST=$(echo "${COMMIT_LIST}" | sed 's/%/%25/g; s/\n/%0A/g; s/\r/%0D/g')
           fi
 
           # Check if the tag exists on the main branch
@@ -106,7 +107,7 @@ jobs:
             echo "xts-tag-commit=${XTS_COMMIT}" >> $GITHUB_OUTPUT
             echo "xts-tag-commit-author=${AUTHOR_NAME} <${AUTHOR_EMAIL}>" >> $GITHUB_OUTPUT
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> $GITHUB_OUTPUT
-            echo "interim-commit-list=${COMMIT_LIST}" >> $GITHUB_OUTPUT
+            echo "interim-commit-list=${CLEAN_COMMIT_LIST}" >> $GITHUB_OUTPUT
             echo "### XTS-Candidate commit found" >>  $GITHUB_STEP_SUMMARY
             echo "xts-tag-commit=${XTS_COMMIT}" >> $GITHUB_STEP_SUMMARY
 

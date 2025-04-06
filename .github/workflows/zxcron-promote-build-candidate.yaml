@@ -120,9 +120,10 @@ jobs:
           PREV_BUILD_TAG=$(printf "build-%05d" $((10#${BUILD_INDEX} - 1)))
 
           COMMIT_LIST=$(git log --oneline --pretty=format:"%ad - %an <%ae>: %H" --date=short "${PREV_BUILD_TAG}..${BUILD_TAG}")
+          CLEAN_COMMIT_LIST=$(echo "${COMMIT_LIST}" | sed 's/%/%25/g; s/\n/%0A/g; s/\r/%0D/g')
 
           echo "build-candidate-tag=${BUILD_TAG}" >> "${GITHUB_OUTPUT}"
-          echo "build-commit-list=${COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
+          echo "build-commit-list=${CLEAN_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
 
           echo "### Build Promotion Tag Information" >> "${GITHUB_STEP_SUMMARY}"
           echo "build-tag=${BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"
