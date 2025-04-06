@@ -124,7 +124,7 @@ jobs:
 
           echo "### Build Promotion Tag Information" >> "${GITHUB_STEP_SUMMARY}"
           echo "build-tag=${BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Commit List" >> $GIThUB_STEP_SUMMARY
+          echo "### Commit List" >> $GITHUB_STEP_SUMMARY
           echo "${COMMIT_LIST}" >> $GITHUB_STEP_SUMMARY
 
       - name: Increment Build Promotion Index
