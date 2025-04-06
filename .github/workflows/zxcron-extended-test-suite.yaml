@@ -85,7 +85,7 @@ jobs:
           if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
             echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
             LATEST_XTS_PASS_COMMIT=$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")
-            COMMIT_LIST=$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")
+            COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
           fi
 
           # Check if the tag exists on the main branch
@@ -107,8 +107,8 @@ jobs:
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> $GITHUB_OUTPUT
             echo "### XTS-Candidate commit found" >>  $GITHUB_STEP_SUMMARY
             echo "xts-tag-commit=${XTS_COMMIT}" >> $GITHUB_STEP_SUMMARY
-            echo "### Commit List" >> $GITHUB_STEP_SUMMARY
-            echo "${COMMIT_LIST}" >> $GITHUB_STEP_SUMMARY
+            echo "### Commit List" >> ${GITHUB_STEP_SUMMARY}
+            echo "${COMMIT_LIST}" >> ${GITHUB_STEP_SUMMARY}
 
             git push --delete origin "${XTS_CANDIDATE_TAG}"
             git tag -d "${XTS_CANDIDATE_TAG}"
