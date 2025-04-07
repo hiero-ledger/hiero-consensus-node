@@ -130,8 +130,8 @@ public class ReconnectController implements Runnable {
      *
      * @param status new platform status
      */
-    public void updatePlatformStatus(PlatformStatus status) {
-        var previousState = platformStatus.getAndSet(status);
+    public void updatePlatformStatus(@NonNull final PlatformStatus status) {
+        final PlatformStatus previousState = platformStatus.getAndSet(status);
         if (status != previousState) {
             if (PlatformStatus.BEHIND == status) {
                 start();

@@ -2,6 +2,7 @@
 package com.swirlds.platform.reconnect;
 
 import com.swirlds.platform.state.signed.SignedState;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * Hides complexities of preparing the platform for impending reconnect process and way to update platform
@@ -19,5 +20,5 @@ public interface ReconnectPlatformHelper {
      * @param signedState the signed state that was received from the sender
      * @return true if the state was successfully loaded; otherwise false
      */
-    boolean loadSignedState(SignedState signedState);
+    boolean loadSignedState(@NonNull SignedState signedState);
 }

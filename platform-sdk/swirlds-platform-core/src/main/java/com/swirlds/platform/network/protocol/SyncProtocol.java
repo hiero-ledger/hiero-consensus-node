@@ -64,7 +64,7 @@ public class SyncProtocol implements Protocol, GossipController {
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final Duration sleepAfterSync,
             @NonNull final SyncMetrics syncMetrics,
-            int rosterSize) {
+            final int rosterSize) {
 
         final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
         final int permitCount;
@@ -109,7 +109,7 @@ public class SyncProtocol implements Protocol, GossipController {
 
         final Shadowgraph shadowgraph = new Shadowgraph(platformContext, rosterSize, intakeEventCounter);
 
-        var syncShadowgraphSynchronizer = new ShadowgraphSynchronizer(
+        final ShadowgraphSynchronizer syncShadowgraphSynchronizer = new ShadowgraphSynchronizer(
                 platformContext,
                 shadowgraph,
                 rosterSize,
@@ -160,7 +160,7 @@ public class SyncProtocol implements Protocol, GossipController {
      *
      * @param platformEvent event to be sent outside
      */
-    public void addEvent(PlatformEvent platformEvent) {
+    public void addEvent(@NonNull final PlatformEvent platformEvent) {
         synchronizer.addEvent(platformEvent);
     }
 
@@ -169,7 +169,7 @@ public class SyncProtocol implements Protocol, GossipController {
      *
      * @param eventWindow new event window to apply
      */
-    public void updateEventWindow(EventWindow eventWindow) {
+    public void updateEventWindow(@NonNull final EventWindow eventWindow) {
         synchronizer.updateEventWindow(eventWindow);
     }
 
@@ -241,7 +241,7 @@ public class SyncProtocol implements Protocol, GossipController {
      *
      * @param duration duration that the system has been in an unhealthy state
      */
-    public void reportUnhealthyDuration(Duration duration) {
+    public void reportUnhealthyDuration(@NonNull final Duration duration) {
         permitProvider.reportUnhealthyDuration(duration);
     }
 
@@ -250,7 +250,7 @@ public class SyncProtocol implements Protocol, GossipController {
      *
      * @param permitsDifference positive to add permits, negative to remove permits
      */
-    public void adjustTotalPermits(int permitsDifference) {
+    public void adjustTotalPermits(final int permitsDifference) {
         permitProvider.adjustTotalPermits(permitsDifference);
     }
 

@@ -42,12 +42,14 @@ public class ReconnectSyncHelper implements ReconnectNetworkHelper {
     private final BlockingResourceProvider<Connection> connectionProvider;
 
     /**
-     *
-     * @param workingStateSupplier supplier of the initial signed state against which to perform a delta based reconnect
-     * @param lastCompleteRoundSupplier provides the latest signed state round for which we have a supermajority of signatures
-     * @param reconnectLearnerFactory Creates instances of {@link ReconnectLearner} to execute the second phase, receiving a signed state
-     * @param stateConfig configuration for the state from the platform
-     * @param platformStateFacade provides access to the platform state
+     * @param workingStateSupplier      supplier of the initial signed state against which to perform a delta based
+     *                                  reconnect
+     * @param lastCompleteRoundSupplier provides the latest signed state round for which we have a supermajority of
+     *                                  signatures
+     * @param reconnectLearnerFactory   Creates instances of {@link ReconnectLearner} to execute the second phase,
+     *                                  receiving a signed state
+     * @param stateConfig               configuration for the state from the platform
+     * @param platformStateFacade       provides access to the platform state
      */
     public ReconnectSyncHelper(
             @NonNull final Supplier<MerkleNodeState> workingStateSupplier,
@@ -68,7 +70,7 @@ public class ReconnectSyncHelper implements ReconnectNetworkHelper {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull ReservedSignedState receiveSignedState(final SignedStateValidator validator)
+    public @NonNull ReservedSignedState receiveSignedState(@NonNull final SignedStateValidator validator)
             throws ReconnectException, InterruptedException {
         Connection connection = null;
         try (final LockedResource<Connection> conn = connectionProvider.waitForResource()) {
@@ -91,8 +93,8 @@ public class ReconnectSyncHelper implements ReconnectNetworkHelper {
         }
     }
 
-    private @NonNull ReservedSignedState reconnectLearner(final Connection conn, final SignedStateValidator validator)
-            throws ReconnectException {
+    private @NonNull ReservedSignedState reconnectLearner(
+            @NonNull final Connection conn, @NonNull final SignedStateValidator validator) throws ReconnectException {
 
         logger.info(RECONNECT.getMarker(), () -> new ReconnectStartPayload(
                         "Starting reconnect in role of the receiver.",
@@ -133,7 +135,7 @@ public class ReconnectSyncHelper implements ReconnectNetworkHelper {
      * @param connection the connection to use to execute the reconnect learner protocol
      * @throws InterruptedException if the calling thread is interrupted while the connection is being used
      */
-    public void provideLearnerConnection(final Connection connection) throws InterruptedException {
+    public void provideLearnerConnection(@NonNull final Connection connection) throws InterruptedException {
         connectionProvider.provide(connection);
     }
 

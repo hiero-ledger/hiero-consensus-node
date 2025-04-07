@@ -70,7 +70,7 @@ public class ReconnectPlatformHelperImpl implements ReconnectPlatformHelper {
      * {@inheritDoc}
      */
     @Override
-    public boolean loadSignedState(final SignedState signedState) {
+    public boolean loadSignedState(@NonNull final SignedState signedState) {
         try {
             loadSignedState.accept(signedState);
         } catch (final RuntimeException e) {

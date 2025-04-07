@@ -48,8 +48,9 @@ public class HeartbeatProtocol implements Protocol {
      * @param networkMetrics  Network metrics, for recording roundtrip heartbeat time
      * @return constructed HeartbeatProtocol
      */
-    public static HeartbeatProtocol create(PlatformContext platformContext, NetworkMetrics networkMetrics) {
-        var syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
+    public static HeartbeatProtocol create(
+            @NonNull final PlatformContext platformContext, @NonNull final NetworkMetrics networkMetrics) {
+        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
         return new HeartbeatProtocol(
                 Duration.ofMillis(syncConfig.syncProtocolHeartbeatPeriod()), networkMetrics, platformContext.getTime());
     }
@@ -67,7 +68,7 @@ public class HeartbeatProtocol implements Protocol {
      * {@inheritDoc}
      */
     @Override
-    public void updatePlatformStatus(@NonNull PlatformStatus status) {
+    public void updatePlatformStatus(@NonNull final PlatformStatus status) {
         // no-op, we don't care
     }
 }
