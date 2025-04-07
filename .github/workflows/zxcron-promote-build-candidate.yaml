@@ -115,9 +115,17 @@ jobs:
           BUILD_TAG="$(printf "build-%05d" "${BUILD_INDEX}")"
           git tag --annotate ${BUILD_TAG} --message "chore: tagging commit for build promotion"
           git push --set-upstream origin --tags
+
+          PREV_BUILD_TAG=$(printf "build-%05d" $((10#${BUILD_INDEX} - 1)))
+
+          COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${PREV_BUILD_TAG}..${BUILD_TAG}")"
+
           echo "build-candidate-tag=${BUILD_TAG}" >> "${GITHUB_OUTPUT}"
+
           echo "### Build Promotion Tag Information" >> "${GITHUB_STEP_SUMMARY}"
           echo "build-tag=${BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Commit List" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Increment Build Promotion Index
         uses: step-security/increment@c2cdc97bbfdf3f5ef530d5c1f28311ff8f0c70f4 # v2.0.1
@@ -194,6 +202,14 @@ jobs:
                         {
                           "type": "mrkdwn",
                           "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.promote-build-candidate.outputs.build-candidate-tag }}>"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "Workflow Run"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
                         }
                       ]
                     }
@@ -291,8 +307,18 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
-                      }
+                        "text": "*Additional Information:*"
+                      },
+                      "fields":[
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow Run*: \n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                        }
+                      ]
                     }
                   ]
                 }
