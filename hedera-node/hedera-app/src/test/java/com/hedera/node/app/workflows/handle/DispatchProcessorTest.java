@@ -186,7 +186,7 @@ class DispatchProcessorTest {
                 opWorkflowMetrics,
                 new AppFeeCharging(solvencyPreCheck));
         given(dispatch.stack()).willReturn(stack);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
     }
 
     @Test

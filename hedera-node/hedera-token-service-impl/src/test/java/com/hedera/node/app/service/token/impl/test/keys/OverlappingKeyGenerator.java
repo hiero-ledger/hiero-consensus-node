@@ -3,7 +3,6 @@ package com.hedera.node.app.service.token.impl.test.keys;
 
 import com.google.protobuf.ByteString;
 import com.hederahashgraph.api.proto.java.Key;
-import com.swirlds.common.utility.CommonUtils;
 import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -11,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class OverlappingKeyGenerator implements KeyGenerator {
     private int nextKey = 0;

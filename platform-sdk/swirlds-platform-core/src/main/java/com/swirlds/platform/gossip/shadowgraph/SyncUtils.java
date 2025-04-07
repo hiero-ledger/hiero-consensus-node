@@ -1,29 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
-import static com.swirlds.common.utility.CompareTo.isGreaterThan;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
+import static org.hiero.base.utility.CompareTo.isGreaterThan;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.ByteConstants;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -40,6 +33,14 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Various static utility method used in syncing
@@ -463,8 +464,7 @@ public final class SyncUtils {
 
         final long minimumSearchThreshold =
                 Math.max(myEventWindow.getExpiredThreshold(), theirEventWindow.getAncientThreshold());
-        return s ->
-                s.getEvent().getAncientIndicator(ancientMode) >= minimumSearchThreshold && !knownShadows.contains(s);
+        return s -> ancientMode.selectIndicator(s.getEvent()) >= minimumSearchThreshold && !knownShadows.contains(s);
     }
 
     /**
@@ -508,7 +508,7 @@ public final class SyncUtils {
     static void sort(@NonNull final List<PlatformEvent> sendList) {
         // Note: regardless of ancient mode, sorting uses generations and not birth rounds.
         //       Sorting by generations yields a list in topological order, sorting by birth rounds does not.
-        sendList.sort((PlatformEvent e1, PlatformEvent e2) -> (int) (e1.getGeneration() - e2.getGeneration()));
+        sendList.sort(Comparator.comparingLong(PlatformEvent::getNGen));
     }
 
     /**

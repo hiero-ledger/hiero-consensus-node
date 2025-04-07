@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.creation.rules;
 
-import static org.hiero.event.creator.EventCreationStatus.PLATFORM_STATUS;
+import static org.hiero.consensus.event.creator.impl.EventCreationStatus.PLATFORM_STATUS;
 
 import com.swirlds.platform.pool.TransactionPoolNexus;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.Supplier;
-import org.hiero.event.creator.EventCreationRule;
-import org.hiero.event.creator.EventCreationStatus;
+import org.hiero.consensus.event.creator.impl.EventCreationStatus;
+import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Limits the creation of new events depending on the current platform status.

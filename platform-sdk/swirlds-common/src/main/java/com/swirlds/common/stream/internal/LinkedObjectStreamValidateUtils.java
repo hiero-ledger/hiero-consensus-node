@@ -2,17 +2,15 @@
 package com.swirlds.common.stream.internal;
 
 import static com.swirlds.common.stream.internal.StreamValidationResult.PARSE_STREAM_FILE_FAIL;
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
 
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.Hash;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.stream.LinkedObjectStreamUtilities;
 import com.swirlds.common.stream.StreamType;
 import com.swirlds.logging.legacy.payload.StreamParseErrorPayload;
@@ -27,6 +25,8 @@ import java.util.Iterator;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 /**
  * Utilities methods for validating stream files and stream signature files
@@ -36,7 +36,7 @@ public final class LinkedObjectStreamValidateUtils {
     private static final Logger logger = LogManager.getLogger(LinkedObjectStreamValidateUtils.class);
 
     /** used for hashing */
-    private static final Cryptography CRYPTOGRAPHY = CryptographyFactory.create();
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     private LinkedObjectStreamValidateUtils() {}
 

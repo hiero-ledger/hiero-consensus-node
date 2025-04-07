@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
-import com.swirlds.common.platform.NodeId;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Information about a successful sync that just occurred

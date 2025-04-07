@@ -3,8 +3,8 @@ package com.swirlds.common.threading.framework.config;
 
 import com.swirlds.common.threading.framework.QueueThreadPool;
 import com.swirlds.common.threading.framework.internal.AbstractQueueThreadPoolConfiguration;
-import com.swirlds.common.threading.interrupt.InterruptableConsumer;
 import com.swirlds.common.threading.manager.ThreadManager;
+import org.hiero.consensus.model.utility.interrupt.InterruptableConsumer;
 
 /**
  * Implements a thread pool that continuously takes elements from a queue and handles them.

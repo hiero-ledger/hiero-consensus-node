@@ -2,15 +2,14 @@
 package com.swirlds.platform.network.communication.handshake;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 
-import com.swirlds.common.io.SelfSerializable;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
-import com.swirlds.platform.system.SoftwareVersion;
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -20,13 +19,13 @@ import org.apache.logging.log4j.Logger;
  */
 public class VersionCompareHandshake implements ProtocolRunnable {
     private static final Logger logger = LogManager.getLogger(VersionCompareHandshake.class);
-    private final SoftwareVersion version;
+    private final SemanticVersion version;
     private final boolean throwOnMismatch;
 
     /**
-     * Calls {@link #VersionCompareHandshake(SoftwareVersion, boolean)} with throwOnMismatch set to true
+     * Calls {@link #VersionCompareHandshake(SemanticVersion, boolean)} with throwOnMismatch set to true
      */
-    public VersionCompareHandshake(final SoftwareVersion version) {
+    public VersionCompareHandshake(final SemanticVersion version) {
         this(version, true);
     }
 
@@ -38,7 +37,7 @@ public class VersionCompareHandshake implements ProtocolRunnable {
      * 		error and continue
      * @throws NullPointerException in case {@code version} parameter is {@code null}
      */
-    public VersionCompareHandshake(final SoftwareVersion version, final boolean throwOnMismatch) {
+    public VersionCompareHandshake(final SemanticVersion version, final boolean throwOnMismatch) {
         Objects.requireNonNull(version, "version must not be null");
         this.version = version;
         this.throwOnMismatch = throwOnMismatch;
@@ -47,10 +46,10 @@ public class VersionCompareHandshake implements ProtocolRunnable {
     @Override
     public void runProtocol(final Connection connection)
             throws NetworkProtocolException, IOException, InterruptedException {
-        connection.getDos().writeSerializable(version, true);
+        connection.getDos().writePbjRecord(version, SemanticVersion.PROTOBUF);
         connection.getDos().flush();
-        final SelfSerializable peerVersion = connection.getDis().readSerializable(Set.of(version.getClassId()));
-        if (!(peerVersion instanceof SoftwareVersion sv) || version.compareTo(sv) != 0) {
+        final SemanticVersion peerVersion = connection.getDis().readPbjRecord(SemanticVersion.PROTOBUF);
+        if (SEMANTIC_VERSION_COMPARATOR.compare(version, peerVersion) != 0) {
             final String message = String.format(
                     "Incompatible versions. Self version is '%s', peer version is '%s'", version, peerVersion);
             if (throwOnMismatch) {

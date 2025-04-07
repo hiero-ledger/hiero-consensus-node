@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.components.appcomm;
 
-import com.swirlds.platform.consensus.ConsensusConstants;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.state.notifications.NewSignedStateNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
 /**
  * Default implementation of {@link LatestCompleteStateNotifier}.

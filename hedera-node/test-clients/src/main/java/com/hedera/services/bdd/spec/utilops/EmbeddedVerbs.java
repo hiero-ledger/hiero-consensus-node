@@ -31,6 +31,7 @@ import com.hedera.services.bdd.spec.utilops.embedded.MutateAccountOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateKVStateOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateNodeOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateScheduleCountsOp;
+import com.hedera.services.bdd.spec.utilops.embedded.MutateSingletonOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateStakingInfosOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateTokenOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewAccountOp;
@@ -48,6 +49,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.UnaryOperator;
 
 /**
  * Contains operations that are usable only with an {@link EmbeddedNetwork}.
@@ -55,6 +57,14 @@ import java.util.function.IntConsumer;
 public final class EmbeddedVerbs {
     private EmbeddedVerbs() {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns an operation that allows the test author to handle the next round in a repeatable embedded network,
+     * typically useful to handle the query payment from a just-submitted transaction.
+     */
+    public static SpecOperation handleAnyRepeatableQueryPayment() {
+        return doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleNextRoundIfPresent());
     }
 
     /**
@@ -128,6 +138,24 @@ public final class EmbeddedVerbs {
         requireNonNull(stateKey);
         requireNonNull(observer);
         return new ViewSingletonOp<>(serviceName, stateKey, observer);
+    }
+
+    /**
+     * Returns an operation that allows the test author to mutate a singleton record in an embedded state.
+     * @param serviceName the name of the service that manages the record
+     * @param stateKey the key of the record in the state
+     * @param mutator the observer that will receive the record
+     * @return the operation that will expose the record to the mutator
+     * @param <T> the type of the record
+     */
+    public static <T> MutateSingletonOp<T> mutateSingleton(
+            @NonNull final String serviceName,
+            @NonNull final String stateKey,
+            @NonNull final UnaryOperator<T> mutator) {
+        requireNonNull(serviceName);
+        requireNonNull(stateKey);
+        requireNonNull(mutator);
+        return new MutateSingletonOp<>(serviceName, stateKey, mutator);
     }
 
     /**

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.report;
 
-import com.swirlds.platform.system.events.CesEvent;
 import java.time.Instant;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * Information about an event stream.

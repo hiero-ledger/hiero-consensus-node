@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
-import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
+import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A test implementation of {@link MerkleStateRoot} state for SignedStateManager unit tests.
@@ -47,7 +46,7 @@ public class BlockingState extends TestMerkleStateRoot {
      * Constructs a new instance of {@link BlockingState}.
      */
     public BlockingState() {
-        this(new TestPlatformStateFacade(v -> new BasicSoftwareVersion(v.major())));
+        this(new TestPlatformStateFacade());
     }
 
     /**

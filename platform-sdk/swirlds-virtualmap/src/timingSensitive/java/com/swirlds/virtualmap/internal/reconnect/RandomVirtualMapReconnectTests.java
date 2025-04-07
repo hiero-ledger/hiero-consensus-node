@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -97,7 +97,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
      * @param initialMapSize
      * 		how many key/values to store in both teacherMap and learnerMap before the reconnect
      * @param maximumKey
-     * 		how many distict Key values are allowed to exist
+     * 		how many distinct Key values are allowed to exist
      * @param operations
      * 		how many create/update/delete operations to perform on just the teacherMap, prior to the
      * 		reconnect

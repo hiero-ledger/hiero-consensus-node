@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.benchmark.reconnect;
 
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.stream.LongStream;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 
 /**
  * A utility class to help build random states.

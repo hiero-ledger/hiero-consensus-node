@@ -6,13 +6,9 @@ import static com.swirlds.platform.event.creation.tipset.Tipset.merge;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.sequence.map.SequenceMap;
 import com.swirlds.platform.sequence.map.StandardSequenceMap;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -21,6 +17,10 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Computes and tracks tipsets for non-ancient events.
@@ -64,13 +64,7 @@ public class TipsetTracker {
 
         this.latestGenerations = new Tipset(roster);
 
-        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-            tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, ed -> ed.eventDescriptor()
-                    .birthRound());
-        } else {
-            tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, ed -> ed.eventDescriptor()
-                    .generation());
-        }
+        tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, ancientMode::selectIndicator);
 
         ancientEventLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
@@ -116,9 +110,9 @@ public class TipsetTracker {
             // enter this bock of code. This log is here as a canary to alert us if we somehow do.
             ancientEventLogger.error(
                     EXCEPTION.getMarker(),
-                    "Rejecting ancient event from {} with generation {}. Current event window is {}",
+                    "Rejecting ancient event from {} with threshold {}. Current event window is {}",
                     eventDescriptorWrapper.creator(),
-                    eventDescriptorWrapper.eventDescriptor().generation(),
+                    ancientMode.selectIndicator(eventDescriptorWrapper),
                     eventWindow);
         }
 

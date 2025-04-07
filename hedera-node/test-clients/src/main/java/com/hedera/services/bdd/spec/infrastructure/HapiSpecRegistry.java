@@ -17,6 +17,8 @@ import com.hedera.services.bdd.spec.infrastructure.listeners.TokenAccountRegistr
 import com.hedera.services.bdd.spec.infrastructure.meta.ActionableContractCall;
 import com.hedera.services.bdd.spec.infrastructure.meta.ActionableContractCallLocal;
 import com.hedera.services.bdd.spec.infrastructure.meta.SupportedContract;
+import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hedera.services.bdd.spec.utilops.inventory.TypedKey;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
@@ -39,7 +41,6 @@ import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TopicID;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -59,8 +60,8 @@ public class HapiSpecRegistry {
     public HapiSpecRegistry(HapiSpecSetup setup) throws Exception {
         this.setup = setup;
 
-        final var key = setup.payerKeyAsEd25519();
-        final var genesisKey = asPublicKey(CommonUtils.hex(key.getAbyte()));
+        final var key = TypedKey.from(setup.payerKey());
+        final var genesisKey = asPublicKey(key.pubKey(), key.type());
 
         saveAccountId(setup.genesisAccountName(), setup.genesisAccount());
         saveKey(setup.genesisAccountName(), asKeyList(genesisKey));
@@ -131,10 +132,14 @@ public class HapiSpecRegistry {
         return Key.getDefaultInstance();
     }
 
-    private Key asPublicKey(String pubKeyHex) {
-        return Key.newBuilder()
-                .setEd25519(ByteString.copyFrom(CommonUtils.unhex(pubKeyHex)))
-                .build();
+    private Key asPublicKey(byte[] pubKey, SigControl control) {
+        if (control == SigControl.SECP256K1_ON) {
+            return Key.newBuilder()
+                    .setECDSASecp256K1(ByteString.copyFrom(pubKey))
+                    .build();
+        } else {
+            return Key.newBuilder().setEd25519(ByteString.copyFrom(pubKey)).build();
+        }
     }
 
     private Key asKeyList(Key key) {

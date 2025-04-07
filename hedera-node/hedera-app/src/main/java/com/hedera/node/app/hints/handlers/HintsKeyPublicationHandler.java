@@ -15,9 +15,13 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Singleton
 public class HintsKeyPublicationHandler implements TransactionHandler {
+    private static final Logger log = LogManager.getLogger(HintsKeyPublicationHandler.class);
+
     private static final int INVALID_PARTY_ID = -1;
 
     private final HintsControllers controllers;
@@ -51,8 +55,16 @@ public class HintsKeyPublicationHandler implements TransactionHandler {
                 final var hintsStore = context.storeFactory().writableStore(WritableHintsStore.class);
                 final var adoptionTime = context.consensusNow();
                 if (hintsStore.setHintsKey(nodeId, partyId, numParties, hintsKey, adoptionTime)) {
-                    controller.addHintsKeyPublication(new HintsKeyPublication(nodeId, hintsKey, partyId, adoptionTime));
+                    controller.addHintsKeyPublication(
+                            new HintsKeyPublication(nodeId, hintsKey, partyId, adoptionTime),
+                            hintsStore.getCrsState().crs());
                 }
+            } else {
+                log.warn(
+                        "Ignoring hinTS key from node{} (claimed party id {} instead of {})",
+                        nodeId,
+                        op.partyId(),
+                        partyId);
             }
         });
     }

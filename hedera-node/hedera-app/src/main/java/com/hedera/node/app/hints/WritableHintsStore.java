@@ -5,6 +5,7 @@ import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
@@ -65,16 +66,26 @@ public interface WritableHintsStore extends ReadableHintsStore {
     HintsConstruction setPreprocessingStartTime(long constructionId, @NonNull Instant now);
 
     /**
-     * Purges any state no longer needed after a given handoff.
+     * Updates state for a handoff to the given roster hash.
+     *
+     * @param previousRoster the previous roster
+     * @param adoptedRoster the adopted roster
+     * @param adoptedRosterHash the adopted roster hash
+     * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
+     * @return whether the handoff changed the hinTS scheme
      */
-    void updateForHandoff(@NonNull ActiveRosters activeRosters);
+    boolean updateAtHandoff(
+            @NonNull Roster previousRoster,
+            @NonNull Roster adoptedRoster,
+            @NonNull Bytes adoptedRosterHash,
+            boolean forceHandoff);
 
     /**
      * Sets the {@link CRSState} for the network.
      *
      * @param crsState the {@link CRSState} to set
      */
-    void setCRSState(@NonNull CRSState crsState);
+    void setCrsState(@NonNull CRSState crsState);
 
     /**
      * Moves the CRS contribution to be done by the next node in the roster. This is called when the

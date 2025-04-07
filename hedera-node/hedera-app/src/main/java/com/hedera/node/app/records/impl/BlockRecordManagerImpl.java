@@ -19,8 +19,6 @@ import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.stream.LinkedObjectStreamUtilities;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
@@ -34,6 +32,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * An implementation of {@link BlockRecordManager} primarily responsible for managing state ({@link RunningHashes} and

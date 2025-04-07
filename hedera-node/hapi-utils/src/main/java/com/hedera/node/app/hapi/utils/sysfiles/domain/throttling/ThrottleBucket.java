@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.sysfiles.domain.throttling;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
+import static com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.HapiThrottleUtils.lcm;
 import static com.hedera.node.app.hapi.utils.sysfiles.validation.ErrorCodeUtils.exceptionMsgFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUCKET_CAPACITY_OVERFLOW;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUCKET_HAS_NO_THROTTLE_GROUPS;
@@ -222,24 +222,5 @@ public final class ThrottleBucket<E extends Enum<E>> {
 
     public long impliedBurstPeriodMs() {
         return burstPeriodMs > 0 ? burstPeriodMs : 1_000L * burstPeriod;
-    }
-
-    /**
-     * Computes the least common multiple of the given two numbers.
-     *
-     * @param lhs the first number
-     * @param rhs the second number
-     * @return the least common multiple of {@code a} and {@code b}
-     * @throws ArithmeticException if the result overflows a {@code long}
-     */
-    private long lcm(final long lhs, final long rhs) {
-        if (productWouldOverflow(lhs, rhs)) {
-            throw new ArithmeticException();
-        }
-        return (lhs * rhs) / gcd(Math.min(lhs, rhs), Math.max(lhs, rhs));
-    }
-
-    private long gcd(final long lhs, final long rhs) {
-        return (lhs == 0) ? rhs : gcd(rhs % lhs, lhs);
     }
 }

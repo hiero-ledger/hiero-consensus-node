@@ -26,6 +26,7 @@ import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -102,10 +103,12 @@ public class FileTestBase {
 
     protected final KeyList anotherKeys = B_KEY_LIST.keyList();
 
-    private final long SHARD = 5L;
-    private final long REALM = 10L;
+    protected final long SHARD =
+            DEFAULT_CONFIG.getConfigData(HederaConfig.class).shard();
+    protected final long REALM =
+            DEFAULT_CONFIG.getConfigData(HederaConfig.class).realm();
 
-    private final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
+    protected final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
 
     protected final FileID WELL_KNOWN_FILE_ID = idFactory.newFileId(1_234L);
     protected final FileID WELL_KNOWN_UPGRADE_FILE_ID = idFactory.newFileId(150L);

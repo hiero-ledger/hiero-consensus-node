@@ -26,7 +26,7 @@ public enum HashValidityStatus {
      */
     LACK_OF_DATA,
     /**
-     * We Lack sufficient data to ever fully decide, but there is strong evidence of a severely fragmented
+     * We lack sufficient data to ever fully decide, but there is strong evidence of a severely fragmented
      * and unhealthy network.
      */
     CATASTROPHIC_LACK_OF_DATA
