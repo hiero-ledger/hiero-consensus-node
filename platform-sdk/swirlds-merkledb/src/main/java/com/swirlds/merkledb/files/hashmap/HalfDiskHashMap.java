@@ -302,8 +302,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     /**
      * Removes all stale and unknown keys from this HalfDiskHashMap using leaf information from the
      * provided store. This method iterates over all key to path entries in this map, gets the paths,
-     * loads leaf records by the paths, and compares to the original keys. If the keys don't match,
-     * they are removed from this map. If a key is outside the given path range, it's deleted, too.
+     * loads leaf records by the paths, and compares to the original keys. If the key from the entry
+     * doesn't match the key from the leaf record, the entry is deleted from this map. If the key
+     * from the entry is outside the given path range, the entry is deleted, too.
      *
      * @param firstLeafPath The first leaf path
      * @param lastLeafPath The last leaf path

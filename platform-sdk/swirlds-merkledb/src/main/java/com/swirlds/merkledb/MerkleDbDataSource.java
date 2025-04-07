@@ -351,7 +351,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final String tablesToRepairHdhmConfig = merkleDbConfig.tablesToRepairHdhm();
         if (tablesToRepairHdhmConfig != null) {
             final String[] tableNames = tablesToRepairHdhmConfig.split(",");
-            if (Arrays.stream(tableNames).filter(s -> !s.isBlank()).anyMatch(tableName::startsWith)) {
+            if (Arrays.stream(tableNames).filter(s -> !s.isBlank()).anyMatch(tableName::equals)) {
                 keyToPath.repair(getFirstLeafPath(), getLastLeafPath(), pathToKeyValue);
             }
         }
