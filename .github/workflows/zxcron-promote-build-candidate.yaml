@@ -202,6 +202,14 @@ jobs:
                         {
                           "type": "mrkdwn",
                           "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.promote-build-candidate.outputs.build-candidate-tag }}>"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "Workflow Run"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
                         }
                       ]
                     }
@@ -299,8 +307,18 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
-                      }
+                        "text": "*Additional Information:*"
+                      },
+                      "fields":[
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow Run*: \n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                        }
+                      ]
                     }
                   ]
                 }
