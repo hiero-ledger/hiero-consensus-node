@@ -15,6 +15,7 @@ import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
@@ -56,6 +57,7 @@ public class DiskStartupNetworks implements StartupNetworks {
     public static final String GENESIS_NETWORK_JSON = "genesis-network.json";
     public static final String OVERRIDE_NETWORK_JSON = "override-network.json";
     public static final Pattern ROUND_DIR_PATTERN = Pattern.compile("\\d+");
+    private static final String CONFIG_TXT = "config.txt";
 
     private final ConfigProvider configProvider;
 
@@ -105,9 +107,18 @@ public class DiskStartupNetworks implements StartupNetworks {
         if (scopedNetwork.isPresent()) {
             return scopedNetwork;
         }
-        return platformConfig.getConfigData(AddressBookConfig.class).forceUseOfConfigAddressBook()
-                ? networkFromConfigTxt(platformConfig, config)
-                : Optional.empty();
+
+        if (platformConfig.getConfigData(AddressBookConfig.class).forceUseOfConfigAddressBook()) {
+            try {
+                return networkFromConfigTxt(platformConfig, config);
+            } catch (Exception e) {
+                // Since we're attempting to load an override network (instead of genesis), it's not a fatal error if we
+                // can't find config.txt
+                log.warn("Failed to load network from config.txt", e);
+            }
+        }
+
+        return Optional.empty();
     }
 
     @Override
@@ -143,6 +154,7 @@ public class DiskStartupNetworks implements StartupNetworks {
         }
         archiveIfPresent(config, GENESIS_NETWORK_JSON);
         archiveIfPresent(config, OVERRIDE_NETWORK_JSON);
+        archiveIfPresent(Path.of(config.getConfigData(NetworkAdminConfig.class).configTxtPath()), CONFIG_TXT);
         try (final var dirStream = Files.list(networksPath(config))) {
             dirStream
                     .filter(Files::isDirectory)
@@ -224,6 +236,7 @@ public class DiskStartupNetworks implements StartupNetworks {
             @NonNull final AddressBook addressBook, @NonNull final VersionedConfiguration configuration) {
         final var roster = buildRoster(addressBook);
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+        final var ledgerConfig = configuration.getConfigData(LedgerConfig.class);
         return Network.newBuilder()
                 .nodeMetadata(roster.rosterEntries().stream()
                         .map(rosterEntry -> {
@@ -238,6 +251,8 @@ public class DiskStartupNetworks implements StartupNetworks {
                             final var legacyGossipEndpoints = List.of(
                                     rosterEntry.gossipEndpoint().getLast(),
                                     rosterEntry.gossipEndpoint().getFirst());
+                            final var declineReward =
+                                    nodeAccountId.accountNumOrThrow() <= ledgerConfig.numSystemAccounts();
                             return NodeMetadata.newBuilder()
                                     .rosterEntry(rosterEntry)
                                     .node(Node.newBuilder()
@@ -250,6 +265,7 @@ public class DiskStartupNetworks implements StartupNetworks {
                                             .grpcCertificateHash(Bytes.EMPTY)
                                             .weight(rosterEntry.weight())
                                             .deleted(false)
+                                            .declineReward(declineReward)
                                             .adminKey(Key.DEFAULT)
                                             .build())
                                     .build();
@@ -330,19 +346,23 @@ public class DiskStartupNetworks implements StartupNetworks {
      *
      * @param segments the segments to archive
      */
-    private static void archiveIfPresent(@NonNull final Configuration config, @NonNull final String... segments) {
+    private static void archiveIfPresent(Path basePath, @NonNull final String... segments) {
         try {
-            final var path = networksPath(config, segments);
+            final var path = Paths.get(basePath.toAbsolutePath().toString(), segments);
             if (Files.exists(path)) {
                 final var archiveSegments =
                         Stream.concat(Stream.of(ARCHIVE), Stream.of(segments)).toArray(String[]::new);
-                final var dest = networksPath(config, archiveSegments);
+                final var dest = Paths.get(basePath.toAbsolutePath().toString(), archiveSegments);
                 createIfAbsent(dest.getParent());
                 Files.move(path, dest);
             }
         } catch (IOException e) {
             log.warn("Failed to archive {}", segments, e);
         }
+    }
+
+    private static void archiveIfPresent(@NonNull final Configuration config, @NonNull final String... segments) {
+        archiveIfPresent(networksPath(config), segments);
     }
 
     /**

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.pool;
 
-import static com.swirlds.common.utility.CompareTo.isLessThan;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static org.hiero.base.utility.CompareTo.isLessThan;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
@@ -20,8 +20,8 @@ import java.util.Objects;
 import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.event.creator.impl.EventCreationConfig;
 
 /**
  * Store a list of transactions created by self, both system and non-system, for wrapping in the next event to be

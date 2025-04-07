@@ -19,6 +19,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -108,6 +109,8 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
     private SttTransactionPool sttTransactionPool;
 
     private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
+    private static final SemanticVersion semanticVersion =
+            SemanticVersion.newBuilder().major(1).build();
 
     private final StoppableThread transactionGenerator;
 
@@ -302,6 +305,14 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
     @Override
     public BasicSoftwareVersion getSoftwareVersion() {
         return softwareVersion;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public SemanticVersion getSemanticVersion() {
+        return semanticVersion;
     }
 
     @Override

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.tipset;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomSignature;
-import static com.swirlds.common.utility.CompareTo.isGreaterThanOrEqualTo;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignature;
+import static org.hiero.base.utility.CompareTo.isGreaterThanOrEqualTo;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;

@@ -10,7 +10,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.swirlds.common.stream.internal.LinkedObjectStream;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,7 +57,7 @@ class MultiStreamTest {
 
     @Test
     void setHashTest() {
-        Hash hash = RandomUtils.randomHash();
+        Hash hash = CryptoRandomUtils.randomHash();
         multiStream.setRunningHash(hash);
         verify(hashCalculator).setRunningHash(hash);
         verify(queueThread).setRunningHash(hash);

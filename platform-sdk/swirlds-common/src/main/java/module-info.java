@@ -137,6 +137,7 @@ module com.swirlds.common {
     requires transitive com.swirlds.logging;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.metrics.impl;
+    requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires transitive com.fasterxml.jackson.core;
     requires transitive com.fasterxml.jackson.databind;

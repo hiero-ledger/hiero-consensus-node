@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
-import com.swirlds.common.utility.Clearable;
 import com.swirlds.platform.sequence.set.SequenceSet;
 import com.swirlds.platform.sequence.set.StandardSequenceSet;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -9,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import org.hiero.base.utility.Clearable;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -19,7 +19,6 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
  * Stores all output of consensus used in testing. This output can be used to validate consensus results.
  */
 public class ConsensusOutput implements Clearable {
-    private final AncientMode ancientMode;
     private final LinkedList<ConsensusRound> consensusRounds;
     private final LinkedList<PlatformEvent> addedEvents;
     private final LinkedList<PlatformEvent> staleEvents;
@@ -37,19 +36,12 @@ public class ConsensusOutput implements Clearable {
      * @param ancientMode the ancient mode
      */
     public ConsensusOutput(@NonNull final AncientMode ancientMode) {
-        this.ancientMode = ancientMode;
         addedEvents = new LinkedList<>();
         consensusRounds = new LinkedList<>();
         staleEvents = new LinkedList<>();
 
-        nonAncientEvents = new StandardSequenceSet<>(
-                0, 1024, true, e -> ancientMode.selectIndicator(e.getGeneration(), e.getBirthRound()));
-        nonAncientConsensusEvents = new StandardSequenceSet<>(
-                0,
-                1024,
-                true,
-                ed -> ancientMode.selectIndicator(
-                        ed.eventDescriptor().generation(), ed.eventDescriptor().birthRound()));
+        nonAncientEvents = new StandardSequenceSet<>(0, 1024, true, ancientMode::selectIndicator);
+        nonAncientConsensusEvents = new StandardSequenceSet<>(0, 1024, true, ancientMode::selectIndicator);
         eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
     }
 
