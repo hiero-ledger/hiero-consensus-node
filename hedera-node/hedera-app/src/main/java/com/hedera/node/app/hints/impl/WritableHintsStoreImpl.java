@@ -61,7 +61,7 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     private final WritableSingletonState<CRSState> crsState;
 
     public WritableHintsStoreImpl(@NonNull final WritableStates states) {
-        super(states);
+        super(states, entityCounters);
         this.hintsKeys = states.get(HINTS_KEY_SETS_KEY);
         this.nextConstruction = states.getSingleton(NEXT_HINT_CONSTRUCTION_KEY);
         this.activeConstruction = states.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY);

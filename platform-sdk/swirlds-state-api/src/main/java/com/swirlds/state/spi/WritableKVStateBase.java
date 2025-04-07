@@ -130,6 +130,7 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
      */
     @NonNull
     @Override
+    @Deprecated
     public Iterator<K> keys() {
         // Capture the set of keys that have been removed, and the set of keys that have been added.
         final var removedKeys = new HashSet<K>();

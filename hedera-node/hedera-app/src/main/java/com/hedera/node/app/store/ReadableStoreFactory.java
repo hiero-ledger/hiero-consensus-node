@@ -131,7 +131,7 @@ public class ReadableStoreFactory {
         // Hints service
         newMap.put(
                 ReadableHintsStore.class,
-                new StoreEntry(HintsService.NAME, (states, entityCounters) -> new ReadableHintsStoreImpl(states)));
+                new StoreEntry(HintsService.NAME, (states, entityCounters) -> new ReadableHintsStoreImpl(states, entityCounters)));
         // History service
         newMap.put(
                 ReadableHistoryStore.class,

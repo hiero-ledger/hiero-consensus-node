@@ -47,7 +47,7 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
 
     @Override
     public Roster snapshotOfFutureRoster(Function<Long, Long> weightFunction) {
-        return constructFromNodesStateWithStakingInfoWeight(nodesState(), weightFunction);
+        return constructFromNodesStateWithStakingInfoWeight(this, weightFunction);
     }
 
     /**
@@ -75,17 +75,26 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
     }
 
     @NonNull
-    public Iterator<EntityNumber> keys() {
-        return nodesState().keys();
+    public List<EntityNumber> keys() {
+        final var size = sizeOfState();
+        final var keys = new ArrayList<EntityNumber>();
+        for(int i =0; i < size; i++) {
+            final var key = EntityNumber.newBuilder().number(i).build();
+            final var node = nodesState.get(key);
+            if(node == null) {
+                continue;
+            }
+            keys.add(key);
+        }
+        return keys;
     }
 
     private Roster constructFromNodesStateWithStakingInfoWeight(
-            @NonNull final ReadableKVState<EntityNumber, Node> nodesState,
+            @NonNull final ReadableNodeStoreImpl nodeStore,
             @NonNull final Function<Long, Long> weightProvider) {
         final var rosterEntries = new ArrayList<RosterEntry>();
-        for (final var it = nodesState.keys(); it.hasNext(); ) {
-            final var nodeNumber = it.next();
-            final var node = requireNonNull(nodesState.get(nodeNumber));
+        for (final var nodeNumber : nodeStore.keys()) {
+            final var node = requireNonNull(nodeStore.get(nodeNumber.number()));
             var nodeEndpoints = node.gossipEndpoint();
             // we want to swap the internal and external node endpoints
             // so that the external one is at index 0

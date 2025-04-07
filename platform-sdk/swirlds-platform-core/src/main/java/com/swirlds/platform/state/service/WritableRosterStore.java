@@ -154,12 +154,13 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
      */
     public void resetRosters() {
         rosterState.put(RosterState.DEFAULT);
-
-        // To avoid modifying the map while iterating over all the keys, collect them into a list first:
-        final List<ProtoBytes> keys = StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(rosterMap.keys(), Spliterator.ORDERED), false)
-                .toList();
-        keys.forEach(rosterMap::remove);
+        // Remove all entries from the roster map
+        rosterMap.clear();
+//        // To avoid modifying the map while iterating over all the keys, collect them into a list first:
+//        final List<ProtoBytes> keys = StreamSupport.stream(
+//                        Spliterators.spliteratorUnknownSize(rosterMap.keys(), Spliterator.ORDERED), false)
+//                .toList();
+//        keys.forEach(rosterMap::remove);
     }
 
     /**

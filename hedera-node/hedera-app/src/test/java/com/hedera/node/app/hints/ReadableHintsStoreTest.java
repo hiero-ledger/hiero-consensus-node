@@ -80,7 +80,7 @@ class ReadableHintsStoreTest {
         given(readableStates.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY))
                 .willReturn(new ReadableSingletonStateBase<>(
                         ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT));
-        subject = new ReadableHintsStoreImpl(readableStates);
+        subject = new ReadableHintsStoreImpl(readableStates, entityCounters);
 
         assertEquals(crsState, subject.getCrsState());
     }
@@ -104,7 +104,7 @@ class ReadableHintsStoreTest {
                 .willReturn(MapReadableKVState.<PreprocessingVoteId, PreprocessingVote>builder(PREPROCESSING_VOTES_KEY)
                         .build());
 
-        subject = new ReadableHintsStoreImpl(readableStates);
+        subject = new ReadableHintsStoreImpl(readableStates, entityCounters);
 
         assertEquals(List.of(publication), subject.getCrsPublications());
     }

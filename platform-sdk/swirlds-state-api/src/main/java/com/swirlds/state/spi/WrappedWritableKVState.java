@@ -54,6 +54,7 @@ public class WrappedWritableKVState<K, V> extends WritableKVStateBase<K, V> {
     /** {@inheritDoc} */
     @NonNull
     @Override
+    @Deprecated
     protected Iterator<K> iterateFromDataSource() {
         return delegate.keys();
     }

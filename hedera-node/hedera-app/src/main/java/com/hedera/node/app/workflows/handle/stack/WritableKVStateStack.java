@@ -99,6 +99,7 @@ public class WritableKVStateStack<K, V> implements WritableKVState<K, V> {
      */
     @Override
     @NonNull
+    @Deprecated
     public Iterator<K> keys() {
         return getCurrent().keys();
     }

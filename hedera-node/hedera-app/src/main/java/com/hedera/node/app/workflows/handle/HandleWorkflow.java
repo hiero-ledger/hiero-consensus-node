@@ -885,7 +885,7 @@ public class HandleWorkflow {
             }
             if (tssConfig.historyEnabled()) {
                 final Bytes currentMetadata = tssConfig.hintsEnabled()
-                        ? new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME))
+                        ? new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME), entityCounters)
                                 .getActiveVerificationKey()
                         : HintsService.DISABLED_HINTS_METADATA;
                 final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
