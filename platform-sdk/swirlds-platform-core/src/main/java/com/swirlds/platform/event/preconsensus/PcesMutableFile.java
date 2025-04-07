@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Represents a preconsensus event file that can be written to.
@@ -64,13 +64,13 @@ public class PcesMutableFile {
      * @param event the event to write
      */
     public void writeEvent(final PlatformEvent event) throws IOException {
-        if (!descriptor.canContain(event.getAncientIndicator(descriptor.getFileType()))) {
+        if (!descriptor.canContain(descriptor.getFileType().selectIndicator(event))) {
             throw new IllegalStateException("Cannot write event " + event.getHash() + " with ancient indicator "
-                    + event.getAncientIndicator(descriptor.getFileType()) + " to file " + descriptor);
+                    + descriptor.getFileType().selectIndicator(event) + " to file " + descriptor);
         }
         writer.writeEvent(event.getGossipEvent());
-        highestAncientIdentifierInFile =
-                Math.max(highestAncientIdentifierInFile, event.getAncientIndicator(descriptor.getFileType()));
+        highestAncientIdentifierInFile = Math.max(
+                highestAncientIdentifierInFile, descriptor.getFileType().selectIndicator(event));
     }
 
     /**

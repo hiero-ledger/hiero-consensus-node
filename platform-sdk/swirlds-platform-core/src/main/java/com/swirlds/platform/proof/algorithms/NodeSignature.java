@@ -2,8 +2,8 @@
 package com.swirlds.platform.proof.algorithms;
 
 import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A signature and the node ID of the signer.

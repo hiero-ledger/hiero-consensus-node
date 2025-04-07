@@ -160,6 +160,9 @@ public class NodeUpdateHandler implements TransactionHandler {
         if (op.hasAdminKey()) {
             nodeBuilder.adminKey(op.adminKey());
         }
+        if (op.hasDeclineReward()) {
+            nodeBuilder.declineReward(op.declineReward());
+        }
         return nodeBuilder;
     }
 }

@@ -20,6 +20,7 @@ import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
 import com.hedera.hapi.node.state.hints.HintsPartyId;
+import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
@@ -40,16 +41,14 @@ import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -79,14 +78,11 @@ class WritableHintsStoreImplTest {
     private static final Bytes B_ROSTER_HASH = Bytes.wrap("B");
     private static final Roster C_ROSTER = new Roster(List.of(
             RosterEntry.newBuilder().nodeId(1L).build(),
-            RosterEntry.newBuilder().nodeId(2L).build()));
+            RosterEntry.newBuilder().nodeId(2L).build(),
+            RosterEntry.newBuilder().nodeId(3L).build()));
     private static final Bytes C_ROSTER_HASH = Bytes.wrap("C");
     private static final TssConfig TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
-    public static final Configuration WITH_ENABLED_HINTS_AND_CRS = HederaTestConfigBuilder.create()
-            .withValue("tss.hintsEnabled", true)
-            .withValue("tss.crsEnabled", true)
-            .getOrCreateConfig();
 
     @Mock
     private AppContext appContext;
@@ -96,9 +92,6 @@ class WritableHintsStoreImplTest {
 
     @Mock
     private HintsLibrary library;
-
-    @Mock
-    private NetworkInfo networkInfo;
 
     @Mock
     private StartupNetworks startupNetworks;
@@ -297,23 +290,7 @@ class WritableHintsStoreImplTest {
     }
 
     @Test
-    void purgingStateThrowsExceptAfterExactlyHandoff() {
-        given(activeRosters.phase()).willReturn(TRANSITION);
-        assertThrows(IllegalArgumentException.class, () -> subject.updateForHandoff(activeRosters));
-        given(activeRosters.phase()).willReturn(BOOTSTRAP);
-        assertThrows(IllegalArgumentException.class, () -> subject.updateForHandoff(activeRosters));
-        given(activeRosters.phase()).willReturn(HANDOFF);
-        given(activeRosters.currentRosterHash()).willReturn(Bytes.wrap("NA"));
-
-        assertDoesNotThrow(() -> subject.updateForHandoff(activeRosters));
-    }
-
-    @Test
     void purgingStateAfterHandoffHasTrueExpectedEffectIfSomethingHappened() {
-        given(activeRosters.phase()).willReturn(HANDOFF);
-        given(activeRosters.currentRoster()).willReturn(C_ROSTER);
-        given(activeRosters.currentRosterHash()).willReturn(C_ROSTER_HASH);
-        givenARosterLookup();
         final var activeConstruction = HintsConstruction.newBuilder()
                 .constructionId(123L)
                 .sourceRosterHash(A_ROSTER_HASH)
@@ -322,17 +299,20 @@ class WritableHintsStoreImplTest {
         final var nextConstruction = HintsConstruction.newBuilder()
                 .constructionId(456L)
                 .targetRosterHash(C_ROSTER_HASH)
+                .hintsScheme(HintsScheme.DEFAULT)
                 .build();
         setConstructions(activeConstruction, nextConstruction);
-        addSomeVotesFor(123L, A_ROSTER);
-        addSomeHintsKeySetsFor(A_ROSTER);
+        final var prevRoster =
+                new Roster(List.of(RosterEntry.newBuilder().nodeId(0L).build()));
+        addSomeVotesFor(123L, prevRoster);
+        addSomeHintsKeySetsFor(prevRoster);
         final var votesBefore = subject.getVotes(123L, Set.of(0L, 1L));
         assertEquals(1, votesBefore.size());
         assertEquals(DEFAULT_VOTE, votesBefore.get(0L));
         final var publicationsBefore = subject.getHintsKeyPublications(Set.of(0L), partySizeForRoster(A_ROSTER));
         assertEquals(1, publicationsBefore.size());
 
-        subject.updateForHandoff(activeRosters);
+        subject.updateAtHandoff(prevRoster, C_ROSTER, C_ROSTER_HASH, false);
 
         assertSame(nextConstruction, constructionNow(ACTIVE_HINT_CONSTRUCTION_KEY));
 
@@ -385,7 +365,7 @@ class WritableHintsStoreImplTest {
                         ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
 
         subject = new WritableHintsStoreImpl(writableStates);
-        subject.setCRSState(crsState);
+        subject.setCrsState(crsState);
         return crsState;
     }
 
@@ -455,7 +435,9 @@ class WritableHintsStoreImplTest {
                                 ForkJoinPool.commonPool(),
                                 appContext,
                                 library,
-                                WITH_ENABLED_HINTS_AND_CRS))
+                                DEFAULT_CONFIG
+                                        .getConfigData(BlockStreamConfig.class)
+                                        .blockPeriod()))
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
@@ -467,7 +449,6 @@ class WritableHintsStoreImplTest {
                         bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion()),
                 new ConfigProviderImpl().getConfiguration(),
                 DEFAULT_CONFIG,
-                networkInfo,
                 NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,

@@ -10,8 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.test.fixtures.sync.SyncNode;
@@ -22,6 +20,8 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 public class SyncValidator {
 
@@ -122,15 +122,15 @@ public class SyncValidator {
 
         // Remove expired events
         expectedCallerSendList.removeIf(
-                e -> e.getBaseEvent().getAncientIndicator(ancientMode) < caller.getExpirationThreshold());
+                e -> ancientMode.selectIndicator(e.getBaseEvent()) < caller.getExpirationThreshold());
         expectedListenerSendList.removeIf(
-                e -> e.getBaseEvent().getAncientIndicator(ancientMode) < listener.getExpirationThreshold());
+                e -> ancientMode.selectIndicator(e.getBaseEvent()) < listener.getExpirationThreshold());
 
         // Remove events that are ancient for the peer
         expectedCallerSendList.removeIf(
-                e -> e.getBaseEvent().getAncientIndicator(ancientMode) < listener.getCurrentAncientThreshold());
+                e -> ancientMode.selectIndicator(e.getBaseEvent()) < listener.getCurrentAncientThreshold());
         expectedListenerSendList.removeIf(
-                e -> e.getBaseEvent().getAncientIndicator(ancientMode) < caller.getCurrentAncientThreshold());
+                e -> ancientMode.selectIndicator(e.getBaseEvent()) < caller.getCurrentAncientThreshold());
 
         // Get the events each received from the other in the sync
         final List<PlatformEvent> callerReceivedEvents = caller.getReceivedEvents();

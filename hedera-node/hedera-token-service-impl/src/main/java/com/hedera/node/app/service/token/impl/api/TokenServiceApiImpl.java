@@ -9,8 +9,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.token.api.TokenServiceApi.FreeAliasOnDeletion.YES;
-import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -34,6 +34,7 @@ import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBu
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -41,6 +42,7 @@ import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
@@ -56,6 +58,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     private final AccountID fundingAccountID;
     private final AccountID stakingRewardAccountID;
     private final AccountID nodeRewardAccountID;
+    private final NodesConfig nodesConfig;
     private final StakingConfig stakingConfig;
     private final Predicate<CryptoTransferTransactionBody> customFeeTest;
 
@@ -76,6 +79,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         requireNonNull(config);
         this.accountStore = new WritableAccountStore(writableStates, entityCounters);
 
+        nodesConfig = config.getConfigData(NodesConfig.class);
         // Determine whether staking is enabled
         stakingConfig = config.getConfigData(StakingConfig.class);
 
@@ -339,11 +343,13 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final AccountID nodeAccountId,
             @NonNull Fees fees,
             @NonNull final FeeStreamBuilder rb,
-            @Nullable final ObjLongConsumer<AccountID> cb) {
+            @Nullable final ObjLongConsumer<AccountID> cb,
+            @NonNull final LongConsumer onNodeFee) {
         requireNonNull(rb);
         requireNonNull(fees);
         requireNonNull(payerId);
         requireNonNull(nodeAccountId);
+        requireNonNull(onNodeFee);
 
         // Note: these four accounts (payer, funding, staking reward, node reward) MUST exist for the transaction to be
         // valid and for fees to be processed. If any of them do not exist, the entire transaction will fail. There is
@@ -378,6 +384,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             if (cb != null) {
                 cb.accept(nodeAccountId, chargeableNodeFee);
             }
+            onNodeFee.accept(chargeableNodeFee);
         }
     }
 
@@ -582,31 +589,40 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         // whatever is left over goes to the funding account.
         long balance = amount;
 
-        // We only pay node and staking rewards if the feature is enabled
-        if (stakingConfig.isEnabled()) {
-            final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
-            balance -= nodeReward;
-            payNodeRewardAccount(nodeReward);
-            if (cb != null) {
-                cb.accept(nodeRewardAccountID, nodeReward);
+        final var nodeRewardAccount = lookupAccount("Node rewards", nodeRewardAccountID);
+        if (!(nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance())
+                || nodeRewardAccount.tinybarBalance() > nodesConfig.minNodeRewardBalance()) {
+            // We only pay node and staking rewards if the feature is enabled
+            if (stakingConfig.isEnabled()) {
+                final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
+                balance -= nodeReward;
+                payNodeRewardAccount(nodeReward);
+                if (cb != null) {
+                    cb.accept(nodeRewardAccountID, nodeReward);
+                }
+
+                final long stakingReward = (stakingConfig.feesStakingRewardPercentage() * amount) / 100;
+                balance -= stakingReward;
+                payStakingRewardAccount(stakingReward);
+                if (cb != null) {
+                    cb.accept(stakingRewardAccountID, stakingReward);
+                }
             }
 
-            final long stakingReward = (stakingConfig.feesStakingRewardPercentage() * amount) / 100;
-            balance -= stakingReward;
-            payStakingRewardAccount(stakingReward);
+            // Whatever is left over goes to the funding account
+            final var fundingAccount = lookupAccount("Funding", fundingAccountID);
+            accountStore.put(fundingAccount
+                    .copyBuilder()
+                    .tinybarBalance(fundingAccount.tinybarBalance() + balance)
+                    .build());
             if (cb != null) {
-                cb.accept(stakingRewardAccountID, stakingReward);
+                cb.accept(fundingAccountID, balance);
             }
-        }
-
-        // Whatever is left over goes to the funding account
-        final var fundingAccount = lookupAccount("Funding", fundingAccountID);
-        accountStore.put(fundingAccount
-                .copyBuilder()
-                .tinybarBalance(fundingAccount.tinybarBalance() + balance)
-                .build());
-        if (cb != null) {
-            cb.accept(fundingAccountID, balance);
+        } else {
+            payNodeRewardAccount(balance);
+            if (cb != null) {
+                cb.accept(nodeRewardAccountID, balance);
+            }
         }
     }
 }

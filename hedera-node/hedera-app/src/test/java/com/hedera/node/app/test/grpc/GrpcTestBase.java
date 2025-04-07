@@ -13,6 +13,7 @@ import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
@@ -21,7 +22,6 @@ import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.api.source.ConfigSource;
@@ -50,6 +50,7 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import org.assertj.core.api.Assumptions;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 
 /**
@@ -81,6 +82,7 @@ abstract class GrpcTestBase extends TestBase {
     private NettyGrpcServerManager grpcServer;
 
     private final Configuration configuration = ConfigurationBuilder.create()
+            .withConfigDataType(JumboTransactionsConfig.class)
             .withConfigDataType(MetricsConfig.class)
             .build();
 
@@ -261,6 +263,7 @@ abstract class GrpcTestBase extends TestBase {
                 .withConfigDataType(GrpcConfig.class)
                 .withConfigDataType(NettyConfig.class)
                 .withConfigDataType(HederaConfig.class)
+                .withConfigDataType(JumboTransactionsConfig.class)
                 .withSource(testConfig)
                 .build();
     }

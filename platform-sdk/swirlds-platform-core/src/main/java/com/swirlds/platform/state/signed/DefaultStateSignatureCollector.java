@@ -8,11 +8,8 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.consensus.ConsensusConstants;
 import com.swirlds.platform.sequence.set.SequenceSet;
 import com.swirlds.platform.sequence.set.StandardSequenceSet;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -30,6 +27,9 @@ import java.util.Queue;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * Collects signatures for signed states. This class ensures that all the non-ancient states that are not fully signed
@@ -90,7 +90,7 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         // find any signatures that have been saved
         final List<SavedSignature> signatures = savedSignatures.getEntriesWithSequenceNumber(signedState.getRound());
         savedSignatures.removeSequenceNumber(signedState.getRound());
-        signatures.forEach(ss -> addSignature(reservedSignedState, ss.memberId, ss.signature));
+        signatures.forEach(ss -> addSignature(reservedSignedState, ss.memberId(), ss.signature()));
 
         lastStateRound = Math.max(lastStateRound, signedState.getRound());
         adjustSavedSignaturesWindow(signedState.getRound());
@@ -275,7 +275,7 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
     }
 
     /**
-     * A signature that was received when there was no state with a matching round.
+     * A signature for a state hash that was received when this node does not yet have a state with a matching round.
      */
     private record SavedSignature(long round, @NonNull NodeId memberId, @NonNull Signature signature) {}
 }

@@ -2,20 +2,21 @@
 package com.swirlds.platform.event.hashing;
 
 import com.hedera.hapi.platform.event.EventCore;
+import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.system.events.UnsignedEvent;
-import com.swirlds.platform.system.transaction.TransactionWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.event.UnsignedEvent;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**
  * Hashes the PBJ representation of an event. This hasher double hashes each transaction in order to allow redaction of
@@ -37,7 +38,7 @@ public class PbjStreamHasher implements EventHasher, UnsignedEventHasher {
     @NonNull
     public PlatformEvent hashEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
-        final Hash hash = hashEvent(event.getEventCore(), event.getTransactions());
+        final Hash hash = hashEvent(event.getEventCore(), event.getGossipEvent().parents(), event.getTransactions());
         event.setHash(hash);
         return event;
     }
@@ -48,21 +49,28 @@ public class PbjStreamHasher implements EventHasher, UnsignedEventHasher {
      * @param event the event to hash
      */
     public void hashUnsignedEvent(@NonNull final UnsignedEvent event) {
-        final Hash hash = hashEvent(event.getEventCore(), event.getTransactions());
+        final Hash hash = hashEvent(event.getEventCore(), event.getParents(), event.getTransactions());
         event.setHash(hash);
     }
 
     /**
      * Hashes the given event and returns the hash.
      *
-     * @param eventCore         the event to hash
-     * @param transactions      the transactions to hash
+     * @param eventCore    the event to hash
+     * @param parents      the parents of the event
+     * @param transactions the transactions to hash
      * @return the hash of the event
      */
     @NonNull
-    private Hash hashEvent(@NonNull final EventCore eventCore, @NonNull final List<TransactionWrapper> transactions) {
+    private Hash hashEvent(
+            @NonNull final EventCore eventCore,
+            @NonNull final List<EventDescriptor> parents,
+            @NonNull final List<TransactionWrapper> transactions) {
         try {
             EventCore.PROTOBUF.write(eventCore, eventStream);
+            for (final EventDescriptor parent : parents) {
+                EventDescriptor.PROTOBUF.write(parent, eventStream);
+            }
             for (final TransactionWrapper transaction : transactions) {
                 transactionStream.writeBytes(Objects.requireNonNull(transaction.getApplicationTransaction()));
                 processTransactionHash(transaction);

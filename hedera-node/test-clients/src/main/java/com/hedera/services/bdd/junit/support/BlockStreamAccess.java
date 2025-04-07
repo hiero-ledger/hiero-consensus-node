@@ -42,9 +42,6 @@ public enum BlockStreamAccess {
 
     private static final Logger log = LogManager.getLogger(BlockStreamAccess.class);
 
-    private static final String UNCOMPRESSED_FILE_EXT = ".blk";
-    private static final String COMPRESSED_FILE_EXT = UNCOMPRESSED_FILE_EXT + ".gz";
-
     /**
      * Reads all files matching the block file pattern from the given path and returns them in
      * ascending order of block number.
@@ -191,7 +188,7 @@ public enum BlockStreamAccess {
     private Block blockFrom(@NonNull final Path path) {
         final var fileName = path.getFileName().toString();
         try {
-            if (fileName.endsWith(COMPRESSED_FILE_EXT)) {
+            if (fileName.endsWith(".gz")) {
                 try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(path))) {
                     return Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
                 }
@@ -215,12 +212,22 @@ public enum BlockStreamAccess {
         if (!path.toFile().isFile() || extractBlockNumber(path) == -1) {
             return false;
         }
+        final var name = path.getFileName().toString();
+        if (name.endsWith(".pnd.json")) {
+            return false;
+        }
         // Check for marker file
-        final Path markerFile = path.resolveSibling(path.getFileName()
-                .toString()
-                .replace(COMPRESSED_FILE_EXT, ".mf")
-                .replace(UNCOMPRESSED_FILE_EXT, ".mf"));
-        return Files.exists(markerFile);
+        final var markerFile =
+                path.resolveSibling(name.replace(".blk.gz", ".mf").replace(".blk", ".mf"));
+        if (Files.exists(markerFile)) {
+            return true;
+        }
+        if (name.endsWith(".pnd")) {
+            return Files.exists(path.resolveSibling(name + ".json"));
+        } else if (name.endsWith(".pnd.gz")) {
+            return Files.exists(path.resolveSibling(name.replace(".gz", ".json")));
+        }
+        return false;
     }
 
     /**
@@ -251,8 +258,11 @@ public enum BlockStreamAccess {
      */
     public static long extractBlockNumber(@NonNull final String fileName) {
         try {
-            final var blockNumber = fileName.substring(0, fileName.indexOf(UNCOMPRESSED_FILE_EXT));
-            return Long.parseLong(blockNumber);
+            int i = fileName.indexOf(".blk");
+            if (i == -1) {
+                i = fileName.indexOf(".pnd");
+            }
+            return Long.parseLong(fileName.substring(0, i));
         } catch (Exception ignore) {
         }
         return -1;

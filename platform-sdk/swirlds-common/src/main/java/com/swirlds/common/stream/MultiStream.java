@@ -3,12 +3,12 @@ package com.swirlds.common.stream;
 
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.RunningHashable;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.RunningHashable;
 
 /**
  * A MultiStream instance might have multiple nextStreams.

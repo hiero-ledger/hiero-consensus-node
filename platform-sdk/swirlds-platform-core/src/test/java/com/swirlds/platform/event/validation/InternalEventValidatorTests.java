@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.validation;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.platform.system.events.EventConstants.GENERATION_UNDEFINED;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.model.event.EventConstants.GENERATION_UNDEFINED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -21,13 +21,10 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
@@ -35,6 +32,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -141,13 +141,10 @@ class InternalEventValidatorTests {
         final ArrayList<EventDescriptor> parents = new ArrayList<>();
         parents.add(null);
         final GossipEvent nullParent = GossipEvent.newBuilder()
-                .eventCore(EventCore.newBuilder()
-                        .timeCreated(wholeEvent.eventCore().timeCreated())
-                        .version(wholeEvent.eventCore().version())
-                        .parents(parents)
-                        .build())
+                .eventCore(wholeEvent.eventCore())
                 .signature(wholeEvent.signature())
                 .transactions(wholeEvent.transactions())
+                .parents(parents)
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(nullParent);
         assertNull(multinodeValidator.validateEvent(platformEvent));
@@ -179,20 +176,12 @@ class InternalEventValidatorTests {
         assertEquals(2, exitedIntakePipelineCount.get());
 
         final GossipEvent shortDescriptorHash = GossipEvent.newBuilder()
-                .eventCore(EventCore.newBuilder()
-                        .timeCreated(validEvent.eventCore().timeCreated())
-                        .version(validEvent.eventCore().version())
-                        .parents(EventDescriptor.newBuilder()
-                                .hash(validEvent
-                                        .eventCore()
-                                        .parents()
-                                        .getFirst()
-                                        .hash()
-                                        .getBytes(1, DigestType.SHA_384.digestLength() - 2))
-                                .build())
-                        .build())
+                .eventCore(validEvent.eventCore())
                 .signature(validEvent.signature())
                 .transactions(validEvent.transactions())
+                .parents(EventDescriptor.newBuilder()
+                        .hash(validEvent.parents().getFirst().hash().getBytes(1, DigestType.SHA_384.digestLength() - 2))
+                        .build())
                 .build();
         when(platformEvent.getGossipEvent()).thenReturn(shortDescriptorHash);
         assertNull(multinodeValidator.validateEvent(platformEvent));

@@ -3,26 +3,22 @@ package com.swirlds.platform.recovery;
 
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomSignature;
-import static com.swirlds.common.utility.CompareTo.isLessThan;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignature;
+import static org.hiero.base.utility.CompareTo.isLessThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.extendable.ExtendableInputStream;
 import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
 import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.recovery.internal.ObjectStreamIterator;
-import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -41,6 +37,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.node.NodeId;
 import org.mockito.Mockito;
 
 /**

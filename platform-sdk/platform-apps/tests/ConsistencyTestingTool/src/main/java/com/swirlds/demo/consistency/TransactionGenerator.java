@@ -2,7 +2,7 @@
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.common.utility.ByteUtils.longToByteArray;
+import static org.hiero.base.utility.ByteUtils.longToByteArray;
 
 import com.swirlds.base.state.Startable;
 import com.swirlds.common.threading.framework.StoppableThread;

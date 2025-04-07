@@ -3,9 +3,7 @@ package com.swirlds.platform.event.preconsensus;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.EOFException;
@@ -13,6 +11,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 
 /**
  * Iterates over the events in a single preconsensus event file.
@@ -41,7 +42,7 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
 
         this.lowerBound = lowerBound;
         this.fileType = Objects.requireNonNull(fileType);
-        stream = new SerializableDataInputStream(new BufferedInputStream(
+        stream = new SerializableDataInputStreamImpl(new BufferedInputStream(
                 new FileInputStream(fileDescriptor.getPath().toFile())));
 
         try {
@@ -71,7 +72,7 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
                         switch (fileVersion) {
                             case PROTOBUF_EVENTS -> new PlatformEvent(stream.readPbjRecord(GossipEvent.PROTOBUF));
                         };
-                if (candidate.getAncientIndicator(fileType) >= lowerBound) {
+                if (fileType.selectIndicator(candidate) >= lowerBound) {
                     next = candidate;
                 }
             } catch (final IOException e) {

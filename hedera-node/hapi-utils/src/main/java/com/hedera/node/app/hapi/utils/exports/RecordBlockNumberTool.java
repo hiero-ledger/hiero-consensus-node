@@ -48,6 +48,7 @@ public class RecordBlockNumberTool {
     public static void prepare() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero.consensus");
 
         LOGGER.info(MARKER, "registering Constructables for parsing record stream files");
         // if we are parsing new record stream files,

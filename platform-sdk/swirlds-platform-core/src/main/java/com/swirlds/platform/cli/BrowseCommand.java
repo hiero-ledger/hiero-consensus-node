@@ -7,7 +7,6 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.Browser;
 import com.swirlds.platform.CommandLineArgs;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -16,6 +15,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import org.hiero.consensus.model.node.NodeId;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
@@ -61,10 +61,10 @@ public class BrowseCommand extends AbstractCommand {
     @SuppressWarnings("InfiniteLoopStatement")
     @Override
     public Integer call() throws IOException, InterruptedException {
+        final Path sdkPath = Path.of(System.getProperty("user.dir"));
         if (clean) {
-            CleanCommand.clean(Path.of(System.getProperty("user.dir")));
+            CleanCommand.clean(sdkPath);
         }
-
         try {
             Browser.launch(new CommandLineArgs(new HashSet<>(localNodes)), false);
         } catch (final Exception e) {

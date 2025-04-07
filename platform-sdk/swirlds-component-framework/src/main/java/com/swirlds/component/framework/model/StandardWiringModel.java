@@ -5,7 +5,7 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerT
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.SEQUENTIAL;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.SEQUENTIAL_THREAD;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.diagram.HyperlinkBuilder;
 import com.swirlds.component.framework.model.internal.monitor.HealthMonitor;
 import com.swirlds.component.framework.model.internal.standard.HeartbeatScheduler;
@@ -16,6 +16,7 @@ import com.swirlds.component.framework.schedulers.builders.internal.StandardTask
 import com.swirlds.component.framework.schedulers.internal.SequentialThreadTaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -30,10 +31,8 @@ import java.util.concurrent.ForkJoinPool;
  */
 public class StandardWiringModel extends TraceableWiringModel {
 
-    /**
-     * The platform context.
-     */
-    private final PlatformContext platformContext;
+    private final Metrics metrics;
+    private final Time time;
 
     /**
      * Schedules heartbeats. Not created unless needed.
@@ -81,6 +80,11 @@ public class StandardWiringModel extends TraceableWiringModel {
     private final Duration healthLogPeriod;
 
     /**
+     * How long between two consecutive reports when the system is healthy.
+     */
+    private final Duration healthyReportThreshold;
+
+    /**
      * Constructor.
      *
      * @param builder the builder for this model, contains all needed configuration
@@ -88,7 +92,8 @@ public class StandardWiringModel extends TraceableWiringModel {
     StandardWiringModel(@NonNull final WiringModelBuilder builder) {
         super(builder.isHardBackpressureEnabled());
 
-        this.platformContext = Objects.requireNonNull(builder.getPlatformContext());
+        this.metrics = Objects.requireNonNull(builder.getMetrics());
+        this.time = Objects.requireNonNull(builder.getTime());
         this.defaultPool = Objects.requireNonNull(builder.getDefaultPool());
 
         final TaskSchedulerBuilder<Duration> healthMonitorSchedulerBuilder = this.schedulerBuilder("HealthMonitor");
@@ -104,6 +109,7 @@ public class StandardWiringModel extends TraceableWiringModel {
 
         healthLogThreshold = builder.getHealthLogThreshold();
         healthLogPeriod = builder.getHealthLogPeriod();
+        healthyReportThreshold = builder.getHealthyReportThreshold();
         healthMonitorScheduler = healthMonitorSchedulerBuilder.build();
         healthMonitorInputWire = healthMonitorScheduler.buildInputWire("check system health");
         buildHeartbeatWire(builder.getHealthMonitorPeriod()).solderTo(healthMonitorInputWire);
@@ -122,7 +128,7 @@ public class StandardWiringModel extends TraceableWiringModel {
     @Override
     public final <O> TaskSchedulerBuilder<O> schedulerBuilder(@NonNull final String name) {
         throwIfStarted();
-        return new StandardTaskSchedulerBuilder<>(platformContext, this, name, defaultPool);
+        return new StandardTaskSchedulerBuilder<>(this.time, this.metrics, this, name, defaultPool);
     }
 
     /**
@@ -186,7 +192,8 @@ public class StandardWiringModel extends TraceableWiringModel {
             anchor.start();
         }
 
-        healthMonitor = new HealthMonitor(platformContext, schedulers, healthLogThreshold, healthLogPeriod);
+        healthMonitor = new HealthMonitor(
+                metrics, time, schedulers, healthLogThreshold, healthLogPeriod, healthyReportThreshold);
         healthMonitorInputWire.bind(healthMonitor::checkSystemHealth);
 
         markAsStarted();
@@ -234,7 +241,7 @@ public class StandardWiringModel extends TraceableWiringModel {
     @NonNull
     private HeartbeatScheduler getHeartbeatScheduler() {
         if (heartbeatScheduler == null) {
-            heartbeatScheduler = new HeartbeatScheduler(this, platformContext.getTime(), "Heartbeat");
+            heartbeatScheduler = new HeartbeatScheduler(this, time, "Heartbeat");
         }
         return heartbeatScheduler;
     }

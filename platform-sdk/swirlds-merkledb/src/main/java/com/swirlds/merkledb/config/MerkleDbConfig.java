@@ -30,6 +30,8 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  * 		created, changing on an existing database will break it.
  * @param hashStoreRamBufferSize
  *      Number of hashes to store in a single buffer in HashListByteBuffer.
+ * @param hashStoreRamOffHeapBuffers
+ *      Indicates whether hash lists in RAM should use off-heap byte buffers to store hashes.
  * @param longListChunkSize
  *      Number of longs to store in a single chunk in long lists (heap, off-heap, disk).
  * @param longListReservedBufferSize
@@ -68,6 +70,7 @@ public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "" + 4_000_000_000L) long size,
         @Min(0) @ConfigProperty(defaultValue = "8388608") long hashesRamToDiskThreshold,
         @Positive @ConfigProperty(defaultValue = "1000000") int hashStoreRamBufferSize,
+        @ConfigProperty(defaultValue = "true") boolean hashStoreRamOffHeapBuffers,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES) int longListChunkSize,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
         @Min(1) @ConfigProperty(defaultValue = "3") int compactionThreads,

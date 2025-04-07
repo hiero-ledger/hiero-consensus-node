@@ -9,6 +9,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableKVState;
@@ -28,8 +29,11 @@ public class V0500TokenSchema extends Schema {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(50).patch(0).build();
 
-    public V0500TokenSchema() {
+    private final EntityIdFactory idFactory;
+
+    public V0500TokenSchema(@NonNull final EntityIdFactory idFactory) {
         super(VERSION);
+        this.idFactory = requireNonNull(idFactory);
     }
 
     @Override
@@ -45,7 +49,7 @@ public class V0500TokenSchema extends Schema {
         final WritableKVState<AccountID, Account> writableAccounts =
                 ctx.newStates().get(ACCOUNTS_KEY);
         migratedFirstKeys.forEach((contractId, firstKey) -> {
-            final var accountId = ctx.entityIdFactory().newAccountId(contractId.contractNumOrThrow());
+            final var accountId = idFactory.newAccountId(contractId.contractNumOrThrow());
             final var account = writableAccounts.get(accountId);
             if (account == null) {
                 log.error("Contract account {} not found in the new state", accountId);
