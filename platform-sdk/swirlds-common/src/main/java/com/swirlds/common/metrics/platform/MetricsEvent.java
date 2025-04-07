@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics.platform;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Metric;
 import java.util.Objects;
+import org.hiero.consensus.model.node.NodeId;
 
 public record MetricsEvent(Type type, NodeId nodeId, Metric metric) {
     public enum Type {

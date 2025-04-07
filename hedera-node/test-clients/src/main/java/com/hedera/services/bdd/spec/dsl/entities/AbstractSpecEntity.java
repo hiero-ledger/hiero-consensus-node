@@ -3,10 +3,10 @@ package com.hedera.services.bdd.spec.dsl.entities;
 
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.handleExec;
-import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.supplyAsync;
+import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -14,6 +14,7 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.SpecEntity;
 import com.hedera.services.bdd.spec.dsl.SpecEntityRegistrar;
 import com.hedera.services.bdd.spec.dsl.operations.deferred.DoWithModelOperation;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -38,6 +39,10 @@ import org.apache.logging.log4j.Logger;
  */
 public abstract class AbstractSpecEntity<O extends SpecOperation, M> implements SpecEntity {
     private static final Logger log = LogManager.getLogger(AbstractSpecEntity.class);
+    protected static final String SHARD =
+            JutilPropertySource.getDefaultInstance().get("default.shard");
+    protected static final String REALM =
+            JutilPropertySource.getDefaultInstance().get("default.realm");
 
     /**
      * Represents the attempt to create an entity.

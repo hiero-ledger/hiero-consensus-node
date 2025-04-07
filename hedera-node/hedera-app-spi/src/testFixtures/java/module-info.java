@@ -17,9 +17,9 @@ module com.hedera.node.app.spi.test.fixtures {
     requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
     requires com.hedera.node.app.hapi.utils;
-    requires com.swirlds.common;
     requires com.swirlds.platform.core;
+    requires org.hiero.consensus.model;
     requires com.google.common;
     requires org.apache.logging.log4j.core;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 }

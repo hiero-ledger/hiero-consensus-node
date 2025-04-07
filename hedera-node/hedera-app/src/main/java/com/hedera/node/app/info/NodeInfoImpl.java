@@ -16,16 +16,21 @@ public record NodeInfoImpl(
         @NonNull AccountID accountId,
         long weight,
         List<ServiceEndpoint> gossipEndpoints,
-        @Nullable Bytes sigCertBytes)
+        @Nullable Bytes sigCertBytes,
+        @NonNull List<ServiceEndpoint> hapiEndpoints,
+        boolean declineReward)
         implements NodeInfo {
     @NonNull
-    public static NodeInfo fromRosterEntry(@NonNull final RosterEntry rosterEntry, @NonNull final Node node) {
+    public static NodeInfo fromRosterWithCurrentMetadata(
+            @NonNull final RosterEntry rosterEntry, @NonNull final Node node) {
         return new NodeInfoImpl(
                 rosterEntry.nodeId(),
                 node.accountIdOrThrow(),
                 rosterEntry.weight(),
                 rosterEntry.gossipEndpoint(),
-                rosterEntry.gossipCaCertificate());
+                rosterEntry.gossipCaCertificate(),
+                node.serviceEndpoint(),
+                node.declineReward());
     }
 
     @NonNull
@@ -36,6 +41,8 @@ public record NodeInfoImpl(
                 nodeAccountID,
                 rosterEntry.weight(),
                 rosterEntry.gossipEndpoint(),
-                rosterEntry.gossipCaCertificate());
+                rosterEntry.gossipCaCertificate(),
+                List.of(),
+                true);
     }
 }

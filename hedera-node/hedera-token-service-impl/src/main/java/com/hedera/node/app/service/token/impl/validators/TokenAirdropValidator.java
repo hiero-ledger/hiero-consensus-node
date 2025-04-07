@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.validators;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_TOKEN_TRANSFER_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
@@ -14,6 +15,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZ
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsableForAliasedId;
 import static com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator.validateTokenTransfers;
+import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -93,6 +95,9 @@ public class TokenAirdropValidator {
             // process fungible token transfers if any.
             // PureChecks validates there is only one debit, so findFirst should return one item
             if (!xfers.transfers().isEmpty()) {
+                validateTrue(
+                        token.tokenType() == TokenType.FUNGIBLE_COMMON,
+                        ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON);
                 final var senderAccountAmount = xfers.transfers().stream()
                         .filter(item -> item.amount() < 0)
                         .findFirst();
@@ -100,8 +105,7 @@ public class TokenAirdropValidator {
                 final var senderAccount =
                         getIfUsableForAliasedId(senderId, accountStore, context.expiryValidator(), INVALID_ACCOUNT_ID);
                 // 1. Validate token associations
-                validateFungibleTransfers(
-                        context.payer(), senderAccount, tokenId, senderAccountAmount.get(), tokenRelStore);
+                validateFungibleTransfers(senderAccount, tokenId, senderAccountAmount.get(), tokenRelStore);
                 totalFungibleTransfers += xfers.transfers().size();
 
                 // Verify that the current total number of (counted) fungible transfers does not exceed the limit
@@ -115,9 +119,23 @@ public class TokenAirdropValidator {
                 for (var transfer : xfers.nftTransfers()) {
                     final var receiver = transfer.receiverAccountID();
                     for (final var fee : token.customFees()) {
-                        if (fee.hasRoyaltyFee() && fee.royaltyFeeOrThrow().hasFallbackFee()) {
-                            validateTrue(
-                                    isExemptFromCustomFees(token, receiver, fee), TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY);
+                        if (fee.hasRoyaltyFee()) {
+                            // Fallbacks are completely prohibited on token types used in airdrops
+                            if (fee.royaltyFeeOrThrow().hasFallbackFee()) {
+                                validateTrue(
+                                        isExemptFromCustomFees(token, receiver, fee),
+                                        TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY);
+                            } else {
+                                // And even without a fallback, there must be no implied royalty fee payment (that is,
+                                // the sender must be fee exempt or receive no fungible value in the airdrop)
+                                final var senderId = transfer.senderAccountIDOrThrow();
+                                if (!isExemptFromCustomFees(token, senderId, fee)) {
+                                    // (FUTURE) Use a different response code for this failure mode
+                                    validateFalse(
+                                            senderIsCreditedFungibleValue(op, senderId),
+                                            TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY);
+                                }
+                            }
                         }
                     }
                 }
@@ -134,6 +152,24 @@ public class TokenAirdropValidator {
                 validateTrue(totalNftTransfers <= ledgerConfig.nftTransfersMaxLen(), BATCH_SIZE_LIMIT_EXCEEDED);
             }
         }
+    }
+
+    /**
+     * Check if the sender is credited with fungible value in the given airdrop.
+     * @param op the token airdrop transaction body
+     * @param senderId the sender account ID
+     * @return true if the sender is credited with fungible value, false otherwise
+     */
+    private boolean senderIsCreditedFungibleValue(
+            @NonNull final TokenAirdropTransactionBody op, @NonNull final AccountID senderId) {
+        for (final var tokenTransfers : op.tokenTransfers()) {
+            for (final var adjustment : tokenTransfers.transfers()) {
+                if (adjustment.accountIDOrThrow().equals(senderId) && adjustment.amount() > 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -160,7 +196,6 @@ public class TokenAirdropValidator {
     }
 
     private static void validateFungibleTransfers(
-            final AccountID payer,
             final Account senderAccount,
             final TokenID tokenId,
             final AccountAmount senderAmount,

@@ -1,0 +1,53 @@
+{
+  "buckets": [
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 15000,
+      "name": "ThroughputLimits",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10500000,
+          "operations": [
+            "ScheduleCreate"
+          ]
+        },
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 13000,
+          "operations": [
+            "FileCreate"
+          ]
+        },
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 100000,
+          "operations": [
+            "ScheduleSign"
+          ]
+        },
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 1250000,
+          "operations": [
+            "TokenMint"
+          ]
+        },
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 350000,
+          "operations": [
+            "ContractCall"
+          ]
+        },
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 3000000,
+          "operations": [
+            "TokenCreate"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -2,13 +2,13 @@
 package com.swirlds.merkle.test.fixtures.map.pta;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.AbstractSerializableHashable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.AbstractSerializableHashable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 public class TransactionRecord extends AbstractSerializableHashable implements FastCopyable, Serializable {
     private static final long CLASS_ID = 0xcdd5ad651cf2c4d8L;

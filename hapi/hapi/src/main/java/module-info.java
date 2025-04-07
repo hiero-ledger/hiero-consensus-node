@@ -70,6 +70,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.services.auxiliary.tss;
     exports com.hedera.hapi.block.protoc;
     exports com.hedera.hapi.block.stream.protoc;
+    exports com.hedera.hapi.block.stream.output.protoc;
     exports com.hedera.hapi.block;
     exports com.hedera.hapi.services.auxiliary.tss.legacy;
     exports com.hedera.hapi.services.auxiliary.hints;
@@ -84,5 +85,5 @@ module com.hedera.node.hapi {
     requires transitive io.grpc;
     requires io.grpc.protobuf;
     requires org.antlr.antlr4.runtime;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 }

@@ -1,30 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.linking;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_FIRST;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -107,14 +107,14 @@ class ConsensusEventLinkerTests {
 
             // Once in a while, advance the ancient window so that the most recent event is barely non-ancient.
             if (random.nextDouble() < 0.01) {
-                if (event.getAncientIndicator(ancientMode) <= eventWindow.getAncientThreshold()) {
+                if (ancientMode.selectIndicator(event) <= eventWindow.getAncientThreshold()) {
                     // Advancing the window any further would make the most recent event ancient. Skip.
                     continue;
                 }
 
                 eventWindow = new EventWindow(
                         ROUND_FIRST /* ignored in this test */,
-                        event.getAncientIndicator(ancientMode),
+                        ancientMode.selectIndicator(event),
                         ancientMode.getGenesisIndicator() /* ignored in this test */,
                         ancientMode);
                 linker.setEventWindow(eventWindow);

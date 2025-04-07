@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.crypto;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandom;
 import static com.swirlds.platform.crypto.CryptoStatic.generateKeysAndCerts;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandom;
 
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.common.test.fixtures.io.ResourceNotFoundException;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
@@ -41,6 +40,9 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A utility class for generating and retrieving pre-generated X.509 certificates for testing purposes.
@@ -98,9 +100,9 @@ public class PreGeneratedX509Certs {
 
         // autocloseable output streams to write the serializable certs.
         try (final SerializableDataOutputStream sigCertDos =
-                        new SerializableDataOutputStream(new FileOutputStream(sigCertFile));
+                        new SerializableDataOutputStreamImpl(new FileOutputStream(sigCertFile));
                 final SerializableDataOutputStream agreeCertDos =
-                        new SerializableDataOutputStream(new FileOutputStream(agreeCertFile))) {
+                        new SerializableDataOutputStreamImpl(new FileOutputStream(agreeCertFile))) {
 
             // record number of certs being written to each file.
             sigCertDos.writeInt(addressBook.getSize());
@@ -187,8 +189,8 @@ public class PreGeneratedX509Certs {
             return;
         }
 
-        final SerializableDataInputStream sigCertDis = new SerializableDataInputStream(sigCertIs);
-        final SerializableDataInputStream agreeCertDis = new SerializableDataInputStream(agreeCertIs);
+        final SerializableDataInputStream sigCertDis = new SerializableDataInputStreamImpl(sigCertIs);
+        final SerializableDataInputStream agreeCertDis = new SerializableDataInputStreamImpl(agreeCertIs);
         try {
             // load signing certs
             final int numSigCerts = sigCertDis.readInt();

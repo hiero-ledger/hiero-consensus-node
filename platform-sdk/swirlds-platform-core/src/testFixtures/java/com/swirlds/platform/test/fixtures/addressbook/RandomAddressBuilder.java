@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.addressbook;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.randomIp;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomString;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomIp;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomString;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A builder for creating random {@link Address} instances.

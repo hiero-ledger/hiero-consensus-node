@@ -3,7 +3,7 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.protobuf")
     id("org.hiero.gradle.feature.test-fixtures")
-    id("com.hedera.pbj.pbj-compiler") version "0.9.20"
+    id("com.hedera.pbj.pbj-compiler") version "0.10.3"
 }
 
 description = "Hedera API"

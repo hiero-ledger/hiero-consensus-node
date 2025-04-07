@@ -122,7 +122,9 @@ class MerkleBinaryTreeTests {
 
     @BeforeAll
     void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds");
+        registry.registerConstructables("org.hiero.consensus");
     }
 
     protected Stream<Arguments> buildSizeArguments() {
@@ -876,7 +878,7 @@ class MerkleBinaryTreeTests {
         assertEquals(1, rootLChild.getReservationCount(), "left child has only root as parent");
         assertTrue(isPathUnique(tree, rootLChild.getRoute()), "the path should have been unique");
         final Value leaf = tree.getRightMostLeaf();
-        assertEquals(1, leaf.getReservationCount(), "leaf has only root as paarent");
+        assertEquals(1, leaf.getReservationCount(), "leaf has only root as parent");
         assertTrue(isPathUnique(tree, leaf.getRoute()), "the path should have been unique");
 
         final MerkleBinaryTree<Value> tree01 = tree.copy();

@@ -7,9 +7,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.LongRunningAverage;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.eventhandling.EventConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -17,6 +14,9 @@ import java.io.UncheckedIOException;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * This class provides the common functionality for writing preconsensus events to disk. It is used by the
@@ -257,8 +257,7 @@ public class CommonPcesWriter {
     public boolean prepareOutputStream(@NonNull final PlatformEvent eventToWrite) throws IOException {
         boolean fileClosed = false;
         if (currentMutableFile != null) {
-            final boolean fileCanContainEvent =
-                    currentMutableFile.canContain(eventToWrite.getAncientIndicator(fileType));
+            final boolean fileCanContainEvent = currentMutableFile.canContain(fileType.selectIndicator(eventToWrite));
             final boolean fileIsFull =
                     UNIT_BYTES.convertTo(currentMutableFile.fileSize(), UNIT_MEGABYTES) >= preferredFileSizeMegabytes;
 
@@ -274,8 +273,8 @@ public class CommonPcesWriter {
 
         // if the block above closed the file, then we need to create a new one
         if (currentMutableFile == null) {
-            final long upperBound = nonAncientBoundary
-                    + computeNewFileSpan(nonAncientBoundary, eventToWrite.getAncientIndicator(fileType));
+            final long upperBound =
+                    nonAncientBoundary + computeNewFileSpan(nonAncientBoundary, fileType.selectIndicator(eventToWrite));
 
             currentMutableFile = fileManager
                     .getNextFileDescriptor(nonAncientBoundary, upperBound)

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics.platform;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Metric;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * With the help of a {@code MetricsKeyRegistry} we ensure, that there are no two {@link Metric}s with the same

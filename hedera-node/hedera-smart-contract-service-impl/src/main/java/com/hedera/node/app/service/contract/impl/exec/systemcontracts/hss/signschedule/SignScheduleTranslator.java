@@ -171,7 +171,8 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
     private static @Nullable ScheduleID getScheduleIDFromCall(@NonNull HssCallAttempt attempt, Tuple call) {
         final Address scheduleAddress = call.get(SCHEDULE_ID_INDEX);
         final var number = numberOfLongZero(explicitFromHeadlong(scheduleAddress));
-        final var schedule = attempt.enhancement().nativeOperations().getSchedule(number);
+        final var schedule = attempt.nativeOperations()
+                .getSchedule(attempt.nativeOperations().entityIdFactory().newScheduleId(number));
         validateTrue(schedule != null, INVALID_SCHEDULE_ID);
         return schedule.scheduleId();
     }

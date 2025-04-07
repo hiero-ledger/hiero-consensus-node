@@ -18,6 +18,8 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.token">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
+import "services/timestamp.proto";
+
 /**
  * An Hedera Token Service staking reward entity.
  * This stores values related to the aggregate staking rewards for all nodes in
@@ -67,4 +69,10 @@ message NetworkStakingRewards {
      * subtracted from this value.
      */
     int64 pending_rewards = 4;
+
+    /**
+     * The last time a node reward payment was made. This will be set at the
+     * end of a staking period.
+     */
+    proto.Timestamp last_node_reward_payments_time = 5;
 }

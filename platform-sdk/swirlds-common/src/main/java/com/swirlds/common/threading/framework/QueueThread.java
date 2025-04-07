@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.threading.framework;
 
-import com.swirlds.common.utility.Clearable;
 import java.util.concurrent.BlockingQueue;
+import org.hiero.base.utility.Clearable;
 
 /**
  * A thread that continuously takes elements from a queue and handles them.

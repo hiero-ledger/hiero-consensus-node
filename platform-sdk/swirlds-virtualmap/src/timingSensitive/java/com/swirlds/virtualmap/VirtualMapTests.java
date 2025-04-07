@@ -22,10 +22,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.exceptions.ReferenceCountException;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
@@ -67,6 +66,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -938,7 +940,7 @@ class VirtualMapTests extends VirtualTestBase {
             throw new AssertionError("flushCount metric is not a counter");
         }
         // There is a potential race condition here, as we release `VirtualRootNode.flushLatch`
-        // before we update the statiscs (see https://github.com/hashgraph/hedera-services/issues/8439)
+        // before we update the statistics (see https://github.com/hashgraph/hedera-services/issues/8439)
         assertEventuallyEquals(
                 flushCount,
                 () -> counterMetric.get(),
@@ -972,17 +974,17 @@ class VirtualMapTests extends VirtualTestBase {
         assertVirtualMapsEqual(map0, map1);
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
         // serialize the existing maps
         map0.serialize(out, testDirectory);
 
         final SerializableDataInputStream in =
-                new SerializableDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
+                new SerializableDataInputStreamImpl(new ByteArrayInputStream(byteOut.toByteArray()));
 
         final VirtualMap<TestKey, TestValue> map2 = createMap();
         // read the serialized map back into map2
         // Note to Jasper/Richard: The call to deserializeException below fails - but somewhat unexpectedly!
-        // Did I not set up the serialiaztion/deserialization correctly?
+        // Did I not set up the serialization/deserialization correctly?
         // currently throws IOException here.
         map2.deserialize(in, testDirectory, VirtualMap.ClassVersion.MERKLE_SERIALIZATION_CLEANUP);
         assertEquals("serializationTest", map2.getLabel());

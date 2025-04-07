@@ -9,12 +9,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -57,7 +57,7 @@ class MultiStreamTest {
 
     @Test
     void setHashTest() {
-        Hash hash = RandomUtils.randomHash();
+        Hash hash = CryptoRandomUtils.randomHash();
         multiStream.setRunningHash(hash);
         verify(hashCalculator).setRunningHash(hash);
         verify(queueThread).setRunningHash(hash);

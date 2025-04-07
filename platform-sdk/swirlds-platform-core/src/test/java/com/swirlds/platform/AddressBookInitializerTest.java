@@ -21,10 +21,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -53,6 +53,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -82,7 +83,6 @@ class AddressBookInitializerTest {
         final SignedState signedState = getMockSignedState7WeightRandomAddressBook(randotron);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(2),
                 // no software upgrade
                 false,
                 signedState,
@@ -114,7 +114,6 @@ class AddressBookInitializerTest {
         final SignedState signedState = getMockSignedState(10, null, null, true);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(2),
                 // no software upgrade
                 false,
                 signedState,
@@ -143,7 +142,6 @@ class AddressBookInitializerTest {
         final SignedState signedState = getMockSignedState(10, null, null, true);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(2),
                 // no software upgrade
                 false,
                 signedState,
@@ -172,7 +170,6 @@ class AddressBookInitializerTest {
         final SignedState signedState = getMockSignedState(7, roster, null, true);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(2),
                 // no software upgrade
                 false,
                 signedState,
@@ -204,7 +201,6 @@ class AddressBookInitializerTest {
         final AddressBook configAddressBook = copyWithWeightChanges(buildAddressBook(signedState.getRoster()), 10);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(2),
                 // no software upgrade
                 false,
                 signedState,
@@ -251,7 +247,6 @@ class AddressBookInitializerTest {
         final AddressBook configAddressBook = copyWithWeightChanges(buildAddressBook(roster), 10);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(3),
                 // software upgrade
                 true,
                 signedState,
@@ -284,7 +279,6 @@ class AddressBookInitializerTest {
         final AddressBook configAddressBook = copyWithWeightChanges(signedStateAddressBook, 3);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(3),
                 // software upgrade
                 true,
                 signedState,
@@ -315,7 +309,6 @@ class AddressBookInitializerTest {
         final AddressBook configAddressBook = copyWithWeightChanges(signedStateAddressBook, 5);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(3),
                 // software upgrade
                 true,
                 signedState,
@@ -426,7 +419,7 @@ class AddressBookInitializerTest {
             @Nullable final AddressBook previousAddressBook,
             boolean fromGenesis) {
         final SignedState signedState = mock(SignedState.class);
-        final SoftwareVersion softwareVersion = getMockSoftwareVersion(2);
+        final SemanticVersion softwareVersion = getMockSoftwareVersion(2).getPbjSemanticVersion();
         configureUpdateWeightForStateEventHandler(weightValue);
         final MerkleNodeState state = mock(MerkleNodeState.class);
         final ReadableStates readableStates = mock(ReadableStates.class);

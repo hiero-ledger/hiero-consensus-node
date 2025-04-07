@@ -69,7 +69,8 @@ public class TokenInfoCall extends AbstractNonRevertibleTokenViewCall {
             return revertResult(status, gasRequirement);
         }
 
-        return function.getOutputs().equals(TOKEN_INFO_167.getOutputs())
+        return function.getName().equals(TOKEN_INFO_167.methodName())
+                        && function.getOutputs().equals(TOKEN_INFO_167.getOutputs())
                 ? successResult(
                         TOKEN_INFO_167
                                 .getOutputs()
