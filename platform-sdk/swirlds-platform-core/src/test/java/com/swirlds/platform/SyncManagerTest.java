@@ -65,7 +65,7 @@ class SyncManagerTest {
             syncManager = new SyncManagerImpl(
                     platformContext,
                     new FallenBehindManagerImpl(
-                            selfId, peers.size(), mock(StatusActionSubmitter.class), () -> {}, reconnectConfig));
+                            selfId, peers.size(), mock(StatusActionSubmitter.class), reconnectConfig));
         }
     }
 
