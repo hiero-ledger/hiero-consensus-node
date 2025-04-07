@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.gossip.modular;
+package com.swirlds.platform.network;
 
 import com.google.common.collect.ImmutableList;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.TypedStoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.threading.locks.AutoClosableLock;
@@ -12,19 +13,16 @@ import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.ThreadConfig;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.ConnectionTracker;
-import com.swirlds.platform.network.NetworkMetrics;
-import com.swirlds.platform.network.NetworkUtils;
-import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.platform.network.communication.NegotiationProtocols;
 import com.swirlds.platform.network.communication.ProtocolNegotiatorThread;
 import com.swirlds.platform.network.connectivity.InboundConnectionHandler;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
+import com.swirlds.platform.network.topology.ConnectionManagerFactory;
+import com.swirlds.platform.network.topology.DynamicConnectionManagers;
 import com.swirlds.platform.network.topology.StaticTopology;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -97,7 +95,7 @@ public class PeerCommunication implements ConnectionTracker {
      * @param handshakeProtocols list of handshake protocols for new connections
      * @param protocols          list of peer protocols for handling data for established connection
      */
-    void initialize(
+    public void initialize(
             @NonNull final ThreadManager threadManager,
             @NonNull final List<ProtocolRunnable> handshakeProtocols,
             @NonNull final List<Protocol> protocols) {
@@ -106,8 +104,8 @@ public class PeerCommunication implements ConnectionTracker {
         this.handshakeProtocols = handshakeProtocols;
         this.protocolList = protocols;
 
-        this.connectionManagers =
-                new DynamicConnectionManagers(selfId, peers, platformContext, this, ownKeysAndCerts, topology);
+        this.connectionManagers = new DynamicConnectionManagers(
+                selfId, peers, platformContext, this, ownKeysAndCerts, topology, ConnectionManagerFactory.DEFAULT);
 
         this.connectionServer = createConnectionServer();
 
@@ -215,7 +213,7 @@ public class PeerCommunication implements ConnectionTracker {
     /**
      * Spin up all the threads registered for already existing peers
      */
-    void start() {
+    public void start() {
         if (started) {
             throw new IllegalStateException("Gossip already started");
         }
@@ -229,7 +227,7 @@ public class PeerCommunication implements ConnectionTracker {
     /**
      * Stop all network threads
      */
-    void stop() {
+    public void stop() {
         if (!started) {
             throw new IllegalStateException("Gossip not started");
         }
@@ -341,3 +339,11 @@ public class PeerCommunication implements ConnectionTracker {
         dedicatedThreadsToModify.clear();
     }
 }
+
+/**
+ * Represents a thread created for a specific context
+ *
+ * @param key    opaque context for which this thread is created
+ * @param thread thread itself, to be started/stopped/forgotten depending on the key context
+ */
+record DedicatedStoppableThread<E>(@NonNull E key, @Nullable StoppableThread thread) {}

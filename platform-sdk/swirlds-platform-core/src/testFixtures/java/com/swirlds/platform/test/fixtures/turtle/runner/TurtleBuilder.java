@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.turtle.runner;
+package com.swirlds.platform.test.fixtures.turtle.runner;
 
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
