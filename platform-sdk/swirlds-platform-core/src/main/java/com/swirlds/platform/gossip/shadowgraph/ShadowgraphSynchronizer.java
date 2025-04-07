@@ -14,6 +14,8 @@ import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.writeTheirTipsIH
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.threading.framework.Stoppable;
+import com.swirlds.common.threading.framework.Stoppable.StopBehavior;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.common.threading.pool.ParallelExecutor;
 import com.swirlds.platform.eventhandling.EventConfig;
@@ -339,8 +341,6 @@ public class ShadowgraphSynchronizer {
         final List<PlatformEvent> eventsTheyMayNeed =
                 sendSet.stream().map(ShadowEvent::getEvent).collect(Collectors.toCollection(ArrayList::new));
 
-        SyncUtils.sort(eventsTheyMayNeed);
-
         List<PlatformEvent> sendList;
         if (filterLikelyDuplicates) {
             final long startFilterTime = time.nanoTime();
@@ -350,6 +350,8 @@ public class ShadowgraphSynchronizer {
         } else {
             sendList = eventsTheyMayNeed;
         }
+
+        SyncUtils.sort(eventsTheyMayNeed);
 
         if (maximumEventsPerSync > 0 && sendList.size() > maximumEventsPerSync) {
             sendList = sendList.subList(0, maximumEventsPerSync);
@@ -450,5 +452,48 @@ public class ShadowgraphSynchronizer {
         Objects.requireNonNull(connection);
 
         return executor.doParallel(readTask, writeTask, connection::disconnect);
+    }
+
+    /**
+     * Clear the internal state of the gossip engine.
+     */
+    public void clear() {
+        this.shadowGraph.clear();
+    }
+
+    /**
+     * Events sent here should be gossiped to the network
+     * @param platformEvent event to be sent outside
+     */
+    public void addEvent(@NonNull final PlatformEvent platformEvent) {
+        this.shadowGraph.addEvent(platformEvent);
+    }
+
+    /**
+     * Updates the current event window (mostly ancient thresholds)
+     * @param eventWindow new event window to apply
+     */
+    public void updateEventWindow(@NonNull final EventWindow eventWindow) {
+        this.shadowGraph.updateEventWindow(eventWindow);
+    }
+
+    /**
+     * Starts helper threads needed for synchronizing shadowgraph
+     */
+    public void start() {
+        executor.start();
+    }
+
+    /**
+     * Stops helper threads needed for synchronizing shadowgraph
+     */
+    public void stop() {
+        // this part is pretty horrible - there is no real production reason for executor to be passed and managed
+        // from outside of this class; unfortunately, a lot of testing code around SyncNode misuses the executor
+        // to inject network behaviour in various places; refactoring that is a huge task, so for now, we need to live
+        // with test-specific limitations in production code
+        if (executor instanceof Stoppable stoppable) {
+            stoppable.stop(StopBehavior.INTERRUPTABLE);
+        }
     }
 }

@@ -21,12 +21,12 @@ open module com.swirlds.common.test.fixtures {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.virtualmap;
+    requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.logging;
     requires com.swirlds.platform.core;
-    requires org.hiero.consensus.utility.test.fixtures;
-    requires org.hiero.consensus.utility;
+    requires org.hiero.base.utility.test.fixtures;
     requires lazysodium.java;
     requires org.apache.logging.log4j.core;
     requires org.apache.logging.log4j;

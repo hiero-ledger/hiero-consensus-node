@@ -9,6 +9,6 @@ mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 testModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.common.test.fixtures")
-    requires("org.hiero.consensus.utility.test.fixtures")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.junit.jupiter.api")
 }

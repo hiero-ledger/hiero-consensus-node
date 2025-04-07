@@ -12,6 +12,7 @@ open module com.swirlds.merkle {
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.fchashmap;
     requires transitive com.swirlds.metrics.api;
+    requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires static transitive com.github.spotbugs.annotations;
 }

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.internal;
 
-import com.swirlds.common.utility.Clearable;
 import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.event.EventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -10,6 +9,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.base.utility.Clearable;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;

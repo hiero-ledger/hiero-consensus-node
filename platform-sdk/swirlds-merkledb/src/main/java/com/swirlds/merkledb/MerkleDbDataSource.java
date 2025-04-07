@@ -281,15 +281,19 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final String hashStoreDiskStoreName = tableName + "_internalhashes";
         hasDiskStoreForHashes = tableConfig.getHashesRamToDiskThreshold() < Long.MAX_VALUE;
         if (hasDiskStoreForHashes) {
-            final boolean hashIndexEmpty = pathToDiskLocationInternalNodes.size() == 0;
+            final boolean needRestorePathToDiskLocationInternalNodes = pathToDiskLocationInternalNodes.size() == 0;
             final LoadedDataCallback hashRecordLoadedCallback;
-            if (hashIndexEmpty) {
+            if (needRestorePathToDiskLocationInternalNodes) {
                 if (validLeafPathRange.getMaxValidKey() >= 0) {
                     pathToDiskLocationInternalNodes.updateValidRange(0, validLeafPathRange.getMaxValidKey());
                 }
                 hashRecordLoadedCallback = (dataLocation, hashData) -> {
                     final VirtualHashRecord hashRecord = VirtualHashRecord.parseFrom(hashData);
-                    pathToDiskLocationInternalNodes.put(hashRecord.path(), dataLocation);
+                    final long path = hashRecord.path();
+                    // Old data files may contain entries with paths outside the current virtual node range
+                    if (path <= validLeafPathRange.getMaxValidKey()) {
+                        pathToDiskLocationInternalNodes.put(path, dataLocation);
+                    }
                 };
             } else {
                 hashRecordLoadedCallback = null;
@@ -307,7 +311,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // Leaves store (path to KV)
         final LoadedDataCallback leafRecordLoadedCallback;
-        final boolean needRestorePathToDiskLocationLeafNodes = pathToDiskLocationLeafNodes.size() == 0;
+        final boolean needRestorePathToDiskLocationLeafNodes =
+                (pathToDiskLocationLeafNodes.size() == 0) && (validLeafPathRange.getMinValidKey() > 0);
         if (needRestorePathToDiskLocationLeafNodes) {
             if (validLeafPathRange.getMaxValidKey() >= 0) {
                 pathToDiskLocationLeafNodes.updateValidRange(
@@ -315,7 +320,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             }
             leafRecordLoadedCallback = (dataLocation, leafData) -> {
                 final VirtualLeafBytes leafBytes = VirtualLeafBytes.parseFrom(leafData);
-                pathToDiskLocationLeafNodes.put(leafBytes.path(), dataLocation);
+                final long path = leafBytes.path();
+                // Old data files may contain entries with paths outside the current leaf range
+                if (validLeafPathRange.withinRange(path)) {
+                    pathToDiskLocationLeafNodes.put(path, dataLocation);
+                }
             };
         } else {
             leafRecordLoadedCallback = null;

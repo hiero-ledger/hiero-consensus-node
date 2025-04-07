@@ -59,15 +59,18 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.DEPLOY;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.GET_BYTECODE;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.setExpectedCreate2Address;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.crypto.TransferWithCustomFixedFees.htsFee;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_HAS_PENDING_AIRDROPS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_CHARGING_EXCEEDED_MAX_RECURSION_DEPTH;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_TOKEN_TRANSFER_BODY;
@@ -81,13 +84,13 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RECEIV
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PENDING_NFT_AIRDROP_ALREADY_EXISTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNEXPECTED_TOKEN_DECIMALS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -920,6 +923,28 @@ public class TokenAirdropTest extends TokenAirdropBase {
         }
 
         @HapiTest
+        @DisplayName("with custom fee and not associated collector")
+        final Stream<DynamicTest> withFtCustomFeeAndNotAssociatedCollector() {
+            var sender = "sender";
+            var collector = "collect";
+            return hapiTest(
+                    cryptoCreate(collector),
+                    cryptoCreate(TOKEN_TREASURY),
+                    cryptoCreate(sender).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("receiver"),
+                    tokenCreate("denomToken").treasury(TOKEN_TREASURY).initialSupply(1000),
+                    tokenAssociate(collector, "denomToken"),
+                    tokenCreate("FT").treasury(TOKEN_TREASURY).withCustom(fixedHtsFee(1, "denomToken", collector)),
+                    tokenAssociate(sender, "FT", "denomToken"),
+                    cryptoTransfer(moving(100, "FT").between(TOKEN_TREASURY, sender)),
+                    cryptoTransfer(moving(100, "denomToken").between(TOKEN_TREASURY, sender)),
+                    tokenDissociate(collector, "denomToken"),
+                    tokenAirdrop(moving(5, "FT").between(sender, "receiver"))
+                            .payingWith(sender)
+                            .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
+        }
+
+        @HapiTest
         @DisplayName("NFT with royalty fee with fee collector as receiver")
         final Stream<DynamicTest> nftWithRoyaltyFeesPaidByReceiverWithFeeCollectorReceiver() {
             // declare collector account balance variables
@@ -1331,6 +1356,58 @@ public class TokenAirdropTest extends TokenAirdropBase {
                                 .hasKnownStatus(INVALID_TOKEN_ID),
                         validateChargedUsd("transferTx", 0.001, 10));
             }));
+        }
+
+        @HapiTest
+        @DisplayName("containing multiple senders")
+        final Stream<DynamicTest> airdropWithMultipleSenders() {
+            return hapiTest(
+                    cryptoCreate("sender1"),
+                    cryptoCreate("sender2"),
+                    cryptoCreate("receiver"),
+                    tokenAssociate("sender1", FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
+                    tokenAssociate("sender2", FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
+                    tokenAirdrop(
+                                    moving(5, FUNGIBLE_TOKEN).between("sender1", "receiver"),
+                                    moving(5, FUNGIBLE_TOKEN).between("sender2", "receiver"))
+                            .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN),
+                    tokenAirdrop(
+                                    movingUnique(NON_FUNGIBLE_TOKEN, 1).between("sender1", "receiver"),
+                                    movingUnique(NON_FUNGIBLE_TOKEN, 2).between("sender2", "receiver"))
+                            .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN));
+        }
+
+        @HapiTest
+        @DisplayName("containing invalid token transfer decimals")
+        final Stream<DynamicTest> airdropInvalidDecimals() {
+            return hapiTest(
+                    cryptoCreate("receiver").maxAutomaticTokenAssociations(5),
+                    cryptoCreate(TOKEN_TREASURY),
+                    tokenCreate("decimalFT")
+                            .tokenType(FUNGIBLE_COMMON)
+                            .treasury(TOKEN_TREASURY)
+                            .decimals(2)
+                            .initialSupply(1234),
+                    tokenAirdrop(movingWithDecimals(10, "decimalFT", 4).betweenWithDecimals(TOKEN_TREASURY, "receiver"))
+                            .signedBy(DEFAULT_PAYER, TOKEN_TREASURY, "receiver")
+                            .hasKnownStatus(UNEXPECTED_TOKEN_DECIMALS));
+        }
+
+        @HapiTest
+        @DisplayName("containing NFT as fungible amount")
+        final Stream<DynamicTest> airdropNFTasFungibleAmount() {
+            return hapiTest(
+                    newKeyNamed("supply"),
+                    cryptoCreate("receiver").maxAutomaticTokenAssociations(5),
+                    cryptoCreate(TOKEN_TREASURY),
+                    tokenCreate("NFT")
+                            .treasury(TOKEN_TREASURY)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .supplyKey("supply")
+                            .initialSupply(0L),
+                    tokenAirdrop(moving(5, "NFT").between(TOKEN_TREASURY, "receiver"))
+                            .payingWith(TOKEN_TREASURY)
+                            .hasKnownStatus(ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON));
         }
 
         @HapiTest
@@ -2037,7 +2114,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
             return hapiTest(tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, OWNER))
                     .signedBy(OWNER)
                     .payingWith(OWNER)
-                    .hasPrecheck(INVALID_TRANSACTION_BODY));
+                    .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN));
         }
 
         @HapiTest
