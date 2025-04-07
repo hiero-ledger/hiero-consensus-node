@@ -40,4 +40,5 @@ module com.swirlds.platform.core.test.fixtures {
     exports com.swirlds.platform.test.fixtures.gui;
     exports com.swirlds.platform.test.fixtures.turtle.consensus;
     exports com.swirlds.platform.test.fixtures.turtle.gossip;
+    exports com.swirlds.platform.test.fixtures.turtle.runner;
 }

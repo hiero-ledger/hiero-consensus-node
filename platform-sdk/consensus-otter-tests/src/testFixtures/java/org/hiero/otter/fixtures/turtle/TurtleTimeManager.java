@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.turtle;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -21,19 +20,19 @@ import org.hiero.otter.fixtures.time.TimeTickReceiver;
  */
 public class TurtleTimeManager implements TimeManager {
 
-    private final Duration granularity;
     private final FakeTime time;
+    private final Duration granularity;
     private final List<TimeTickReceiver> timeTickReceivers = new ArrayList<>();
 
     /**
      * Constructor for the {@link TurtleTimeManager} class.
      *
-     * @param randotron a random number generator
+     * @param time the source of the time in this simulation
      * @param granularity the granularity of time
      */
-    public TurtleTimeManager(@NonNull final Randotron randotron, @NonNull final Duration granularity) {
+    public TurtleTimeManager(@NonNull final FakeTime time, @NonNull final Duration granularity) {
+        this.time = requireNonNull(time);
         this.granularity = requireNonNull(granularity);
-        time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
     }
 
     /**

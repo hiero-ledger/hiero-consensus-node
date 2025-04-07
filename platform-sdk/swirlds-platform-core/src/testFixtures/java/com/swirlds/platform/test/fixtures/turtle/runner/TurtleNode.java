@@ -81,7 +81,7 @@ public class TurtleNode {
      * @param network     the simulated network
      * @param outputDirectory the directory where the node output will be stored, like saved state and so on
      */
-    TurtleNode(
+    public TurtleNode(
             @NonNull final Randotron randotron,
             @NonNull final Time time,
             @NonNull final NodeId nodeId,

@@ -4,10 +4,9 @@ module org.hiero.otter.fixtures {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.common.test.fixtures;
-    requires com.swirlds.logging;
     requires com.swirlds.platform.core.test.fixtures;
-    requires org.apache.logging.log4j;
     requires org.hiero.consensus.model;
+    requires static transitive com.github.spotbugs.annotations;
 
     exports org.hiero.otter.fixtures;
 }

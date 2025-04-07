@@ -1,7 +1,15 @@
 package org.hiero.otter.fixtures.turtle;
 
+import com.swirlds.base.time.Time;
+import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.logging.api.Logger;
 import com.swirlds.logging.api.Loggers;
+import com.swirlds.platform.crypto.KeysAndCerts;
+import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
 
 /**
@@ -10,6 +18,28 @@ import org.hiero.otter.fixtures.InstrumentedNode;
 public class TurtleInstrumentedNode extends TurtleNode implements InstrumentedNode {
 
     private final Logger log = Loggers.getLogger(TurtleInstrumentedNode.class);
+
+    /**
+     * Constructor for TurtleInstrumentedNode.
+     *
+     * @param randotron
+     * @param time
+     * @param nodeId
+     * @param addressBook
+     * @param privateKey
+     * @param network
+     * @param rootOutputDirectory
+     */
+    public TurtleInstrumentedNode(
+            @NonNull final Randotron randotron,
+            @NonNull final Time time,
+            @NonNull final NodeId nodeId,
+            @NonNull final AddressBook addressBook,
+            @NonNull final KeysAndCerts privateKey,
+            @NonNull final SimulatedNetwork network,
+            @NonNull final Path rootOutputDirectory) {
+        super(randotron, time, nodeId, addressBook, privateKey, network, rootOutputDirectory);
+    }
 
     /**
      * {@inheritDoc}

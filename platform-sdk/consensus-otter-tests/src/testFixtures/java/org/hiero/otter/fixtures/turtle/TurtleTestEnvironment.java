@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
@@ -9,6 +10,7 @@ import com.swirlds.logging.api.Logger;
 import com.swirlds.logging.api.Loggers;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -28,9 +30,9 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
     private static final Logger log = Loggers.getLogger(TurtleTestEnvironment.class);
 
-    private static final Duration GRANULARITY = Duration.ofMillis(10);
-    private static final Duration AVERAGE_NETWORK_DELAY = Duration.ofMillis(200);
-    private static final Duration STANDARD_DEVIATION_NETWORK_DELAY = Duration.ofMillis(10);
+    static final Duration GRANULARITY = Duration.ofMillis(10);
+    static final Duration AVERAGE_NETWORK_DELAY = Duration.ofMillis(200);
+    static final Duration STANDARD_DEVIATION_NETWORK_DELAY = Duration.ofMillis(10);
 
     private final TurtleNetwork network;
     private final TransactionGeneratorImpl generator;
@@ -50,11 +52,13 @@ public class TurtleTestEnvironment implements TestEnvironment {
             throw new RuntimeException(e);
         }
 
-        network = new TurtleNetwork(randotron, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
+        final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
+        final Path rootOutputDirectory = Path.of("build", "turtle");
+        network = new TurtleNetwork(randotron, time, rootOutputDirectory, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
 
         generator = new TransactionGeneratorImpl(network);
 
-        timeManager = new TurtleTimeManager(randotron, GRANULARITY);
+        timeManager = new TurtleTimeManager(time, GRANULARITY);
         timeManager.addTimeTickReceiver(network);
         timeManager.addTimeTickReceiver(generator);
     }

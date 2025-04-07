@@ -94,7 +94,7 @@ public interface Validator {
          * @return a {@code LogErrorConfig} instance
          */
         @NonNull
-        static LogErrorConfig ignoreMarkers(@NonNull final LogMarker... markers) {
+        public static LogErrorConfig ignoreMarkers(@NonNull final LogMarker... markers) {
             log.warn("Creating a log error config is not implemented yet.");
             return new LogErrorConfig();
         }
@@ -114,7 +114,7 @@ public interface Validator {
          * @return a {@code EventStreamConfig} instance
          */
         @NonNull
-        static EventStreamConfig ignoreNode(@NonNull final Node... nodes) {
+        public static EventStreamConfig ignoreNode(@NonNull final Node... nodes) {
             log.warn("Creating an event stream config is not implemented yet.");
             return new EventStreamConfig();
         }
@@ -136,7 +136,7 @@ public interface Validator {
          * @return a {@code RatioConfig} instance
          */
         @NonNull
-        static RatioConfig within(final double min, final double max) {
+        public static RatioConfig within(final double min, final double max) {
             log.warn("Creating a ratio config is not implemented yet.");
             return new RatioConfig();
         }
