@@ -109,7 +109,8 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
     }
 
     public List<StateChanges.Builder> initPlatformState(@NonNull final MerkleNodeState state) {
-        final var schema = new V0540PlatformStateSchema();
+        final var schema = new V0540PlatformStateSchema(
+                config -> SemanticVersion.newBuilder().minor(1).build());
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> {

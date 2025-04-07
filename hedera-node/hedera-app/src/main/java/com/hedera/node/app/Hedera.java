@@ -751,7 +751,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 () -> trigger);
         blockStreamService.resetMigratedLastBlockHash();
         startupNetworks = startupNetworksFactory.apply(configProvider);
-        PLATFORM_STATE_SERVICE.setAppVersion(version);
+        PLATFORM_STATE_SERVICE.setAppVersionFn(
+                config -> platformConfig.getConfigData(VersionConfig.class).servicesVersion());
         this.initState = state;
         final var migrationChanges = serviceMigrator.doMigrations(
                 state,

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service.schemas;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
@@ -16,11 +18,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Defines the {@link PlatformState} singleton and initializes it at genesis.
  */
 public class V0540PlatformStateSchema extends Schema {
+    private static final Function<Configuration, SemanticVersion> UNAVAILABLE_VERSION_FN = config -> {
+        throw new IllegalStateException("No version information available");
+    };
 
     public static final String PLATFORM_STATE_KEY = "PLATFORM_STATE";
     /**
@@ -33,8 +39,15 @@ public class V0540PlatformStateSchema extends Schema {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(54).patch(0).build();
 
+    private final Function<Configuration, SemanticVersion> versionFn;
+
     public V0540PlatformStateSchema() {
+        this(UNAVAILABLE_VERSION_FN);
+    }
+
+    public V0540PlatformStateSchema(@NonNull final Function<Configuration, SemanticVersion> versionFn) {
         super(VERSION);
+        this.versionFn = requireNonNull(versionFn);
     }
 
     @NonNull
@@ -60,8 +73,7 @@ public class V0540PlatformStateSchema extends Schema {
 
     private Consumer<PlatformStateModifier> genesisStateSpec(@NonNull final MigrationContext ctx) {
         return v -> {
-            v.setCreationSoftwareVersion(
-                    ctx.appConfig().getConfigData(VersionConfig.class).servicesVersion());
+            v.setCreationSoftwareVersion(versionFn.apply(ctx.appConfig()));
             v.setRound(0);
             v.setLegacyRunningEventHash(null);
             v.setConsensusTimestamp(Instant.EPOCH);

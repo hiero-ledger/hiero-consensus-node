@@ -147,7 +147,6 @@ module com.swirlds.platform.core {
     requires transitive com.fasterxml.jackson.databind;
     requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;
-    requires com.hedera.node.config;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkle;
