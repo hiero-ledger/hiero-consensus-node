@@ -13,7 +13,7 @@ create_new_directory () {
     # Wait for database being stored during freeze stage then run the script to copy directory
     sleep 60
 
-    # create a new workign directory in the format of HapiApp2.0-20200930T143000
+    # create a new working directory in the format of HapiApp2.0-20200930T143000
     new_directory_name="HapiApp2.0-"`date +%Y%m%dT%H%M%S`
     shell_echo $LINENO $0 "Creating new working directory $new_directory_name"
     mkdir -p ../$new_directory_name

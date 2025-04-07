@@ -19,6 +19,8 @@ class IsAssociatedCallTest extends CallTestBase {
 
     @Test
     void returnsIsAssociated() {
+        mockEntityIdFactory();
+
         subject = new IsAssociatedCall(gasCalculator, mockEnhancement(), SENDER_ID, FUNGIBLE_TOKEN);
 
         final var result = subject.execute().fullResult().result();

@@ -33,7 +33,7 @@ public record NetworkAdminConfig(
         @ConfigProperty(defaultValue = "node-admin-keys.json") String upgradeNodeAdminKeysFile,
         @ConfigProperty(
                         defaultValue =
-                                "HintsKeyPublication,HintsPreprocessingVote,HintsPartialSignature,HistoryAssemblySignature,HistoryProofKeyPublication,HistoryProofVote")
+                                "HintsKeyPublication,HintsPreprocessingVote,HintsPartialSignature,HistoryAssemblySignature,HistoryProofKeyPublication,HistoryProofVote,CrsPublication")
                 @NetworkProperty
                 HederaFunctionalitySet nodeTransactionsAllowList,
         @ConfigProperty(defaultValue = "network.json") @NodeProperty String diskNetworkExportFile,
@@ -43,4 +43,6 @@ public record NetworkAdminConfig(
         @ConfigProperty(defaultValue = "50") @NetworkProperty int timesToTrySubmission,
         @ConfigProperty(defaultValue = "5s") @NetworkProperty Duration retryDelay,
         @ConfigProperty(defaultValue = "10") @NetworkProperty int distinctTxnIdsToTry,
-        @ConfigProperty(defaultValue = "true") @NodeProperty boolean preserveStateWeightsDuringOverride) {}
+        @ConfigProperty(defaultValue = "true") @NodeProperty boolean preserveStateWeightsDuringOverride,
+        // Default value is the working directory
+        @ConfigProperty(defaultValue = "") @NodeProperty String configTxtPath) {}

@@ -209,7 +209,7 @@ message CRSState {
      * to ensure that all nodes contribute to the CRS in a round-robin fashion.
      * If this is null, then all nodes in the network have contributed to the CRS.
      */
-    google.protobuf.UInt64Value  next_contributing_node_id = 3;
+    google.protobuf.UInt64Value next_contributing_node_id = 3;
 
     /**
      * The time at which the network should stop waiting for the node's contributions

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
+import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
+import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.platform.event.AncientMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.event.AncientMode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;

@@ -22,6 +22,5 @@ public interface PureChecksContext {
      * @param body
      * @throws PreCheckException
      */
-    @NonNull
     void dispatchPureChecks(@NonNull TransactionBody body) throws PreCheckException;
 }

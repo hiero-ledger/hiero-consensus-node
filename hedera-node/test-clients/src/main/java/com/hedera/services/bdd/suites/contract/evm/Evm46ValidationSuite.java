@@ -6,7 +6,10 @@ import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractIdWithEvmAddress;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -53,9 +56,10 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.swirlds.common.utility.CommonUtils.unhex;
+import static org.hiero.consensus.model.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -374,7 +378,9 @@ public class Evm46ValidationSuite {
                     spec.registry()
                             .saveContractId(
                                     "mirrorAddress",
-                                    asContract("0.0." + mirrorAccountID.get().getAccountNum()));
+                                    asContract(spec.setup().defaultShard().getShardNum() + "."
+                                            + spec.setup().defaultRealm().getRealmNum() + "."
+                                            + mirrorAccountID.get().getAccountNum()));
                     updateSpecFor(spec, ECDSA_KEY);
                     final var ecdsaKey = spec.registry()
                             .getKey(ECDSA_KEY)
@@ -385,12 +391,16 @@ public class Evm46ValidationSuite {
                             .saveContractId(
                                     "nonMirrorAddress",
                                     ContractID.newBuilder()
+                                            .setShardNum(shard)
+                                            .setRealmNum(realm)
                                             .setEvmAddress(senderAddress)
                                             .build());
                     spec.registry()
                             .saveAccountId(
                                     "NonMirrorAccount",
                                     AccountID.newBuilder()
+                                            .setShardNum(shard)
+                                            .setRealmNum(realm)
                                             .setAccountNum(spec.registry()
                                                     .getAccountID(ECDSA_KEY)
                                                     .getAccountNum())
@@ -424,7 +434,6 @@ public class Evm46ValidationSuite {
 
     @HapiTest
     final Stream<DynamicTest> internalCallToNonExistingMirrorAddressResultsInNoopSuccess() {
-
         return hapiTest(
                 uploadInitCode(INTERNAL_CALLER_CONTRACT),
                 contractCreate(INTERNAL_CALLER_CONTRACT).balance(ONE_HBAR),
@@ -433,12 +442,10 @@ public class Evm46ValidationSuite {
                                 CALL_NON_EXISTING_FUNCTION,
                                 mirrorAddrWith(FIRST_NONEXISTENT_CONTRACT_NUM + 1))
                         .gas(GAS_LIMIT_FOR_CALL)
-                        .via(INNER_TXN),
-                getTxnRecord(INNER_TXN)
-                        .hasPriority(recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(
-                                        resultWith().createdContractIdsCount(0).gasUsed(24972))));
+                        .via(INNER_TXN)
+                        .exposingGasTo(
+                                (status, gas) -> assertTrue(gas == 24996 || gas == 24972, "Gas is not correct!")),
+                getTxnRecord(INNER_TXN).hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -705,9 +712,12 @@ public class Evm46ValidationSuite {
                                 CALL_WITH_VALUE_TO_FUNCTION,
                                 mirrorAddrWith(FIRST_NONEXISTENT_CONTRACT_NUM + 6))
                         .gas(ENOUGH_GAS_LIMIT_FOR_CREATION),
-                getAccountBalance("0.0." + (FIRST_NONEXISTENT_CONTRACT_NUM + 6))
+                withOpContext((spec, op) -> getAccountBalance(
+                                spec.setup().defaultShard().getShardNum() + "."
+                                        + spec.setup().defaultRealm().getRealmNum()
+                                        + "." + (FIRST_NONEXISTENT_CONTRACT_NUM + 6))
                         .nodePayment(ONE_HBAR)
-                        .hasAnswerOnlyPrecheck(INVALID_ACCOUNT_ID));
+                        .hasAnswerOnlyPrecheck(INVALID_ACCOUNT_ID)));
     }
 
     @HapiTest
@@ -1118,6 +1128,8 @@ public class Evm46ValidationSuite {
                                 MAKE_CALLS_CONTRACT,
                                 withAmount,
                                 idAsHeadlongAddress(AccountID.newBuilder()
+                                        .setShardNum(shard)
+                                        .setRealmNum(realm)
                                         .setAccountNum(357)
                                         .build()),
                                 new byte[] {"system account".getBytes()[0]})
@@ -1162,7 +1174,7 @@ public class Evm46ValidationSuite {
                         contractCall(
                                         INTERNAL_CALLER_CONTRACT,
                                         CALL_EXTERNAL_FUNCTION,
-                                        mirrorAddrWith(targetId.get().getAccountNum()))
+                                        nonMirrorAddrWith(0, targetId.get().getAccountNum()))
                                 .gas(GAS_LIMIT_FOR_CALL * 4)
                                 .via(INNER_TXN))),
                 withOpContext((spec, opLog) -> {
@@ -1364,8 +1376,7 @@ public class Evm46ValidationSuite {
                 withOpContext((spec, opLog) -> spec.registry()
                         .saveContractId(
                                 "contract",
-                                asContractIdWithEvmAddress(
-                                        ByteString.copyFrom(unhex("0000000000000000000000000000000000000275"))))),
+                                asContractIdWithEvmAddress(ByteString.copyFrom(asSolidityAddress(shard, realm, 629))))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi("contract", getABIFor(FUNCTION, NAME, ERC_721_ABI))

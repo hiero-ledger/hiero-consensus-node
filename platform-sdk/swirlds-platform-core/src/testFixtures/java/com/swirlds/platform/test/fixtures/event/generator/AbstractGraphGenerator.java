@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.generator;
 
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.consensus.ConsensusConstants;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A base graph generator class that provides most functionality of a graph generator except for determining how to

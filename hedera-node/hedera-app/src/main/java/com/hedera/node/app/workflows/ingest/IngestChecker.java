@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CREATING_SYSTEM_ENTITIES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -17,8 +18,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -51,25 +52,30 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * The {@code IngestChecker} contains checks that are specific to the ingest workflow
  */
+@Singleton
 public final class IngestChecker {
     private static final Logger logger = LogManager.getLogger(IngestChecker.class);
     private static final Set<HederaFunctionality> UNSUPPORTED_TRANSACTIONS =
@@ -92,6 +98,9 @@ public final class IngestChecker {
     private final InstantSource instantSource;
     private final OpWorkflowMetrics workflowMetrics;
     private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+
+    @Nullable
+    private final AtomicBoolean systemEntitiesCreatedFlag;
 
     /**
      * Constructor of the {@code IngestChecker}
@@ -125,10 +134,11 @@ public final class IngestChecker {
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.nodeAccount = requireNonNull(nodeAccount, "nodeAccount must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
-        this.blockStreamManager = requireNonNull(blockStreamManager);
+        this.blockStreamManager = requireNonNull(blockStreamManager, "blockStreamManager must not be null");
         this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null");
         this.solvencyPreCheck = requireNonNull(solvencyPreCheck, "solvencyPreCheck must not be null");
         this.signatureVerifier = requireNonNull(signatureVerifier, "signatureVerifier must not be null");
@@ -137,10 +147,12 @@ public final class IngestChecker {
         this.dispatcher = requireNonNull(dispatcher, "dispatcher must not be null");
         this.feeManager = requireNonNull(feeManager, "feeManager must not be null");
         this.authorizer = requireNonNull(authorizer, "authorizer must not be null");
-        this.synchronizedThrottleAccumulator = requireNonNull(synchronizedThrottleAccumulator);
-        this.instantSource = requireNonNull(instantSource);
-        this.workflowMetrics = requireNonNull(workflowMetrics);
+        this.synchronizedThrottleAccumulator =
+                requireNonNull(synchronizedThrottleAccumulator, "synchronizedThrottleAccumulator must not be null");
+        this.instantSource = requireNonNull(instantSource, "instantSource must not be null");
+        this.workflowMetrics = requireNonNull(workflowMetrics, "workflowMetrics must not be null");
         this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
+        this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
     }
 
     /**
@@ -161,6 +173,9 @@ public final class IngestChecker {
      */
     public void verifyReadyForTransactions() throws PreCheckException {
         verifyPlatformActive();
+        if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
+            throw new PreCheckException(CREATING_SYSTEM_ENTITIES);
+        }
         if (!blockStreamManager.hasLedgerId()) {
             throw new PreCheckException(WAITING_FOR_LEDGER_ID);
         }
@@ -170,7 +185,7 @@ public final class IngestChecker {
      * Runs all the ingest checks on a {@link Transaction}
      *
      * @param state the {@link State} to use
-     * @param serializedTransaction the {@link Bytes} of the {@link Transaction} to check
+     * @param serializedTransaction the {@link Transaction} to check
      * @param configuration the {@link Configuration} to use
      * @return the {@link TransactionInfo} with the extracted information
      * @throws PreCheckException if a check fails
@@ -184,7 +199,8 @@ public final class IngestChecker {
         final var consensusTime = instantSource.instant();
 
         // 1. Check the syntax
-        final var txInfo = transactionChecker.parseAndCheck(serializedTransaction);
+        final var maxBytes = maxIngestParseSize(configuration);
+        final var txInfo = transactionChecker.parseAndCheck(serializedTransaction, maxBytes);
         final var txBody = txInfo.txBody();
         final var functionality = txInfo.functionality();
 
@@ -219,7 +235,7 @@ public final class IngestChecker {
         dispatcher.dispatchPureChecks(pureChecksContext);
 
         // 5. Get payer account
-        final var storeFactory = new ReadableStoreFactory(state, softwareVersionFactory);
+        final var storeFactory = new ReadableStoreFactory(state);
         final var payer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
         final var payerKey = payer.key();
         // There should, absolutely, be a key for this account. If there isn't, then something is wrong in
@@ -251,6 +267,16 @@ public final class IngestChecker {
         solvencyPreCheck.checkSolvency(txInfo, payer, fees, INGEST);
 
         return txInfo;
+    }
+
+    private static int maxIngestParseSize(Configuration configuration) {
+        final var jumboTxnEnabled =
+                configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
+        final var jumboMaxTxnSize =
+                configuration.getConfigData(JumboTransactionsConfig.class).maxTxnSize();
+        final var transactionMaxBytes =
+                configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
+        return jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
     }
 
     private void assertThrottlingPreconditions(

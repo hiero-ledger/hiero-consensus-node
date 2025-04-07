@@ -223,7 +223,7 @@ public class StakeInfoHelper {
                                 nCopies(numRewardHistoryStoredPeriods + 1, 0L).toArray(Long[]::new))
                         .weight(0)
                         .build();
-                store.put(nodeId.nodeId(), newNodeStakingInfo);
+                store.putAndIncrementCount(nodeId.nodeId(), newNodeStakingInfo);
             }
         }
     }

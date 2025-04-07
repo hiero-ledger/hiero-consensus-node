@@ -11,10 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
@@ -34,6 +31,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -337,7 +337,7 @@ class PartialNodeTests {
     @MethodSource("merkleNodes")
     @DisplayName("Hash Test")
     void hashTest(final NodeImpl<MerkleNode> nodeImpl) {
-        final Cryptography cryptography = CryptographyFactory.create();
+        final Cryptography cryptography = CryptographyProvider.getInstance();
         final MerkleNode node = nodeImpl.constructor.get();
 
         assertNull(node.getHash(), "node should start with null hash");

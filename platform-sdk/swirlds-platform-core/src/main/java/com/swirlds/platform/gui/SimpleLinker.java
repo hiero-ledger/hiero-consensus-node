@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.event.EventCounter;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.linking.InOrderLinker;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.sequence.map.SequenceMap;
 import com.swirlds.platform.sequence.map.StandardSequenceMap;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -17,6 +13,10 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Similar to the {@link InOrderLinker} but simplified and streamlined. Also does unlinking and supports queries against
@@ -55,12 +55,7 @@ public class SimpleLinker {
      */
     public SimpleLinker(@NonNull final AncientMode ancientMode) {
         this.ancientMode = ancientMode;
-        this.parentDescriptorMap = new StandardSequenceMap<>(
-                0,
-                INITIAL_CAPACITY,
-                true,
-                ed -> ancientMode.selectIndicator(
-                        ed.eventDescriptor().generation(), ed.eventDescriptor().birthRound()));
+        this.parentDescriptorMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
     }
 
     /**
@@ -128,7 +123,7 @@ public class SimpleLinker {
      */
     @Nullable
     public EventImpl linkEvent(@NonNull final PlatformEvent event) {
-        if (event.getAncientIndicator(ancientMode) < nonAncientThreshold) {
+        if (ancientMode.selectIndicator(event) < nonAncientThreshold) {
             // This event is ancient, so we don't need to link it.
             return null;
         }

@@ -17,6 +17,7 @@ module com.hedera.node.app.service.token {
     requires transitive org.apache.logging.log4j;
     requires com.hedera.node.app.hapi.utils;
     requires com.swirlds.common;
+    requires org.hiero.consensus.model;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
 }

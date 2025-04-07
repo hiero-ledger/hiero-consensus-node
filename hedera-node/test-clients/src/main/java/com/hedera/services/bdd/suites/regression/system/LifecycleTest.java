@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActiveNetworkWithReassignedPorts;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForMf;
 import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
@@ -31,6 +32,8 @@ import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgra
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -50,7 +53,7 @@ import java.util.function.Supplier;
  */
 public interface LifecycleTest {
     int MIXED_OPS_BURST_TPS = 50;
-    Duration FREEZE_TIMEOUT = Duration.ofSeconds(180);
+    Duration FREEZE_TIMEOUT = Duration.ofSeconds(240);
     Duration RESTART_TIMEOUT = Duration.ofSeconds(180);
     Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     Duration MIXED_OPS_BURST_DURATION = Duration.ofSeconds(10);
@@ -76,14 +79,43 @@ public interface LifecycleTest {
      *
      * @param selector the node to reconnect
      * @param configVersion the configuration version to reconnect at
+     * @param preReconnectOps operations to run before the node is reconnected
      * @return the operation
      */
-    default HapiSpecOperation reconnectNode(@NonNull final NodeSelector selector, final int configVersion) {
+    default HapiSpecOperation reconnectNode(
+            @NonNull final NodeSelector selector,
+            final int configVersion,
+            @NonNull final SpecOperation... preReconnectOps) {
+        requireNonNull(selector);
+        requireNonNull(preReconnectOps);
         return blockingOrder(
                 FakeNmt.shutdownWithin(selector, SHUTDOWN_TIMEOUT),
                 burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                preReconnectOps.length > 0 ? blockingOrder(preReconnectOps) : noOp(),
                 FakeNmt.restartWithConfigVersion(selector, configVersion),
                 waitForActive(selector, RESTART_TO_ACTIVE_TIMEOUT));
+    }
+
+    /**
+     * Returns an operation that terminates and reconnects the given node.
+     *
+     * @param selector the node to reconnect
+     * @param configVersion the configuration version to reconnect at
+     * @param preReconnectOps operations to run before the node is reconnected
+     * @return the operation
+     */
+    default HapiSpecOperation reconnectIssNode(
+            @NonNull final NodeSelector selector,
+            final int configVersion,
+            @NonNull final SpecOperation... preReconnectOps) {
+        requireNonNull(selector);
+        requireNonNull(preReconnectOps);
+        return blockingOrder(
+                FakeNmt.shutdownWithin(selector, SHUTDOWN_TIMEOUT),
+                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                preReconnectOps.length > 0 ? blockingOrder(preReconnectOps) : noOp(),
+                FakeNmt.restartWithConfigVersion(selector, configVersion),
+                waitForAny(selector, RESTART_TO_ACTIVE_TIMEOUT, ACTIVE, CATASTROPHIC_FAILURE));
     }
 
     /**

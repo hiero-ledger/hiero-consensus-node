@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.events;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.platform.event.EventDescriptor;
-import com.swirlds.common.platform.NodeId;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventMetadata;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
 class EventMetadataTest {

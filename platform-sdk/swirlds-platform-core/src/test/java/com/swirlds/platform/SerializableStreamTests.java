@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -11,10 +11,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.streams.AugmentedDataOutputStream;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.io.SelfSerializableExample;
@@ -36,6 +35,9 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -632,10 +634,10 @@ public class SerializableStreamTests {
     @Tag(TestComponentTags.IO)
     @DisplayName("serializedLengthNullArray")
     void serializedLengthNullArray() throws IOException {
-        final int length = SerializableDataOutputStream.getSerializedLength(null, true, false);
+        final int length = SerializableDataOutputStreamImpl.getSerializedLength(null, true, false);
 
         try (final ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            try (final SerializableDataOutputStream dos = new SerializableDataOutputStream(bos)) {
+            try (final SerializableDataOutputStreamImpl dos = new SerializableDataOutputStreamImpl(bos)) {
                 dos.writeSerializableArray(null, true, false);
                 checkExpectedSize(dos.size(), length);
             }
@@ -656,23 +658,23 @@ public class SerializableStreamTests {
         final SerializableLong data = new SerializableLong(random.nextLong());
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
 
         out.writeSerializable(data, true);
         final byte[] bytes = byteOut.toByteArray();
 
         // Should work if the class id is not restricted
-        final SerializableDataInputStream in1 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in1 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
         final SerializableLong deserialized1 = in1.readSerializable(null);
         assertEquals(data, deserialized1);
         assertNotSame(data, deserialized1);
 
         // Should not work if the class id is restricted to other classIDs
-        final SerializableDataInputStream in2 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in2 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
         assertThrows(IOException.class, () -> in2.readSerializable(Set.of(1L, 2L, 3L, 4L)));
 
         // Should work if class ID is in the restricted set
-        final SerializableDataInputStream in3 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in3 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
         final SerializableLong deserialized3 = in3.readSerializable(Set.of(1L, 2L, 3L, 4L, SerializableLong.CLASS_ID));
         assertEquals(data, deserialized3);
         assertNotSame(data, deserialized3);
@@ -692,25 +694,25 @@ public class SerializableStreamTests {
         }
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
 
         out.writeSerializableIterableWithSize(data.iterator(), data.size(), true, false);
         final byte[] bytes = byteOut.toByteArray();
 
         // Should work if the class id is not restricted
-        final SerializableDataInputStream in1 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in1 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
         final List<SerializableLong> deserialized1 = new ArrayList<>();
         in1.readSerializableIterableWithSize(data.size(), x -> deserialized1.add((SerializableLong) x), null);
         assertEquals(data, deserialized1);
 
         // Should not work if the class id is restricted to other classIDs
-        final SerializableDataInputStream in2 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in2 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
         assertThrows(
                 IOException.class,
                 () -> in2.readSerializableIterableWithSize(data.size(), x -> {}, Set.of(1L, 2L, 3L, 4L)));
 
         // Should work if class ID is in the restricted set
-        final SerializableDataInputStream in3 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in3 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
         final List<SerializableLong> deserialized3 = new ArrayList<>();
         in3.readSerializableIterableWithSize(
                 data.size(),
@@ -729,22 +731,22 @@ public class SerializableStreamTests {
         }
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
 
         out.writeSerializableList(data, true, false);
         final byte[] bytes = byteOut.toByteArray();
 
         // Should work if the class id is not restricted
-        final SerializableDataInputStream in1 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in1 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
         final List<SerializableLong> deserialized1 = in1.readSerializableList(data.size(), null);
         assertEquals(data, deserialized1);
 
         // Should not work if the class id is restricted to other classIDs
-        final SerializableDataInputStream in2 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in2 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
         assertThrows(IOException.class, () -> in2.readSerializableList(data.size(), Set.of(1L, 2L, 3L, 4L)));
 
         // Should work if class ID is in the restricted set
-        final SerializableDataInputStream in3 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in3 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
         final List<SerializableLong> deserialized3 =
                 in3.readSerializableList(data.size(), Set.of(1L, 2L, 3L, 4L, SerializableLong.CLASS_ID));
         assertEquals(data, deserialized3);
@@ -760,25 +762,28 @@ public class SerializableStreamTests {
         }
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStreamImpl out = new SerializableDataOutputStreamImpl(byteOut);
 
         out.writeSerializableArray(data, true, false);
         final byte[] bytes = byteOut.toByteArray();
 
         // Should work if the class id is not restricted
-        final SerializableDataInputStream in1 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStreamImpl in1 =
+                new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
         final SerializableLong[] deserialized1 =
                 in1.readSerializableArray(SerializableLong[]::new, data.length, true, (Set<Long>) null);
         assertArrayEquals(data, deserialized1);
 
         // Should not work if the class id is restricted to other classIDs
-        final SerializableDataInputStream in2 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStreamImpl in2 =
+                new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
         assertThrows(
                 IOException.class,
                 () -> in2.readSerializableArray(SerializableLong[]::new, data.length, true, Set.of(1L, 2L, 3L, 4L)));
 
         // Should work if class ID is in the restricted set
-        final SerializableDataInputStream in3 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStreamImpl in3 =
+                new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
         final SerializableLong[] deserialized3 = in3.readSerializableArray(
                 SerializableLong[]::new, data.length, true, Set.of(1L, 2L, 3L, 4L, SerializableLong.CLASS_ID));
         assertArrayEquals(data, deserialized3);

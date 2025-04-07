@@ -12,6 +12,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -31,9 +32,9 @@ public class RosterService implements Service {
      */
     private final Predicate<Roster> canAdopt;
     /**
-     * A callback to run when a candidate roster is adopted.
+     * A callback to invoke with an outgoing roster being replaced by a new roster hash.
      */
-    private final Runnable onAdopt;
+    private final BiConsumer<Roster, Roster> onAdopt;
     /**
      * Required until the upgrade that adopts the roster lifecycle; at that upgrade boundary,
      * we must initialize the active roster from the platform state's legacy address books.
@@ -45,7 +46,7 @@ public class RosterService implements Service {
 
     public RosterService(
             @NonNull final Predicate<Roster> canAdopt,
-            @NonNull final Runnable onAdopt,
+            @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Supplier<State> stateSupplier,
             @NonNull final PlatformStateFacade platformStateFacade) {
         this.onAdopt = requireNonNull(onAdopt);

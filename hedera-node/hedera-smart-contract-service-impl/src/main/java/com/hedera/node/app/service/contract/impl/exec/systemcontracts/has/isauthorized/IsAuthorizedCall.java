@@ -63,7 +63,9 @@ public class IsAuthorizedCall extends AbstractCall {
 
         final long accountNum = accountNumberForEvmReference(address, nativeOperations());
         if (!isValidAccount(accountNum)) return bail.apply(INVALID_ACCOUNT_ID);
-        final var account = requireNonNull(enhancement.nativeOperations().getAccount(accountNum));
+        final var account = requireNonNull(enhancement
+                .nativeOperations()
+                .getAccount(enhancement.nativeOperations().entityIdFactory().newAccountId(accountNum)));
 
         // Q: Do we get a key for hollow accounts and auto-created accounts?
         final var key = account.key();

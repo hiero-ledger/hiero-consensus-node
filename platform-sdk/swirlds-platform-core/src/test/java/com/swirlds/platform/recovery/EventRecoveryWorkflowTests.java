@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomPositiveLong;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomPositiveLong;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -18,19 +18,12 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.RunningHash;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
 import com.swirlds.platform.recovery.internal.StreamedRound;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.events.CesEvent;
-import com.swirlds.platform.system.events.ConsensusEvent;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -38,6 +31,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.RunningHash;
+import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.Round;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
