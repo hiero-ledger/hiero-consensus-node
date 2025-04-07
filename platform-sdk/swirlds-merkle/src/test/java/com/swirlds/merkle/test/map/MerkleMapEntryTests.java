@@ -157,6 +157,7 @@ class MerkleMapEntryTests {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds.merkle.map");
         registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero.consensus");
 
         final MerkleMapEntry<SerializableLong, KeyedMerkleLong<SerializableLong>> entry =
                 new MerkleMapEntry<>(new SerializableLong(1), new KeyedMerkleLong<>(1));

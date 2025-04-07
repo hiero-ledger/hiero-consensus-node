@@ -3,7 +3,6 @@ package com.swirlds.virtualmap.internal.cache;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.threading.futures.StandardFuture;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Spliterator;
@@ -16,6 +15,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.utility.StandardFuture;
 
 /**
  * An array-backed concurrent data structure optimized for use by the {@link VirtualNodeCache}.

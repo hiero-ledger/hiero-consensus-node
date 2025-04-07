@@ -4,9 +4,6 @@ package com.swirlds.platform.reconnect;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
@@ -18,6 +15,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketException;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * An implementation of {@link Connection} for local testing.

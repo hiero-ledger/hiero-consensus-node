@@ -5,7 +5,6 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKeyFixedSize;
@@ -14,6 +13,7 @@ import com.swirlds.virtualmap.VirtualKey;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Random;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;

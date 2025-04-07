@@ -25,12 +25,12 @@ testModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.config.extensions")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
-    requiresStatic("com.github.spotbugs.annotations")
 }
 
 timingSensitiveModuleInfo {
@@ -44,6 +44,7 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.logging.test.fixtures")
     requires("com.swirlds.metrics.api")
     requires("com.swirlds.metrics.impl")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.apache.logging.log4j.core")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")

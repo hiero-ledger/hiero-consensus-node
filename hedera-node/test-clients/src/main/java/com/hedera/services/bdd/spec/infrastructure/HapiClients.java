@@ -144,12 +144,16 @@ public class HapiClients {
         if (existingPool.size() < MAX_DESIRED_CHANNELS_PER_NODE) {
             final var channel = createNettyChannel(false, node.getHost(), node.getGrpcNodeOperatorPort(), -1);
             requireNonNull(channel, "FATAL: Cannot continue without additional Netty channel");
-            existingPool.add(ChannelStubs.from(channel, new NodeConnectInfo(node.hapiSpecInfo()), false));
+            existingPool.add(ChannelStubs.from(
+                    channel,
+                    new NodeConnectInfo(node.hapiSpecInfo(
+                            node.getAccountId().shardNum(), node.getAccountId().realmNum())),
+                    false));
         }
         stubSequences.putIfAbsent(channelUri, new AtomicInteger());
     }
 
-    private HapiClients(final Supplier<List<NodeConnectInfo>> nodeInfosSupplier) {
+    public HapiClients(@NonNull final Supplier<List<NodeConnectInfo>> nodeInfosSupplier) {
         this.nodes = Collections.emptyList();
         this.nodeInfos = nodeInfosSupplier.get();
         stubIds = nodeInfos.stream().collect(Collectors.toMap(NodeConnectInfo::getAccount, NodeConnectInfo::uri));

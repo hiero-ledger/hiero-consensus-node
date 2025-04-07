@@ -15,8 +15,11 @@ import static com.hedera.node.app.service.token.impl.test.handlers.staking.EndOf
 import static com.hedera.node.app.service.token.impl.test.handlers.staking.EndOfStakingPeriodUpdaterTest.STAKING_INFO_2;
 import static com.hedera.node.app.service.token.impl.test.handlers.staking.EndOfStakingPeriodUpdaterTest.STAKING_INFO_3;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
@@ -56,9 +59,11 @@ class StakeInfoHelperTest {
     void setup() {
         entityIdStore = new WritableEntityIdStore(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_KEY,
-                new WritableSingletonStateBase<>(ENTITY_ID_STATE_KEY, () -> null, c -> {}),
+                new WritableSingletonStateBase<>(
+                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build(), c -> {}),
                 ENTITY_COUNTS_KEY,
-                new WritableSingletonStateBase<>(ENTITY_COUNTS_KEY, () -> null, c -> {}))));
+                new WritableSingletonStateBase<>(
+                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build(), c -> {}))));
     }
 
     @ParameterizedTest
@@ -99,10 +104,13 @@ class StakeInfoHelperTest {
                 .value(NODE_NUM_2, STAKING_INFO_2)
                 .value(NODE_NUM_3, STAKING_INFO_3)
                 .build();
+
         final var newStates = newStatesInstance(stakingInfosState);
         infoStore = new WritableStakingInfoStore(newStates, entityIdStore);
         // Platform address book has node Ids 2, 4, 8
         final var networkInfo = new FakeNetworkInfo();
+
+        given(rewardsStore.get()).willReturn(NetworkStakingRewards.DEFAULT);
 
         // Should update the state to mark node 1 and 3 as deleted
         subject.adjustPostUpgradeStakes(networkInfo, DEFAULT_CONFIG, infoStore, rewardsStore);

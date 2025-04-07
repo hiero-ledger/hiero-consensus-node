@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.sync;
 
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 public class SyncTestUtils {
 
@@ -30,7 +30,7 @@ public class SyncTestUtils {
     public static long getMaxIndicator(final List<ShadowEvent> tips, @NonNull final AncientMode ancientMode) {
         long maxIndicator = ancientMode.getGenesisIndicator();
         for (final ShadowEvent tip : tips) {
-            maxIndicator = Math.max(tip.getEvent().getAncientIndicator(ancientMode), maxIndicator);
+            maxIndicator = Math.max(ancientMode.selectIndicator(tip.getEvent()), maxIndicator);
         }
         return maxIndicator;
     }
@@ -38,7 +38,7 @@ public class SyncTestUtils {
     public static long getMinIndicator(@NonNull final Set<ShadowEvent> events, @NonNull final AncientMode ancientMode) {
         long minIndicator = Long.MAX_VALUE;
         for (final ShadowEvent event : events) {
-            minIndicator = Math.min(event.getEvent().getAncientIndicator(ancientMode), minIndicator);
+            minIndicator = Math.min(ancientMode.selectIndicator(event.getEvent()), minIndicator);
         }
         return minIndicator == Long.MAX_VALUE ? ancientMode.getGenesisIndicator() : minIndicator;
     }

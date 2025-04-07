@@ -14,10 +14,10 @@ import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.ZERO_BYTE
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.swirlds.common.utility.CommonUtils;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.SplittableRandom;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

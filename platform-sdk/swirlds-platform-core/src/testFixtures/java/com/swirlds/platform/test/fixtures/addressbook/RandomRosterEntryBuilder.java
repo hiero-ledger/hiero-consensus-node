@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.addressbook;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.randomIp;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomIp;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.RosterEntry;

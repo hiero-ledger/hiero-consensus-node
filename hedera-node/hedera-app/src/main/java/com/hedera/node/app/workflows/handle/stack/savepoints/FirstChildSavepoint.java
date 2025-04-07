@@ -37,9 +37,9 @@ public class FirstChildSavepoint extends AbstractSavepoint {
     @Override
     void commitBuilders() {
         if (txnCategory == PRECEDING) {
-            flushPreceding(parentSink);
+            flushPreceding(parent);
         } else {
-            flushFollowing(parentSink);
+            flushFollowing(parent);
         }
     }
 }

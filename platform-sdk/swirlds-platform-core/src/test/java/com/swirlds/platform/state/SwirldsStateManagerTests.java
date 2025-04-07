@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,7 +40,7 @@ class SwirldsStateManagerTests {
         final SwirldsPlatform platform = mock(SwirldsPlatform.class);
         final Roster roster = RandomRosterBuilder.create(Randotron.create()).build();
         when(platform.getRoster()).thenReturn(roster);
-        PlatformStateFacade platformStateFacade = new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major()));
+        PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         initialState = newState(platformStateFacade);
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
@@ -50,7 +50,7 @@ class SwirldsStateManagerTests {
                 roster,
                 NodeId.of(0L),
                 mock(StatusActionSubmitter.class),
-                new BasicSoftwareVersion(1),
+                SemanticVersion.newBuilder().major(1).build(),
                 FAKE_CONSENSUS_STATE_EVENT_HANDLER,
                 platformStateFacade);
         swirldStateManager.setInitialState(initialState);
@@ -130,7 +130,8 @@ class SwirldsStateManagerTests {
         final MerkleNodeState state = new TestMerkleStateRoot();
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
 
-        platformStateFacade.setCreationSoftwareVersionTo(state, new BasicSoftwareVersion(nextInt(1, 100)));
+        platformStateFacade.setCreationSoftwareVersionTo(
+                state, SemanticVersion.newBuilder().major(nextInt(1, 100)).build());
 
         assertEquals(0, state.getRoot().getReservationCount(), "A brand new state should have no references.");
         return state;

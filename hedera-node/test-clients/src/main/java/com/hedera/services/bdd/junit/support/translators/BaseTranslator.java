@@ -5,6 +5,10 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.ENDING_PARENT;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.PARENT;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.STANDALONE;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.STARTING_PARENT;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
 import static com.hedera.node.app.hapi.utils.EntityType.FILE;
@@ -35,6 +39,7 @@ import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.state.SingleTransactionRecord;
@@ -47,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -64,6 +70,9 @@ import org.apache.logging.log4j.Logger;
  */
 public class BaseTranslator {
     private static final Logger log = LogManager.getLogger(BaseTranslator.class);
+
+    private static final Set<TransactionGroupRole> PARENT_ROLES =
+            EnumSet.of(STANDALONE, PARENT, ENDING_PARENT, STARTING_PARENT);
 
     /**
      * These fields are context maintained for the full lifetime of the translator.
@@ -460,9 +469,7 @@ public class BaseTranslator {
         });
         userTimestamp = null;
         unit.blockTransactionParts().forEach(parts -> {
-            if (userTimestamp == null
-                    && parts.transactionIdOrThrow().nonce() == 0
-                    && !parts.transactionIdOrThrow().scheduled()) {
+            if (PARENT_ROLES.contains(parts.role())) {
                 userTimestamp = asInstant(parts.consensusTimestamp());
             }
             switch (parts.functionality()) {

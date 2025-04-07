@@ -2,13 +2,13 @@
 package com.swirlds.platform.event.preconsensus;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 
 public class DefaultInlinePcesWriter implements InlinePcesWriter {
     private final CommonPcesWriter commonPcesWriter;
@@ -51,7 +51,7 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
             return event;
         }
 
-        if (event.getAncientIndicator(commonPcesWriter.getFileType()) < commonPcesWriter.getNonAncientBoundary()) {
+        if (commonPcesWriter.getFileType().selectIndicator(event) < commonPcesWriter.getNonAncientBoundary()) {
             // don't do anything with ancient events
             return event;
         }

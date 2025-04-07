@@ -2,27 +2,27 @@
 package com.swirlds.platform.gossip.modular;
 
 import com.swirlds.base.state.Startable;
-import com.swirlds.common.threading.framework.StoppableThread;
+import com.swirlds.common.threading.framework.Stoppable;
+import com.swirlds.common.threading.framework.Stoppable.StopBehavior;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Responsible for main control of gossip activity. Handles {@link #pause()} and {@link #resume()} from {@link GossipController}
  * for runtime control, plus {@link #start()} for initial startup. At the moment {@link #stop()} is not really used,
  * not all resources will be properly stopped/cleaned when calling it and it is not defined if it should be startable again.
- *
- *
  */
 public class SyncGossipController implements GossipController {
+
+    private static final Logger logger = LogManager.getLogger(SyncGossipController.class);
 
     private final SyncGossipSharedProtocolState sharedState;
     private final IntakeEventCounter intakeEventCounter;
     private boolean started = false;
-    private final List<Startable> startableButNotStoppable = new ArrayList<>();
-    private final List<StoppableThread> syncProtocolThreads = new ArrayList<>();
+    private final List<Stoppable> startables = new ArrayList<>();
 
     /**
      * Creates new gossip controller
@@ -39,34 +39,25 @@ public class SyncGossipController implements GossipController {
      * Registers thread which should be started when {@link #start()} method is called but NOT stopped on {@link #stop()}
      * @param thing thread to start
      */
-    public void registerThingToStartButNotStop(Startable thing) {
-        startableButNotStoppable.add(thing);
+    public void registerThingToStart(final @NonNull Stoppable thing) {
+        Objects.requireNonNull(thing);
+        startables.add(thing);
     }
 
     /**
-     * Registers threads which should be started when {@link #start()} method is called and stopped on {@link #stop()}
-     * @param things thread to start
-     */
-    public void registerThingsToStart(Collection<? extends StoppableThread> things) {
-        syncProtocolThreads.addAll(things);
-    }
-
-    /**
-     * Start gossiping. Spin up all the threads registered in {@link #registerThingsToStart(Collection)} and {@link #registerThingToStartButNotStop(Startable)}
+     * Start gossiping. Spin up all the threads registered in {@link #registerThingToStart(Stoppable)}
      */
     void start() {
         if (started) {
             throw new IllegalStateException("Gossip already started");
         }
         started = true;
-        startableButNotStoppable.forEach(Startable::start);
-        syncProtocolThreads.forEach(Startable::start);
+        startables.forEach(Startable::start);
     }
 
     /**
      * Stop gossiping.
      * This method is not fully working. It stops some threads, but leaves others running
-     * (see {@link #registerThingsToStart(Collection)} and {@link #registerThingToStartButNotStop(Startable)})
      * In particular, you cannot call {@link #start()} () after calling stop (use {@link #pause()}{@link #resume()} as needed)
      */
     void stop() {
@@ -78,8 +69,9 @@ public class SyncGossipController implements GossipController {
         // wait for all existing syncs to stop. no new ones will be started, since gossip has been halted, and
         // we've fallen behind
         sharedState.syncPermitProvider().waitForAllPermitsToBeReleased();
-        for (final StoppableThread thread : syncProtocolThreads) {
-            thread.stop();
+
+        for (Stoppable startable : startables) {
+            startable.stop(StopBehavior.INTERRUPTABLE);
         }
     }
 

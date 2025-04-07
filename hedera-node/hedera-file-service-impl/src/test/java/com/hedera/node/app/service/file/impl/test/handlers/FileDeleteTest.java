@@ -46,6 +46,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -87,6 +88,9 @@ class FileDeleteTest extends FileTestBase {
 
     @Mock
     private TransactionChecker transactionChecker;
+
+    @Mock
+    private NodeInfo creatorInfo;
 
     protected Configuration testConfig;
 
@@ -149,7 +153,7 @@ class FileDeleteTest extends FileTestBase {
         mockPayerLookup();
         given(mockStore.getFileMetadata(notNull())).willReturn(null);
         final var context = new PreHandleContextImpl(
-                mockStoreFactory, newDeleteTxn(), testConfig, mockDispatcher, transactionChecker);
+                mockStoreFactory, newDeleteTxn(), testConfig, mockDispatcher, transactionChecker, creatorInfo);
 
         // when:
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_FILE_ID);
@@ -172,7 +176,7 @@ class FileDeleteTest extends FileTestBase {
                 .fileDelete(deleteFileBuilder.build())
                 .build();
         final PreHandleContext realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, transactionBody, testConfig, mockDispatcher, transactionChecker);
+                mockStoreFactory, transactionBody, testConfig, mockDispatcher, transactionChecker, creatorInfo);
 
         subject.preHandle(realPreContext);
 
@@ -189,7 +193,7 @@ class FileDeleteTest extends FileTestBase {
         BDDMockito.given(payerAccount.key()).willReturn(A_COMPLEX_KEY);
 
         PreHandleContext realPreContext = new PreHandleContextImpl(
-                mockStoreFactory, newDeleteTxn(), testConfig, mockDispatcher, transactionChecker);
+                mockStoreFactory, newDeleteTxn(), testConfig, mockDispatcher, transactionChecker, creatorInfo);
 
         subject.preHandle(realPreContext);
 

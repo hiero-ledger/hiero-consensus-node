@@ -33,9 +33,11 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.merkle.test.fixtures")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
+    requires("org.hiero.consensus.model")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
+    requires("org.hiero.consensus.model")
 }
 
 protobuf { protoc { artifact = "com.google.protobuf:protoc" } }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.threading.locks.internal;
 
-import com.swirlds.common.AutoCloseableNonThrowing;
+import com.swirlds.base.utility.AutoCloseableNonThrowing;
 import com.swirlds.common.threading.locks.locked.MaybeLocked;
 import edu.umd.cs.findbugs.annotations.NonNull;
 

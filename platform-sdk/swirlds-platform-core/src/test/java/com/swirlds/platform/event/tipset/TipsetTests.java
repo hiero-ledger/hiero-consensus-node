@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.tipset;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.event.creation.tipset.Tipset;
 import com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder.WeightDistributionStrategy;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -96,8 +96,7 @@ class TipsetTests {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
-                .withAverageWeight(1)
-                .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator(WeightGenerators.BALANCED)
                 .build();
 
         final NodeId selfId =
