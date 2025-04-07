@@ -24,21 +24,33 @@ import java.util.stream.IntStream;
 public class RemoteNetwork extends AbstractGrpcNetwork implements HederaNetwork {
     private static final String REMOTE_NETWORK_NAME = "JRS_SCOPE";
 
+    private long shard;
+    private long realm;
+
     private RemoteNetwork(
             @NonNull final String networkName,
             @NonNull final List<HederaNode> nodes,
-            @NonNull final HapiClients clients) {
+            @NonNull final HapiClients clients,
+            final long shard,
+            final long realm) {
         super(networkName, nodes, clients);
+        this.shard = shard;
+        this.realm = realm;
     }
 
     /**
      * Create a new network of remote nodes.
      *
      * @param nodeConnectInfos the connection information for the remote nodes
+     * @param shard the shard number
+     * @param realm the realm number
      * @return the new network
      */
     public static HederaNetwork newRemoteNetwork(
-            @NonNull final List<NodeConnectInfo> nodeConnectInfos, @NonNull final HapiClients clients) {
+            @NonNull final List<NodeConnectInfo> nodeConnectInfos,
+            @NonNull final HapiClients clients,
+            final long shard,
+            final long realm) {
         requireNonNull(nodeConnectInfos);
         requireNonNull(clients);
         return new RemoteNetwork(
@@ -47,7 +59,9 @@ public class RemoteNetwork extends AbstractGrpcNetwork implements HederaNetwork 
                         .<HederaNode>mapToObj(
                                 nodeId -> new RemoteNode(metadataFor(nodeId, nodeConnectInfos.get(nodeId))))
                         .toList(),
-                clients);
+                clients,
+                shard,
+                realm);
     }
 
     @Override
@@ -68,6 +82,16 @@ public class RemoteNetwork extends AbstractGrpcNetwork implements HederaNetwork 
     @Override
     public void awaitReady(@NonNull Duration timeout) {
         // No-op, a remote network must already be ready
+    }
+
+    @Override
+    public long shard() {
+        return shard;
+    }
+
+    @Override
+    public long realm() {
+        return realm;
     }
 
     private static NodeMetadata metadataFor(final int nodeId, @NonNull final NodeConnectInfo connectInfo) {

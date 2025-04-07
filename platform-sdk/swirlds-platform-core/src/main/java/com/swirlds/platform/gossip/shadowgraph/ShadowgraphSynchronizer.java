@@ -349,6 +349,8 @@ public class ShadowgraphSynchronizer {
             sendList = eventsTheyMayNeed;
         }
 
+        SyncUtils.sort(eventsTheyMayNeed);
+
         if (maximumEventsPerSync > 0 && sendList.size() > maximumEventsPerSync) {
             sendList = sendList.subList(0, maximumEventsPerSync);
         }

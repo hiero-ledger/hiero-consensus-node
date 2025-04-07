@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.fchashmap;
 
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 
 import com.swirlds.common.test.fixtures.fcqueue.FCInt;
 import java.util.Random;

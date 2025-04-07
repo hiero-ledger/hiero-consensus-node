@@ -5,7 +5,7 @@ import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHa
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.platform.event.creation.tipset.Tipset.merge;
 import static com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;

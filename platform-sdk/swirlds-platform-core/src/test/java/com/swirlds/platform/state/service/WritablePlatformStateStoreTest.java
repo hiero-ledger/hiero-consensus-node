@@ -5,7 +5,7 @@ import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHa
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverterTest.randomPlatformState;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.nextInt;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
