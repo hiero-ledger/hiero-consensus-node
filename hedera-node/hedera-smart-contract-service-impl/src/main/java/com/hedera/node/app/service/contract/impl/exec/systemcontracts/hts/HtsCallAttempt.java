@@ -7,31 +7,23 @@ import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
-import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAttemptOptions;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.SystemContract;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 
 /**
- * Manages the call attempted by a {@link Bytes} payload received by the {@link HtsSystemContract}.
- * Translates a valid attempt into an appropriate {@link Call} subclass, giving the {@link Call}
- * everything it will need to execute.
+ * Manages the call attempted by a {@link Bytes} payload received by the {@link HtsSystemContract}. Translates a valid
+ * attempt into an appropriate {@link Call} subclass, giving the {@link Call} everything it will need to execute.
  */
 public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
     /** Selector for redirectForToken(address,bytes) method. */
@@ -49,44 +41,16 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
     @Nullable
     private final Token redirectToken;
 
-    // too many parameters
-    @SuppressWarnings("java:S107")
-    public HtsCallAttempt(
-            @NonNull final ContractID contractID,
-            @NonNull final Bytes input,
-            @NonNull final Address senderAddress,
-            @NonNull final Address authorizingAddress,
-            final boolean onlyDelegatableContractKeysActive,
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final Configuration configuration,
-            @NonNull final AddressIdConverter addressIdConverter,
-            @NonNull final VerificationStrategies verificationStrategies,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final List<CallTranslator<HtsCallAttempt>> callTranslators,
-            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
-            final boolean isStaticCall) {
-        super(
-                contractID,
-                input,
-                senderAddress,
-                authorizingAddress,
-                onlyDelegatableContractKeysActive,
-                enhancement,
-                configuration,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                callTranslators,
-                isStaticCall,
-                systemContractMethodRegistry,
-                REDIRECT_FOR_TOKEN);
+    public HtsCallAttempt(@NonNull final Bytes input, @NonNull final CallAttemptOptions<HtsCallAttempt> options) {
+        super(input, options, REDIRECT_FOR_TOKEN);
         if (isRedirect()) {
             this.redirectToken = linkedToken(redirectAddress);
         } else {
             redirectToken = null;
         }
-        this.authorizingId =
-                (authorizingAddress != senderAddress) ? addressIdConverter.convertSender(authorizingAddress) : senderId;
+        this.authorizingId = (options.authorizingAddress() != senderAddress())
+                ? addressIdConverter().convertSender(options.authorizingAddress())
+                : senderId;
     }
 
     @Override
@@ -97,16 +61,6 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
     @Override
     protected HtsCallAttempt self() {
         return this;
-    }
-
-    /**
-     * Returns whether this is a token redirect.
-     *
-     * @return whether this is a token redirect
-     * @throws IllegalStateException if this is not a valid call
-     */
-    public boolean isTokenRedirect() {
-        return isRedirect();
     }
 
     /**
@@ -167,8 +121,10 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
      */
     public @Nullable Token linkedToken(@NonNull final byte[] evmAddress) {
         requireNonNull(evmAddress);
-        if (isLongZeroAddress(enhancement.nativeOperations().entityIdFactory(), evmAddress)) {
-            return enhancement.nativeOperations().getToken(numberOfLongZero(evmAddress));
+        if (isLongZeroAddress(enhancement().nativeOperations().entityIdFactory(), evmAddress)) {
+            return enhancement()
+                    .nativeOperations()
+                    .getToken(nativeOperations().entityIdFactory().newTokenId(numberOfLongZero(evmAddress)));
         } else {
             // No point in looking up a token that can't exist
             return null;

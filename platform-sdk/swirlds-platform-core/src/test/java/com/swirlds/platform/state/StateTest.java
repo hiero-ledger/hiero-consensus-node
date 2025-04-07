@@ -9,14 +9,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.interfaces.HasMerkleRoute;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import java.util.Random;
 import org.junit.jupiter.api.DisplayName;
@@ -81,8 +80,8 @@ class StateTest {
                 shouldSaveToDisk,
                 false,
                 false,
-                new PlatformStateFacade(version -> new BasicSoftwareVersion(version.major())));
-        signedState.getState().setHash(RandomUtils.randomHash(random));
+                new PlatformStateFacade());
+        signedState.getState().setHash(CryptoRandomUtils.randomHash(random));
         return signedState;
     }
 }

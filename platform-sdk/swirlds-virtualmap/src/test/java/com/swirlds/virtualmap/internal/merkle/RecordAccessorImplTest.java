@@ -12,8 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.Hash;
+import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
@@ -36,6 +35,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,7 +43,7 @@ import org.junit.jupiter.api.Test;
 public class RecordAccessorImplTest {
 
     private static final int MAX_PATH = 12;
-    private static final Cryptography CRYPTO = CryptographyFactory.create();
+    private static final Cryptography CRYPTO = CryptographyProvider.getInstance();
 
     private static final long UNCHANGED_INTERNAL_PATH = 1;
     private static final long CHANGED_INTERNAL_PATH = 2;

@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -349,7 +350,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void hanldeWorkAsExpected() throws CertificateEncodingException {
+    void handleWorkAsExpected() throws CertificateEncodingException {
         txn = new NodeUpdateBuilder()
                 .withNodeId(1L)
                 .withAccountId(accountId)
@@ -359,6 +360,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withGossipCaCertificate(Bytes.wrap(certList.get(2).getEncoded()))
                 .withGrpcCertificateHash(Bytes.wrap("hash"))
                 .withAdminKey(key)
+                .withDeclineReward(true)
                 .build();
         given(handleContext.body()).willReturn(txn);
         refreshStoresWithMoreNodeInWritable();
@@ -389,6 +391,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         assertArrayEquals(
                 certList.get(2).getEncoded(), updatedNode.gossipCaCertificate().toByteArray());
         assertArrayEquals("hash".getBytes(), updatedNode.grpcCertificateHash().toByteArray());
+        assertTrue(updatedNode.declineReward());
         assertEquals(key, updatedNode.adminKey());
     }
 
@@ -552,6 +555,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         private Bytes grpcCertificateHash = null;
         private Key adminKey = null;
         private AccountID contextPayerId = payerId;
+        private boolean declineReward = false;
 
         private NodeUpdateBuilder() {}
 
@@ -581,6 +585,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
             if (adminKey != null) {
                 op.adminKey(adminKey);
             }
+            op.declineReward(declineReward);
 
             return TransactionBody.newBuilder()
                     .transactionID(txnId)
@@ -630,6 +635,11 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
         public NodeUpdateBuilder withAdminKey(final Key adminKey) {
             this.adminKey = adminKey;
+            return this;
+        }
+
+        public NodeUpdateBuilder withDeclineReward(final boolean declineReward) {
+            this.declineReward = declineReward;
             return this;
         }
     }

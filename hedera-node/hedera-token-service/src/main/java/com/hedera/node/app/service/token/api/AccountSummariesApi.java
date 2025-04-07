@@ -11,8 +11,8 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.api.StakingRewardsApi.epochSecondAtStartOfPeriod;
 import static com.hedera.node.app.service.token.api.StakingRewardsApi.estimatePendingReward;
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.StakingInfo;

@@ -41,11 +41,15 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of {@link WritableHintsStore}.
  */
 public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements WritableHintsStore {
+    private static final Logger log = LogManager.getLogger(WritableHintsStoreImpl.class);
+
     private static final Comparator<NodePartyId> NODE_PARTY_ID_COMPARATOR =
             Comparator.comparingLong(NodePartyId::nodeId);
 
@@ -141,24 +145,49 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     @Override
-    public void updateForHandoff(@NonNull final ActiveRosters activeRosters) {
-        if (activeRosters.phase() != HANDOFF) {
-            throw new IllegalArgumentException("Not in handoff phase");
+    public boolean updateAtHandoff(
+            @NonNull final Roster previousRoster,
+            @NonNull final Roster adoptedRoster,
+            @NonNull final Bytes adoptedRosterHash,
+            final boolean forceHandoff) {
+        requireNonNull(previousRoster);
+        requireNonNull(adoptedRoster);
+        requireNonNull(adoptedRosterHash);
+        final var upcomingConstruction = requireNonNull(nextConstruction.get());
+        // It is pointless to adopt any incomplete construction
+        if (!upcomingConstruction.hasHintsScheme()) {
+            if (forceHandoff) {
+                log.warn(
+                        "Ignoring forced handoff to incomplete construction #{}",
+                        upcomingConstruction.constructionId());
+            }
+            return false;
         }
-        if (requireNonNull(nextConstruction.get()).targetRosterHash().equals(activeRosters.currentRosterHash())) {
-            // The next construction is becoming the active one; so purge obsolete votes now
-            purgeVotes(requireNonNull(activeConstruction.get()), activeRosters::findRelatedRoster);
-            // If the active construction's party size was different than the current roster's, purge its hinTS keys
-            final int newActiveSize = partySizeForRoster(activeRosters.currentRoster());
-            purgeHintsKeysIfNotForPartySize(
-                    newActiveSize, requireNonNull(activeConstruction.get()), activeRosters::findRelatedRoster);
-            activeConstruction.put(nextConstruction.get());
-            nextConstruction.put(HintsConstruction.DEFAULT);
+        final boolean handoffMatches = upcomingConstruction.targetRosterHash().equals(adoptedRosterHash);
+        if (!handoffMatches) {
+            if (forceHandoff) {
+                log.warn(
+                        "Forcing handoff to construction #{} with different target roster",
+                        upcomingConstruction.constructionId());
+            } else {
+                throw new IllegalStateException("Cannot handoff to construction #"
+                        + upcomingConstruction.constructionId() + " with different target roster (constructed for '"
+                        + upcomingConstruction.targetRosterHash() + " but incoming is '" + adoptedRosterHash + "')");
+            }
         }
+        log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
+        // The next construction is becoming the active one; so purge obsolete votes now
+        purgeVotes(requireNonNull(activeConstruction.get()), ignore -> previousRoster);
+        // If the previous scheme's party size was different than the new one, purge the hinTS keys;
+        // this is likely optional, but seems like a better default behavior than leaving them in state
+        maybePurgeHintsKeys(partySizeForRoster(adoptedRoster), previousRoster);
+        activeConstruction.put(upcomingConstruction);
+        nextConstruction.put(HintsConstruction.DEFAULT);
+        return true;
     }
 
     @Override
-    public void setCRSState(@NonNull final CRSState crsState) {
+    public void setCrsState(@NonNull final CRSState crsState) {
         this.crsState.put(crsState);
     }
 
@@ -170,7 +199,7 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
                 .nextContributingNodeId(nextNodeIdFromRoster.isPresent() ? nextNodeIdFromRoster.getAsLong() : null)
                 .contributionEndTime(asTimestamp(nextContributionTimeEnd))
                 .build();
-        setCRSState(newCrsState);
+        setCrsState(newCrsState);
     }
 
     @Override
@@ -265,16 +294,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     /**
-     * Purges any hinTS keys for the given construction if it was not for the given party size.
+     * Purges any hinTS keys for the given roster if it is not for the given party size.
      *
-     * @param m            the party size
-     * @param construction the construction
-     * @param lookup       the roster lookup
+     * @param m the party size
      */
-    private void purgeHintsKeysIfNotForPartySize(
-            final int m, @NonNull final HintsConstruction construction, @NonNull final Function<Bytes, Roster> lookup) {
-        final var targetRoster = requireNonNull(lookup.apply(construction.targetRosterHash()));
-        final int n = partySizeForRoster(targetRoster);
+    private void maybePurgeHintsKeys(final int m, @NonNull final Roster roster) {
+        final int n = partySizeForRoster(roster);
         if (n != m) {
             for (int partyId = 0; partyId < n; partyId++) {
                 final var hintsId = new HintsPartyId(partyId, n);

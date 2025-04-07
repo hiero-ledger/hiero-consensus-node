@@ -2,12 +2,12 @@
 package com.swirlds.merkle.test.fixtures.map.dummy;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.SerializableHashable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import java.io.IOException;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * An element that sits in an FCQueue

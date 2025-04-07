@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsService;
-import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -26,7 +27,16 @@ public class FakeHintsService implements HintsService {
 
     public FakeHintsService(@NonNull final AppContext appContext, @NonNull final Configuration bootstrapConfig) {
         delegate = new HintsServiceImpl(
-                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, new HintsLibraryImpl(), bootstrapConfig);
+                new NoOpMetrics(),
+                pendingHintsSubmissions::offer,
+                appContext,
+                new HintsLibraryImpl(),
+                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
+    }
+
+    @Override
+    public void initCurrentRoster(@NonNull final Roster roster) {
+        delegate.initCurrentRoster(roster);
     }
 
     @Override
@@ -55,6 +65,16 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
+    public void manageRosterAdoption(
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Roster previousRoster,
+            @NonNull final Roster adoptedRoster,
+            @NonNull final Bytes adoptedRosterHash,
+            final boolean forceHandoff) {
+        delegate.manageRosterAdoption(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff);
+    }
+
+    @Override
     public void reconcile(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final WritableHintsStore hintsStore,
@@ -71,12 +91,17 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
-        delegate.initSigningForNextScheme(hintsStore);
+    public void registerSchemas(@NonNull final SchemaRegistry registry) {
+        delegate.registerSchemas(registry);
     }
 
     @Override
-    public void registerSchemas(@NonNull final SchemaRegistry registry) {
-        delegate.registerSchemas(registry);
+    public long activeSchemeId() {
+        return delegate.activeSchemeId();
+    }
+
+    @Override
+    public Bytes activeVerificationKey() {
+        return delegate.activeVerificationKey();
     }
 }

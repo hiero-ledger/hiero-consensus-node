@@ -15,13 +15,11 @@ import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLA
 
 import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
@@ -35,6 +33,10 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Supplier;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * State for the ISSTestingTool.
@@ -119,7 +121,7 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
         final StringLeaf stringValue = getChild(index);
         if (stringValue != null) {
             try {
-                final SerializableDataInputStream in = new SerializableDataInputStream(
+                final SerializableDataInputStream in = new SerializableDataInputStreamImpl(
                         new ByteArrayInputStream(stringValue.getLabel().getBytes(StandardCharsets.UTF_8)));
                 return in.readSerializableList(1024, false, factory);
             } catch (final IOException e) {
@@ -133,7 +135,7 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
     <T extends SelfSerializable> void writeObjectByChildIndex(final int index, final List<T> list) {
         try {
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-            final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+            final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
             out.writeSerializableList(list, false, true);
             setChild(index, new StringLeaf(byteOut.toString(StandardCharsets.UTF_8)));
         } catch (final IOException e) {

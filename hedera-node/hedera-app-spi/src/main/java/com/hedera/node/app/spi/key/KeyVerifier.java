@@ -4,6 +4,7 @@ package com.hedera.node.app.spi.key;
 import static java.util.Collections.unmodifiableSortedSet;
 
 import com.hedera.hapi.node.base.Key;
+import com.hedera.node.app.hapi.utils.keys.KeyComparator;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import edu.umd.cs.findbugs.annotations.NonNull;

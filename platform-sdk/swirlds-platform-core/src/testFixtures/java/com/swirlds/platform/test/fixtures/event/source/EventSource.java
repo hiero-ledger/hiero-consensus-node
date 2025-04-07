@@ -3,7 +3,6 @@ package com.swirlds.platform.test.fixtures.event.source;
 
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.TransactionGenerator;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
@@ -11,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Random;
+import org.hiero.consensus.model.node.NodeId;
 
 public interface EventSource {
 
@@ -43,11 +43,6 @@ public interface EventSource {
      * @return this
      */
     EventSource setNodeId(@NonNull NodeId nodeId);
-
-    /**
-     * Get the weight held by this event source.
-     */
-    long getWeight();
 
     /**
      * Get the probabilistic weight that this node will create the next new event. A node with a weight of 1 will

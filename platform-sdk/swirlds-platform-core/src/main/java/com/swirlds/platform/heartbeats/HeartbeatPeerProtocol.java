@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.heartbeats;
 
-import static com.swirlds.common.utility.CompareTo.isGreaterThanOrEqualTo;
+import static org.hiero.base.utility.CompareTo.isGreaterThanOrEqualTo;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.network.ByteConstants;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkMetrics;
@@ -15,6 +14,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Sends a heartbeat to the other node and measures the time it takes to receive a response.
