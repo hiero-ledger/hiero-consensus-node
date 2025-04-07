@@ -47,6 +47,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.system.address.AddressBook;
@@ -55,11 +56,13 @@ import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.IntStream;
 import org.assertj.core.api.Assertions;
@@ -132,6 +135,15 @@ class DiskStartupNetworksTest {
         putJsonAt(OVERRIDE_NETWORK_JSON);
         final var network = subject.migrationNetworkOrThrow(configProvider.getConfiguration());
         assertThat(network).isEqualTo(NETWORK);
+    }
+
+    @Test
+    void permitsMissingOverrideNetwork() {
+        final var configB = givenConfig(
+                HederaTestConfigBuilder.create().withValue("addressBook.forceUseOfConfigAddressBook", "true"));
+
+        final Optional<Network> object = subject.overrideNetworkFor(ROUND_NO, configB);
+        assertThat(object).isEmpty();
     }
 
     @Test
@@ -211,6 +223,24 @@ class DiskStartupNetworksTest {
     }
 
     @Test
+    void archivesConfigTxt() throws IOException {
+        try (final var fin = DiskStartupNetworks.class.getClassLoader().getResourceAsStream("bootstrap/config.txt")) {
+            new FileOutputStream(tempDir.resolve("config.txt").toFile()).write(fin.readAllBytes());
+        }
+        givenConfig(HederaTestConfigBuilder.create().withValue("networkAdmin.configTxtPath", tempDir.toString()));
+
+        final var configTx = tempDir.resolve("config.txt");
+
+        assertThat(Files.exists(configTx)).isTrue();
+
+        subject.archiveStartupNetworks();
+
+        assertThat(Files.exists(configTx)).isFalse();
+        final var archivedConfigTxt = tempDir.resolve(ARCHIVE + File.separator + "config.txt");
+        assertThat(Files.exists(archivedConfigTxt)).isTrue();
+    }
+
+    @Test
     void overrideNetworkOnlyStillAvailableAtSameRound() throws IOException {
         givenConfig();
         putJsonAt(OVERRIDE_NETWORK_JSON);
@@ -266,7 +296,7 @@ class DiskStartupNetworksTest {
                         tssBaseService,
                         PLATFORM_STATE_SERVICE,
                         new EntityIdService(),
-                        new RosterService(roster -> true, () -> {}, () -> state, TEST_PLATFORM_STATE_FACADE),
+                        new RosterService(roster -> true, (r, b) -> {}, () -> state, TEST_PLATFORM_STATE_FACADE),
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
@@ -311,9 +341,12 @@ class DiskStartupNetworksTest {
     }
 
     private Configuration givenConfig() {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("networkAdmin.upgradeSysFilesLoc", tempDir.toString())
-                .getOrCreateConfig();
+        return givenConfig(HederaTestConfigBuilder.create());
+    }
+
+    private Configuration givenConfig(TestConfigBuilder builder) {
+        builder = builder.withValue("networkAdmin.upgradeSysFilesLoc", tempDir.toString());
+        final var config = builder.getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 123L));
         return config;
     }

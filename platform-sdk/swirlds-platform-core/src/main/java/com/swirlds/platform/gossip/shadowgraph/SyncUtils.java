@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
-import static com.swirlds.common.utility.CompareTo.isGreaterThan;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
+import static org.hiero.base.utility.CompareTo.isGreaterThan;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.platform.gossip.IntakeEventCounter;
@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -507,7 +508,7 @@ public final class SyncUtils {
     static void sort(@NonNull final List<PlatformEvent> sendList) {
         // Note: regardless of ancient mode, sorting uses generations and not birth rounds.
         //       Sorting by generations yields a list in topological order, sorting by birth rounds does not.
-        sendList.sort((PlatformEvent e1, PlatformEvent e2) -> (int) (e1.getGeneration() - e2.getGeneration()));
+        sendList.sort(Comparator.comparingLong(PlatformEvent::getNGen));
     }
 
     /**

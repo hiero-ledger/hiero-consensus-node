@@ -16,6 +16,7 @@ import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
+import com.hedera.services.bdd.spec.remote.RemoteNetworkSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -622,6 +623,13 @@ public class HapiSpecSetup {
 
     public String systemUndeleteAdminName() {
         return props.get("systemUndeleteAdmin.name");
+    }
+
+    /**
+     * Returns the location of a YAML file that should be mappable to {@link RemoteNetworkSpec}.
+     */
+    public String remoteNodesYmlLoc() {
+        return props.get("nodes.remoteYml");
     }
 
     /**

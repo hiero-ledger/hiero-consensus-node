@@ -21,11 +21,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 
 /**
  * A builder for creating event instances for testing purposes.

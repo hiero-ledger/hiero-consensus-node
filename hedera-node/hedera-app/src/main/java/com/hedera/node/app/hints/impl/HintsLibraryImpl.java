@@ -12,8 +12,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.SplittableRandom;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of {@link HintsLibrary}.
@@ -21,7 +19,6 @@ import org.apache.logging.log4j.Logger;
 public class HintsLibraryImpl implements HintsLibrary {
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
-    private static final Logger log = LogManager.getLogger(HintsLibraryImpl.class);
 
     @Override
     public Bytes newCrs(final int n) {
@@ -44,7 +41,7 @@ public class HintsLibraryImpl implements HintsLibrary {
     }
 
     @Override
-    public Bytes newBlsKeyPair() {
+    public Bytes newBlsPrivateKey() {
         final byte[] randomBytes = new byte[32];
         RANDOM.nextBytes(randomBytes);
         final var key = BRIDGE.generateSecretKey(randomBytes);
@@ -55,7 +52,6 @@ public class HintsLibraryImpl implements HintsLibrary {
     public Bytes computeHints(
             @NonNull final Bytes crs, @NonNull final Bytes blsPrivateKey, final int partyId, final int n) {
         requireNonNull(blsPrivateKey);
-        log.info("INSIDE computeHints");
         final var hints = BRIDGE.computeHints(crs.toByteArray(), blsPrivateKey.toByteArray(), partyId, n);
         return hints == null ? null : Bytes.wrap(hints);
     }
