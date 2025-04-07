@@ -8,7 +8,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
-import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
@@ -20,6 +19,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -44,11 +44,12 @@ public class HintsServiceImpl implements HintsService {
             @NonNull final Metrics metrics,
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
-            @NonNull final HintsLibrary library) {
+            @NonNull final HintsLibrary library,
+            @NonNull final Duration blockPeriod) {
         this.library = requireNonNull(library);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
-                .create(library, appContext, executor, metrics, currentRoster);
+                .create(library, appContext, executor, metrics, currentRoster, blockPeriod);
     }
 
     @VisibleForTesting
@@ -58,8 +59,42 @@ public class HintsServiceImpl implements HintsService {
     }
 
     @Override
+    public void initCurrentRoster(@NonNull final Roster roster) {
+        requireNonNull(roster);
+        currentRoster.set(roster);
+    }
+
+    @Override
     public boolean isReady() {
         return component.signingContext().isReady();
+    }
+
+    @Override
+    public long activeSchemeId() {
+        return component.signingContext().activeSchemeIdOrThrow();
+    }
+
+    @Override
+    public Bytes activeVerificationKey() {
+        return component.signingContext().verificationKeyOrThrow();
+    }
+
+    @Override
+    public void manageRosterAdoption(
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Roster previousRoster,
+            @NonNull final Roster adoptedRoster,
+            @NonNull final Bytes adoptedRosterHash,
+            final boolean forceHandoff) {
+        requireNonNull(hintsStore);
+        requireNonNull(previousRoster);
+        requireNonNull(adoptedRoster);
+        requireNonNull(adoptedRosterHash);
+        if (hintsStore.updateAtHandoff(previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff)) {
+            final var activeConstruction = requireNonNull(hintsStore.getActiveConstruction());
+            component.signingContext().setConstructions(activeConstruction);
+            logger.info("Updated hinTS construction in signing context to #{}", activeConstruction.constructionId());
+        }
     }
 
     @Override
@@ -82,7 +117,9 @@ public class HintsServiceImpl implements HintsService {
                     controller.advanceConstruction(now, hintsStore, isActive);
                 }
             }
-            case HANDOFF -> hintsStore.updateForHandoff(activeRosters);
+            case HANDOFF -> {
+                // No-op
+            }
         }
         currentRoster.set(activeRosters.findRelatedRoster(activeRosters.currentRosterHash()));
     }
@@ -92,15 +129,14 @@ public class HintsServiceImpl implements HintsService {
             @NonNull final WritableHintsStore hintsStore, @NonNull final Instant now, final boolean isActive) {
         requireNonNull(hintsStore);
         requireNonNull(now);
-
         final var controller = component.controllers().getAnyInProgress();
+        // On the very first round the hinTS controller won't be available yet
         if (controller.isEmpty()) {
-            logger.info("No controller present to proceed for executing CRS work");
             return;
         }
         // Do the work needed to set the CRS for network and start the preprocessing vote
         if (hintsStore.getCrsState().stage() != COMPLETED) {
-            controller.get().advanceCRSWork(now, hintsStore, isActive);
+            controller.get().advanceCrsWork(now, hintsStore, isActive);
         }
     }
 
@@ -119,12 +155,6 @@ public class HintsServiceImpl implements HintsService {
         requireNonNull(registry);
         registry.register(new V059HintsSchema());
         registry.register(new V060HintsSchema(component.signingContext(), library));
-    }
-
-    @Override
-    public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
-        requireNonNull(hintsStore);
-        component.signingContext().setConstruction(requireNonNull(hintsStore.getNextConstruction()));
     }
 
     @Override

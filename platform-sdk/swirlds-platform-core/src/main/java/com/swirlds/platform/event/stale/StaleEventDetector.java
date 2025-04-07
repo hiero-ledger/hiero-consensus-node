@@ -3,11 +3,12 @@ package com.swirlds.platform.event.stale;
 
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.component.framework.transformers.RoutableData;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.internal.ConsensusRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.event.StaleEventDetectorOutput;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * Detects when a self event becomes stale. This utility does not pay attention to events created by other nodes. This

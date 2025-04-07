@@ -2,30 +2,29 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.state.service.PbjConverter;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +36,7 @@ class BirthRoundStateMigrationTests {
     @BeforeEach
     void setUp() {
         MerkleDb.resetDefaultInstancePath();
-        platformStateFacade = new PlatformStateFacade(version -> new BasicSoftwareVersion(version.major()));
+        platformStateFacade = new PlatformStateFacade();
     }
 
     @AfterEach
@@ -50,10 +49,13 @@ class BirthRoundStateMigrationTests {
 
         final long round = random.nextLong(1, 1_000_000);
 
-        final List<Bytes> judgeHashes = new ArrayList<>();
+        final List<JudgeId> judges = new ArrayList<>();
         final int judgeHashCount = random.nextInt(5, 10);
         for (int i = 0; i < judgeHashCount; i++) {
-            judgeHashes.add(randomHash(random).getBytes());
+            judges.add(JudgeId.newBuilder()
+                    .creatorId(i)
+                    .judgeHash(randomHash(random).getBytes())
+                    .build());
         }
 
         final Instant consensusTimestamp = randomInstant(random);
@@ -68,12 +70,13 @@ class BirthRoundStateMigrationTests {
             generation += random.nextLong(1, 100);
         }
 
-        final ConsensusSnapshot snapshot = new ConsensusSnapshot(
-                round,
-                judgeHashes,
-                minimumJudgeInfoList,
-                nextConsensusNumber,
-                PbjConverter.toPbjTimestamp(consensusTimestamp));
+        final ConsensusSnapshot snapshot = ConsensusSnapshot.newBuilder()
+                .round(round)
+                .judgeIds(judges)
+                .minimumJudgeInfoList(minimumJudgeInfoList)
+                .nextConsensusNumber(nextConsensusNumber)
+                .consensusTimestamp(CommonUtils.toPbjTimestamp(consensusTimestamp))
+                .build();
 
         return new RandomSignedStateGenerator(random)
                 .setConsensusSnapshot(snapshot)

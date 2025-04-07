@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
-import static com.swirlds.common.utility.CompareTo.isGreaterThan;
-import static com.swirlds.common.utility.CompareTo.isLessThan;
 import static com.swirlds.common.utility.NonCryptographicHashing.hash64;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static org.hiero.base.utility.CompareTo.isGreaterThan;
+import static org.hiero.base.utility.CompareTo.isLessThan;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -14,19 +14,11 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.utility.ByteUtils;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.platform.system.events.Event;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
-import com.swirlds.platform.system.transaction.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -40,6 +32,14 @@ import java.util.Random;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.ByteUtils;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * This class handles the lifecycle events for the {@link ISSTestingToolState}.
@@ -307,8 +307,8 @@ public class ISSTestingToolConsensusStateEventHandler implements ConsensusStateE
     }
 
     /**
-     * Checks if the transaction bytes are system ones. The test creates application transactions
-     * with max length of 4. System transactions will be always bigger than that.
+     * Checks if the transaction bytes are system ones. The test creates application transactions with max length of 4.
+     * System transactions will be always bigger than that.
      *
      * @param transaction the consensus transaction to check
      * @return true if the transaction bytes are system ones, false otherwise
@@ -332,21 +332,25 @@ public class ISSTestingToolConsensusStateEventHandler implements ConsensusStateE
     }
 
     @Override
-    public boolean onSealConsensusRound(@NonNull Round round, @NonNull ISSTestingToolState state) {
-        // no-op
-        return true;
+    public boolean onSealConsensusRound(final @NonNull Round round, final @NonNull ISSTestingToolState state) {
+        /*
+        Every few rounds, return true to trigger signed state creation and state signature generation. Do not
+        trigger signed state creation on every round because we want to test that signatures are collected even
+        if they are contained in rounds that do not generate a signed state.
+         */
+        return round.getRoundNum() % 5 == 0;
     }
 
     @Override
     public void onUpdateWeight(
-            @NonNull ISSTestingToolState state,
-            @NonNull AddressBook configAddressBook,
-            @NonNull PlatformContext context) {
+            final @NonNull ISSTestingToolState state,
+            final @NonNull AddressBook configAddressBook,
+            final @NonNull PlatformContext context) {
         // no-op
     }
 
     @Override
-    public void onNewRecoveredState(@NonNull ISSTestingToolState recoveredState) {
+    public void onNewRecoveredState(final @NonNull ISSTestingToolState recoveredState) {
         // no-op
     }
 }

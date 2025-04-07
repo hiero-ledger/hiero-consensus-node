@@ -10,6 +10,8 @@ import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.ERROR;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.FAILED;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.FAILED_AS_EXPECTED;
@@ -71,6 +73,8 @@ import com.hedera.services.bdd.spec.infrastructure.SpecStateObserver;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hedera.services.bdd.spec.keys.KeyGenerator;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
+import com.hedera.services.bdd.spec.props.NodeConnectInfo;
+import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import com.hedera.services.bdd.spec.transactions.TxnFactory;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.SysFileOverrideOp;
@@ -110,6 +114,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -594,8 +599,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     @Override
     public void execute() throws Throwable {
-        // Only JUnit will use execute(), and in that case the target network must be set
-        requireNonNull(targetNetwork).awaitReady(NETWORK_ACTIVE_TIMEOUT);
+        if (targetNetwork == null) {
+            buildRemoteNetwork();
+        }
+        targetNetwork.awaitReady(NETWORK_ACTIVE_TIMEOUT);
         run();
         if (failure != null) {
             throw failure.cause;
@@ -706,6 +713,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     /**
      * Add properties that will be given priority in the spec's {@link HapiSpecSetup}.
+     *
      * @param props the properties to add
      * @return this
      */
@@ -727,7 +735,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     private boolean init() {
         if (targetNetwork == null) {
-            targetNetwork = RemoteNetwork.newRemoteNetwork(hapiSetup.nodes(), clientsFor(hapiSetup));
+            buildRemoteNetwork();
         }
         if (!propertiesToPreserve.isEmpty()) {
             final var missingProperties = propertiesToPreserve.stream()
@@ -767,6 +775,18 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             return false;
         }
         return true;
+    }
+
+    private void buildRemoteNetwork() {
+        try {
+            targetNetwork = RemoteNetworkFactory.newWithTargetFrom(hapiSetup.remoteNodesYmlLoc());
+            hapiSetup.addOverrides(Map.of(
+                    "default.shard", "" + targetNetwork.shard(),
+                    "default.realm", "" + targetNetwork.realm()));
+        } catch (Exception ignore) {
+            targetNetwork = RemoteNetwork.newRemoteNetwork(
+                    hapiSetup.nodes(), clientsFor(hapiSetup), HapiPropertySource.shard, HapiPropertySource.realm);
+        }
     }
 
     private void tearDown() {
@@ -1060,6 +1080,13 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             log.info("CI_PROPERTIES_MAP: {}", ciPropertiesMap);
             ciPropsSource = new HashMap<>();
             ciPropsSource.put("node.selector", nodeSelectorFromCi);
+
+            dynamicNodes = Arrays.stream(dynamicNodes.split(","))
+                    .map(NodeConnectInfo::new)
+                    .map(info -> info.uri() + ":" + SHARD + "." + REALM + "."
+                            + info.getAccount().getAccountNum())
+                    .collect(Collectors.joining(","));
+
             ciPropsSource.put("nodes", dynamicNodes);
             ciPropsSource.put("default.payer", defaultPayer);
             ciPropsSource.put("default.node", defaultNodeAccount);
@@ -1121,7 +1148,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * any network properties bound to the thread by a {@link LeakyHapiTest} test factory.
      *
      * @param setupOverrides the setup overrides
-     * @param ops the operations
+     * @param ops            the operations
      * @return a {@link Stream} of {@link DynamicTest}s
      */
     public static Stream<DynamicTest> customizedHapiTest(
@@ -1136,8 +1163,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * restored to their original values after running the tests.
      *
      * @param propertiesToPreserve the properties to preserve
-     * @param setupOverrides the setup overrides, if any
-     * @param ops the operations
+     * @param setupOverrides       the setup overrides, if any
+     * @param ops                  the operations
      * @return a {@link Stream} of {@link DynamicTest}s
      */
     private static Stream<DynamicTest> propertyPreservingHapiTest(
@@ -1194,8 +1221,11 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
         // (FUTURE) Remove this override by initializing the HapiClients for a remote network
         // directly from the network's HederaNode instances instead of this "nodes" property
-        final var specNodes =
-                targetNetwork.nodes().stream().map(HederaNode::hapiSpecInfo).collect(joining(","));
+        final var specNodes = targetNetwork.nodes().stream()
+                .map(n -> n.hapiSpecInfo(
+                        spec.setup().defaultShard().getShardNum(),
+                        spec.setup().defaultRealm().getRealmNum()))
+                .collect(joining(","));
         spec.addOverrideProperties(Map.of("nodes", specNodes, "memo.useSpecName", "true"));
 
         if (targetNetwork instanceof EmbeddedNetwork embeddedNetwork) {

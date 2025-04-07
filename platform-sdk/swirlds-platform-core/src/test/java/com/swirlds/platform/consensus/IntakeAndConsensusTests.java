@@ -1,22 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.events.EventConstants;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidation;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.RoundInternalEqualityValidation;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Assertions;
+import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.junit.jupiter.api.Test;
 
 class IntakeAndConsensusTests {
@@ -57,8 +60,8 @@ class IntakeAndConsensusTests {
                 .limit(numNodes)
                 .toList();
         final StandardGraphGenerator generator = new StandardGraphGenerator(platformContext, seed, eventSources);
-        final TestIntake node1 = new TestIntake(platformContext, generator.getAddressBook());
-        final TestIntake node2 = new TestIntake(platformContext, generator.getAddressBook());
+        final TestIntake node1 = new TestIntake(platformContext, generator.getRoster());
+        final TestIntake node2 = new TestIntake(platformContext, generator.getRoster());
 
         // first we generate events regularly, until we have some ancient rounds
         final int firstBatchSize = 5000;
@@ -124,16 +127,20 @@ class IntakeAndConsensusTests {
             node1.addEvent(event.getBaseEvent());
             node2.addEvent(event.getBaseEvent());
         }
-        Assertions.assertTrue(
-                node1.getConsensusRounds().getLast().getRoundNum() > consRoundBeforeLastBatch,
-                "consensus did not advance after the partition rejoined");
+        assertThat(node1.getConsensusRounds().getLast().getRoundNum())
+                .isGreaterThan(consRoundBeforeLastBatch)
+                .withFailMessage("consensus did not advance after the partition rejoined");
         assertConsensusEvents(node1, node2);
     }
 
     private static void assertConsensusEvents(final TestIntake node1, final TestIntake node2) {
-        ConsensusRoundValidation.validateIterableRounds(
-                node1.getConsensusRounds().iterator(),
-                node2.getConsensusRounds().iterator());
+        final RoundInternalEqualityValidation roundInternalEqualityValidation = new RoundInternalEqualityValidation();
+
+        final Iterator<ConsensusRound> iterator1 = node1.getConsensusRounds().iterator();
+        final Iterator<ConsensusRound> iterator2 = node2.getConsensusRounds().iterator();
+        while (iterator1.hasNext() && iterator2.hasNext()) {
+            roundInternalEqualityValidation.validate(iterator1.next(), iterator2.next());
+        }
         node1.getConsensusRounds().clear();
         node2.getConsensusRounds().clear();
     }

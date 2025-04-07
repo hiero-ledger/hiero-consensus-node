@@ -3,7 +3,6 @@ package com.hedera.node.app;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.node.app.annotations.MaxSignedTxnSize;
 import com.hedera.node.app.authorization.AuthorizerInjectionModule;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -32,6 +31,8 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
+import com.hedera.node.app.service.util.impl.UtilServiceImpl;
+import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.services.ServicesInjectionModule;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
@@ -42,6 +43,7 @@ import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.throttle.ThrottleServiceModule;
 import com.hedera.node.app.workflows.FacilityInitModule;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.WorkflowsInjectionModule;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
@@ -63,9 +65,11 @@ import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import dagger.BindsInstance;
 import dagger.Component;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
 import java.time.InstantSource;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.inject.Provider;
@@ -110,6 +114,11 @@ public interface HederaInjectionComponent {
 
     AppFeeCharging appFeeCharging();
 
+    @Nullable
+    AtomicBoolean systemEntitiesCreationFlag();
+
+    TransactionChecker transactionChecker();
+
     PreHandleWorkflow preHandleWorkflow();
 
     HandleWorkflow handleWorkflow();
@@ -127,6 +136,8 @@ public interface HederaInjectionComponent {
     BlockNodeConnectionManager blockNodeConnectionManager();
 
     BlockStreamManager blockStreamManager();
+
+    NodeRewardManager nodeRewardManager();
 
     FeeManager feeManager();
 
@@ -146,6 +157,9 @@ public interface HederaInjectionComponent {
 
     @Component.Builder
     interface Builder {
+        @BindsInstance
+        Builder utilServiceImpl(UtilServiceImpl utilService);
+
         @BindsInstance
         Builder hintsService(HintsService hintsService);
 
@@ -178,9 +192,6 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder self(NodeInfo self);
-
-        @BindsInstance
-        Builder maxSignedTxnSize(@MaxSignedTxnSize int maxSignedTxnSize);
 
         @BindsInstance
         Builder currentPlatformStatus(CurrentPlatformStatus currentPlatformStatus);

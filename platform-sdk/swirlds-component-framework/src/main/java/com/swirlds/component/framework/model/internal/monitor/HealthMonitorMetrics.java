@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.model.internal.monitor;
 
-import static com.swirlds.common.utility.CompareTo.isLessThan;
+import static org.hiero.base.utility.CompareTo.isLessThan;
 
 import com.swirlds.common.metrics.DurationGauge;
 import com.swirlds.metrics.api.IntegerGauge;

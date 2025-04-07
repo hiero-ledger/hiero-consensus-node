@@ -5,9 +5,9 @@ import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.swirlds.common.utility.CommonUtils;
 import java.util.Optional;
 import java.util.function.Supplier;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public abstract class HapiBaseCall<T extends HapiTxnOp<T>> extends HapiTxnOp<T> {
 

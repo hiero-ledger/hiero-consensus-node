@@ -2,15 +2,15 @@
 package com.swirlds.virtualmap;
 
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
-import static com.swirlds.common.utility.CommonUtils.getNormalisedStringBytes;
 import static com.swirlds.virtualmap.VirtualMap.CLASS_ID;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.utility.CommonUtils.getNormalisedStringBytes;
 
 import com.swirlds.common.constructable.ConstructableClass;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
@@ -38,6 +38,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import org.hiero.consensus.model.constructable.RuntimeConstructable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A {@link MerkleInternal} node that virtualizes all of its children, such that the child nodes
@@ -162,7 +165,7 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
     private final Configuration configuration;
 
     /**
-     * Required by the {@link com.swirlds.common.constructable.RuntimeConstructable} contract.
+     * Required by the {@link RuntimeConstructable} contract.
      * This can <strong>only</strong> be called as part of serialization and reconnect, not for normal use.
      */
     public VirtualMap(final @NonNull Configuration configuration) {
@@ -329,8 +332,8 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
 
         // Write the virtual map and sub nodes
         final Path outputFile = outputDirectory.resolve(outputFileName);
-        try (SerializableDataOutputStream serout =
-                new SerializableDataOutputStream(new BufferedOutputStream(new FileOutputStream(outputFile.toFile())))) {
+        try (SerializableDataOutputStream serout = new SerializableDataOutputStreamImpl(
+                new BufferedOutputStream(new FileOutputStream(outputFile.toFile())))) {
             serout.writeSerializable(state, true);
             serout.writeInt(root.getVersion());
             root.serialize(serout, outputDirectory);
@@ -372,7 +375,8 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
         final ValueReference<VirtualRootNode<K, V>> virtualRootNode = new ValueReference<>();
 
         deserializeAndDebugOnFailure(
-                () -> new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
+                () -> new SerializableDataInputStreamImpl(
+                        new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
                 (final MerkleDataInputStream stream) -> {
                     virtualMapState.setValue(stream.readSerializable());
                     virtualRootNode.setValue(

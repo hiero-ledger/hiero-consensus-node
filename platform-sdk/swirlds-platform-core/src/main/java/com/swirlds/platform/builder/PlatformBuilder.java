@@ -10,6 +10,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStat
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -18,7 +19,6 @@ import com.swirlds.common.concurrent.ExecutorFactory;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -27,7 +27,6 @@ import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.crypto.PlatformSigner;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
@@ -46,7 +45,6 @@ import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -62,6 +60,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.
@@ -71,7 +71,7 @@ public final class PlatformBuilder {
     private static final Logger logger = LogManager.getLogger(PlatformBuilder.class);
 
     private final String appName;
-    private final SoftwareVersion softwareVersion;
+    private final SemanticVersion softwareVersion;
     private final ReservedSignedState initialState;
 
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
@@ -154,7 +154,7 @@ public final class PlatformBuilder {
     public static PlatformBuilder create(
             @NonNull final String appName,
             @NonNull final String swirldName,
-            @NonNull final SoftwareVersion softwareVersion,
+            @NonNull final SemanticVersion softwareVersion,
             @NonNull final ReservedSignedState initialState,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final NodeId selfId,
@@ -190,7 +190,7 @@ public final class PlatformBuilder {
     private PlatformBuilder(
             @NonNull final String appName,
             @NonNull final String swirldName,
-            @NonNull final SoftwareVersion softwareVersion,
+            @NonNull final SemanticVersion softwareVersion,
             @NonNull final ReservedSignedState initialState,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final NodeId selfId,
@@ -465,6 +465,7 @@ public final class PlatformBuilder {
                     .withHealthMonitorPeriod(wiringConfig.healthMonitorHeartbeatPeriod())
                     .withHealthLogThreshold(wiringConfig.healthLogThreshold())
                     .withHealthLogPeriod(wiringConfig.healthLogPeriod())
+                    .withHealthyReportThreshold(wiringConfig.healthyReportThreshold())
                     .build();
         }
 

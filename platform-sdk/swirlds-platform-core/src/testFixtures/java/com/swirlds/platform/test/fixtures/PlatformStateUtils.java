@@ -1,21 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHashBytes;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHashBytes;
+import static java.util.Arrays.asList;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.state.service.PbjConverter;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public final class PlatformStateUtils {
 
@@ -38,21 +40,27 @@ public final class PlatformStateUtils {
             v.setLegacyRunningEventHash(randomHash(random));
             v.setRound(random.nextLong());
             v.setConsensusTimestamp(randomInstant(random));
-            v.setCreationSoftwareVersion(new BasicSoftwareVersion(nextInt(1, 100)).getPbjSemanticVersion());
+            v.setCreationSoftwareVersion(
+                    SemanticVersion.newBuilder().major(nextInt(1, 100)).build());
         });
 
         final List<MinimumJudgeInfo> minimumJudgeInfo = new LinkedList<>();
         for (int index = 0; index < 10; index++) {
             minimumJudgeInfo.add(new MinimumJudgeInfo(random.nextLong(), random.nextLong()));
         }
+        final var judges = asList(
+                new JudgeId(0L, randomHashBytes(random)),
+                new JudgeId(1L, randomHashBytes(random)),
+                new JudgeId(2L, randomHashBytes(random)));
         platformStateFacade.setSnapshotTo(
                 state,
-                new ConsensusSnapshot(
-                        random.nextLong(),
-                        List.of(randomHashBytes(random), randomHashBytes(random), randomHashBytes(random)),
-                        minimumJudgeInfo,
-                        random.nextLong(),
-                        PbjConverter.toPbjTimestamp(randomInstant(random))));
+                ConsensusSnapshot.newBuilder()
+                        .round(random.nextLong())
+                        .judgeIds(judges)
+                        .minimumJudgeInfoList(minimumJudgeInfo)
+                        .nextConsensusNumber(random.nextLong())
+                        .consensusTimestamp(CommonUtils.toPbjTimestamp(randomInstant(random)))
+                        .build());
 
         return platformStateFacade.getWritablePlatformStateOf(state);
     }

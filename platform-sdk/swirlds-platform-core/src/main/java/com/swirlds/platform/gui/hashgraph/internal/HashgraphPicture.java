@@ -11,14 +11,17 @@ import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.HashgraphPictureOptions;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.EventConstants;
 import java.awt.AWTException;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.Robot;
+import java.awt.Stroke;
 import java.awt.event.ItemEvent;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
@@ -29,6 +32,7 @@ import java.util.List;
 import javax.swing.JPanel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.EventConstants;
 
 /**
  * This panel has the hashgraph picture, and appears in the window to the right of all the settings.
@@ -66,6 +70,7 @@ public class HashgraphPicture extends JPanel {
     @Override
     public void paintComponent(final Graphics g) {
         super.paintComponent(g);
+        ((Graphics2D) g).setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         try {
             if (image != null) {
                 g.drawImage(image, 0, 0, null);
@@ -138,7 +143,16 @@ public class HashgraphPicture extends JPanel {
     }
 
     private void drawLinksToParents(final Graphics g, final EventImpl event) {
+        Graphics2D g2d = (Graphics2D) g;
+        Stroke savedStroke = null;
         g.setColor(HashgraphGuiUtils.eventColor(event, options));
+        boolean selectedLines = selector.isSelected(event);
+        if (selectedLines) {
+            g.setColor(Color.MAGENTA);
+            savedStroke = g2d.getStroke();
+            g2d.setStroke(new BasicStroke(3));
+        }
+
         final EventImpl e1 = event.getSelfParent();
         EventImpl e2 = event.getOtherParent();
         final AddressBook addressBook = hashgraphSource.getAddressBook();
@@ -149,6 +163,7 @@ public class HashgraphPicture extends JPanel {
             // treat it as if there is no other parent
             e2 = null;
         }
+
         if (e1 != null && e1.getGeneration() >= pictureMetadata.getMinGen()) {
             g.drawLine(
                     pictureMetadata.xpos(e2, event),
@@ -162,6 +177,10 @@ public class HashgraphPicture extends JPanel {
                     pictureMetadata.ypos(event),
                     pictureMetadata.xpos(event, e2),
                     pictureMetadata.ypos(e2));
+        }
+
+        if (selectedLines) {
+            g2d.setStroke(savedStroke);
         }
     }
 

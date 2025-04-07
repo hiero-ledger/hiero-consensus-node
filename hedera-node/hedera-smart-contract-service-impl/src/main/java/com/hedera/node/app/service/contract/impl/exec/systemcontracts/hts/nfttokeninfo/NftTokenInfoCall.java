@@ -54,9 +54,7 @@ public class NftTokenInfoCall extends AbstractNonRevertibleTokenViewCall {
     @Override
     protected @NonNull PricedResult resultOfViewingToken(@NonNull final Token token) {
         requireNonNull(token);
-        final var nft = enhancement
-                .nativeOperations()
-                .getNft(token.tokenIdOrElse(ZERO_TOKEN_ID).tokenNum(), serialNumber);
+        final var nft = enhancement.nativeOperations().getNft(token.tokenIdOrElse(ZERO_TOKEN_ID), serialNumber);
         final var status = nft != null ? SUCCESS : INVALID_TOKEN_NFT_SERIAL_NUMBER;
         return gasOnly(fullResultsFor(status, gasCalculator.viewGasRequirement(), token, nft), status, true);
     }
@@ -84,7 +82,8 @@ public class NftTokenInfoCall extends AbstractNonRevertibleTokenViewCall {
         final var ledgerConfig = configuration.getConfigData(LedgerConfig.class);
         final var ledgerId = Bytes.wrap(ledgerConfig.id().toByteArray()).toString();
 
-        return function.getOutputs().equals(NON_FUNGIBLE_TOKEN_INFO.getOutputs())
+        return function.getName().equals(NON_FUNGIBLE_TOKEN_INFO.methodName())
+                        && function.getOutputs().equals(NON_FUNGIBLE_TOKEN_INFO.getOutputs())
                 ? successResult(
                         NON_FUNGIBLE_TOKEN_INFO
                                 .getOutputs()

@@ -17,7 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class WritableUpgradeFileStoreTest extends FileTestBase {
     private File file;
-    protected final FileID UPGRADE_FILE_ID = new FileID(5, 10, 150);
+    protected final FileID UPGRADE_FILE_ID = new FileID(SHARD, REALM, 150);
 
     @Test
     void throwsIfNullValuesAsArgs() {

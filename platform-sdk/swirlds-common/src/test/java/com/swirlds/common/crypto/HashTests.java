@@ -12,12 +12,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.io.SerializationUtils;
 import com.swirlds.common.utility.Mnemonics;
 import java.io.IOException;
 import java.util.Arrays;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +29,7 @@ public class HashTests {
 
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common.crypto");
+        ConstructableRegistry.getInstance().registerConstructables("org.hiero.consensus.model.crypto");
     }
 
     @Test
@@ -134,9 +136,9 @@ public class HashTests {
     @Test
     @DisplayName("Mnemonic Test")
     void mnemonicTest() {
-        final Hash hash = RandomUtils.randomHash();
-        final String mnemonic = hash.toMnemonic();
-        assertEquals(mnemonic, hash.toMnemonic());
+        final Hash hash = CryptoRandomUtils.randomHash();
+        final String mnemonic = Mnemonics.generateMnemonic(hash);
+        assertEquals(mnemonic, Mnemonics.generateMnemonic(hash));
         final String[] words = mnemonic.split("-");
         assertEquals(4, words.length);
         for (final String word : words) {

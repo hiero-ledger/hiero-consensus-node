@@ -18,7 +18,7 @@ dependencies {
 val autoService = "1.1.1"
 val besu = "24.3.3"
 val bouncycastle = "1.80"
-val dagger = "2.55"
+val dagger = "2.56.1"
 val eclipseCollections = "11.1.0"
 val grpc = "1.71.0"
 val hederaCryptography = "0.2.2-SNAPSHOT"
@@ -26,9 +26,9 @@ val helidon = "4.2.0"
 val jackson = "2.18.3"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
-val mockito = "5.16.0"
-val pbj = "0.9.20" // ATTENTION: keep in sync with plugin version in 'hapi/build.gradle.kts'
-val protobuf = "4.30.0"
+val mockito = "5.16.1"
+val pbj = "0.10.3" // ATTENTION: keep in sync with plugin version in 'hapi/build.gradle.kts'
+val protobuf = "4.30.2"
 val testContainers = "1.20.6"
 val tuweni = "2.4.2"
 val webcompare = "2.1.7"
@@ -50,8 +50,8 @@ dependencies.constraints {
         because("com.fasterxml.jackson.dataformat.yaml")
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.0") { because("com.github.benmanes.caffeine") }
-    api("com.github.docker-java:docker-java-api:3.4.1") { because("com.github.dockerjava.api") }
-    api("com.github.spotbugs:spotbugs-annotations:4.9.2") {
+    api("com.github.docker-java:docker-java-api:3.4.2") { because("com.github.dockerjava.api") }
+    api("com.github.spotbugs:spotbugs-annotations:4.9.3") {
         because("com.github.spotbugs.annotations")
     }
     api("com.google.auto.service:auto-service-annotations:$autoService") {
@@ -60,20 +60,20 @@ dependencies.constraints {
     api("com.google.auto.service:auto-service:$autoService") {
         because("com.google.auto.service.processor")
     }
-    api("com.google.guava:guava:33.4.0-jre") { because("com.google.common") }
+    api("com.google.guava:guava:33.4.6-jre") { because("com.google.common") }
     api("com.google.j2objc:j2objc-annotations:3.0.0") { because("com.google.j2objc.annotations") }
     api("com.google.jimfs:jimfs:1.3.0") { because("com.google.common.jimfs") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
     api("com.google.protobuf:protobuf-java-util:$protobuf") { because("com.google.protobuf.util") }
     api("com.hedera.pbj:pbj-runtime:$pbj") { because("com.hedera.pbj.runtime") }
     api("com.squareup:javapoet:1.13.0") { because("com.squareup.javapoet") }
-    api("net.java.dev.jna:jna:5.16.0") { because("com.sun.jna") }
+    api("net.java.dev.jna:jna:5.17.0") { because("com.sun.jna") }
     api("com.google.dagger:dagger:$dagger") { because("dagger") }
     api("com.google.dagger:dagger-compiler:$dagger") { because("dagger.compiler") }
     api("io.grpc:grpc-netty:$grpc") { because("io.grpc.netty") }
     api("io.grpc:grpc-protobuf:$grpc") { because("io.grpc.protobuf") }
     api("io.grpc:grpc-stub:$grpc") { because("io.grpc.stub") }
-    api("com.esaulpaugh:headlong:13.1.0") { because("com.esaulpaugh.headlong") }
+    api("com.esaulpaugh:headlong:13.1.1") { because("com.esaulpaugh.headlong") }
     api("info.picocli:picocli:4.7.6") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.179") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }

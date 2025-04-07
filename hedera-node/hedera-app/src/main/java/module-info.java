@@ -1,7 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-import com.hedera.node.app.config.ServicesConfigExtension;
-import com.swirlds.config.api.ConfigurationExtension;
-
 module com.hedera.node.app {
     requires transitive com.hedera.cryptography.hints;
     requires transitive com.hedera.cryptography.rpm;
@@ -27,8 +24,11 @@ module com.hedera.node.app {
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
+    requires transitive org.hiero.consensus.model;
     requires transitive dagger;
     requires transitive io.grpc.stub;
+    requires transitive io.grpc;
+    requires transitive io.helidon.grpc.core;
     requires transitive io.helidon.webclient.grpc;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;
@@ -46,16 +46,17 @@ module com.hedera.node.app {
     requires com.swirlds.merkle;
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
+    requires org.hiero.base.utility;
+    requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires io.grpc.netty;
-    requires io.grpc;
     requires io.helidon.common.tls;
     requires io.helidon.webclient.api;
     requires io.netty.handler;
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;
     requires org.apache.commons.lang3;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
     requires static com.google.auto.service;
     requires static java.compiler;
 
@@ -123,6 +124,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.ids.schemas;
     exports com.hedera.node.app.hints.schemas;
 
-    provides ConfigurationExtension with
-            ServicesConfigExtension;
+    provides com.swirlds.config.api.ConfigurationExtension with
+            com.hedera.node.app.config.ServicesConfigExtension;
 }

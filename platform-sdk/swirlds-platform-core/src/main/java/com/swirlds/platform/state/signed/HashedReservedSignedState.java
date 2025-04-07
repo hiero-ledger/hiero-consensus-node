@@ -3,8 +3,8 @@ package com.swirlds.platform.state.signed;
 
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.crypto.Hash;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * A record that wraps a reserved signed state and its hash.

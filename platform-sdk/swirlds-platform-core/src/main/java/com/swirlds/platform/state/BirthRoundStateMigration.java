@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,6 +14,7 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * A utility for migrating the state when birth round mode is first enabled.
@@ -91,12 +91,13 @@ public final class BirthRoundStateMigration {
         for (final MinimumJudgeInfo judgeInfo : judgeInfoList) {
             modifiedJudgeInfoList.add(new MinimumJudgeInfo(judgeInfo.round(), lastRoundBeforeMigration));
         }
-        final ConsensusSnapshot modifiedConsensusSnapshot = new ConsensusSnapshot(
-                consensusSnapshot.round(),
-                consensusSnapshot.judgeHashes(),
-                modifiedJudgeInfoList,
-                consensusSnapshot.nextConsensusNumber(),
-                consensusSnapshot.consensusTimestamp());
+        final ConsensusSnapshot modifiedConsensusSnapshot = ConsensusSnapshot.newBuilder()
+                .round(consensusSnapshot.round())
+                .consensusTimestamp(consensusSnapshot.consensusTimestamp())
+                .judgeIds(consensusSnapshot.judgeIds())
+                .nextConsensusNumber(consensusSnapshot.nextConsensusNumber())
+                .minimumJudgeInfoList(modifiedJudgeInfoList)
+                .build();
         platformStateFacade.setSnapshotTo(state, modifiedConsensusSnapshot);
 
         state.invalidateHash();

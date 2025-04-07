@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
+import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
-import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
+import static org.hiero.consensus.model.utility.CommonUtils.fromPbjTimestamp;
+import static org.hiero.consensus.model.utility.CommonUtils.toPbjTimestamp;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -15,10 +16,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import java.time.Instant;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,14 +68,14 @@ class PbjConverterTest {
 
     @Test
     void testFromPbjTimestamp_null() {
-        assertNull(PbjConverter.fromPbjTimestamp(null));
+        assertNull(fromPbjTimestamp(null));
     }
 
     @Test
     void testFromPbjTimestamp() {
         final Instant instant = randomInstant(randotron);
         final Timestamp pbjTimestamp = toPbjTimestamp(instant);
-        assertEquals(instant, PbjConverter.fromPbjTimestamp(pbjTimestamp));
+        assertEquals(instant, fromPbjTimestamp(pbjTimestamp));
     }
 
     @Test
@@ -344,15 +345,20 @@ class PbjConverterTest {
     }
 
     private static ConsensusSnapshot randomSnapshot(final Randotron randotron) {
-        return new ConsensusSnapshot(
-                nextInt(),
-                asList(randomHash().getBytes(), randomHash().getBytes()),
-                asList(new MinimumJudgeInfo(nextInt(), nextInt()), new MinimumJudgeInfo(nextInt(), nextInt())),
-                nextInt(),
-                PbjConverter.toPbjTimestamp(randomInstant(randotron)));
+        final var judges = asList(
+                new JudgeId(0L, randomHash().getBytes()),
+                new JudgeId(1L, randomHash().getBytes()));
+        return ConsensusSnapshot.newBuilder()
+                .round(nextInt())
+                .judgeIds(judges)
+                .minimumJudgeInfoList(
+                        asList(new MinimumJudgeInfo(nextInt(), nextInt()), new MinimumJudgeInfo(nextInt(), nextInt())))
+                .nextConsensusNumber(nextInt())
+                .consensusTimestamp(toPbjTimestamp(randomInstant(randotron)))
+                .build();
     }
 
     private static SemanticVersion randomSoftwareVersion() {
-        return new BasicSoftwareVersion(nextInt(1, 100)).getPbjSemanticVersion();
+        return SemanticVersion.newBuilder().major(nextInt(1, 100)).build();
     }
 }

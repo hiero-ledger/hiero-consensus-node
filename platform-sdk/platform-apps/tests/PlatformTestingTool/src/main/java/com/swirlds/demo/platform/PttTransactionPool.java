@@ -8,7 +8,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.google.protobuf.ByteString;
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.crypto.ECDSASigningProvider;
 import com.swirlds.common.test.fixtures.crypto.ED25519SigningProvider;
 import com.swirlds.common.test.fixtures.crypto.SigningProvider;
@@ -41,6 +40,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Provides pre-generated random transactions that are optionally pre-signed with Ed25519 signatures.

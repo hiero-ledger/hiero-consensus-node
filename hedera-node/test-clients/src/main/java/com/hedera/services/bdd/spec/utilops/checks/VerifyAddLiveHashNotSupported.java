@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.spec.utilops.checks;
 
 import static com.hedera.services.bdd.junit.hedera.SystemFunctionalityTarget.NA;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.getUniqueTimestampPlusSecs;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoAddLiveHash;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
@@ -26,12 +28,19 @@ public class VerifyAddLiveHashNotSupported extends UtilOp {
         final var validStart = getUniqueTimestampPlusSecs(spec.setup().txnStartOffsetSecs());
         final var txnId = TransactionID.newBuilder()
                 .setTransactionValidStart(validStart)
-                .setAccountID(
-                        AccountID.newBuilder().setAccountNum(USER_PAYER_NUM).build())
+                .setAccountID(AccountID.newBuilder()
+                        .setShardNum(shard)
+                        .setRealmNum(realm)
+                        .setAccountNum(USER_PAYER_NUM)
+                        .build())
                 .build();
         final var body = TransactionBody.newBuilder()
                 .setTransactionID(txnId)
-                .setNodeAccountID(AccountID.newBuilder().setAccountNum(3).build())
+                .setNodeAccountID(AccountID.newBuilder()
+                        .setShardNum(shard)
+                        .setRealmNum(realm)
+                        .setAccountNum(3)
+                        .build())
                 .setTransactionValidDuration(
                         Duration.newBuilder().setSeconds(120).build())
                 .setCryptoAddLiveHash(CryptoAddLiveHashTransactionBody.getDefaultInstance())

@@ -11,8 +11,8 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -21,7 +21,6 @@ import com.swirlds.platform.network.connection.NotConnectedConnection;
 import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
 import com.swirlds.platform.network.connectivity.SocketFactory;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder.WeightDistributionStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -32,6 +31,8 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -44,7 +45,7 @@ class OutboundConnectionCreatorTest {
         final Random r = new Random();
         final Roster roster = RandomRosterBuilder.create(r)
                 .withSize(numNodes)
-                .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
                 .build();
         final int thisNodeIndex = r.nextInt(numNodes);
         int otherNodeIndex = r.nextInt(numNodes);
@@ -69,7 +70,7 @@ class OutboundConnectionCreatorTest {
                 .close();
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
         out.writeInt(ByteConstants.COMM_CONNECT);
         out.close();
 
@@ -132,7 +133,7 @@ class OutboundConnectionCreatorTest {
         final Random r = new Random();
         final Roster roster = RandomRosterBuilder.create(r)
                 .withSize(numNodes)
-                .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
                 .build();
         final int thisNodeIndex = r.nextInt(numNodes);
         int otherNodeIndex = r.nextInt(numNodes);
@@ -157,7 +158,7 @@ class OutboundConnectionCreatorTest {
                 .close();
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
         out.writeInt(ByteConstants.COMM_CONNECT);
         out.close();
 

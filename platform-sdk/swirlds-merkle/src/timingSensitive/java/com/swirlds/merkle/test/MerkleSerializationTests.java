@@ -17,13 +17,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.exceptions.InvalidVersionException;
 import com.swirlds.common.io.streams.DebuggableMerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRouteFactory;
@@ -48,6 +46,9 @@ import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -67,7 +68,9 @@ class MerkleSerializationTests {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero.consensus");
     }
 
     private void resetDirectory() throws IOException {
@@ -450,7 +453,7 @@ class MerkleSerializationTests {
 
         final Path notADirectory = testDirectory.resolve("notADirectory.txt");
         final SerializableDataOutputStream fOut =
-                new SerializableDataOutputStream(new FileOutputStream(notADirectory.toFile()));
+                new SerializableDataOutputStreamImpl(new FileOutputStream(notADirectory.toFile()));
         fOut.writeNormalisedString("this is not a directory");
         fOut.close();
         assertThrows(

@@ -48,6 +48,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -63,6 +64,9 @@ class FileAppendHandlerTest extends FileTestBase {
 
     @Mock
     private ReadableAccountStore accountStore;
+
+    @Mock
+    private NodeInfo creatorInfo;
 
     @Mock(strictness = LENIENT)
     private PreHandleContext preHandleContext;
@@ -144,8 +148,8 @@ class FileAppendHandlerTest extends FileTestBase {
                 .transactionID(txnId)
                 .build();
 
-        PreHandleContext realPreContext =
-                new PreHandleContextImpl(mockStoreFactory, txBody, testConfig, mockDispatcher, transactionChecker);
+        PreHandleContext realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, txBody, testConfig, mockDispatcher, transactionChecker, creatorInfo);
 
         subject.preHandle(realPreContext);
 
@@ -169,8 +173,8 @@ class FileAppendHandlerTest extends FileTestBase {
                 .fileAppend(OP_BUILDER.fileID(wellKnownId()))
                 .transactionID(txnId)
                 .build();
-        PreHandleContext realPreContext =
-                new PreHandleContextImpl(mockStoreFactory, txBody, testConfig, mockDispatcher, transactionChecker);
+        PreHandleContext realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, txBody, testConfig, mockDispatcher, transactionChecker, creatorInfo);
 
         subject.preHandle(realPreContext);
 

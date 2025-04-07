@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import static com.swirlds.platform.consensus.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.crypto.CryptoConstants;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Collection;
-import java.util.List;
 
 /** Various utility methods used by {@link com.swirlds.platform.ConsensusImpl} */
 public final class ConsensusUtils {
@@ -67,12 +64,5 @@ public final class ConsensusUtils {
             }
         }
         return whitening;
-    }
-
-    /**
-     * @return a list of all base hashes of the provided events
-     */
-    public static @NonNull List<Bytes> getHashBytes(@NonNull final Collection<EventImpl> events) {
-        return events.stream().map(EventImpl::getBaseHash).map(Hash::getBytes).toList();
     }
 }

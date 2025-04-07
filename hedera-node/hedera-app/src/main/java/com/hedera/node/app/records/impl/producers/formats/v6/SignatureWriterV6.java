@@ -9,9 +9,8 @@ import com.hedera.hapi.streams.SignatureObject;
 import com.hedera.hapi.streams.SignatureType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.stream.Signer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -24,6 +23,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * Simple stateless class with static methods to write signature files. It cleanly separates out the code for generating
@@ -71,7 +72,8 @@ final class SignatureWriterV6 {
                 // create metadata hash
                 HashingOutputStream hashingOutputStream =
                         new HashingOutputStream(MessageDigest.getInstance(DigestType.SHA_384.algorithmName()));
-                SerializableDataOutputStream dataOutputStream = new SerializableDataOutputStream(hashingOutputStream);
+                SerializableDataOutputStream dataOutputStream =
+                        new SerializableDataOutputStreamImpl(hashingOutputStream);
                 dataOutputStream.writeInt(recordFileVersion);
                 dataOutputStream.writeInt(hapiProtoVersion.major());
                 dataOutputStream.writeInt(hapiProtoVersion.minor());

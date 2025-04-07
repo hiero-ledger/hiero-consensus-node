@@ -218,9 +218,11 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n previe
 
 ```
 
-The new account will have a single Ed25519 key, exported to the target network's _keys/_ directory in both
+By default, the new account will have a single Ed25519 key, exported to the target network's _keys/_ directory in both
 PEM/passphrase and mnemonic forms. (E.g., this command might create both _previewnet/keys/account1234.{pem,pass}_ and
-_previewnet/keys/account1234.words_.)
+_previewnet/keys/account1234.words_.) If the `-k SECP256K1` option is used, the new account will be created with a
+Secp256k1 key. A PEM file and .pass file are still created, but this algorithm doesn't support mnemonic keys, so the
+`.words` file is _not_ created.
 
 # Updating system files
 
@@ -411,8 +413,12 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n localh
 
 # Updating account keys
 
-You can use yahcli to replace an account's key with either a newly generated key, or an existing key. (Existing keys
-can be either PEM files or BIP-39 mnemonics.)
+You can use yahcli to replace an account's key with either a newly generated key, or an existing key. Existing keys
+can be either PEM files (for Ed25519 or Secp256k1 keys) or BIP-39 mnemonics (Ed25519 keys only). Note that, in the
+case of key generation, you may opt to specify a Secp256k1 type with `-K`, which will now generate a new ECDSA key.
+**The `-K SECP256K1` option is only required for generating a _new_ key; this option is _not_ required for _replacing_
+an existing Secp256k1 key.** Support for Secp256k1 keys has not previously been available for the `rekey` command, but
+should now 'just work' as the Ed25519 key replacements do.
 
 Our first example uses a randomly generated new key,
 
@@ -438,7 +444,7 @@ localhost/keys
 └── account57.pem.bkup
 ```
 
-For the next example, we specify an existing PEM file, and enter its passphrase when prompted,
+For the next example, we specify an existing PEM file, and enter its passphrase when prompted:
 
 ```
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -p 57 -n localhost \
@@ -448,6 +454,21 @@ Please enter the passphrase for key file new-account55.pem:
 .i. Exported key from new-account55 to localhost/keys/account57.pem
 .i. SUCCESS - account 0.0.57 has been re-keyed
 ```
+
+Now we give an example of re-keying an account administered by a Secp256k1 key from a pre-existing PEM
+and .pass file, where the contents of the original key–located in `account12345.pem`–are replaced with the
+contents of a new Secp256k1 key–`new-ecdsa-key.pem`–and a new passphrase:
+
+```
+$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.6.4 -p 57 -n localhost \
+> accounts rekey -k new-ecdsa-key.pem 57
+Targeting localhost, paying with 0.0.57
+.i. Exported key from new-ecdsa-key to localhost/keys/account57.pem
+.i. SUCCESS - account 0.0.57 has been re-keyed
+```
+
+As before, the previous PEM and .pass files are given a _.bkup_ extension, while _localhost/keys/account57.pem_
+and _localhost/keys/account57.pass_ are overwritten with the contents of the new Secp256k1 key.
 
 In our final example, we replace the `0.0.57` key from a mnemonic,
 
@@ -492,7 +513,7 @@ generated passphrase in a _.pass_ file.
 
 # Printing key details
 
-If you have a PEM or mnemonic file for an Ed25519 key pair and need to extract the public key, you can run,
+If you have a PEM or mnemonic file for an Ed25519 or Secp256k1 key pair and need to extract the public key, you can run,
 
 ```
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 keys print-public -p novel.pem -x PkpcBBYCjd7K
@@ -509,6 +530,9 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 keys prin
 .i. The private key @ novel.pem is: ea52bce1ad54a88e156f50840e856b941f9b0db09266660c953cd14205546ca2
 .i.   -> With DER prefix; 302e020100300506032b657004220420ea52bce1ad54a88e156f50840e856b941f9b0db09266660c953cd14205546ca2
 ```
+
+For this command, Secp256k1 keys are now supported. There are no special considerations for printing the private or
+public components of either an Ed25519 or Secp256k1 key, i.e. these print commands should work equivalently for both types.
 
 # Changing a staking election
 

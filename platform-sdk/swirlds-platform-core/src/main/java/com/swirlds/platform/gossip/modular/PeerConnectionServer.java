@@ -4,7 +4,6 @@ package com.swirlds.platform.gossip.modular;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.interrupt.InterruptableRunnable;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.connectivity.InboundConnectionHandler;
@@ -15,11 +14,12 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
 
 /**
  * Listens on a server socket for incoming connections. All new connections are passed on to the supplied handler.
@@ -54,14 +54,15 @@ public class PeerConnectionServer implements InterruptableRunnable {
         this.newConnectionHandler = inboundConnectionHandler;
         this.socketFactory = socketFactory;
         this.incomingConnPool = new ThreadPoolExecutor(
-                1,
+                0,
                 maxThreads,
-                0L,
-                TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<Runnable>(),
+                60L,
+                TimeUnit.SECONDS,
+                new SynchronousQueue<Runnable>(),
                 new ThreadConfiguration(threadManager)
-                        .setThreadName("sync_server")
-                        .buildFactory());
+                        .setThreadName("peer_sync_server")
+                        .buildFactory(),
+                new ThreadPoolExecutor.CallerRunsPolicy());
     }
 
     @Override

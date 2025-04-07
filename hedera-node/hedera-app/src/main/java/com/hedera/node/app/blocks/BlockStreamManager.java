@@ -4,13 +4,12 @@ package com.hedera.node.app.blocks;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.system.Round;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import org.hiero.consensus.model.hashgraph.Round;
 
 /**
  * Maintains the state and process objects needed to produce the block stream.
@@ -45,7 +44,30 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     }
 
     /**
+     * Lifecycle interface for the block stream manager. This will allow any additional actions that
+     * need to take place at start of block and end of block. For example, updating node rewards information.
+     */
+    interface Lifecycle {
+        /**
+         * Called when a block is opened. This will allow any additional actions that need to take place
+         * at the start of the block.
+         *
+         * @param state the state of the network at the start of the block
+         */
+        void onOpenBlock(@NonNull State state);
+
+        /**
+         * Called when a block is closed. This will allow any additional actions that need to take place
+         * at the end of the block.
+         *
+         * @param state the state of the network at the end of the block
+         */
+        void onCloseBlock(@NonNull State state);
+    }
+
+    /**
      * Returns whether the ledger ID has been set.
+     * @return true if the ledger ID has been set, false otherwise
      */
     boolean hasLedgerId();
 
@@ -53,6 +75,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * Initializes the block stream manager after a restart or during reconnect with the hash of the last block
      * incorporated in the state used in the restart or reconnect. (At genesis, this hash should be the
      * {@link #ZERO_BLOCK_HASH}.)
+     *
      * @param blockHash the hash of the last block
      */
     void initLastBlockHash(@NonNull Bytes blockHash);
@@ -65,13 +88,6 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @throws IllegalStateException if the last block hash was not explicitly initialized
      */
     void startRound(@NonNull Round round, @NonNull State state);
-
-    /**
-     * Notifies the block stream manager of the first user transaction time in the
-     * last-started round.
-     * @param at the consensus time of the first user transaction
-     */
-    void setRoundFirstTransactionTime(@NonNull Instant at);
 
     /**
      * Confirms that the post-upgrade work has been completed.
@@ -88,12 +104,14 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
 
     /**
      * Sets the last interval process time.
+     *
      * @param lastIntervalProcessTime the last interval process time
      */
     void setLastIntervalProcessTime(@NonNull Instant lastIntervalProcessTime);
 
     /**
      * Get the consensus time at which an interval was last processed.
+     *
      * @return the consensus time at which an interval was last processed
      */
     @NonNull
@@ -101,6 +119,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
 
     /**
      * Sets the last consensus time at which a user transaction was last handled.
+     *
      * @param lastHandleTime the last consensus time at which a user transaction was handled
      */
     void setLastHandleTime(@NonNull Instant lastHandleTime);
@@ -123,6 +142,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
 
     /**
      * Writes a block item to the stream.
+     *
      * @param item the block item to write
      * @throws IllegalStateException if the stream is closed
      */
@@ -137,7 +157,8 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     /**
      * Synchronous method that, when invoked, blocks until the block stream manager signals a successful
      * completion of its fatal shutdown logic.
-     * @param maybeTimeout the maximum time to wait for block stream shutdown
+     *
+     * @param timeout the maximum time to wait for block stream shutdown
      */
-    void awaitFatalShutdown(@Nullable Duration maybeTimeout);
+    void awaitFatalShutdown(@NonNull Duration timeout);
 }

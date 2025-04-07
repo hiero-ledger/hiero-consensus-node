@@ -10,11 +10,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.SelfSerializable;
 import org.junit.jupiter.api.Test;
 
 class HashCalculatorTest {
@@ -25,7 +25,7 @@ class HashCalculatorTest {
     void nextStreamTest() throws InterruptedException {
         LinkedObjectStream<ObjectForTestStream> queueThread = mock(QueueThreadObjectStream.class);
         HashCalculatorForStream<ObjectForTestStream> hashCalculator = new HashCalculatorForStream<>(queueThread);
-        Hash hash = RandomUtils.randomHash();
+        Hash hash = CryptoRandomUtils.randomHash();
         hashCalculator.setRunningHash(hash);
         verify(queueThread).setRunningHash(hash);
 

@@ -6,11 +6,8 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.state.Mutable;
-import com.swirlds.common.Copyable;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.ThreadSeed;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.interrupt.InterruptableRunnable;
 import com.swirlds.common.threading.manager.ThreadManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
@@ -19,6 +16,9 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.Copyable;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
 
 /**
  * Boilerplate getters, setters, and configuration for basic thread configuration.

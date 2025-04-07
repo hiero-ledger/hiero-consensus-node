@@ -41,15 +41,12 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.RunningHashable;
 import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.stream.internal.InvalidStreamFileException;
 import com.swirlds.common.stream.internal.LinkedObjectStreamValidateUtils;
 import com.swirlds.common.stream.internal.SingleStreamIterator;
 import com.swirlds.common.stream.internal.StreamValidationResult;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import com.swirlds.common.test.fixtures.stream.StreamObjectWorker;
@@ -65,6 +62,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.crypto.RunningHashable;
+import org.hiero.consensus.model.io.SelfSerializable;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -98,7 +98,9 @@ class StreamUtilitiesTest {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero.consensus.model.crypto");
     }
 
     private static File getResourceFile(final String path) {
@@ -123,7 +125,7 @@ class StreamUtilitiesTest {
     @Test
     void parseStreamTest() throws Exception {
         InputOutputStream io = new InputOutputStream();
-        Hash initialHash = RandomUtils.randomHash();
+        Hash initialHash = CryptoRandomUtils.randomHash();
 
         StreamObjectWorker streamObjectWorker =
                 new StreamObjectWorker(50, 50, initialHash, Instant.now(), io.getOutput());
@@ -525,7 +527,7 @@ class StreamUtilitiesTest {
             public SelfSerializable next() {
                 SelfSerializable next;
                 if (id == FIRST_ID || id == LAST_ID) {
-                    next = RandomUtils.randomHash();
+                    next = CryptoRandomUtils.randomHash();
                 } else {
                     next = getRandomObjectForTestStream(PAY_LOAD_SIZE_4);
                 }
