@@ -44,7 +44,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_ID_REPEA
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
@@ -63,19 +64,17 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-@OrderedInIsolation
 @Tag(SMART_CONTRACT)
 public class AirdropFromContractTest {
 
     @Contract(contract = "Airdrop")
     static SpecContract airdropContract;
 
-    @Order(0)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Contract Airdrops a token to a receiver who is associated to the token")
     public Stream<DynamicTest> airdropTokenToAccount(
             @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount receiver,
@@ -99,8 +98,8 @@ public class AirdropFromContractTest {
                 receiver.getInfo().andAssert(info -> info.hasAlreadyUsedAutomaticAssociations(1)));
     }
 
-    @Order(1)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Airdrop token from contact with custom fee")
     public Stream<DynamicTest> airdropTokenWithCustomFee(
             @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount receiver,
@@ -137,8 +136,8 @@ public class AirdropFromContractTest {
         }));
     }
 
-    @Order(2)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Airdrop multiple tokens from contract that is already associated with them")
     public Stream<DynamicTest> airdropMultipleTokens(
             @NonNull @Account(maxAutoAssociations = 5, tinybarBalance = 100L) final SpecAccount receiver,
@@ -183,8 +182,8 @@ public class AirdropFromContractTest {
         }));
     }
 
-    @Order(3)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Airdrop token from contact")
     public Stream<DynamicTest> airdropTokenToAccountWithFreeSlots(
             @NonNull @Account(maxAutoAssociations = 0, tinybarBalance = 100L) final SpecAccount receiver,
@@ -207,8 +206,8 @@ public class AirdropFromContractTest {
                 receiver.getInfo().andAssert(info -> info.hasAlreadyUsedAutomaticAssociations(0)));
     }
 
-    @Order(5)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Contract account airdrops a single token to an ECDSA account")
     public Stream<DynamicTest> airdropTokenToECDSAAccount(
             @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount receiver,
@@ -239,8 +238,8 @@ public class AirdropFromContractTest {
         }));
     }
 
-    @Order(4)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Contract account airdrops a single token to an ED25519 account")
     public Stream<DynamicTest> airdropTokenToED25519Account(
             @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount receiver,
@@ -271,8 +270,8 @@ public class AirdropFromContractTest {
         }));
     }
 
-    @Order(6)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Contract account airdrops a single token to an account alias with free association slots")
     public Stream<DynamicTest> airdropToAccountWithFreeAutoAssocSlots(
             @Contract(contract = "EmptyOne", creationGas = 10_000_000L) final SpecContract sender,
@@ -305,8 +304,8 @@ public class AirdropFromContractTest {
         }));
     }
 
-    @Order(7)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Contract account airdrops multiple tokens to contract alias with unlimited association slots")
     public Stream<DynamicTest> airdropToAccountWithUnlimitedAutoAssocSlots(
             @NonNull @Contract(contract = "EmptyOne", creationGas = 100_000_000L, maxAutoAssociations = -1)
@@ -340,8 +339,8 @@ public class AirdropFromContractTest {
         }));
     }
 
-    @Order(8)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Contract account airdrops a multiple tokens to an account alias without free association slots")
     public Stream<DynamicTest> airdropToAccountWithNoFreeAutoAssocSlots(
             @NonNull @Account(maxAutoAssociations = 0, tinybarBalance = 100_000_000L) final SpecAccount receiver,
@@ -379,8 +378,8 @@ public class AirdropFromContractTest {
         }));
     }
 
-    @Order(9)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Contract account airdrops a multiple tokens to an address with no account on it.")
     public Stream<DynamicTest> airdropToAddressWithNoAccount(
             @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount receiver,
@@ -414,8 +413,8 @@ public class AirdropFromContractTest {
                 }));
     }
 
-    @Order(10)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName(
             "Contract airdrops a token to an account, then the receiver claims the airdrop, then the sender airdrops the same token again ")
     public Stream<DynamicTest> airdropToAccountAgainAfterReceiverClaims(
@@ -459,8 +458,8 @@ public class AirdropFromContractTest {
         }));
     }
 
-    @Order(11)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Contract airdrops multiple times that FT to an account, then only one pending transaction is created")
     public Stream<DynamicTest> airdropFTToAccountMultipleTimes(
             @NonNull @Account(maxAutoAssociations = 0, tinybarBalance = 100_000_000L) final SpecAccount receiver,
@@ -501,8 +500,8 @@ public class AirdropFromContractTest {
         }));
     }
 
-    @Order(12)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName(
             "Contract airdrops a FT to an account, then associate the receiver, then airdrops the same token again")
     public Stream<DynamicTest> airdropFTToAccountThenAssociateTheReceiverAndAirdropAgain(
@@ -534,8 +533,8 @@ public class AirdropFromContractTest {
         }));
     }
 
-    @Order(13)
     @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Multiple contracts airdrop tokens to multiple accounts.")
     public Stream<DynamicTest> multipleContractsAirdropTokensToMultipleAccounts(
             @NonNull @Account(maxAutoAssociations = -1, tinybarBalance = 100_000_000L) final SpecAccount receiver1,
@@ -580,6 +579,7 @@ public class AirdropFromContractTest {
     class AirdropFromContractNegativeCases {
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Airdrop token with custom fees while the sender cannot pay the fees")
         public Stream<DynamicTest> airdropFromContractWhileTheSenderCannotPayTheCustomFees(
                 @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount receiver,
@@ -612,6 +612,7 @@ public class AirdropFromContractTest {
         }
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName(
                 "Airdrop nft to the same account twice should fail with TOKEN_ID_REPEATED_IN_TOKEN_LIST for single airdrop or PENDING_NFT_AIRDROP_ALREADY_EXISTS for multiple airdrops")
         public Stream<DynamicTest> airdropNftToTheSameAccountTwice(
@@ -692,6 +693,7 @@ public class AirdropFromContractTest {
         }
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName(
                 "Airdrop token amount of Long.MAX_VALUE then try to airdrop 1 more token to the same receiver should fail")
         public Stream<DynamicTest> airdropMaxLongPlusOneShouldFail(
@@ -726,6 +728,7 @@ public class AirdropFromContractTest {
         }
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Contract tries to airdrop a token to itself")
         public Stream<DynamicTest> airdropTokenToItself(
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token,
@@ -748,6 +751,7 @@ public class AirdropFromContractTest {
         }
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Contract airdrops to a pending state then tries to SELFDESTRUCT")
         public Stream<DynamicTest> contractAirdropsThenSelfdestructs(
                 @NonNull @FungibleToken(initialSupply = 100) final SpecFungibleToken token,

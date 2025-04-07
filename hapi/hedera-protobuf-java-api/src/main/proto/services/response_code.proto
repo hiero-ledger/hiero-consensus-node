@@ -1738,4 +1738,15 @@ enum ResponseCodeEnum {
      * The provided schedule expiry time is not configurable.
      */
     SCHEDULE_EXPIRY_NOT_CONFIGURABLE = 395;
+
+    /**
+     * The network just started at genesis and is creating system entities.
+     */
+    CREATING_SYSTEM_ENTITIES = 396;
+
+    /**
+    * The least common multiple of the throttle group's milliOpsPerSec is 
+    * too large and it's overflowing.
+     */
+    THROTTLE_GROUP_LCM_OVERFLOW = 397;
 }

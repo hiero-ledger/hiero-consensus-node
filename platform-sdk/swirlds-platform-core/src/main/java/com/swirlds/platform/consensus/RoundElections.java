@@ -4,12 +4,9 @@ package com.swirlds.platform.consensus;
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.IntReference;
 import com.swirlds.platform.Utilities;
-import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -20,6 +17,10 @@ import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A round whose witnesses are currently having their fame voted on in elections. This class tracks the witnesses and

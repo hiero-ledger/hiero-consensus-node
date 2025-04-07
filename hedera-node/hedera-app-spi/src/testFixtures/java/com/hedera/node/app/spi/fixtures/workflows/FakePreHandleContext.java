@@ -4,7 +4,7 @@ package com.hedera.node.app.spi.fixtures.workflows;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
-import static com.hedera.node.app.spi.key.KeyUtils.isValid;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static java.util.Objects.requireNonNull;
 
@@ -17,11 +17,13 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.fixtures.info.FakeNetworkInfo;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
@@ -63,8 +65,6 @@ public class FakePreHandleContext implements PreHandleContext {
     private final Set<Key> optionalNonPayerKeys = new LinkedHashSet<>();
     /** The set of all hollow accounts that <strong>might</strong> need to be validated, but also might not. */
     private final Set<Account> optionalHollowAccounts = new LinkedHashSet<>();
-    /** Scheduled transactions have a secondary "inner context". Seems not quite right. */
-    private PreHandleContext innerContext;
 
     private final boolean userTransaction;
     private final Map<Class<?>, Object> stores = new ConcurrentHashMap<>();
@@ -413,14 +413,18 @@ public class FakePreHandleContext implements PreHandleContext {
     }
 
     @Override
+    public NodeInfo creatorInfo() {
+        return FakeNetworkInfo.FAKE_NODE_INFOS.getFirst();
+    }
+
+    @Override
     public String toString() {
         return "FakePreHandleContext{" + "accountStore="
                 + accountStore + ", txn="
                 + txn + ", payer="
                 + payer + ", payerKey="
                 + payerKey + ", requiredNonPayerKeys="
-                + requiredNonPayerKeys + ", innerContext="
-                + innerContext + ", stores="
+                + requiredNonPayerKeys + ", stores="
                 + stores + '}';
     }
 

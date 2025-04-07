@@ -43,7 +43,7 @@ class GetScheduledFungibleTokenCreateCallTest extends CallTestBase {
 
     @Test
     void returnsNotFoundForMissingSchedule() {
-        given(nativeOperations.getSchedule(scheduleId.scheduleNum())).willReturn(null);
+        given(nativeOperations.getSchedule(scheduleId)).willReturn(null);
 
         Call.PricedResult result = subject.execute(frame);
 
@@ -55,7 +55,7 @@ class GetScheduledFungibleTokenCreateCallTest extends CallTestBase {
         var schedule = Schedule.newBuilder()
                 .scheduledTransaction(SchedulableTransactionBody.newBuilder().freeze(FreezeTransactionBody.DEFAULT))
                 .build();
-        given(nativeOperations.getSchedule(scheduleId.scheduleNum())).willReturn(schedule);
+        given(nativeOperations.getSchedule(scheduleId)).willReturn(schedule);
 
         final var result = subject.execute(frame);
 
@@ -71,7 +71,7 @@ class GetScheduledFungibleTokenCreateCallTest extends CallTestBase {
                                 .build())
                         .build())
                 .build();
-        given(nativeOperations.getSchedule(scheduleId.scheduleNum())).willReturn(schedule);
+        given(nativeOperations.getSchedule(scheduleId)).willReturn(schedule);
 
         Call.PricedResult result = subject.execute(frame);
 
@@ -92,7 +92,7 @@ class GetScheduledFungibleTokenCreateCallTest extends CallTestBase {
                                 .build())
                         .build())
                 .build();
-        given(nativeOperations.getSchedule(scheduleId.scheduleNum())).willReturn(schedule);
+        given(nativeOperations.getSchedule(scheduleId)).willReturn(schedule);
 
         Call.PricedResult result = subject.execute(frame);
 

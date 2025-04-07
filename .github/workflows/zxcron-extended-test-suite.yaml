@@ -31,9 +31,10 @@ jobs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
       xts-tag-commit-author: ${{ steps.check-tags-exist.outputs.xts-tag-commit-author }}
+      xts-tag-commit-email: ${{ steps.check-tags-exist.outputs.xts-tag-commit-email }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -78,6 +79,15 @@ jobs:
             gh run cancel ${{ github.run_id }}
           fi
 
+          # Get the list of commits between the previous XTS Pass and the current commit
+          COMMIT_LIST=""
+          LATEST_XTS_PASS_TAG=$(git tag --list --sort=-version:refname "xts-pass-*" | head --lines 1)
+          if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
+            echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
+            LATEST_XTS_PASS_COMMIT=$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")
+            COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
+          fi
+
           # Check if the tag exists on the main branch
           set +e
           git branch --contains "${XTS_COMMIT}" | grep --quiet main >/dev/null 2>&1
@@ -91,11 +101,14 @@ jobs:
           # If the tag exists on the Main Branch set the output variables as appropriate
           # Otherwise cancel out
           if [[ "${BRANCH_ON_DEVELOP}" -eq 0 ]]; then
-            echo "xts-tag-exists=true" >> $GITHUB_OUTPUT
-            echo "xts-tag-commit=${XTS_COMMIT}" >> $GITHUB_OUTPUT
-            echo "xts-tag-commit-author=${AUTHOR_NAME} <${AUTHOR_EMAIL}>" >> $GITHUB_OUTPUT
-            echo "### XTS-Candidate commit found" >>  $GITHUB_STEP_SUMMARY
-            echo "xts-tag-commit=${XTS_COMMIT}" >> $GITHUB_STEP_SUMMARY
+            echo "xts-tag-exists=true" >> "${GITHUB_OUTPUT}"
+            echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_OUTPUT}"
+            echo "xts-tag-commit-author=${AUTHOR_NAME} <${AUTHOR_EMAIL}>" >> "${GITHUB_OUTPUT}"
+            echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
+            echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
+            echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
+            echo "### Commit List" >> "${GITHUB_STEP_SUMMARY}"
+            echo "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
 
             git push --delete origin "${XTS_CANDIDATE_TAG}"
             git tag -d "${XTS_CANDIDATE_TAG}"
@@ -188,7 +201,7 @@ jobs:
     if: ${{ needs.abbreviated-panel.result == 'success' || needs.extended-test-suite.result == 'success' || needs.hedera-node-jrs-panel.result == 'success' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -218,8 +231,151 @@ jobs:
           TAG=xts-pass-${EPOCH_TIME}
           git tag --annotate ${TAG} --message "chore: tagging commit for build candidate promotion"
           git push --set-upstream origin --tags
-          echo "### Commit Tagged for Promotion" >>  $GITHUB_STEP_SUMMARY
-          echo "promotion-tag=${TAG}" >> $GITHUB_STEP_SUMMARY
+          echo "### Commit Tagged for Promotion" >>  "${GITHUB_STEP_SUMMARY}"
+          echo "promotion-tag=${TAG}" >> "${GITHUB_STEP_SUMMARY}"
+
+  report-success:
+    name: Report XTS execution success
+    runs-on: hiero-network-node-linux-medium
+    needs:
+      - abbreviated-panel
+      - extended-test-suite
+      - fetch-xts-candidate
+      - hedera-node-jrs-panel
+      - tag-for-promotion
+    if: ${{ (needs.abbreviated-panel.result == 'success' &&
+      needs.extended-test-suite.result == 'success' &&
+      needs.fetch-xts-candidate.result == 'success' &&
+      needs.hedera-node-jrs-panel.result == 'success' &&
+      needs.tag-for-promotion.result == 'success') &&
+      !cancelled() }}
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        with:
+          egress-policy: audit
+
+      - name: Report Success (slack)
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#00FF00",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": {
+                        "type": "plain_text",
+                        "text": ":tada: Hedera Services - eXtended Test Suite Passing Report",
+                        "emoji": true
+                      }
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*XTS Job Succeeded. Test panel status below*"
+                      },
+                      "fields": [
+                        {
+                          "type": "plain_text",
+                          "text": "Fetch XTS Candidate Tag"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.fetch-xts-candidate.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "Execute eXtended Test Suite"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.extended-test-suite.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "JRS Panel"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.abbreviated-panel.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "Hedera Node JRS Panel"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.hedera-node-jrs-panel.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "Tag as XTS-Passing"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "${{ needs.tag-for-promotion.result }}"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Workflow and Commit Information*\nFor a full list of executed tests see `Workflow run URL` below"
+                      },
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Source Commit*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Commit author*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow run ID*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": " ${{ github.run_id }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow run URL*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
 
   report-failure:
     name: Report XTS execution failure
@@ -240,7 +396,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
@@ -297,6 +453,22 @@ jobs:
             "routing_key": "${{ secrets.PAGERDUTY_CITR_INTEGRATION_KEY }}",
             "event_action": "trigger"
           }'
+
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+          EMAIL: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-email }}
+        run: |
+          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list"  -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" '.members[] | select(.profile.email == $email) | .name')
+          if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
+            echo "No Slack user found for email: ${EMAIL}"
+            SLACK_USER_ID="No matching slack user found"
+          else
+            echo "Found slack user for email: ${EMAIL}"
+            SLACK_USER_ID="<@${SLACK_USER_ID}>"
+          fi
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
       - name: Report failure (slack)
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
@@ -395,6 +567,14 @@ jobs:
                         {
                           "type": "mrkdwn",
                           "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Slack user*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
                         },
                         {
                           "type": "mrkdwn",

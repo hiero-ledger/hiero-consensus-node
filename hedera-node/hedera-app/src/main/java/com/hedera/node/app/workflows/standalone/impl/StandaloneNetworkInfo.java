@@ -52,7 +52,7 @@ public class StandaloneNetworkInfo implements NetworkInfo {
         this.configProvider = requireNonNull(configProvider);
         final var config = configProvider.getConfiguration();
         this.ledgerId = config.getConfigData(LedgerConfig.class).id();
-        this.selfNodeInfo = new NodeInfoImpl(0, AccountID.DEFAULT, 0, List.of(), Bytes.EMPTY);
+        this.selfNodeInfo = new NodeInfoImpl(0, AccountID.DEFAULT, 0, List.of(), Bytes.EMPTY, List.of(), false);
     }
 
     /**
@@ -72,7 +72,13 @@ public class StandaloneNetworkInfo implements NetworkInfo {
             final var nodeAddressBook = NodeAddressBook.PROTOBUF.parse(nodeDetails);
             nodeInfos = nodeAddressBook.nodeAddress().stream()
                     .<NodeInfo>map(address -> new NodeInfoImpl(
-                            address.nodeId(), address.nodeAccountIdOrThrow(), address.stake(), List.of(), Bytes.EMPTY))
+                            address.nodeId(),
+                            address.nodeAccountIdOrThrow(),
+                            address.stake(),
+                            List.of(),
+                            Bytes.EMPTY,
+                            List.of(),
+                            false))
                     .toList();
         } catch (ParseException e) {
             log.warn("Failed to parse node details", e);

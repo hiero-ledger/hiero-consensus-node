@@ -39,7 +39,9 @@ class MerklePathReplacementTests {
 
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.*");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds.*");
+        registry.registerConstructables("org.hiero.consensus");
     }
 
     /**
@@ -173,7 +175,7 @@ class MerklePathReplacementTests {
     }
 
     /**
-     * Ensure that node replacement happend like we expected.
+     * Ensure that node replacement happened like we expected.
      */
     private void checkReplacedNodes(
             final List<MerkleNode> originalPath,

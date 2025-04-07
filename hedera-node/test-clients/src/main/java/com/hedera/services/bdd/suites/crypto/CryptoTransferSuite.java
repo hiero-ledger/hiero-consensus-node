@@ -116,7 +116,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFERS_NOT_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNEXPECTED_TOKEN_DECIMALS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
-import static com.swirlds.common.utility.CommonUtils.unhex;
+import static org.hiero.consensus.model.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
@@ -692,16 +692,22 @@ public class CryptoTransferSuite {
                             builder.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(AccountAmount.newBuilder()
                                             .setAccountID(AccountID.newBuilder()
+                                                    .setShardNum(shard)
+                                                    .setRealmNum(realm)
                                                     .setAccountNum(2L)
                                                     .build())
                                             .setAmount(-2 * ONE_HBAR))
                                     .addAccountAmounts(AccountAmount.newBuilder()
                                             .setAccountID(AccountID.newBuilder()
+                                                    .setShardNum(shard)
+                                                    .setRealmNum(realm)
                                                     .setAlias(evmAddress)
                                                     .build())
                                             .setAmount(+ONE_HBAR))
                                     .addAccountAmounts(AccountAmount.newBuilder()
                                             .setAccountID(AccountID.newBuilder()
+                                                    .setShardNum(shard)
+                                                    .setRealmNum(realm)
                                                     .setAlias(keyAlias)
                                                     .build())
                                             .setAmount(+ONE_HBAR))
@@ -1229,7 +1235,8 @@ public class CryptoTransferSuite {
     @HapiTest
     final Stream<DynamicTest> specialAccountsBalanceCheck() {
         return hapiTest(IntStream.concat(IntStream.range(1, 101), IntStream.range(900, 1001))
-                .mapToObj(i -> getAccountBalance("0.0." + i).logged())
+                .mapToObj(i -> getAccountBalance(String.format("%s.%s.%s", shard, realm, i))
+                        .logged())
                 .toArray(HapiSpecOperation[]::new));
     }
 

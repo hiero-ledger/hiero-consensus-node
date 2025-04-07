@@ -146,6 +146,8 @@ public interface TaskSchedulerBuilder<OUT> {
     /**
      * Provide a custom uncaught exception handler for this task scheduler. If none is provided then the default
      * uncaught exception handler will be used. The default handler will write a message to the log.
+     * <p>The order in which the {@code UncaughtExceptionHandler} is executed is undefined, the only guarantee is that it will
+     * happen after the task that throws the exception.</p>
      *
      * @param uncaughtExceptionHandler the uncaught exception handler
      * @return this

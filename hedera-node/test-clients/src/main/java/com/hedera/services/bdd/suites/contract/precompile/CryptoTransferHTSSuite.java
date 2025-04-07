@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -51,6 +53,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
@@ -438,7 +441,7 @@ public class CryptoTransferHTSSuite {
 
     @HapiTest
     final Stream<DynamicTest> hapiTransferFromForNFTWithInvalidAddressesFails() {
-        final var NON_EXISTING_ADDRESS = "0x0000000000000000000000000000000000123456";
+        final var NON_EXISTING_ADDRESS = asSolidityAddress(SHARD, REALM, 123456);
         final var TXN_TO_NON_EXISTING_ADDRESS = "TXN_TO_NON_EXISTING_ADDRESS";
         final var TXN_FROM_NON_EXISTING_ADDRESS = "TXN_FROM_NON_EXISTING_ADDRESS";
         final var TXN_WITH_NON_EXISTING_NFT = "TXN_WITH_NON_EXISTING_NFT";
@@ -520,7 +523,7 @@ public class CryptoTransferHTSSuite {
 
     @HapiTest
     final Stream<DynamicTest> hapiTransferFromForFungibleTokenWithInvalidAddressesFails() {
-        final var NON_EXISTING_ADDRESS = "0x0000000000000000000000000000000000123456";
+        final var NON_EXISTING_ADDRESS = asSolidityAddress(SHARD, REALM, 123456);
         final var TXN_TO_NON_EXISTING_ADDRESS = "TXN_TO_NON_EXISTING_ADDRESS";
         final var TXN_FROM_NON_EXISTING_ADDRESS = "TXN_FROM_NON_EXISTING_ADDRESS";
         final var TXN_WITH_NON_EXISTING_TOKEN = "TXN_WITH_NON_EXISTING_TOKEN";
@@ -779,6 +782,7 @@ public class CryptoTransferHTSSuite {
                     final var sender = spec.registry().getAccountID(OWNER);
                     final var receiver = spec.registry().getAccountID(RECEIVER);
                     final var txnRecord = getTxnRecord(successfulTransferFromTxn)
+                            .logged()
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
                                             .logs(inOrder(logWith()
@@ -793,10 +797,7 @@ public class CryptoTransferHTSSuite {
                                                                     receiver.getShardNum(),
                                                                     receiver.getRealmNum(),
                                                                     receiver.getAccountNum()),
-                                                            parsedToByteString(
-                                                                    sender.getShardNum(),
-                                                                    sender.getRealmNum(),
-                                                                    2L)))))))
+                                                            parsedToByteString(0, 0, 2L)))))))
                             .andAllChildRecords()
                             .logged();
                     allRunFor(spec, txnRecord);
@@ -1725,6 +1726,8 @@ public class CryptoTransferHTSSuite {
                 final var token = spec.registry().getTokenID(FUNGIBLE_TOKEN);
                 final var sender = spec.registry().getAccountID(SENDER);
                 final var receiver = AccountID.newBuilder()
+                        .setShardNum(SHARD)
+                        .setRealmNum(REALM)
                         .setAccountNum(existingSystemAccounts.get(finalI))
                         .build();
 

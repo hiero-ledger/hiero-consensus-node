@@ -12,7 +12,6 @@ import com.swirlds.common.merkle.iterators.internal.PostOrderedDepthFirstRandomA
 import com.swirlds.common.merkle.iterators.internal.PreOrderedDepthFirstAlgorithm;
 import com.swirlds.common.merkle.iterators.internal.ReversePostOrderedDepthFirstAlgorithm;
 import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.common.threading.interrupt.InterruptableConsumer;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -21,6 +20,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.hiero.consensus.model.utility.interrupt.InterruptableConsumer;
 
 /**
  * Iterate over a merkle tree.

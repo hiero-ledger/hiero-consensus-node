@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.route;
 
-import com.swirlds.common.io.SelfSerializable;
 import java.util.Iterator;
 import java.util.List;
+import org.hiero.consensus.model.io.SelfSerializable;
 
 /**
  * <p>

@@ -4,12 +4,13 @@ package com.swirlds.state.lifecycle.info;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.utility.CommonUtils;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * Summarizes useful information about the nodes in the AddressBook from the Platform. In
@@ -59,12 +60,24 @@ public interface NodeInfo {
     Bytes sigCertBytes();
 
     /**
-     * The list of service endpoints of this node, as known by the internal and external worlds.
+     * The list of gossip endpoints of this node, as known by the internal and external worlds.
      * This has an IP address and port.
      *
      * @return The host name (IP Address) of this node
      */
     List<ServiceEndpoint> gossipEndpoints();
+
+    /**
+     * The list of HAPI endpoints of this node.
+     */
+    @NonNull
+    List<ServiceEndpoint> hapiEndpoints();
+
+    /**
+     * Declines node reward if true
+     * @return if node declines rewards
+     */
+    boolean declineReward();
 
     /**
      * The gossip X.509 certificate of this node.

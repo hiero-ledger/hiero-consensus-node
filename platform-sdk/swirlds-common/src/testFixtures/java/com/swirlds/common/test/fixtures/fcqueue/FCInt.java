@@ -2,11 +2,11 @@
 package com.swirlds.common.test.fixtures.fcqueue;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.AbstractSerializableHashable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import java.io.IOException;
 import java.util.Objects;
+import org.hiero.consensus.model.crypto.AbstractSerializableHashable;
+import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /** a FastCopyable class that does nothing but store a single 4-byte int */
 public class FCInt extends AbstractSerializableHashable implements FastCopyable {

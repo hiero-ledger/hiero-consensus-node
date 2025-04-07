@@ -3,8 +3,8 @@ package com.swirlds.platform.crypto;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.crypto.config.CryptoConfig;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -13,7 +13,6 @@ import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder.WeightDistributionStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
@@ -23,6 +22,7 @@ import java.security.NoSuchProviderException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.params.provider.Arguments;
 
 /**
@@ -50,7 +50,7 @@ public class CryptoArgsProvider {
     public static AddressBook createAddressBook(final int size) {
         final Roster roster = RandomRosterBuilder.create(Randotron.create())
                 .withSize(size)
-                .withWeightDistributionStrategy(WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
                 .build();
 
         // We still use the keys injection mechanism from the EnhancedKeyStoreLoader and CryptoStatic,

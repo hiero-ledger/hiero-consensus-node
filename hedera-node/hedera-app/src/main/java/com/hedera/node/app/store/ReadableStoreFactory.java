@@ -3,7 +3,9 @@ package com.hedera.node.app.store;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.ReadableHintsStore;
+import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
@@ -53,7 +55,6 @@ import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.ReadableRosterStore;
 import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -62,7 +63,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 /**
  * Factory for all readable stores. It creates new readable stores based on the {@link State}.
@@ -128,25 +128,26 @@ public class ReadableStoreFactory {
                 ReadableEntityIdStore.class,
                 new StoreEntry(
                         EntityIdService.NAME, (states, entityCounters) -> new ReadableEntityIdStoreImpl(states)));
+        // Hints service
+        newMap.put(
+                ReadableHintsStore.class,
+                new StoreEntry(HintsService.NAME, (states, entityCounters) -> new ReadableHintsStoreImpl(states)));
+        // History service
         newMap.put(
                 ReadableHistoryStore.class,
-                new StoreEntry(
-                        HistoryService.NAME, (states, entityCounters) -> new ReadableHistoryStoreImpl(states) {}));
+                new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new ReadableHistoryStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 
     private final State state;
-    private final Function<SemanticVersion, SoftwareVersion> versionFactory;
 
     /**
      * Constructor of {@code ReadableStoreFactory}
      *
      * @param state the {@link State} to use
      */
-    public ReadableStoreFactory(
-            @NonNull final State state, @NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
+    public ReadableStoreFactory(@NonNull final State state) {
         this.state = requireNonNull(state, "The supplied argument 'state' cannot be null!");
-        this.versionFactory = requireNonNull(versionFactory, "The supplied argument 'versionFactory' cannot be null!");
     }
 
     /**
@@ -170,9 +171,6 @@ public class ReadableStoreFactory {
             if (!storeInterface.isInstance(store)) {
                 throw new IllegalArgumentException("No instance " + storeInterface
                         + " is available"); // This needs to be ensured while stores are registered
-            }
-            if (store instanceof ReadablePlatformStateStore readablePlatformStateStore) {
-                readablePlatformStateStore.setVersionFactory(versionFactory);
             }
             return storeInterface.cast(store);
         }

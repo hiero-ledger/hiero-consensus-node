@@ -11,7 +11,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
@@ -25,12 +24,10 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
-@OrderedInIsolation
 public class HRCTokenClaimTest {
 
     @Account(name = "sender", tinybarBalance = 100_000_000_000L)
@@ -53,7 +50,6 @@ public class HRCTokenClaimTest {
                 nft.treasury().transferNFTsTo(sender, nft, 1L));
     }
 
-    @Order(0)
     @HapiTest
     @DisplayName("Can claim airdrop of fungible token")
     public Stream<DynamicTest> canClaimAirdropOfFungibleToken() {
@@ -67,7 +63,6 @@ public class HRCTokenClaimTest {
                 receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10L)));
     }
 
-    @Order(1)
     @HapiTest
     @DisplayName("Can claim airdrop of nft token")
     public Stream<DynamicTest> canClaimAirdropOfNftToken() {
@@ -81,7 +76,6 @@ public class HRCTokenClaimTest {
                 receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 1L)));
     }
 
-    @Order(2)
     @HapiTest
     @DisplayName("Cannot claim airdrop if not existing")
     public Stream<DynamicTest> cannotClaimAirdropWhenNotExisting() {
@@ -91,7 +85,6 @@ public class HRCTokenClaimTest {
                 .andAssert(txn -> txn.hasKnownStatuses(SUCCESS, INVALID_PENDING_AIRDROP_ID)));
     }
 
-    @Order(3)
     @HapiTest
     @DisplayName("Cannot claim airdrop if sender not existing")
     public Stream<DynamicTest> cannotClaimAirdropWhenSenderNotExisting() {
@@ -101,7 +94,6 @@ public class HRCTokenClaimTest {
                 .andAssert(txn -> txn.hasKnownStatuses(SUCCESS, INVALID_PENDING_AIRDROP_ID)));
     }
 
-    @Order(4)
     @HapiTest
     @DisplayName("Cannot claim nft airdrop if not existing")
     public Stream<DynamicTest> cannotClaimNftAirdropWhenNotExisting() {
@@ -111,7 +103,6 @@ public class HRCTokenClaimTest {
                 .andAssert(txn -> txn.hasKnownStatuses(SUCCESS, INVALID_PENDING_AIRDROP_ID)));
     }
 
-    @Order(5)
     @HapiTest
     @DisplayName("Cannot claim nft airdrop if sender not existing")
     public Stream<DynamicTest> cannotClaimNftAirdropWhenSenderNotExisting() {

@@ -4,11 +4,11 @@ package com.swirlds.common.test.fixtures.crypto;
 import com.swirlds.common.crypto.KeyType;
 import com.swirlds.common.crypto.KeyUtils;
 import com.swirlds.common.crypto.SerializablePublicKey;
-import com.swirlds.common.utility.CommonUtils;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.List;
+import org.hiero.consensus.model.utility.CommonUtils;
 
 public class PreGeneratedPublicKeys {
     public static List<String> rsaPublicKeys = List.of(

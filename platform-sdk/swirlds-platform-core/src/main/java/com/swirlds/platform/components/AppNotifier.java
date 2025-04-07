@@ -5,10 +5,10 @@ import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.components.appcomm.CompleteStateNotificationWithCleanup;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
-import com.swirlds.platform.system.state.notifications.IssNotification;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * A component that wraps around a notification engine, for sending notifications to the app.

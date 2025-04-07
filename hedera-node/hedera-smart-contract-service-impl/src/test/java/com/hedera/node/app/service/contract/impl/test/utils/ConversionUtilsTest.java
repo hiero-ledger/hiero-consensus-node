@@ -10,6 +10,10 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.BESU_LO
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.INVALID_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.LONG_ZERO_ADDRESS_BYTES;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.LONG_ZERO_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_LONG_ZERO_ADDRESS_BYTES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_STORAGE_ACCESSES;
@@ -25,11 +29,14 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToBesuAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToNum;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -40,6 +47,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractLoginfo;
@@ -50,14 +58,13 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperatio
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Objects;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.log.LogsBloomFilter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,6 +73,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ConversionUtilsTest {
+
     @Mock
     private HederaNativeOperations nativeOperations;
 
@@ -81,7 +89,7 @@ class ConversionUtilsTest {
 
     @Test
     void besuAddressIsZeroForDefaultContractId() {
-        assertEquals(Address.ZERO, contractIDToBesuAddress(ContractID.DEFAULT));
+        assertEquals(Address.ZERO, contractIDToBesuAddress(entityIdFactory, ContractID.DEFAULT));
     }
 
     @Test
@@ -128,7 +136,7 @@ class ConversionUtilsTest {
     @Test
     void returnsNumberIfSmallLongZeroAddressIsPresent() {
         final long number = A_NEW_ACCOUNT_ID.accountNumOrThrow();
-        given(nativeOperations.getAccount(number)).willReturn(SOMEBODY);
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address = asHeadlongAddress(asEvmAddress(shard, realm, number));
         final var actual = accountNumberForEvmReference(address, nativeOperations);
@@ -138,7 +146,7 @@ class ConversionUtilsTest {
     @Test
     void returnsNonCanonicalRefIfSmallLongZeroAddressRefersToAliasedAccount() {
         final var address = asHeadlongAddress(Address.fromHexString("0x1234").toArray());
-        given(nativeOperations.getAccount(0x1234)).willReturn(ALIASED_SOMEBODY);
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(ALIASED_SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var actual = accountNumberForEvmReference(address, nativeOperations);
         assertEquals(NON_CANONICAL_REFERENCE_NUMBER, actual);
@@ -186,7 +194,7 @@ class ConversionUtilsTest {
 
     @Test
     void convertsFromBesuLogAsExpected() {
-        final var expectedBloom = Bytes.wrap(bloomFor(BESU_LOG));
+        final var expectedBloom = Bytes.wrap(bloomFor());
         final var expected = ContractLoginfo.newBuilder()
                 .contractID(ContractID.newBuilder().contractNum(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .bloom(tuweniToPbjBytes(expectedBloom))
@@ -201,7 +209,7 @@ class ConversionUtilsTest {
 
     @Test
     void convertsFromBesuLogsAsExpected() {
-        final var expectedBloom = Bytes.wrap(bloomFor(BESU_LOG));
+        final var expectedBloom = Bytes.wrap(bloomFor());
         final var expected = ContractLoginfo.newBuilder()
                 .contractID(ContractID.newBuilder().contractNum(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .bloom(tuweniToPbjBytes(expectedBloom))
@@ -244,11 +252,12 @@ class ConversionUtilsTest {
 
     @Test
     void convertContractIdToBesuAddressTest() {
-        final var actual = ConversionUtils.contractIDToBesuAddress(CALLED_CONTRACT_ID);
-        assertEquals(actual, asLongZeroAddress(entityIdFactory, CALLED_CONTRACT_ID.contractNum()));
+        final var actual = ConversionUtils.contractIDToBesuAddress(entityIdFactory, CALLED_CONTRACT_ID);
+        assertEquals(
+                actual, asLongZeroAddress(entityIdFactory, Objects.requireNonNull(CALLED_CONTRACT_ID.contractNum())));
 
-        final var actual2 = ConversionUtils.contractIDToBesuAddress(VALID_CONTRACT_ADDRESS);
-        assertEquals(actual2, pbjToBesuAddress(VALID_CONTRACT_ADDRESS.evmAddress()));
+        final var actual2 = ConversionUtils.contractIDToBesuAddress(entityIdFactory, VALID_CONTRACT_ADDRESS);
+        assertEquals(actual2, pbjToBesuAddress(Objects.requireNonNull(VALID_CONTRACT_ADDRESS.evmAddress())));
     }
 
     @Test
@@ -278,7 +287,34 @@ class ConversionUtilsTest {
         assertArrayEquals(expected, actual, "EVM address is not as expected");
     }
 
-    private byte[] bloomFor(@NonNull final Log log) {
-        return LogsBloomFilter.builder().insertLog(log).build().toArray();
+    @Test
+    void isLongZeroAddressTest() {
+        assertThat(isLongZeroAddress(entityIdFactory, LONG_ZERO_ADDRESS_BYTES.toByteArray()))
+                .isTrue();
+    }
+
+    @Test
+    void isLongZeroAddressWrongTest() {
+        assertThat(isLongZeroAddress(entityIdFactory, NON_LONG_ZERO_ADDRESS_BYTES.toByteArray()))
+                .isFalse();
+    }
+
+    @Test
+    void evmContractIDToNumTest() {
+        assertThat(contractIDToNum(entityIdFactory, LONG_ZERO_CONTRACT_ID)).isEqualTo(291);
+    }
+
+    @Test
+    void evmContractIDToNumZeroTest() {
+        assertThat(contractIDToNum(entityIdFactory, INVALID_CONTRACT_ADDRESS)).isEqualTo(0);
+    }
+
+    @Test
+    void evmContractIDToNumNonLongZeroTest() {
+        assertThat(contractIDToNum(entityIdFactory, VALID_CONTRACT_ADDRESS)).isEqualTo(0);
+    }
+
+    private byte[] bloomFor() {
+        return LogsBloomFilter.builder().insertLog(BESU_LOG).build().toArray();
     }
 }

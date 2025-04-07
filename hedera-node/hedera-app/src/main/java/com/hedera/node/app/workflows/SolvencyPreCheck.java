@@ -230,7 +230,7 @@ public class SolvencyPreCheck {
             @NonNull final HederaFunctionality functionality, @NonNull final Instant consensusTime) {
         final var feeData = feeManager.getFeeData(functionality, consensusTime, SubType.DEFAULT);
         final long priceInTinyCents = feeData.servicedataOrThrow().gas() / FEE_DIVISOR_FACTOR;
-        final long priceInTinyBars = exchangeRateManager.getTinybarsFromTinyCents(priceInTinyCents, consensusTime);
+        final long priceInTinyBars = exchangeRateManager.getTinybarsFromTinycents(priceInTinyCents, consensusTime);
         return Math.max(priceInTinyBars, 1L);
     }
 }
