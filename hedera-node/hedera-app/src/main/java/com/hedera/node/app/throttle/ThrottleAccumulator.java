@@ -807,7 +807,7 @@ public class ThrottleAccumulator {
     }
 
     private boolean shouldThrottleBasedExcessBytes(final long bytesUsed, @NonNull final Instant now) {
-        // If the bucket doesn't allow the thx enforce the throttle
+        // If the bucket doesn't allow the txn enforce the throttle
         return bytesThrottle != null && !bytesThrottle.allow(now, bytesUsed);
     }
 
