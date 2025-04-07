@@ -89,6 +89,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PENDING_NFT_AI
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNEXPECTED_TOKEN_DECIMALS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -941,7 +942,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     tokenDissociate(collector, "denomToken"),
                     tokenAirdrop(moving(5, "FT").between(sender, "receiver"))
                             .payingWith(sender)
-                            .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
+                            .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR));
         }
 
         @HapiTest
