@@ -71,10 +71,14 @@ public class ChildlessEventTracker {
      * @param eventWindow the event window
      */
     public void pruneOldEvents(@NonNull final EventWindow eventWindow) {
+        final Set<EventDescriptorWrapper> keysToRemove = new HashSet<>();
         for (final EventDescriptorWrapper event : childlessEvents.keySet()) {
             if (eventWindow.isAncient(event)) {
-                removeEvent(event);
+                keysToRemove.add(event);
             }
+        }
+        for (final EventDescriptorWrapper event : keysToRemove) {
+            removeEvent(event);
         }
     }
 

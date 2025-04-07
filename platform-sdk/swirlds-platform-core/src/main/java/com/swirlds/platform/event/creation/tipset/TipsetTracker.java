@@ -60,9 +60,8 @@ public class TipsetTracker {
      * @param roster      the current roster
      * @param ancientMode the {@link AncientMode} to use
      */
-    public TipsetTracker(
-            @NonNull final Time time, @NonNull final Roster roster, @NonNull final AncientMode ancientMode,
-            @NonNull final NodeId selfId) {
+    public TipsetTracker(@NonNull final Time time, @NonNull final NodeId selfId, @NonNull final Roster roster,
+            @NonNull final AncientMode ancientMode) {
 
         this.roster = Objects.requireNonNull(roster);
         this.selfId = Objects.requireNonNull(selfId);
@@ -97,14 +96,15 @@ public class TipsetTracker {
     }
 
     /**
-     * Add a new self event to the tracker.
+     * Add a new self event to the tracker. We track the tipset for all events, including self events, but since self
+     * advancement never counts toward the advancement score, the latest self generation is never updated.
      *
      * @param event the self event to add
      * @return the tipset for the new self event
      */
     @NonNull
     public Tipset addSelfEvent(@NonNull final UnsignedEvent event) {
-        throwIfNotSelfEvent(event.getDescriptor());
+        logIfNotSelfEvent(event.getDescriptor());
         logIfAncient(event.getDescriptor());
 
         final List<Tipset> parentTipsets = getParentTipsets(event.getMetadata().getAllParents());
@@ -127,10 +127,20 @@ public class TipsetTracker {
         return eventTipset;
     }
 
-    private void throwIfNotSelfEvent(@NonNull final EventDescriptorWrapper descriptor) {
-        logger.error(EXCEPTION.getMarker(),
-                "Attempt to add other event as self event to the TipsetTracker. Self Id: {}, Event Creator: {}",
-                selfId.id(), descriptor.creator());
+    private void logIfNotSelfEvent(@NonNull final EventDescriptorWrapper descriptor) {
+        if (!selfId.equals(descriptor.creator())) {
+            logger.error(EXCEPTION.getMarker(),
+                    "Attempt to add peer event as self event to the TipsetTracker. Self Id: {}, Event Creator: {}",
+                    selfId.id(), descriptor.creator());
+        }
+    }
+
+    private void logIfSelfEvent(@NonNull final EventDescriptorWrapper descriptor) {
+        if (selfId.equals(descriptor.creator())) {
+            logger.error(EXCEPTION.getMarker(),
+                    "Attempt to add self event as peer event to the TipsetTracker. Self Id: {}, Event Creator: {}",
+                    selfId.id(), descriptor.creator());
+        }
     }
 
     @NonNull
@@ -146,13 +156,14 @@ public class TipsetTracker {
     }
 
     /**
-     * Add a new event to the tracker created by another node.
+     * Add a new event, not created by this node, to the tracker created by another node.
      *
-     * @param event the event to add
+     * @param event the peer event to add
      * @return the tipset for the event that was added
      */
     @NonNull
-    public Tipset addEvent(@NonNull final PlatformEvent event) {
+    public Tipset addPeerEvent(@NonNull final PlatformEvent event) {
+        logIfSelfEvent(event.getDescriptor());
         logIfAncient(event.getDescriptor());
 
         final List<Tipset> parentTipsets = getParentTipsets(event.getAllParents());
@@ -179,17 +190,17 @@ public class TipsetTracker {
     }
 
     private void logIfAncient(@NonNull final EventDescriptorWrapper eventDescriptorWrapper) {
-            if (eventWindow.isAncient(eventDescriptorWrapper)) {
-                // Note: although we don't immediately return from this method, the tipsets.put()
-                // will not update the data structure for an ancient event. We should never
-                // enter this bock of code. This log is here as a canary to alert us if we somehow do.
-                ancientEventLogger.error(
-                        EXCEPTION.getMarker(),
-                        "Rejecting ancient event from {} with threshold {}. Current event window is {}",
-                        eventDescriptorWrapper.creator(),
-                        ancientMode.selectIndicator(eventDescriptorWrapper),
-                        eventWindow);
-            }
+        if (eventWindow.isAncient(eventDescriptorWrapper)) {
+            // Note: although we don't immediately return from this method, the tipsets.put()
+            // will not update the data structure for an ancient event. We should never
+            // enter this bock of code. This log is here as a canary to alert us if we somehow do.
+            ancientEventLogger.error(
+                    EXCEPTION.getMarker(),
+                    "Rejecting ancient event from {} with threshold {}. Current event window is {}",
+                    eventDescriptorWrapper.creator(),
+                    ancientMode.selectIndicator(eventDescriptorWrapper),
+                    eventWindow);
+        }
     }
 
     /**

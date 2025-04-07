@@ -22,6 +22,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
@@ -158,6 +159,8 @@ public class TestingEventBuilder {
      */
     private Long consensusOrder;
 
+    private long nGen;
+
     /**
      * Constructor
      *
@@ -178,6 +181,11 @@ public class TestingEventBuilder {
      */
     public @NonNull TestingEventBuilder setCreatorId(@Nullable final NodeId creatorId) {
         this.creatorId = creatorId;
+        return this;
+    }
+
+    public @NonNull TestingEventBuilder setNGen(final long nGen) {
+        this.nGen = nGen;
         return this;
     }
 
@@ -576,6 +584,8 @@ public class TestingEventBuilder {
         final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, signature);
 
         platformEvent.setHash(CryptoRandomUtils.randomHash(random));
+
+        platformEvent.setNGen(nGen);
 
         if (consensusTimestamp != null || consensusOrder != null) {
             platformEvent.setConsensusData(new EventConsensusData.Builder()

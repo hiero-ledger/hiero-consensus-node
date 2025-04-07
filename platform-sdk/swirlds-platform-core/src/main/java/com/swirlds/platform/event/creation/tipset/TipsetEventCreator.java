@@ -3,7 +3,6 @@ package com.swirlds.platform.event.creation.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
-import static org.hiero.consensus.model.event.EventConstants.CREATOR_ID_UNDEFINED;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -11,10 +10,8 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.stream.HashSigner;
-import com.swirlds.common.stream.Signer;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.components.transaction.TransactionSupplier;
-import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.event.EventUtils;
 import com.swirlds.platform.event.creation.EventCreator;
 import com.swirlds.platform.event.hashing.PbjStreamHasher;
@@ -26,12 +23,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
-import org.antlr.v4.runtime.misc.NotNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
@@ -138,7 +133,7 @@ public class TipsetEventCreator implements EventCreator {
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
-        tipsetTracker = new TipsetTracker(time, roster, ancientMode, selfId);
+        tipsetTracker = new TipsetTracker(time, selfId, roster, ancientMode);
         childlessOtherEventTracker = new ChildlessEventTracker();
         tipsetWeightCalculator =
                 new TipsetWeightCalculator(platformContext, roster, selfId, tipsetTracker, childlessOtherEventTracker);
@@ -179,7 +174,7 @@ public class TipsetEventCreator implements EventCreator {
             }
         }
 
-        tipsetTracker.addEvent(event);
+        tipsetTracker.addPeerEvent(event);
 
         if (!selfEvent) {
             childlessOtherEventTracker.addEvent(event);
@@ -405,49 +400,19 @@ public class TipsetEventCreator implements EventCreator {
                     now, lastSelfEvent.getTimeCreated(), lastSelfEvent.getTransactionCount());
         }
 
-        final long nGen = EventUtils.calculateNGen(getParentNGens(otherParent));
-
         final UnsignedEvent event = new UnsignedEvent(
                 softwareVersion,
                 selfId,
-                lastSelfEvent.getDescriptor(),
+                lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent),
                 eventWindow.getAncientMode() == AncientMode.BIRTH_ROUND_THRESHOLD
                         ? eventWindow.getPendingConsensusRound()
                         : ConsensusConstants.ROUND_FIRST,
-                nGen,
                 timeCreated,
                 transactionSupplier.getTransactions());
         eventHasher.hashUnsignedEvent(event);
 
         return event;
-    }
-
-    @NonNull
-    private Collection<Long> getParentNGens(@Nullable final EventDescriptorWrapper otherParentDesc) {
-        final Collection<Long> parentNGens = new ArrayList<>(2);
-        if (otherParentDesc != null) {
-            final PlatformEvent otherParent = childlessOtherEventTracker.getChildlessEvent(otherParentDesc);
-            if (otherParent != null) {
-                parentNGens.add(otherParent.getNGen());
-            }
-        }
-        if (lastSelfEvent != null) {
-            parentNGens.add(lastSelfEvent.getNGen());
-        }
-        return parentNGens;
-    }
-
-    /**
-     * Get the creator of a descriptor, handle null appropriately.
-     */
-    @Nullable
-    private static NodeId getCreator(@Nullable final EventDescriptorWrapper descriptor) {
-        if (descriptor == null) {
-            return CREATOR_ID_UNDEFINED;
-        } else {
-            return descriptor.creator();
-        }
     }
 
     /**

@@ -66,23 +66,4 @@ public final class EventUtils {
         return event.getTransactionTime(event.getTransactionCount() - 1);
     }
 
-    /**
-     * Calculates the nGen of an event given its parent nGen values. All non-ancient parent nGens must be provided or
-     * the calculated value will not be accurate. The nGen value is the max of all non-ancient parent nGen values + 1,
-     * or {@link EventConstants#FIRST_GENERATION} if there are no such parents.
-     *
-     * @param parentNGens the complete collection of all non-ancient parent nGen values
-     */
-    public static long calculateNGen(@NonNull final Collection<Long> parentNGens) {
-        long maxParentNGen = EventConstants.GENERATION_UNDEFINED;
-        for (final Long parentNGen : parentNGens) {
-            if (parentNGen != null) {
-                maxParentNGen = Math.max(maxParentNGen, parentNGen);
-            }
-        }
-        return maxParentNGen == EventConstants.GENERATION_UNDEFINED
-                ? EventConstants.FIRST_GENERATION
-                : maxParentNGen + 1;
-    }
-
 }

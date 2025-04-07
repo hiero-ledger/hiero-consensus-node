@@ -1,158 +1,315 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.tipset;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
-import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
-import com.hedera.hapi.platform.event.EventDescriptor;
 import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
-import edu.umd.cs.findbugs.annotations.NonNull;
+import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
-import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 
 @DisplayName("ChildlessEventTracker Tests")
 class ChildlessEventTrackerTests {
 
-    /**
-     * The childless event tracker doesn't track branches in the hashgraph, it only stores whatever branch has produced
-     * the event with the highest generation. Return a set that contains only the event from the latest branch from each
-     * creator.
-     */
-    @NonNull
-    private Set<EventDescriptorWrapper> removeBranches(@NonNull List<EventDescriptorWrapper> events) {
-        final Map<NodeId, EventDescriptorWrapper> uniqueEvents = new HashMap<>();
+    @Test
+    @DisplayName("Newest events by creator are tracked")
+    void testNewestEventsByCreatorAreKept() {
+        final Random random = getRandomPrintSeed();
+        final int numNodes = random.nextInt(10, 100);
 
-        for (final EventDescriptorWrapper event : events) {
-            final EventDescriptorWrapper existingEvent = uniqueEvents.get(event.creator());
-            if (existingEvent == null
-                    || existingEvent.eventDescriptor().generation()
-                            < event.eventDescriptor().generation()) {
-                uniqueEvents.put(event.creator(), event);
-            }
+        final ChildlessEventTracker tracker = new ChildlessEventTracker();
+
+        // Add some events with no parents
+        loadTrackerWithInitialEvents(random, tracker, numNodes);
+
+        // Increase generation. Each creator will create a new event with a higher
+        // non-deterministic generation and unknown parents. Only the new events should
+        // be tracked because they have a higher nGen.
+        final List<PlatformEvent> batch2 = new ArrayList<>();
+        for (int nodeId = 0; nodeId < numNodes; nodeId++) {
+            final NodeId nonExistentParentId1 = NodeId.of(nodeId + 100);
+            final PlatformEvent nonExistentParent1 =
+                    new TestingEventBuilder(random)
+                            .setCreatorId(nonExistentParentId1)
+                            .setNGen(0)
+                            .build();
+
+            final NodeId nonExistentParentId2 = NodeId.of(nodeId + 100);
+            final PlatformEvent nonExistentParent2 =
+                    new TestingEventBuilder(random)
+                            .setCreatorId(nonExistentParentId2)
+                            .setNGen(0)
+                            .build();
+
+            final PlatformEvent event = new TestingEventBuilder(random)
+                    .setCreatorId(NodeId.of(nodeId))
+                    .setSelfParent(nonExistentParent1)
+                    .setOtherParent(nonExistentParent2)
+                    .setNGen(1)
+                    .build();
+
+            tracker.addEvent(event);
+            assertThat(tracker.getChildlessEvents()).contains(event);
+            assertThat(tracker.getChildlessEvent(event.getDescriptor())).isEqualTo(event);
+            batch2.add(event);
         }
 
-        return new HashSet<>(uniqueEvents.values());
+        assertThat(tracker.getChildlessEvents().size()).isEqualTo(batch2.size());
+        assertThat(tracker.getChildlessEvents())
+                .withFailMessage("Only the new events with higher generations should be tracked")
+                .containsAll(batch2);
+
+        // Decrease generation for all nodes. Each creator will create a new event, with a lower
+        // non-deterministic generation and unknown parents. None of these events should
+        // be tracked because they have a lower nGen.
+        for (int nodeId = 0; nodeId < numNodes; nodeId++) {
+            final NodeId nonExistentParentId1 = NodeId.of(nodeId + 100);
+            final PlatformEvent nonExistentParent1 =
+                    new TestingEventBuilder(random)
+                            .setCreatorId(nonExistentParentId1)
+                            .setNGen(0)
+                            .build();
+
+            final NodeId nonExistentParentId2 = NodeId.of(nodeId + 100);
+            final PlatformEvent nonExistentParent2 =
+                    new TestingEventBuilder(random)
+                            .setCreatorId(nonExistentParentId2)
+                            .setNGen(0)
+                            .build();
+
+            final PlatformEvent event = new TestingEventBuilder(random)
+                    .setCreatorId(NodeId.of(nodeId))
+                    .setSelfParent(nonExistentParent1)
+                    .setOtherParent(nonExistentParent2)
+                    .setNGen(0)
+                    .build();
+
+            tracker.addEvent(event);
+            assertThat(tracker.getChildlessEvents()).doesNotContain(event);
+            assertThat(tracker.getChildlessEvent(event.getDescriptor())).isNotEqualTo(event);
+        }
+
+        assertThat(tracker.getChildlessEvents().size()).isEqualTo(batch2.size());
+        assertThat(tracker.getChildlessEvents())
+                .withFailMessage("Tracked events should not have changed after adding older events")
+                .containsAll(batch2);
     }
 
     @Test
-    @DisplayName("Basic Behavior Test")
-    void basicBehaviorTest() {
+    @DisplayName("Events with children are not tracked")
+    void testEventsWithChildrenAreNotTracked() {
         final Random random = getRandomPrintSeed();
 
         final ChildlessEventTracker tracker = new ChildlessEventTracker();
 
-        // Adding some event with no parents
-        final List<EventDescriptorWrapper> batch1 = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            final EventDescriptorWrapper descriptor = newEventDescriptor(randomHash(random), NodeId.of(i), 0);
-            tracker.addEvent(descriptor, List.of());
-            batch1.add(descriptor);
-        }
+        // Add 3 events, created by different nodes with no parents
+        final List<PlatformEvent> initialEvents = loadTrackerWithInitialEvents(random, tracker, 3);
 
-        assertEquals(new HashSet<>(batch1), new HashSet<>(tracker.getChildlessEvents()));
+        // Add a newer event that has two of the existing events as parents
+        final PlatformEvent eventWithTwoParents = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(0))
+                .setSelfParent(initialEvents.get(0))
+                .setOtherParent(initialEvents.get(1))
+                .setNGen(1)
+                .build();
+        tracker.addEvent(eventWithTwoParents);
 
-        // Increase generation. All new events will either have parents with odd node
-        // IDs or parents that haven't been registered yet. When this is completed,
-        // the new events should be tracked, and all registered parents should not be.
+        assertThat(tracker.getChildlessEvents())
+                .withFailMessage("Tracker should contain the newly added event")
+                .contains(eventWithTwoParents);
+        assertThat(tracker.getChildlessEvents())
+                .withFailMessage("Tracker should contain the single initial event that was not used as a parent")
+                .contains(initialEvents.get(2));
+        assertThat(tracker.getChildlessEvents().size())
+                .withFailMessage("There should now be two childless events")
+                .isEqualTo(2);
 
-        final List<EventDescriptorWrapper> batch2 = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            final NodeId nonExistentParentId = NodeId.of(i + 100);
-            final EventDescriptorWrapper nonExistentParent =
-                    newEventDescriptor(randomHash(random), nonExistentParentId, 0);
-            final int oddParentId = (i * 2 + 1) % 10;
-            final EventDescriptorWrapper oddParent = batch1.get(oddParentId);
+        // Create a new event who uses the final initial event as both parents
+        final PlatformEvent eventWithSameParents = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(2))
+                .setSelfParent(initialEvents.get(2))
+                .setOtherParent(initialEvents.get(2))
+                .setNGen(1)
+                .build();
+        tracker.addEvent(eventWithSameParents);
 
-            final EventDescriptorWrapper descriptor = newEventDescriptor(randomHash(), NodeId.of(i), 1);
-            tracker.addEvent(descriptor, List.of(nonExistentParent, oddParent));
-            batch2.add(descriptor);
-        }
-
-        final List<EventDescriptorWrapper> expectedEvents = new ArrayList<>(batch2);
-        for (final EventDescriptorWrapper descriptor : batch1) {
-            if (descriptor.eventDescriptor().creatorNodeId() % 2 == 0) {
-                expectedEvents.add(descriptor);
-            }
-        }
-
-        assertEquals(removeBranches(expectedEvents), new HashSet<>(tracker.getChildlessEvents()));
-
-        // Increase the minimum generation non-ancient to 1, all events from batch1 should be removed
-        // FUTURE WORK: Change the test to use round instead of generation for ancient.
-        tracker.pruneOldEvents(
-                new EventWindow(1, 1, 0 /* ignored in this context */, AncientMode.GENERATION_THRESHOLD));
-
-        assertEquals(removeBranches(batch2), new HashSet<>(tracker.getChildlessEvents()));
+        assertThat(tracker.getChildlessEvents())
+                .withFailMessage("Tracker should contain the newly added event")
+                .contains(eventWithSameParents);
+        assertThat(tracker.getChildlessEvents())
+                .withFailMessage("Tracker should contain the single initial event that was not used as a parent")
+                .contains(eventWithTwoParents);
+        assertThat(tracker.getChildlessEvents().size())
+                .withFailMessage("There should still be two childless events")
+                .isEqualTo(2);
     }
 
-    @Test
-    @DisplayName("Branching Test")
-    void branchingTest() {
+    @ParameterizedTest
+    @EnumSource(AncientMode.class)
+    @DisplayName("Ancient events are removed when they become ancient")
+    void testAncientEventsArePruned(final AncientMode ancientMode) {
         final Random random = getRandomPrintSeed();
+        final int numNodes = random.nextInt(10, 100);
 
         final ChildlessEventTracker tracker = new ChildlessEventTracker();
 
-        final EventDescriptorWrapper e0 = newEventDescriptor(randomHash(random), NodeId.of(0), 0);
-        final EventDescriptorWrapper e1 = newEventDescriptor(randomHash(random), NodeId.of(0), 1);
-        final EventDescriptorWrapper e2 = newEventDescriptor(randomHash(random), NodeId.of(0), 2);
+        // Add some events with no parents. Make each event have a different generation and birth round
+        // so it is easy to track which should be pruned later.
+        final long ancientThresholdOffset = 100;
+        final Map<Long, PlatformEvent> eventsByCreator = new HashMap<>();
+        for (long nodeId = 0; nodeId < numNodes; nodeId++) {
 
-        tracker.addEvent(e0, List.of());
-        tracker.addEvent(e1, List.of(e0));
-        tracker.addEvent(e2, List.of(e1));
+            final NodeId nonExistentParentId1 = NodeId.of(nodeId + 100);
+            final PlatformEvent nonExistentParent1 =
+                    new TestingEventBuilder(random)
+                            .setCreatorId(nonExistentParentId1)
+                            .setNGen(0)
+                            .build();
+            final NodeId nonExistentParentId2 = NodeId.of(nodeId + 101);
+            final PlatformEvent nonExistentParent2 =
+                    new TestingEventBuilder(random)
+                            .setCreatorId(nonExistentParentId2)
+                            .setNGen(0)
+                            .build();
 
-        final List<EventDescriptorWrapper> batch1 = tracker.getChildlessEvents();
-        assertEquals(1, batch1.size());
-        assertEquals(e2, batch1.get(0));
+            final long parentGeneration = nodeId + ancientThresholdOffset - 1;
+            final long birthRound = nodeId + ancientThresholdOffset;
+            final PlatformEvent event = new TestingEventBuilder(random)
+                    .setCreatorId(NodeId.of(nodeId))
+                    .setBirthRound(birthRound)
+                    .setSelfParent(nonExistentParent1)
+                    .setOtherParent(nonExistentParent2)
+                    .overrideSelfParentGeneration(parentGeneration)
+                    .overrideOtherParentGeneration(parentGeneration)
+                    .setNGen(1)
+                    .build();
+            tracker.addEvent(event);
+            assertThat(tracker.getChildlessEvents()).contains(event);
+            assertThat(tracker.getChildlessEvent(event.getDescriptor())).isEqualTo(event);
+            eventsByCreator.put(nodeId, event);
+        }
 
-        final EventDescriptorWrapper e3 = newEventDescriptor(randomHash(random), NodeId.of(0), 3);
-        final EventDescriptorWrapper e3Branch = newEventDescriptor(randomHash(random), NodeId.of(0), 3);
+        assertThat(tracker.getChildlessEvents().size()).isEqualTo(eventsByCreator.size());
+        assertThat(tracker.getChildlessEvents())
+                .withFailMessage("Tracker should contain the most recent events from each node")
+                .containsAll(eventsByCreator.values());
+
+        // Increment the ancient threshold by 1 each iteration. All events in the tracker have
+        // a unique, monotonically increasing ancient threshold value (generation/birth round),
+        // so one event should be pruned in each event window update.
+        for (long nodeId = 0; nodeId < numNodes; nodeId++) {
+            final long ancientThreshold = nodeId + ancientThresholdOffset + 1;
+            tracker.pruneOldEvents(
+                    new EventWindow(ancientThreshold + 1, /* Ignored in this context */
+                            ancientThreshold,
+                            1, /* Ignored in this context */
+                            ancientMode));
+            final PlatformEvent event = eventsByCreator.get(nodeId);
+            assertThat(tracker.getChildlessEvents())
+                    .withFailMessage("Tracker should have pruned event {}", event.getDescriptor())
+                    .doesNotContain(event);
+            assertThat(tracker.getChildlessEvent(event.getDescriptor()))
+                    .withFailMessage("Tracker should have pruned event {}", event.getDescriptor())
+                    .isNull();
+            assertThat(tracker.getChildlessEvents().size())
+                    .withFailMessage("A single event should be pruned each time the event window is incremented")
+                    .isEqualTo(numNodes - nodeId - 1);
+        }
+    }
+
+    @Test
+    @DisplayName("Only the highest generation events from a branch are tracked")
+    void testHighestGenBranchedEventsAreTracked() {
+        final Random random = getRandomPrintSeed();
+
+        final ChildlessEventTracker tracker = new ChildlessEventTracker();
+        final NodeId nodeId = NodeId.of(0);
+
+        final PlatformEvent e0 = new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(0).build();
+        final PlatformEvent e1 = new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(1).build();
+        final PlatformEvent e2 = new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(2).build();
+
+        tracker.addEvent(e0);
+        tracker.addEvent(e1);
+        tracker.addEvent(e2);
+
+        assertThat(tracker.getChildlessEvents().size()).isEqualTo(1);
+        assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e2);
+
+        final PlatformEvent e3 = new TestingEventBuilder(random)
+                .setCreatorId(nodeId)
+                .setSelfParent(e2)
+                .setNGen(3)
+                .build();
+        final PlatformEvent e3Branch = new TestingEventBuilder(random)
+                .setCreatorId(nodeId)
+                .setSelfParent(e2)
+                .setNGen(3)
+                .build();
 
         // Branch with the same generation, existing event should not be discarded.
-        tracker.addEvent(e3, List.of(e2));
-        tracker.addEvent(e3Branch, List.of(e2));
+        tracker.addEvent(e3);
+        tracker.addEvent(e3Branch);
 
-        final List<EventDescriptorWrapper> batch2 = tracker.getChildlessEvents();
-        assertEquals(1, batch2.size());
-        assertEquals(e3, batch2.get(0));
+        assertThat(tracker.getChildlessEvents().size()).isEqualTo(1);
+        assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e3);
 
         // Branch with a lower generation, existing event should not be discarded.
-        final EventDescriptorWrapper e2Branch = newEventDescriptor(randomHash(random), NodeId.of(0), 2);
-        tracker.addEvent(e2Branch, List.of(e1));
+        final PlatformEvent e2Branch = new TestingEventBuilder(random)
+                .setCreatorId(nodeId)
+                .setSelfParent(e1)
+                .setNGen(2)
+                .build();
+        tracker.addEvent(e2Branch);
 
-        assertEquals(1, batch2.size());
-        assertEquals(e3, batch2.get(0));
+        assertThat(tracker.getChildlessEvents().size()).isEqualTo(1);
+        assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e3);
 
         // Branch with a higher generation, existing event should be discarded.
-        final EventDescriptorWrapper e99Branch = newEventDescriptor(randomHash(random), NodeId.of(0), 99);
-        tracker.addEvent(e99Branch, List.of());
+        final PlatformEvent e99Branch = new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(99).build();
+        tracker.addEvent(e99Branch);
 
-        final List<EventDescriptorWrapper> batch3 = tracker.getChildlessEvents();
-        assertEquals(1, batch3.size());
-        assertEquals(e99Branch, batch3.get(0));
+        assertThat(tracker.getChildlessEvents().size()).isEqualTo(1);
+        assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e99Branch);
     }
 
-    /**
-     * Create a new event descriptor with the given parameters and -1 for the address book round.
-     * @param hash the hash of the event
-     * @param creator the creator of the event
-     * @param generation the generation of the event
-     * @return the event descriptor
-     */
-    private EventDescriptorWrapper newEventDescriptor(
-            @NonNull final Hash hash, @NonNull final NodeId creator, final long generation) {
-        return new EventDescriptorWrapper(new EventDescriptor(hash.getBytes(), creator.id(), -1, generation));
+    private static List<PlatformEvent> loadTrackerWithInitialEvents(final Random random,
+            final ChildlessEventTracker tracker,
+            final int numNodes) {
+        final List<PlatformEvent> initialEvents = createInitialEvents(random, numNodes);
+        initialEvents.forEach(event -> {
+            tracker.addEvent(event);
+            assertThat(tracker.getChildlessEvents()).contains(event);
+            assertThat(tracker.getChildlessEvent(event.getDescriptor())).isEqualTo(event);
+        });
+        assertThat(tracker.getChildlessEvents().size()).isEqualTo(initialEvents.size());
+        assertThat(tracker.getChildlessEvents())
+                .withFailMessage("Tracker should contain the initial event from each node")
+                .containsAll(initialEvents);
+        return initialEvents;
+    }
+
+    private static List<PlatformEvent> createInitialEvents(final Random random, final int numNodes) {
+        final List<PlatformEvent> initialEvents = new ArrayList<>(numNodes);
+        for (long nodeId = 0; nodeId < numNodes; nodeId++) {
+            final PlatformEvent event = new TestingEventBuilder(random)
+                    .setCreatorId(NodeId.of(nodeId))
+                    .setNGen(0)
+                    .build();
+            initialEvents.add(event);
+        }
+        return initialEvents;
     }
 }
