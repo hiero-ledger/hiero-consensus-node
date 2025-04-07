@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.gossip.modular;
+package com.swirlds.platform.network.topology;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
@@ -9,10 +9,7 @@ import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionManager;
 import com.swirlds.platform.network.ConnectionTracker;
-import com.swirlds.platform.network.InboundConnectionManager;
 import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.network.topology.NetworkTopology;
-import com.swirlds.platform.network.topology.StaticTopology;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
@@ -33,15 +30,16 @@ public class DynamicConnectionManagers {
     private final PlatformContext platformContext;
     private final ConnectionTracker connectionTracker;
     private final KeysAndCerts ownKeysAndCerts;
+    private final ConnectionManagerFactory connectionManagerFactory;
 
     /**
-     *
-     * @param selfId self's node id
-     * @param peers the list of peers
-     * @param platformContext the platform context
-     * @param connectionTracker connection tracker for all platform connections
-     * @param ownKeysAndCerts    private keys and public certificates
-     * @param topology current topology of connecions
+     * @param selfId                   self's node id
+     * @param peers                    the list of peers
+     * @param platformContext          the platform context
+     * @param connectionTracker        connection tracker for all platform connections
+     * @param ownKeysAndCerts          private keys and public certificates
+     * @param topology                 current topology of connecions
+     * @param connectionManagerFactory factory to create custom inbound and oubound connection managers
      */
     public DynamicConnectionManagers(
             @NonNull final NodeId selfId,
@@ -49,11 +47,13 @@ public class DynamicConnectionManagers {
             @NonNull final PlatformContext platformContext,
             @NonNull final ConnectionTracker connectionTracker,
             @NonNull final KeysAndCerts ownKeysAndCerts,
-            @NonNull final NetworkTopology topology) {
+            @NonNull final NetworkTopology topology,
+            @NonNull final ConnectionManagerFactory connectionManagerFactory) {
         this.selfId = Objects.requireNonNull(selfId);
         this.platformContext = Objects.requireNonNull(platformContext);
         this.connectionTracker = Objects.requireNonNull(connectionTracker);
         this.ownKeysAndCerts = Objects.requireNonNull(ownKeysAndCerts);
+        this.connectionManagerFactory = Objects.requireNonNull(connectionManagerFactory);
         for (PeerInfo peer : peers) {
             updateManager(topology, peer);
         }
@@ -130,11 +130,12 @@ public class DynamicConnectionManagers {
 
     private void updateManager(@NonNull final NetworkTopology topology, @NonNull final PeerInfo otherPeer) {
         if (topology.shouldConnectToMe(otherPeer.nodeId())) {
-            connectionManagers.put(otherPeer.nodeId(), new InboundConnectionManager());
+            connectionManagers.put(
+                    otherPeer.nodeId(), connectionManagerFactory.createInboundConnectionManager(otherPeer));
         } else if (topology.shouldConnectTo(otherPeer.nodeId())) {
             connectionManagers.put(
                     otherPeer.nodeId(),
-                    new OutboundConnectionManager(
+                    connectionManagerFactory.createOutboundConnectionManager(
                             selfId, otherPeer, platformContext, connectionTracker, ownKeysAndCerts));
         } else {
             connectionManagers.remove(otherPeer.nodeId());
