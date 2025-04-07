@@ -1,9 +1,11 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl.usage;
 
 import static java.util.Objects.requireNonNull;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.GrpcUsageTrackerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -14,8 +16,10 @@ import io.grpc.ServerCall;
 import io.grpc.ServerCall.Listener;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
+import java.time.Clock;
 import java.time.Instant;
-import java.time.temporal.ChronoField;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -28,6 +32,10 @@ import java.util.concurrent.atomic.LongAdder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * Interceptor that captures gRPC usage data based on the invoked RPC endpoint and user-agent information from the
+ * {@code X-User-Agent} header.
+ */
 public class GrpcUsageTracker implements ServerInterceptor {
 
     /**
@@ -47,71 +55,154 @@ public class GrpcUsageTracker implements ServerInterceptor {
      */
     private final Cache<String, UserAgent> userAgentCache;
 
+    /**
+     * Reference to the active usage tracking bucket.
+     */
     private final AtomicReference<UsageBucket> bucketRef;
+
+    /**
+     * Executor used for periodic config refresh and dumping usage data to the log.
+     */
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+
+    /**
+     * Flag used to indicate if usage tracking is enabled or not. This is updated with each iteration to allow for
+     * dynamic enabling/disabling at runtime.
+     */
     private final AtomicBoolean isEnabled = new AtomicBoolean(true);
+
+    /**
+     * Configuration mechanism to dynamically load configuration.
+     */
     private final ConfigProvider configProvider;
 
+    /**
+     * Clock used to get the current time. (mainly exists to aid in testing)
+     */
+    private final Clock clock;
+
+    /**
+     * Create a new instance of the usage tracker.
+     *
+     * @param configProvider the configuration provider
+     * @see GrpcUsageTracker#GrpcUsageTracker(ConfigProvider, Clock)
+     */
     public GrpcUsageTracker(@NonNull final ConfigProvider configProvider) {
+        this(configProvider, Clock.systemUTC());
+    }
+
+    /**
+     * Create a new instance of the usage tracker.
+     *
+     * @param configProvider the configuration provider
+     * @param clock the clock to use for getting timestamps of usage data
+     */
+    @VisibleForTesting
+    GrpcUsageTracker(@NonNull final ConfigProvider configProvider, @NonNull final Clock clock) {
         this.configProvider = requireNonNull(configProvider);
+        this.clock = requireNonNull(clock);
 
-        final GrpcUsageTrackerConfig config = configProvider.getConfiguration()
-                .getConfigData(GrpcUsageTrackerConfig.class);
+        final GrpcUsageTrackerConfig config =
+                configProvider.getConfiguration().getConfigData(GrpcUsageTrackerConfig.class);
 
-        userAgentCache = Caffeine.newBuilder()
-                .maximumSize(config.userAgentCacheSize())
-                .build();
-        isEnabled.set(config.enabled());
-        executor.schedule(this::logAndResetUsageData, config.dumpIntervalMinutes(), TimeUnit.MINUTES);
+        userAgentCache =
+                Caffeine.newBuilder().maximumSize(config.userAgentCacheSize()).build();
 
-        final Instant bucketTime = calculateCurrentBucketTime();
+        scheduleNext();
+
+        final Instant bucketTime = toBucketTime(clock.instant());
         bucketRef = new AtomicReference<>(new UsageBucket(bucketTime));
     }
 
     @Override
-    public <ReqT, RespT> Listener<ReqT> interceptCall(final ServerCall<ReqT, RespT> call, final Metadata headers,
-            final ServerCallHandler<ReqT, RespT> next) {
+    public <ReqT, RespT> Listener<ReqT> interceptCall(
+            final ServerCall<ReqT, RespT> call, final Metadata headers, final ServerCallHandler<ReqT, RespT> next) {
 
-        final MethodDescriptor<?, ?> descriptor = call.getMethodDescriptor();
-        final String userAgentStr = headers.get(userAgentHeaderKey);
+        if (isEnabled.get()) {
+            final MethodDescriptor<?, ?> descriptor = call.getMethodDescriptor();
+            final String userAgentStr = headers.get(userAgentHeaderKey);
 
-        final RpcName rpcName = RpcNames.from(descriptor);
-        final UserAgent userAgent = userAgentStr == null || userAgentStr.isBlank()
-                ? UserAgent.UNSPECIFIED
-                : userAgentCache.get(userAgentStr, UserAgent::from);
+            final RpcEndpointName rpcEndpointName = RpcEndpointName.from(descriptor);
+            final UserAgent userAgent = userAgentStr == null || userAgentStr.isBlank()
+                    ? UserAgent.UNSPECIFIED
+                    : userAgentCache.get(userAgentStr, UserAgent::from);
 
-        bucketRef.get().recordInteraction(rpcName, userAgent);
+            bucketRef.get().recordInteraction(rpcEndpointName, userAgent);
+        }
 
         return next.startCall(call, headers);
     }
 
-    private void logAndResetUsageData() {
-        final UsageBucket usageBucket = bucketRef.getAndSet(new UsageBucket(calculateCurrentBucketTime()));
+    /**
+     * Logs the most recent round of usage data collected and schedules the next iteration.
+     */
+    @VisibleForTesting
+    void logAndResetUsageData() {
+        scheduleNext();
+
+        final Instant nextTime = toBucketTime(clock.instant());
+        final UsageBucket usageBucket = bucketRef.getAndSet(new UsageBucket(nextTime));
         final String time = usageBucket.time.toString();
 
-        usageBucket.usageData.forEach((rpcName, usagesByAgent) -> {
-            final String endpoint = rpcName.serviceName() + ":" + rpcName.methodName();
+        usageBucket.usageData.forEach((rpcEndpointName, usagesByAgent) -> {
+            final String endpoint = rpcEndpointName.serviceName() + ":" + rpcEndpointName.methodName();
             usagesByAgent.forEach((userAgent, counter) -> {
-                accessLogger.info("|time={}|endpoint={}|sdkType={}|sdkVersion={}|count={}|", time, endpoint,
-                        userAgent.agentType().id(), userAgent.version(), counter.sum());
+                accessLogger.info(
+                        "|time={}|endpoint={}|sdkType={}|sdkVersion={}|count={}|",
+                        time,
+                        endpoint,
+                        userAgent.agentType().id(),
+                        userAgent.version(),
+                        counter.sum());
             });
         });
     }
 
-    private Instant calculateCurrentBucketTime() {
-        final int bucketIntervalMinutes = configProvider.getConfiguration()
-                .getConfigData(GrpcUsageTrackerConfig.class)
-                .dumpIntervalMinutes();
-        final Instant now = Instant.now();
-        final int minutes = now.get(ChronoField.MINUTE_OF_HOUR);
-        final int rem = minutes % bucketIntervalMinutes;
+    /**
+     * Schedules the next iteration. The configuration is re-read to pick up any changes to whether or not usage
+     * tracking is enabled and if the interval between usage logging changes.
+     */
+    private void scheduleNext() {
+        final GrpcUsageTrackerConfig config =
+                configProvider.getConfiguration().getConfigData(GrpcUsageTrackerConfig.class);
 
-        return now.truncatedTo(ChronoUnit.MINUTES)
-                .minus(rem, ChronoUnit.MINUTES);
+        isEnabled.set(config.enabled());
+        executor.schedule(this::logAndResetUsageData, config.logIntervalMinutes(), TimeUnit.MINUTES);
     }
 
-    private record UsageBucket(@NonNull Instant time,
-                               @NonNull ConcurrentMap<RpcName, ConcurrentMap<UserAgent, LongAdder>> usageData) {
+    /**
+     * Calculates the "bucket" time for the specified time. The bucket time is based on the interval specified in the
+     * configuration. For example, if the interval is 15 minutes the bucket time will be the specified time rounded down
+     * to the nearest 15-minute block such as :15 or :30.
+     *
+     * @param time the time to base the bucket time
+     * @return a new Instant whose time reflects the bucket timestamp based on the specified time and configuration
+     */
+    @VisibleForTesting
+    @NonNull
+    Instant toBucketTime(final @NonNull Instant time) {
+        final int bucketIntervalMinutes = configProvider
+                .getConfiguration()
+                .getConfigData(GrpcUsageTrackerConfig.class)
+                .logIntervalMinutes();
+
+        final ZonedDateTime zdt = time.atZone(ZoneOffset.UTC);
+        final int minutes = zdt.getMinute();
+        final int rem = minutes % bucketIntervalMinutes;
+
+        return time.truncatedTo(ChronoUnit.MINUTES).minus(rem, ChronoUnit.MINUTES);
+    }
+
+    /**
+     * A "bucket" used to hold captured usage data for a given period of time.
+     *
+     * @param time the starting time for data captured
+     * @param usageData the captured usage data
+     */
+    @VisibleForTesting
+    record UsageBucket(
+            @NonNull Instant time,
+            @NonNull ConcurrentMap<RpcEndpointName, ConcurrentMap<UserAgent, LongAdder>> usageData) {
 
         UsageBucket {
             requireNonNull(time, "time is required");
@@ -122,11 +213,12 @@ public class GrpcUsageTracker implements ServerInterceptor {
             this(time, new ConcurrentHashMap<>(100));
         }
 
-        void recordInteraction(@NonNull final RpcName rpcName, @NonNull final UserAgent userAgent) {
-            requireNonNull(rpcName, "rpcName is required");
+        void recordInteraction(@NonNull final RpcEndpointName rpcEndpointName, @NonNull final UserAgent userAgent) {
+            requireNonNull(rpcEndpointName, "rpcName is required");
             requireNonNull(userAgent, "userAgent is required");
 
-            usageData.computeIfAbsent(rpcName, __ -> new ConcurrentHashMap<>())
+            usageData
+                    .computeIfAbsent(rpcEndpointName, __ -> new ConcurrentHashMap<>())
                     .computeIfAbsent(userAgent, __ -> new LongAdder())
                     .increment();
         }

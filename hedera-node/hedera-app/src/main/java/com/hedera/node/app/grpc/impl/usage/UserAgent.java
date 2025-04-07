@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl.usage;
 
 import static java.util.Objects.requireNonNull;
@@ -7,6 +8,12 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * Record that represents a user-agent.
+ *
+ * @param agentType the type of user-agent
+ * @param version the version of the user-agent used
+ */
 public record UserAgent(@NonNull UserAgentType agentType, @NonNull String version) {
     static final UserAgent UNKNOWN = new UserAgent(UserAgentType.UNKNOWN, "Unknown");
     static final UserAgent UNSPECIFIED = new UserAgent(UserAgentType.UNSPECIFIED, "Unknown");
@@ -18,7 +25,18 @@ public record UserAgent(@NonNull UserAgentType agentType, @NonNull String versio
         requireNonNull(version, "version is required");
     }
 
+    /**
+     * Parses the specified user-agent string into a known user-agent object. If the agent type is not a known type
+     * (i.e. not a standard SDK) then an unknown or unspecified agent type will be returned.
+     *
+     * @param userAgentStr the user-agent string to parse
+     * @return a user-agent object representing the parsed user-agent string provided
+     */
     public static UserAgent from(@Nullable final String userAgentStr) {
+        if (userAgentStr == null || userAgentStr.isBlank()) {
+            return UserAgent.UNSPECIFIED;
+        }
+
         UserAgent userAgent = null;
 
         /*

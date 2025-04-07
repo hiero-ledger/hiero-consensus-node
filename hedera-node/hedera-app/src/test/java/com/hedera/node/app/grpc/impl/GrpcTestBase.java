@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.test.grpc;
+package com.hedera.node.app.grpc.impl;
 
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.Query;
@@ -12,6 +12,7 @@ import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.GrpcConfig;
+import com.hedera.node.config.data.GrpcUsageTrackerConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.NettyConfig;
@@ -66,7 +67,7 @@ import org.junit.jupiter.api.AfterEach;
  * our protobuf objects. Because of this, we *can* actually test using any type of byte[] payload (including strings!)
  * rather than protobuf objects.
  */
-abstract class GrpcTestBase extends TestBase {
+public abstract class GrpcTestBase extends TestBase {
     /** Used as a dependency to the {@link Metrics} system. */
     private static final ScheduledExecutorService METRIC_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
 
@@ -89,7 +90,7 @@ abstract class GrpcTestBase extends TestBase {
     /**
      * This {@link NettyGrpcServerManager} is used to handle the wire protocol tasks and delegate to our gRPC handlers
      */
-    private NettyGrpcServerManager grpcServer;
+    protected NettyGrpcServerManager grpcServer;
 
     private final Configuration configuration = ConfigurationBuilder.create()
             .withConfigDataType(JumboTransactionsConfig.class)
@@ -285,6 +286,7 @@ abstract class GrpcTestBase extends TestBase {
                 .withConfigDataType(NettyConfig.class)
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(JumboTransactionsConfig.class)
+                .withConfigDataType(GrpcUsageTrackerConfig.class)
                 .withSource(testConfig)
                 .build();
     }

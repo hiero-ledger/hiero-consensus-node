@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl.usage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -12,7 +13,8 @@ class UserAgentTest {
 
     @ParameterizedTest
     @MethodSource("testUserAgentArgs")
-    void testUserAgent(final String userAgentStr, final UserAgentType expectedAgentType, final String expectedAgentVersion) {
+    void testUserAgent(
+            final String userAgentStr, final UserAgentType expectedAgentType, final String expectedAgentVersion) {
         final UserAgent userAgent = UserAgent.from(userAgentStr);
         assertNotNull(userAgent);
         assertEquals(expectedAgentType, userAgent.agentType());

@@ -102,6 +102,9 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
      */
     private Server nodeOperatorServer;
 
+    /**
+     * Utility to collect and periodically log gRPC usage data.
+     */
     private final GrpcUsageTracker usageTracker;
 
     /**
