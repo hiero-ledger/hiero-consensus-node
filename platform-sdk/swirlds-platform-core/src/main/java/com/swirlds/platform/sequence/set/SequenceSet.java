@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.sequence.set;
 
-import com.swirlds.common.utility.Clearable;
 import com.swirlds.platform.sequence.Shiftable;
 import java.util.List;
 import java.util.function.Consumer;
+import org.hiero.base.utility.Clearable;
 
 /**
  * <p>

@@ -89,7 +89,7 @@ public class V060HintsSchema extends Schema {
             final var activeConstruction = states.<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY)
                     .get();
             if (requireNonNull(activeConstruction).hasHintsScheme()) {
-                signingContext.setConstruction(activeConstruction);
+                signingContext.setConstructions(activeConstruction);
             }
         }
     }

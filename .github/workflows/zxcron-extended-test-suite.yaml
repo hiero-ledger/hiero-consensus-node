@@ -79,6 +79,15 @@ jobs:
             gh run cancel ${{ github.run_id }}
           fi
 
+          # Get the list of commits between the previous XTS Pass and the current commit
+          COMMIT_LIST=""
+          LATEST_XTS_PASS_TAG=$(git tag --list --sort=-version:refname "xts-pass-*" | head --lines 1)
+          if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
+            echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
+            LATEST_XTS_PASS_COMMIT=$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")
+            COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
+          fi
+
           # Check if the tag exists on the main branch
           set +e
           git branch --contains "${XTS_COMMIT}" | grep --quiet main >/dev/null 2>&1
@@ -92,12 +101,14 @@ jobs:
           # If the tag exists on the Main Branch set the output variables as appropriate
           # Otherwise cancel out
           if [[ "${BRANCH_ON_DEVELOP}" -eq 0 ]]; then
-            echo "xts-tag-exists=true" >> $GITHUB_OUTPUT
-            echo "xts-tag-commit=${XTS_COMMIT}" >> $GITHUB_OUTPUT
-            echo "xts-tag-commit-author=${AUTHOR_NAME} <${AUTHOR_EMAIL}>" >> $GITHUB_OUTPUT
-            echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> $GITHUB_OUTPUT
-            echo "### XTS-Candidate commit found" >>  $GITHUB_STEP_SUMMARY
-            echo "xts-tag-commit=${XTS_COMMIT}" >> $GITHUB_STEP_SUMMARY
+            echo "xts-tag-exists=true" >> "${GITHUB_OUTPUT}"
+            echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_OUTPUT}"
+            echo "xts-tag-commit-author=${AUTHOR_NAME} <${AUTHOR_EMAIL}>" >> "${GITHUB_OUTPUT}"
+            echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
+            echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
+            echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
+            echo "### Commit List" >> "${GITHUB_STEP_SUMMARY}"
+            echo "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
 
             git push --delete origin "${XTS_CANDIDATE_TAG}"
             git tag -d "${XTS_CANDIDATE_TAG}"
@@ -220,8 +231,8 @@ jobs:
           TAG=xts-pass-${EPOCH_TIME}
           git tag --annotate ${TAG} --message "chore: tagging commit for build candidate promotion"
           git push --set-upstream origin --tags
-          echo "### Commit Tagged for Promotion" >>  $GITHUB_STEP_SUMMARY
-          echo "promotion-tag=${TAG}" >> $GITHUB_STEP_SUMMARY
+          echo "### Commit Tagged for Promotion" >>  "${GITHUB_STEP_SUMMARY}"
+          echo "promotion-tag=${TAG}" >> "${GITHUB_STEP_SUMMARY}"
 
   report-success:
     name: Report XTS execution success
@@ -457,7 +468,7 @@ jobs:
             echo "Found slack user for email: ${EMAIL}"
             SLACK_USER_ID="<@${SLACK_USER_ID}>"
           fi
-          echo "slack-user-id=${SLACK_USER_ID}" >> $GITHUB_OUTPUT
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
       - name: Report failure (slack)
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
