@@ -23,7 +23,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
 
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final HistoryLibraryBridge BRIDGE = HistoryLibraryBridge.getInstance();
-    private static ProvingAndVerifyingSnarkKeys SNARK_KEYS;
+    private static volatile ProvingAndVerifyingSnarkKeys SNARK_KEYS;
 
     @Override
     public Bytes snarkVerificationKey() {
