@@ -3,7 +3,7 @@ package com.swirlds.platform.event;
 
 import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignatureBytes;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.serializePlatformEvent;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;

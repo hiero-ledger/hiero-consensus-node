@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.addressbook;
 
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.randomIp;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.randomString;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomIp;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomString;
 
 import com.swirlds.platform.crypto.SerializableX509Certificate;
 import com.swirlds.platform.system.address.Address;

@@ -2,7 +2,7 @@
 package com.swirlds.platform.config.legacy;
 
 import com.swirlds.logging.legacy.LogMarker;
-import org.hiero.consensus.utility.exceptions.PlatformException;
+import org.hiero.base.utility.exceptions.PlatformException;
 
 public class ConfigurationException extends PlatformException {
 

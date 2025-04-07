@@ -12,8 +12,8 @@ import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Predicate;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.Test;
 
 class SyncTestUtilsTest {
