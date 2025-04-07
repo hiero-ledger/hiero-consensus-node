@@ -3,7 +3,9 @@ package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
+import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -12,7 +14,6 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
-import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -76,8 +77,9 @@ public class TokenUnpauseHandler implements TransactionHandler {
 
         final var op = context.body().tokenUnpause();
         final var tokenStore = context.storeFactory().writableStore(WritableTokenStore.class);
-        var tokenId = op.tokenOrElse(TokenID.DEFAULT);
-        var token = TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
+        var token = tokenStore.get(op.tokenOrElse(TokenID.DEFAULT));
+        validateTrue(token != null, INVALID_TOKEN_ID);
+        validateFalse(token.deleted(), TOKEN_WAS_DELETED);
 
         validateTrue(token.hasPauseKey(), TOKEN_HAS_NO_PAUSE_KEY);
 
