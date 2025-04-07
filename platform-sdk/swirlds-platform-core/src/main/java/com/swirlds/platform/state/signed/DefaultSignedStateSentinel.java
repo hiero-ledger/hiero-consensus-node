@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.utility.CompareTo;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.common.utility.throttle.RateLimiter;
@@ -15,6 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CompareTo;
 
 /**
  * This object is responsible for observing the lifespans of signed states, and taking action if a state suspected of a

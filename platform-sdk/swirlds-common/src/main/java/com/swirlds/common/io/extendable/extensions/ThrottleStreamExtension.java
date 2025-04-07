@@ -2,8 +2,8 @@
 package com.swirlds.common.io.extendable.extensions;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
-import static com.swirlds.common.utility.CompareTo.isGreaterThanOrEqualTo;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.utility.CompareTo.isGreaterThanOrEqualTo;
 
 import com.swirlds.common.io.extendable.InputStreamExtension;
 import com.swirlds.common.io.extendable.OutputStreamExtension;

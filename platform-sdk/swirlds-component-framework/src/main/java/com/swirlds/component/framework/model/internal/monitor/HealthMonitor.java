@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.model.internal.monitor;
 
-import static com.swirlds.common.utility.CompareTo.isGreaterThan;
-import static com.swirlds.common.utility.CompareTo.isGreaterThanOrEqualTo;
 import static java.util.Objects.isNull;
+import static org.hiero.base.utility.CompareTo.isGreaterThan;
+import static org.hiero.base.utility.CompareTo.isGreaterThanOrEqualTo;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
