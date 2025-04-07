@@ -4,15 +4,15 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.notification.Listener;
-import com.swirlds.common.notification.Notification;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.notification.NotificationResult;
-import com.swirlds.common.threading.futures.StandardFuture;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
+import org.hiero.consensus.model.notification.Notification;
+import org.hiero.consensus.model.utility.StandardFuture;
 
 public class FakeNotificationEngine implements NotificationEngine {
     public final List<PlatformStatusChangeListener> statusChangeListeners = new CopyOnWriteArrayList<>();

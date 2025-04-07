@@ -251,7 +251,7 @@ public class TokenTupleUtils {
         final var fractionalFees = fractionalFeesTupleListFor(token);
         final var royaltyFees = royaltyFeesTupleListFor(token);
 
-        final var hederaToken = version == 1 ? hederaTokenTupleFor(token) : hederaTokenTupleForV2(token);
+        final var hederaToken = version == 1 ? hederaTokenTupleFor(token) : hederaTokenTupleFor16c(token);
 
         return Tuple.from(
                 hederaToken,
@@ -272,7 +272,7 @@ public class TokenTupleUtils {
         final var fractionalFees = fractionalFeesTupleListFor(token);
         final var royaltyFees = royaltyFeesTupleListFor(token);
 
-        final var hederaToken = version == 1 ? hederaTokenTupleFor(token) : hederaTokenTupleForV2(token);
+        final var hederaToken = version == 1 ? hederaTokenTupleFor(token) : hederaTokenTupleFor16c(token);
 
         return Tuple.from(
                 hederaToken,
@@ -448,7 +448,7 @@ public class TokenTupleUtils {
     }
 
     @NonNull
-    private static Tuple hederaTokenTupleForV2(@NonNull final Token token) {
+    private static Tuple hederaTokenTupleFor16c(@NonNull final Token token) {
         final var tokenMetaData =
                 token.metadata().length() > 0 ? token.metadata().toByteArray() : Bytes.EMPTY.toByteArray();
         return Tuple.from(
@@ -465,7 +465,7 @@ public class TokenTupleUtils {
     }
 
     @NonNull
-    private static Tuple hederaTokenTupleForV2(@NonNull final TokenCreateTransactionBody token) {
+    private static Tuple hederaTokenTupleFor16c(@NonNull final TokenCreateTransactionBody token) {
         final var tokenMetaData =
                 token.metadata().length() > 0 ? token.metadata().toByteArray() : Bytes.EMPTY.toByteArray();
         return Tuple.from(

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.model;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
 import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder.UNLIMITED_CAPACITY;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.CONCURRENT;
@@ -14,13 +12,15 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerT
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.assertj.core.api.Fail.fail;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.utility.NonCryptographicHashing;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
@@ -344,36 +344,31 @@ class DeterministicModelTests {
         final long meshSeed = random.nextLong();
         final long dataSeed = random.nextLong();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final WiringModel model1 =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+        final long value1 = evaluateMesh(dataSeed, generateWiringMesh(meshSeed, model1, enableHeartbeat), () -> {
+            try {
+                MILLISECONDS.sleep(1);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        });
 
-        final long value1 = evaluateMesh(
-                dataSeed,
-                generateWiringMesh(
-                        meshSeed, WiringModelBuilder.create(platformContext).build(), enableHeartbeat),
-                () -> {
-                    try {
-                        MILLISECONDS.sleep(1);
-                    } catch (final InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException(e);
-                    }
-                });
-
-        final long value2 = evaluateMesh(
-                dataSeed,
-                generateWiringMesh(
-                        meshSeed, WiringModelBuilder.create(platformContext).build(), enableHeartbeat),
-                () -> {
-                    try {
-                        MILLISECONDS.sleep(1);
-                    } catch (final InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException(e);
-                    }
-                });
+        final WiringModel model2 =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+        final long value2 = evaluateMesh(dataSeed, generateWiringMesh(meshSeed, model2, enableHeartbeat), () -> {
+            try {
+                MILLISECONDS.sleep(1);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        });
 
         assertNotEquals(value1, value2);
+        model1.stop();
+        model2.stop();
     }
 
     @Test
@@ -383,10 +378,7 @@ class DeterministicModelTests {
         final long dataSeed = random.nextLong();
 
         final FakeTime time = new FakeTime(randomInstant(random), Duration.ZERO);
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
-
-        final DeterministicWiringModel deterministicWiringModel1 = WiringModelBuilder.create(platformContext)
+        final DeterministicWiringModel deterministicWiringModel1 = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
         final long value1 =
@@ -396,7 +388,7 @@ class DeterministicModelTests {
                 });
 
         time.reset();
-        final DeterministicWiringModel deterministicWiringModel2 = WiringModelBuilder.create(platformContext)
+        final DeterministicWiringModel deterministicWiringModel2 = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
         final long value2 =
@@ -406,6 +398,8 @@ class DeterministicModelTests {
                 });
 
         assertEquals(value1, value2);
+        deterministicWiringModel1.stop();
+        deterministicWiringModel2.stop();
     }
 
     /**
@@ -424,9 +418,7 @@ class DeterministicModelTests {
      */
     @Test
     void circularDataFlowTest() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final DeterministicWiringModel model = WiringModelBuilder.create(platformContext)
+        final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                 .withDeterministicModeEnabled(true)
                 .build();
 

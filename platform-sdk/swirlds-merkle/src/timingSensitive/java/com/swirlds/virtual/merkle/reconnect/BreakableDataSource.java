@@ -2,8 +2,6 @@
 package com.swirlds.virtual.merkle.reconnect;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
@@ -16,6 +14,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 public final class BreakableDataSource implements VirtualDataSource {
 
@@ -39,7 +39,7 @@ public final class BreakableDataSource implements VirtualDataSource {
         final List<VirtualLeafBytes> leaves = leafRecordsToAddOrUpdate.toList();
 
         if (builder.numTimesBroken < builder.numTimesToBreak) {
-            // Syncronization block is not required here, as this code is never called in parallel
+            // Synchronization block is not required here, as this code is never called in parallel
             // (though from different threads). `volatile` modifier is sufficient to ensure visibility.
             builder.numCalls += leaves.size();
             if (builder.numCalls > builder.numCallsBeforeThrow) {

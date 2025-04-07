@@ -2,7 +2,6 @@
 package com.swirlds.platform.crypto;
 
 import com.swirlds.common.crypto.internal.CryptoUtils;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.Key;
@@ -17,6 +16,7 @@ import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * An instantiation of this class holds all the keys and CSPRNG state for one Platform object. No other class should
@@ -41,12 +41,7 @@ import java.security.cert.X509Certificate;
  * depend on a number of factors. The plan is to continue to follow the national standard (currently CNSA Suit),
  * changing the algorithms as the standard changes.
  */
-public record KeysAndCerts(
-        KeyPair sigKeyPair,
-        KeyPair agrKeyPair,
-        X509Certificate sigCert,
-        X509Certificate agrCert,
-        PublicStores publicStores) {
+public record KeysAndCerts(KeyPair sigKeyPair, KeyPair agrKeyPair, X509Certificate sigCert, X509Certificate agrCert) {
     private static final int SIG_SEED = 2;
     private static final int AGR_SEED = 0;
 
@@ -96,7 +91,7 @@ public record KeysAndCerts(
             publicStores.setCertificate(KeyCertPurpose.AGREEMENT, agreementCert, nodeId);
         }
 
-        return new KeysAndCerts(signingKeyPair, agreementKeyPair, signingCert, agreementCert, publicStores);
+        return new KeysAndCerts(signingKeyPair, agreementKeyPair, signingCert, agreementCert);
     }
 
     private static KeyPair getKeyPair(final KeyStore privateKeyStore, final char[] password, final String storeName)
@@ -173,7 +168,7 @@ public record KeysAndCerts(
         publicStores.setCertificate(KeyCertPurpose.SIGNING, sigCert, nodeId);
         publicStores.setCertificate(KeyCertPurpose.AGREEMENT, agrCert, nodeId);
 
-        return new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, agrCert, publicStores);
+        return new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, agrCert);
     }
 
     /**

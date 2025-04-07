@@ -70,6 +70,9 @@ class ProxyWorldUpdaterTest {
     private static final Address OTHER_EVM_ADDRESS =
             Address.fromHexString("0x1239123912391239123912391239123912391239");
     private static final Address ADDRESS_6 = Address.fromHexString("0x6");
+    private static final AccountID ACCOUNT_ID_6 = AccountID.newBuilder()
+            .accountNum(ADDRESS_6.toBigInteger().longValueExact())
+            .build();
 
     @Mock
     private Account anImmutableAccount;

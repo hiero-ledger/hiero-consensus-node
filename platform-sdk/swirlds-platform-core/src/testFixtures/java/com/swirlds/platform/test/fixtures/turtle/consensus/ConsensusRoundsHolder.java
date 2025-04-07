@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.turtle.consensus;
 
-import com.swirlds.platform.internal.ConsensusRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
  * A test component collecting consensus rounds produced by the ConsensusEngine
@@ -15,12 +17,27 @@ public interface ConsensusRoundsHolder {
      *
      * @param rounds
      */
-    void interceptRounds(final List<ConsensusRound> rounds);
+    void interceptRounds(@NonNull final List<ConsensusRound> rounds);
 
     /**
-     * Clear the internal state of this collector.
+     * Clear the specified consensus rounds from the collection.
      *
-     * @param ignored ignored trigger object
+     * @param roundNumbers the round numbers to clear
      */
-    void clear(@NonNull final Object ignored);
+    void clear(@NonNull final Set<Long> roundNumbers);
+
+    /**
+     * Get the collected consensus rounds in a Map linking round number with its corresponding round.
+     *
+     * @return the collected consensus rounds
+     */
+    Map<Long, ConsensusRound> getCollectedRounds();
+
+    /**
+     * Get filtered consensus rounds by specified consensus round numbers.
+     *
+     * @param roundNums the consensus round numbers collection to use as a filter
+     * @return the filtered consensus rounds
+     */
+    List<ConsensusRound> getFilteredConsensusRounds(@NonNull final Set<Long> roundNums);
 }

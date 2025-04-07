@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract;
 
+import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentInWorkingDir;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.NUM_LONG_ZEROS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
@@ -14,11 +15,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.CONSTRUCTOR;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCall;
 import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
-import static com.swirlds.common.utility.CommonUtils.hex;
-import static com.swirlds.common.utility.CommonUtils.unhex;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
+import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.consensus.model.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -41,7 +42,6 @@ import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.SubType;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenID;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.io.FileInputStream;
@@ -64,6 +64,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.bouncycastle.util.encoders.Hex;
+import org.hiero.consensus.model.utility.CommonUtils;
 import org.hyperledger.besu.crypto.Hash;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -85,6 +86,11 @@ public class Utils {
         final var hexString =
                 Bytes.wrap(asSolidityAddress((int) shard, realm, n)).toHexString();
         return ByteString.copyFrom(Bytes32.fromHexStringLenient(hexString).toArray());
+    }
+
+    public static ByteString parsedToByteString(long n) {
+        return ByteString.copyFrom(
+                Bytes32.fromHexStringLenient(Long.toHexString(n)).toArray());
     }
 
     public static String asHexedAddress(final TokenID id) {
@@ -411,12 +417,12 @@ public class Utils {
     }
 
     public static Address headlongFromHexed(final String addr) {
-        return Address.wrap(Address.toChecksumAddress("0x" + addr));
+        return Address.wrap(toChecksumAddress("0x" + addr));
     }
 
     public static Address mirrorAddrWith(final long num) {
         return Address.wrap(
-                Address.toChecksumAddress(new BigInteger(1, HapiPropertySource.asSolidityAddress(shard, realm, num))));
+                toChecksumAddress(new BigInteger(1, HapiPropertySource.asSolidityAddress(shard, realm, num))));
     }
 
     public static Address nonMirrorAddrWith(final long num) {
@@ -424,8 +430,8 @@ public class Utils {
     }
 
     public static Address nonMirrorAddrWith(final long seed, final long num) {
-        return Address.wrap(Address.toChecksumAddress(
-                new BigInteger(1, HapiPropertySource.asSolidityAddress((int) seed, seed, num))));
+        return Address.wrap(
+                toChecksumAddress(new BigInteger(1, HapiPropertySource.asSolidityAddress((int) seed, seed, num))));
     }
 
     public static long expectedPrecompileGasFor(
@@ -480,15 +486,21 @@ public class Utils {
     /**
      * Converts a long-zero address to a {@link ScheduleID} with id number instead of alias.
      *
-     * @param shard the shard of the Hedera network
-     * @param realm the realm of the Hedera network
      * @param address the EVM address
      * @return the {@link ScheduleID}
      */
     public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
-            final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+            @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+        var addressHex = toChecksumAddress(address.value());
+        addressHex = addressHex.substring(2); // remove 0x
+        var shard = addressHex.substring(0, 8);
+        var realm = addressHex.substring(8, 24);
+        var scheduleNum = addressHex.substring(24, 40);
+
         return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
-                .setScheduleNum(address.value().longValueExact())
+                .setShardNum(new BigInteger(shard, 16).longValue())
+                .setRealmNum(new BigInteger(realm, 16).longValue())
+                .setScheduleNum(new BigInteger(scheduleNum, 16).longValue())
                 .build();
     }
 

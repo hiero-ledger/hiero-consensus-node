@@ -9,14 +9,14 @@ import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.system.events.Event;
-import com.swirlds.platform.system.transaction.Transaction;
-import com.swirlds.platform.system.transaction.TransactionWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
+import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 public class FakeEvent implements Event {
     private static final Bytes FAKE_SHA_384_SIGNATURE = Bytes.wrap(new byte[] {

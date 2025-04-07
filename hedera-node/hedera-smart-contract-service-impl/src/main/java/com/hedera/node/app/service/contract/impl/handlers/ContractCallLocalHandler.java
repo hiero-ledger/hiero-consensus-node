@@ -17,7 +17,6 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
-import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.contract.ContractCallLocalQuery;
 import com.hedera.hapi.node.contract.ContractCallLocalResponse;
 import com.hedera.hapi.node.transaction.Query;
@@ -106,8 +105,7 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
                     op.contractID().evmAddressOrThrow().length() == EVM_ADDRESS_LENGTH_AS_INT, INVALID_CONTRACT_ID);
         }
         // A contract or token contract corresponding to that contract ID must exist in state (otherwise we have
-        // nothing
-        // to call)
+        // nothing to call)
         final var contract = context.createStore(ReadableAccountStore.class).getContractById(contractID);
         if (contract == null) {
             var tokenNum = contractID.contractNumOrElse(0L);
@@ -118,7 +116,7 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
                     tokenNum = numberOfLongZero(evmAddress);
                 }
             }
-            final var tokenID = TokenID.newBuilder().tokenNum(tokenNum).build();
+            final var tokenID = entityIdFactory.newTokenId(tokenNum);
             final var tokenContract =
                     context.createStore(ReadableTokenStore.class).get(tokenID);
             mustExist(tokenContract, INVALID_CONTRACT_ID);

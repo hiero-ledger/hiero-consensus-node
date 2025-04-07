@@ -30,6 +30,7 @@ module com.hedera.node.app.hapi.utils {
     requires transitive org.hyperledger.besu.nativelib.secp256k1;
     requires transitive tuweni.bytes;
     requires com.swirlds.base;
+    requires org.hiero.consensus.model;
     requires com.fasterxml.jackson.databind;
     requires com.google.common;
     requires com.sun.jna;
@@ -38,5 +39,5 @@ module com.hedera.node.app.hapi.utils {
     requires org.apache.logging.log4j;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 }

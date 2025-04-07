@@ -5,14 +5,14 @@ import static com.swirlds.common.crypto.Cryptography.DEFAULT_SET_HASH;
 
 import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.threading.futures.StandardFuture;
 import java.util.Iterator;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
+import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.consensus.model.utility.StandardFuture;
 
 /**
  * This class is responsible for hashing a merkle tree.

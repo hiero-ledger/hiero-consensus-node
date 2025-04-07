@@ -10,12 +10,10 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.state.merkle.MerkleSchemaRegistry;
 import com.hedera.node.app.state.merkle.SchemaApplications;
 import com.hedera.node.config.data.HederaConfig;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -34,6 +32,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Set;
+import org.hiero.consensus.model.crypto.DigestType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -75,16 +74,13 @@ class OnDiskTest extends MerkleTestBase {
                 onDiskValueSerializerClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
                 onDiskValueClassId(SERVICE_NAME, ACCOUNT_STATE_KEY),
                 Account.PROTOBUF);
-        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final var tableConfig = new MerkleDbTableConfig(
                 (short) 1,
                 DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
-        // Force all hashes to disk, to make sure we're going through all the
-        // serialization paths we can
-        tableConfig.hashesRamToDiskThreshold(0);
-        tableConfig.maxNumberOfKeys(100);
+                100,
+                // Force all hashes to disk, to make sure we're going through all the
+                // serialization paths we can
+                0);
 
         final var builder = new MerkleDbDataSourceBuilder(storageDir, tableConfig, CONFIGURATION);
         virtualMap = new VirtualMap<>(

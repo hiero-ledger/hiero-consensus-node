@@ -59,15 +59,37 @@ public interface HintsService extends Service, BlockHashSigner {
     int MIGRATION_ORDER = RosterService.MIGRATION_ORDER - 1;
 
     /**
+     * Placeholder for the history service to use when hinTS is disabled.
+     */
+    Bytes DISABLED_HINTS_METADATA = Bytes.wrap(new byte[1288]);
+
+    /**
      * Returns the active verification key, or throws if none is active.
      */
     @NonNull
     Bytes activeVerificationKeyOrThrow();
 
     /**
-     * Initializes hinTS signing from the next construction in the given {@link ReadableHintsStore}.
+     * Sets the current roster for the network.
+     * @param roster the roster
      */
-    void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore);
+    void initCurrentRoster(@NonNull Roster roster);
+
+    /**
+     * Initializes hinTS signing from the next construction in the given {@link WritableHintsStore}.
+     *
+     * @param hintsStore the hints store
+     * @param previousRoster the previous roster
+     * @param adoptedRoster the adopted roster
+     * @param adoptedRosterHash the adopted roster hash
+     * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
+     */
+    void manageRosterAdoption(
+            @NonNull WritableHintsStore hintsStore,
+            @NonNull Roster previousRoster,
+            @NonNull Roster adoptedRoster,
+            @NonNull Bytes adoptedRosterHash,
+            boolean forceHandoff);
 
     /**
      * Takes any actions needed to advance the state of the {@link HintsService} toward
@@ -100,7 +122,7 @@ public interface HintsService extends Service, BlockHashSigner {
             @NonNull WritableHintsStore hintsStore,
             @NonNull Instant now,
             @NonNull TssConfig tssConfig,
-            final boolean isActive);
+            boolean isActive);
 
     /**
      * Executes the work needed to set the CRS for the network and start the preprocessing vote.
@@ -109,7 +131,7 @@ public interface HintsService extends Service, BlockHashSigner {
      * @param now                   the current consensus time
      * @param isActive               if the platform is active
      */
-    void executeCrsWork(@NonNull WritableHintsStore hintsStore, @NonNull Instant now, final boolean isActive);
+    void executeCrsWork(@NonNull WritableHintsStore hintsStore, @NonNull Instant now, boolean isActive);
 
     /**
      * Stops the hinTS service, causing it to abandon any in-progress work.
@@ -144,16 +166,18 @@ public interface HintsService extends Service, BlockHashSigner {
     }
 
     /**
-     * Returns the unique party size {@code M=2^k} such that the given roster node count
-     * falls in the range {@code (2*(k-1), 2^k]}.
+     * Returns the smallest power of 2 {@code M = 2^k} such that {@code numSigners + 1 < M}. Equivalently,
+     * if {@code 2^(k-1) <= numSigners + 1 < 2^k}, then the returned party size is {@code 2^k}.
      *
-     * @param n the roster node count
+     * @param numSigners the number of signers (roster node count)
      * @return the party size
      */
-    static int partySizeForRosterNodeCount(final int n) {
-        if ((n & (n - 1)) == 0) {
-            return n;
+    static int partySizeForRosterNodeCount(final int numSigners) {
+        // We want the smallest power of two > (numSigners + 1)
+        final var candidate = numSigners + 2;
+        if ((candidate & (candidate - 1)) == 0) {
+            return candidate;
         }
-        return Integer.highestOneBit(n) << 1;
+        return Integer.highestOneBit(candidate) << 1;
     }
 }

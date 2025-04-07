@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ST
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -29,7 +30,7 @@ class WritableNetworkStakingRewardsStoreImplTest {
     @BeforeEach
     void setUp() {
         final AtomicReference<NetworkStakingRewards> backingValue =
-                new AtomicReference<>(new NetworkStakingRewards(true, 1L, 2L, 3L));
+                new AtomicReference<>(new NetworkStakingRewards(true, 1L, 2L, 3L, Timestamp.DEFAULT));
         stakingRewardsState =
                 new WritableSingletonStateBase<>(STAKING_NETWORK_REWARDS_KEY, backingValue::get, backingValue::set);
         given(states.getSingleton(STAKING_NETWORK_REWARDS_KEY))

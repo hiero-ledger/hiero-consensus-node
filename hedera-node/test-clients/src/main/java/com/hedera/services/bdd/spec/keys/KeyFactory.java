@@ -10,11 +10,14 @@ import static java.util.stream.Collectors.toList;
 
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.SignatureGenerator;
+import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.hapi.utils.keys.KeyUtils;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hedera.services.bdd.spec.utilops.inventory.TypedKey;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import com.hederahashgraph.api.proto.java.SignatureMap;
@@ -92,8 +95,10 @@ public class KeyFactory {
     public KeyFactory(@NonNull final HapiSpecSetup setup, @NonNull final HapiSpecRegistry registry) throws Exception {
         this.setup = requireNonNull(setup);
         this.registry = requireNonNull(registry);
-        final var genesisKey = setup.payerKeyAsEd25519();
-        incorporate(setup.genesisAccountName(), genesisKey, KeyShape.listSigs(ON));
+        final var genesisKey = TypedKey.from(setup.payerKey());
+        final var pubKeyHex = org.hiero.consensus.model.utility.CommonUtils.hex(genesisKey.pubKey());
+        incorporate(
+                setup.genesisAccountName(), pubKeyHex, genesisKey.privateKey(), KeyShape.listSigs(genesisKey.type()));
     }
 
     /**
@@ -232,7 +237,7 @@ public class KeyFactory {
      */
     public void incorporate(
             @NonNull final String name, @NonNull final EdDSAPrivateKey key, @NonNull final SigControl control) {
-        final var pubKeyHex = com.swirlds.common.utility.CommonUtils.hex(key.getAbyte());
+        final var pubKeyHex = org.hiero.consensus.model.utility.CommonUtils.hex(key.getAbyte());
         pkMap.put(pubKeyHex, key);
         controlMap.put(registry.getKey(name), control);
     }
@@ -248,7 +253,8 @@ public class KeyFactory {
      * @param key the private key to incorporate
      */
     public void incorporateEd25519SimpleWacl(@NonNull final String name, @NonNull final EdDSAPrivateKey key) {
-        final var pubKeyHex = com.swirlds.common.utility.CommonUtils.hex(key.getAbyte());
+        final var pubKey = Ed25519Utils.extractEd25519PublicKey(key);
+        final var pubKeyHex = org.hiero.consensus.model.utility.CommonUtils.hex(Bytes.wrap(pubKey));
         incorporate(name, pubKeyHex, key, KeyShape.listOf(1));
     }
 
@@ -535,12 +541,12 @@ public class KeyFactory {
             @NonNull final com.hedera.hapi.node.base.Key key, @NonNull final Map<String, PrivateKey> keyMap) {
         switch (key.key().kind()) {
             case ED25519 -> {
-                final var hexedPubKey = com.swirlds.common.utility.CommonUtils.hex(
+                final var hexedPubKey = org.hiero.consensus.model.utility.CommonUtils.hex(
                         key.ed25519OrThrow().toByteArray());
                 keyMap.put(hexedPubKey, requireNonNull(pkMap.get(hexedPubKey)));
             }
             case ECDSA_SECP256K1 -> {
-                final var hexedPubKey = com.swirlds.common.utility.CommonUtils.hex(
+                final var hexedPubKey = org.hiero.consensus.model.utility.CommonUtils.hex(
                         key.ecdsaSecp256k1OrThrow().toByteArray());
                 keyMap.put(hexedPubKey, requireNonNull(pkMap.get(hexedPubKey)));
             }
@@ -568,7 +574,7 @@ public class KeyFactory {
             @NonNull final Function<Key, byte[]> targetKeyExtractor,
             @NonNull final String passphrase) {
         final var pubKeyBytes = targetKeyExtractor.apply(registry.getKey(name));
-        final var hexedPubKey = com.swirlds.common.utility.CommonUtils.hex(pubKeyBytes);
+        final var hexedPubKey = org.hiero.consensus.model.utility.CommonUtils.hex(pubKeyBytes);
         final var key = (EdDSAPrivateKey) pkMap.get(hexedPubKey);
         KeyUtils.writeKeyTo(key, loc, passphrase);
     }
@@ -579,7 +585,7 @@ public class KeyFactory {
             @NonNull final String pass,
             @NonNull final Function<Key, byte[]> targetKeyExtractor) {
         final var pubKeyBytes = targetKeyExtractor.apply(registry.getKey(name));
-        final var hexedPubKey = com.swirlds.common.utility.CommonUtils.hex(pubKeyBytes);
+        final var hexedPubKey = org.hiero.consensus.model.utility.CommonUtils.hex(pubKeyBytes);
         final var key = (ECPrivateKey) pkMap.get(hexedPubKey);
         final var explicitLoc = loc != null ? loc : explicitEcdsaLocFor(name);
         KeyUtils.writeKeyTo(key, explicitLoc, pass);
@@ -657,7 +663,7 @@ public class KeyFactory {
 
         private void signIfNecessary(final Key key) throws GeneralSecurityException {
             final var pk = extractPubKey(key);
-            final var hexedPk = com.swirlds.common.utility.CommonUtils.hex(pk);
+            final var hexedPk = org.hiero.consensus.model.utility.CommonUtils.hex(pk);
             if (!used.contains(hexedPk)) {
                 final var privateKey = pkMap.get(hexedPk);
                 final byte[] sig;

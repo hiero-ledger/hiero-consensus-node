@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
-import com.swirlds.common.crypto.DigestType;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import org.hiero.consensus.model.crypto.DigestType;
 
 public class DummyMessageDigest extends MessageDigest {
     private static final byte mdHash[] = new byte[DigestType.SHA_384.digestLength()];
