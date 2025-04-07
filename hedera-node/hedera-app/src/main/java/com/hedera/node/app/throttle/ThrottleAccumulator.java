@@ -456,8 +456,6 @@ public class ThrottleAccumulator {
         final var config = configSupplier.get();
         final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
         if (!schedulingConfig.longTermEnabled()) {
-            // we check for CryptoTransfer because implicit creations (i.e. auto- or lazy-creation) may happen in it,
-            // and we need to throttle those separately
             if (scheduledFunction == CRYPTO_TRANSFER) {
                 final var transfer = scheduled.cryptoTransfer();
                 if (usesAliases(transfer)) {

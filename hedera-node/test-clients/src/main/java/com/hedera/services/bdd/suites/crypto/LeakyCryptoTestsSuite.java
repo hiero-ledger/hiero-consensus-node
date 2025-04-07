@@ -141,7 +141,6 @@ public class LeakyCryptoTestsSuite {
     public static final String LAZY_ACCOUNT_RECIPIENT = "lazyAccountRecipient";
     public static final String PAY_TXN = "payTxn";
     public static final String CREATE_TX = "createTX";
-    private static final String ERC20_ABI = "ERC20ABI";
 
     @Order(16)
     @LeakyHapiTest(overrides = {"ledger.maxAutoAssociations", "ledger.autoRenewPeriod.minDuration"})
