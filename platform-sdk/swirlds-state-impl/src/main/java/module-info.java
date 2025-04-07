@@ -13,11 +13,11 @@ module com.swirlds.state.impl {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.virtualmap;
+    requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires com.hedera.node.hapi;
     requires com.swirlds.fcqueue;
     requires com.swirlds.logging;
     requires org.apache.logging.log4j;
-    requires transitive org.hiero.base.utility;
     requires static transitive com.github.spotbugs.annotations;
 }
