@@ -18,6 +18,7 @@ import com.swirlds.platform.network.communication.ProtocolNegotiatorThread;
 import com.swirlds.platform.network.connectivity.InboundConnectionHandler;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
+import com.swirlds.platform.network.topology.ConnectionManagerFactory;
 import com.swirlds.platform.network.topology.DynamicConnectionManagers;
 import com.swirlds.platform.network.topology.StaticTopology;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -103,8 +104,8 @@ public class PeerCommunication implements ConnectionTracker {
         this.handshakeProtocols = handshakeProtocols;
         this.protocolList = protocols;
 
-        this.connectionManagers =
-                new DynamicConnectionManagers(selfId, peers, platformContext, this, ownKeysAndCerts, topology);
+        this.connectionManagers = new DynamicConnectionManagers(
+                selfId, peers, platformContext, this, ownKeysAndCerts, topology, ConnectionManagerFactory.DEFAULT);
 
         this.connectionServer = createConnectionServer();
 

@@ -33,31 +33,6 @@ public class DynamicConnectionManagers {
     private final ConnectionManagerFactory connectionManagerFactory;
 
     /**
-     * @param selfId            self's node id
-     * @param peers             the list of peers
-     * @param platformContext   the platform context
-     * @param connectionTracker connection tracker for all platform connections
-     * @param ownKeysAndCerts   private keys and public certificates
-     * @param topology          current topology of connecions
-     */
-    public DynamicConnectionManagers(
-            @NonNull final NodeId selfId,
-            @NonNull final List<PeerInfo> peers,
-            @NonNull final PlatformContext platformContext,
-            @NonNull final ConnectionTracker connectionTracker,
-            @NonNull final KeysAndCerts ownKeysAndCerts,
-            @NonNull final NetworkTopology topology) {
-        this(
-                selfId,
-                peers,
-                platformContext,
-                connectionTracker,
-                ownKeysAndCerts,
-                topology,
-                ConnectionManagerFactory.DEFAULT);
-    }
-
-    /**
      * @param selfId                   self's node id
      * @param peers                    the list of peers
      * @param platformContext          the platform context
