@@ -5,6 +5,7 @@ module com.swirlds.platform.core.test.fixtures {
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common.test.fixtures;
     requires transitive com.swirlds.common;
+    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.config.extensions.test.fixtures;
     requires transitive com.swirlds.merkle;
@@ -17,7 +18,6 @@ module com.swirlds.platform.core.test.fixtures {
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
     requires transitive org.junit.jupiter.api;
-    requires com.swirlds.component.framework;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
     requires com.swirlds.state.api.test.fixtures;
