@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.token.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.AIRDROP_CONTAINS_MULTIPLE_SENDERS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_TOKEN_TRANSFER_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
@@ -63,7 +63,9 @@ public class TokenAirdropValidator {
     public void pureChecks(@NonNull final TokenAirdropTransactionBody op) throws PreCheckException {
         final var tokenTransfers = op.tokenTransfers();
         validateTruePreCheck(!tokenTransfers.isEmpty(), EMPTY_TOKEN_TRANSFER_BODY);
-        // If there is not exactly one debit or multiple nft senders we throw an exception
+        // Check that all the token transfers have 1 unique sender
+        // If multiple senders are airdropping the same token to a single receiver,
+        // it's unclear which sender should cover the token association fee.
         for (var tokenTransfer : tokenTransfers) {
             if (!tokenTransfer.nftTransfers().isEmpty()) {
                 final var sender =
@@ -71,13 +73,13 @@ public class TokenAirdropValidator {
                 validateTruePreCheck(sender != null, INVALID_TRANSFER_ACCOUNT_ID);
                 final var allNftsHaveTheSameSender = tokenTransfer.nftTransfers().stream()
                         .allMatch(nftTransfer -> sender.equals(nftTransfer.senderAccountID()));
-                validateTruePreCheck(allNftsHaveTheSameSender, AIRDROP_CONTAINS_MULTIPLE_SENDERS);
+                validateTruePreCheck(allNftsHaveTheSameSender, AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN);
             }
             if (!tokenTransfer.transfers().isEmpty()) {
                 List<AccountAmount> negativeTransfers = tokenTransfer.transfers().stream()
                         .filter(fungibleTransfer -> fungibleTransfer.amount() < 0)
                         .toList();
-                validateTruePreCheck(negativeTransfers.size() == 1, AIRDROP_CONTAINS_MULTIPLE_SENDERS);
+                validateTruePreCheck(negativeTransfers.size() == 1, AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN);
             }
         }
         validateTokenTransfers(op.tokenTransfers(), CryptoTransferValidator.AllowanceStrategy.ALLOWANCES_REJECTED);

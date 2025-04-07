@@ -1751,7 +1751,7 @@ enum ResponseCodeEnum {
     THROTTLE_GROUP_LCM_OVERFLOW = 397;
 
     /**
-     * Token airdrop transactions can not contain multiple senders.
+     * Token airdrop transactions can not contain multiple senders for a single token.
      */
-    AIRDROP_CONTAINS_MULTIPLE_SENDERS = 398;
+    AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN = 398;
 }

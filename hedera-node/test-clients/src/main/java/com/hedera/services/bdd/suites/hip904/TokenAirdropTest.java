@@ -70,7 +70,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_AMOUNT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_HAS_PENDING_AIRDROPS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AIRDROP_CONTAINS_MULTIPLE_SENDERS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_CHARGING_EXCEEDED_MAX_RECURSION_DEPTH;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_TOKEN_TRANSFER_BODY;
@@ -1370,11 +1370,11 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     tokenAirdrop(
                                     moving(5, FUNGIBLE_TOKEN).between("sender1", "receiver"),
                                     moving(5, FUNGIBLE_TOKEN).between("sender2", "receiver"))
-                            .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS),
+                            .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN),
                     tokenAirdrop(
                                     movingUnique(NON_FUNGIBLE_TOKEN, 1).between("sender1", "receiver"),
                                     movingUnique(NON_FUNGIBLE_TOKEN, 2).between("sender2", "receiver"))
-                            .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS));
+                            .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN));
         }
 
         @HapiTest
@@ -2114,7 +2114,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
             return hapiTest(tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, OWNER))
                     .signedBy(OWNER)
                     .payingWith(OWNER)
-                    .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS));
+                    .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN));
         }
 
         @HapiTest
