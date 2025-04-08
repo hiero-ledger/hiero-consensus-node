@@ -13,6 +13,11 @@ public interface VirtualHashListener<K extends VirtualKey, V extends VirtualValu
 
     /**
      * Called when starting a new fresh hash operation.
+     *
+     * @param firstLeafPath
+     *      The first leaf path in the virtual tree
+     * @param lastLeafPath
+     *      The last leaf path in the virtual tree
      */
     default void onHashingStarted(final long firstLeafPath, final long lastLeafPath) {}
 

@@ -30,7 +30,7 @@ import org.hiero.consensus.model.crypto.Hash;
  * the old (learner) state tree outside the new leaf path range. Second, {@link ReconnectHashListener},
  * which listens for hash updates from virtual hasher.
  *
- * <p>This flusher is thread safe, it's methods like {@link #updateHash(long, Hash)},
+ * <p>This flusher is thread safe, its methods like {@link #updateHash(long, Hash)},
  * {@link #updateLeaf(VirtualLeafRecord)}, and {@link #deleteLeaf(VirtualLeafRecord)} can
  * be called from multiple threads. However, some of the calling threads may be blocked
  * till the currently accumulated data is flushed to disk.
@@ -80,7 +80,7 @@ public class ReconnectHashLeafFlusher<K extends VirtualKey, V extends VirtualVal
         this.statistics = Objects.requireNonNull(statistics);
     }
 
-    void start(final long firstLeafPath, final long lastLeafPath) {
+    synchronized void start(final long firstLeafPath, final long lastLeafPath) {
         if (firstLeafPath != Path.INVALID_PATH && !(firstLeafPath > 0 && firstLeafPath <= lastLeafPath)) {
             throw new IllegalArgumentException("The first leaf path is invalid. firstLeafPath=" + firstLeafPath
                     + ", lastLeafPath=" + lastLeafPath);
@@ -154,20 +154,15 @@ public class ReconnectHashLeafFlusher<K extends VirtualKey, V extends VirtualVal
                 || (deletedLeaves.size() >= flushInterval);
     }
 
-    void finish() {
+    synchronized void finish() {
         assert (updatedHashes != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "finish called without start";
-        final List<VirtualHashRecord> dirtyHashesToFlush;
-        final List<VirtualLeafRecord<K, V>> dirtyLeavesToFlush;
-        final List<VirtualLeafRecord<K, V>> deletedLeavesToFlush;
-        synchronized (this) {
-            dirtyHashesToFlush = updatedHashes;
-            updatedHashes = null;
-            dirtyLeavesToFlush = updatedLeaves;
-            updatedLeaves = null;
-            deletedLeavesToFlush = deletedLeaves;
-            deletedLeaves = null;
-        }
+        final List<VirtualHashRecord> dirtyHashesToFlush = updatedHashes;
+        final List<VirtualLeafRecord<K, V>> dirtyLeavesToFlush = updatedLeaves;
+        final List<VirtualLeafRecord<K, V>> deletedLeavesToFlush = deletedLeaves;
+        updatedHashes = null;
+        updatedLeaves = null;
+        deletedLeaves = null;
         assert !flushInProgress.get() : "Flush must not be in progress when reconnect is finished";
         flushInProgress.set(true);
         // Nodes / leaves lists may be empty, but a flush is still needed to make sure
