@@ -1,7 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-import com.hedera.node.app.config.ServicesConfigExtension;
-import com.swirlds.config.api.ConfigurationExtension;
-
 module com.hedera.node.app {
     requires transitive com.hedera.cryptography.hints;
     requires transitive com.hedera.cryptography.rpm;
@@ -49,6 +46,7 @@ module com.hedera.node.app {
     requires com.swirlds.merkle;
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
+    requires org.hiero.base.utility;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires io.grpc.netty;
@@ -126,6 +124,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.ids.schemas;
     exports com.hedera.node.app.hints.schemas;
 
-    provides ConfigurationExtension with
-            ServicesConfigExtension;
+    provides com.swirlds.config.api.ConfigurationExtension with
+            com.hedera.node.app.config.ServicesConfigExtension;
 }

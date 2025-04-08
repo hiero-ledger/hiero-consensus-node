@@ -48,10 +48,10 @@ public class SpecKeyFromMnemonic extends UtilOp {
             throws ShortBufferException, NoSuchAlgorithmException, InvalidKeyException {
         byte[] seed = Bip0032.seedFrom(mnemonic);
         byte[] privateKey = Bip0032.privateKeyFrom(seed);
-        createAndLinkSimpleKey(spec, privateKey, name, linkedId, logToUse);
+        createAndLinkSimpleEdKey(spec, privateKey, name, linkedId, logToUse);
     }
 
-    static void createAndLinkSimpleKey(
+    static void createAndLinkSimpleEdKey(
             HapiSpec spec, byte[] privateKey, String name, Optional<String> linkedId, @Nullable Logger logToUse) {
         var params = EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519);
         var privateKeySpec = new EdDSAPrivateKeySpec(privateKey, params);

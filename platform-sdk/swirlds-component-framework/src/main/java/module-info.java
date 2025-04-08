@@ -18,6 +18,7 @@ module com.swirlds.component.framework {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires com.swirlds.logging;
+    requires org.hiero.base.utility;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 }

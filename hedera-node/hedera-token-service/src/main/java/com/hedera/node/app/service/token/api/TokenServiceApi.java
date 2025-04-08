@@ -14,6 +14,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 
 /**
@@ -32,38 +33,19 @@ public interface TokenServiceApi {
     boolean checkForCustomFees(@NonNull CryptoTransferTransactionBody op);
 
     /**
-     * Whether to free the alias when account is deleted or not.
-     * Aliases are always freed when we use ContractDeleteTransactionBody.
-     * Aliases are freed when we use CryptoDeleteTransactionBody based on the value of the
-     * accountsConfig#releaseAliasAfterDeletion
-     */
-    enum FreeAliasOnDeletion {
-        /**
-         * Free the alias on deletion.
-         */
-        YES,
-        /**
-         * Do not free the alias on deletion.
-         */
-        NO
-    }
-
-    /**
      * Deletes the account with the given id and transfers any remaining hbar balance to the given obtainer id.
      *
      * @param deletedId the id of the account to delete
      * @param obtainerId the id of the account to transfer the remaining hbar balance to
      * @param expiryValidator the expiry validator to use
      * @param recordBuilder the record builder to record the transfer in
-     * @param freeAliasOnDeletion whether to free the deleted account's alias (if any)
      * @throws HandleException if the account could not be deleted for some reason
      */
     void deleteAndTransfer(
             @NonNull AccountID deletedId,
             @NonNull AccountID obtainerId,
             @NonNull ExpiryValidator expiryValidator,
-            @NonNull DeleteCapableTransactionStreamBuilder recordBuilder,
-            @NonNull FreeAliasOnDeletion freeAliasOnDeletion);
+            @NonNull DeleteCapableTransactionStreamBuilder recordBuilder);
 
     /**
      * Validates the creation of a given staking election relative to the given account store, network info,
@@ -201,13 +183,15 @@ public interface TokenServiceApi {
      * @param fees the fees to charge
      * @param recordBuilder the record builder to record the fees in
      * @param cb if not null, a map to record the balance adjustments in
+     * @param onNodeFee a callback to receive the node fee disbursement
      */
     void chargeFees(
             @NonNull AccountID payer,
             AccountID nodeAccount,
             @NonNull Fees fees,
             @NonNull FeeStreamBuilder recordBuilder,
-            @Nullable ObjLongConsumer<AccountID> cb);
+            @Nullable ObjLongConsumer<AccountID> cb,
+            @NonNull LongConsumer onNodeFee);
 
     /**
      * Refunds the given fees to the given receiver, and records those fees in the given record builder.

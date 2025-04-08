@@ -4,20 +4,21 @@ package com.swirlds.component.framework.schedulers;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTimeout;
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder.UNLIMITED_CAPACITY;
+import static java.lang.Thread.sleep;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.component.framework.TestWiringModelBuilder;
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
@@ -25,11 +26,16 @@ import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
+import com.swirlds.component.framework.schedulers.internal.SequentialThreadTaskScheduler;
 import com.swirlds.component.framework.wires.SolderType;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.StringWriter;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,6 +45,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -2435,5 +2444,61 @@ class SequentialTaskSchedulerTests {
                 countAtSquelchEnd + 6, handleCount.get(), "New tasks should be processed after stopping squelching");
 
         model.stop();
+    }
+
+    @AfterEach
+    void tierDown() throws InterruptedException {
+        // This is a "best effort" attempt to not leave any thread alive before finishing the test.
+        // ONLY applies to SEQUENTIAL_THREAD.
+
+        final int retries = 3;
+        Collection<Thread> liveThreads = List.of();
+        for (int i = 0; i < retries; i++) {
+            liveThreads = getLivePlatformThreadByNameMatching(
+                    name -> name.startsWith(SequentialThreadTaskScheduler.THREAD_NAME_PREFIX)
+                            && name.endsWith(SequentialThreadTaskScheduler.THREAD_NAME_SUFFIX));
+            if (liveThreads.isEmpty()) {
+                break;
+            } else {
+                System.out.println(
+                        "Some scheduler threads are still alive, waiting for them to finish normally. Try:" + (i + 1));
+                sleep((int) Math.pow(100, (i + 1)));
+            }
+        }
+
+        if (!liveThreads.isEmpty()) {
+            // There is an issue preventing the thread to normally finish.
+            final StringWriter sw = new StringWriter();
+            sw.append(("Some scheduler threads are still alive after %d retries and they should not. ")
+                    .formatted(retries));
+            liveThreads.forEach(t -> {
+                StringBuilder exception = new StringBuilder("\n");
+                sw.append("+".repeat(40));
+                sw.append("\n");
+                sw.append(t.getName());
+                sw.append("\n");
+                for (StackTraceElement s : t.getStackTrace()) {
+                    exception.append(s).append("\n\t\t");
+                }
+                sw.append(exception);
+                sw.append("\n\n");
+                //
+                t.interrupt();
+            });
+            // mark the test as fail to analyze
+            fail(sw.toString());
+        }
+    }
+
+    /**
+     * Search for all alive platform threads which name's matches a given predicate.
+     * @param predicate that the name of the platform thread needs to match to be returned
+     * @return the list of threads that matched the predicate.
+     */
+    @NonNull
+    private static Collection<Thread> getLivePlatformThreadByNameMatching(@NonNull final Predicate<String> predicate) {
+        return Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> predicate.test(t.getName()))
+                .toList();
     }
 }

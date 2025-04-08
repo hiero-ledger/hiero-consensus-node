@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.utility;
 
-import static com.swirlds.common.utility.ByteUtils.byteArrayToLong;
+import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 import static org.hiero.consensus.model.utility.CommonUtils.getNormalisedStringBytes;
 
 import edu.umd.cs.findbugs.annotations.NonNull;

@@ -11,7 +11,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
-import com.hedera.node.app.hapi.utils.throttles.GasLimitDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
@@ -37,7 +37,7 @@ class NetworkUtilizationManagerImplTest {
     private final Instant consensusNow = Instant.ofEpochSecond(1_234_567L, 123);
 
     private final DeterministicThrottle throttle = DeterministicThrottle.withTpsAndBurstPeriodMsNamed(500, 10, "test");
-    private final GasLimitDeterministicThrottle gasThrottle = new GasLimitDeterministicThrottle(100);
+    private final LeakyBucketDeterministicThrottle gasThrottle = new LeakyBucketDeterministicThrottle(100, "Gas");
 
     @LoggingSubject
     private NetworkUtilizationManagerImpl subject;

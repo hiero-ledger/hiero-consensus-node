@@ -53,9 +53,7 @@ import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.gossip.SyncGossip;
-import com.swirlds.platform.gossip.config.GossipConfig;
-import com.swirlds.platform.gossip.modular.SyncGossipModular;
+import com.swirlds.platform.gossip.SyncGossipModular;
 import com.swirlds.platform.pool.DefaultTransactionPool;
 import com.swirlds.platform.pool.TransactionPool;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
@@ -347,7 +345,7 @@ public class PlatformComponentBuilder {
             eventSignatureValidator = new DefaultEventSignatureValidator(
                     blocks.platformContext(),
                     CryptoStatic::verifySignature,
-                    blocks.appVersion().getPbjSemanticVersion(),
+                    blocks.appVersion(),
                     blocks.rosterHistory().getPreviousRoster(),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.intakeEventCounter());
@@ -485,7 +483,7 @@ public class PlatformComponentBuilder {
                     data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
-                    blocks.appVersion().getPbjSemanticVersion(),
+                    blocks.appVersion(),
                     blocks.transactionPoolNexus());
 
             eventCreationManager = new DefaultEventCreationManager(
@@ -771,7 +769,7 @@ public class PlatformComponentBuilder {
             issDetector = new DefaultIssDetector(
                     blocks.platformContext(),
                     blocks.rosterHistory().getCurrentRoster(),
-                    blocks.appVersion().getPbjSemanticVersion(),
+                    blocks.appVersion(),
                     ignorePreconsensusSignatures,
                     roundToIgnore);
         }
@@ -939,47 +937,20 @@ public class PlatformComponentBuilder {
     @NonNull
     public Gossip buildGossip() {
         if (gossip == null) {
-
-            var useModularizedGossip = blocks.platformContext()
-                    .getConfiguration()
-                    .getConfigData(GossipConfig.class)
-                    .useModularizedGossip();
-
-            if (useModularizedGossip) {
-                gossip = new SyncGossipModular(
-                        blocks.platformContext(),
-                        AdHocThreadManager.getStaticThreadManager(),
-                        blocks.keysAndCerts(),
-                        blocks.rosterHistory().getCurrentRoster(),
-                        blocks.selfId(),
-                        blocks.appVersion(),
-                        blocks.swirldStateManager(),
-                        () -> blocks.getLatestCompleteStateReference().get().get(),
-                        x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
-                        state -> blocks.loadReconnectStateReference().get().accept(state),
-                        () -> blocks.clearAllPipelinesForReconnectReference()
-                                .get()
-                                .run(),
-                        blocks.intakeEventCounter(),
-                        blocks.platformStateFacade());
-            } else {
-                gossip = new SyncGossip(
-                        blocks.platformContext(),
-                        AdHocThreadManager.getStaticThreadManager(),
-                        blocks.keysAndCerts(),
-                        blocks.rosterHistory().getCurrentRoster(),
-                        blocks.selfId(),
-                        blocks.appVersion(),
-                        blocks.swirldStateManager(),
-                        () -> blocks.getLatestCompleteStateReference().get().get(),
-                        x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
-                        state -> blocks.loadReconnectStateReference().get().accept(state),
-                        () -> blocks.clearAllPipelinesForReconnectReference()
-                                .get()
-                                .run(),
-                        blocks.intakeEventCounter(),
-                        blocks.platformStateFacade());
-            }
+            gossip = new SyncGossipModular(
+                    blocks.platformContext(),
+                    AdHocThreadManager.getStaticThreadManager(),
+                    blocks.keysAndCerts(),
+                    blocks.rosterHistory().getCurrentRoster(),
+                    blocks.selfId(),
+                    blocks.appVersion(),
+                    blocks.swirldStateManager(),
+                    () -> blocks.getLatestCompleteStateReference().get().get(),
+                    x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
+                    state -> blocks.loadReconnectStateReference().get().accept(state),
+                    () -> blocks.clearAllPipelinesForReconnectReference().get().run(),
+                    blocks.intakeEventCounter(),
+                    blocks.platformStateFacade());
         }
         return gossip;
     }
@@ -1213,7 +1184,7 @@ public class PlatformComponentBuilder {
                     blocks.platformContext(),
                     blocks.swirldStateManager(),
                     blocks.statusActionSubmitterReference().get(),
-                    blocks.appVersion().getPbjSemanticVersion(),
+                    blocks.appVersion(),
                     blocks.platformStateFacade());
         }
         return transactionHandler;

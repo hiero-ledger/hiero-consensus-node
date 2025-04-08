@@ -178,7 +178,6 @@ class HintsControllerImplTest {
 
     @Test
     void schedulesPreprocessingWithQualifiedHintsKeysIfProcessingStartTimeIsSetButDoesNotScheduleTwice() {
-        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
         setupWith(
                 CONSTRUCTION_WITH_START_TIME,
                 List.of(EXPECTED_NODE_ONE_PUBLICATION, TARDY_NODE_TWO_PUBLICATION),
@@ -316,11 +315,11 @@ class HintsControllerImplTest {
 
         assertTrue(subject.addPreprocessingVote(1L, vote, store));
 
-        verify(context).setConstruction(FINISHED_CONSTRUCTION);
+        verify(context).setConstructions(FINISHED_CONSTRUCTION);
     }
 
     @Test
-    void setsSchemeAndActiveConstructionGivenVoteAndWinningCongruence() {
+    void setsSchemeAndBothConstructionsGivenVoteAndWinningCongruenceWithActiveId() {
         setupWith(CONSTRUCTION_WITH_START_TIME);
         final var keys = new PreprocessedKeys(Bytes.wrap("AK"), Bytes.wrap("VK"));
         final var vote = PreprocessingVote.newBuilder().preprocessedKeys(keys).build();
@@ -332,14 +331,17 @@ class HintsControllerImplTest {
         assertFalse(subject.addPreprocessingVote(1L, vote, store));
 
         given(weights.sourceWeightOf(2L)).willReturn(1L);
-        given(store.getActiveConstruction()).willReturn(HintsConstruction.DEFAULT);
+        given(store.getActiveConstruction())
+                .willReturn(HintsConstruction.newBuilder()
+                        .constructionId(FINISHED_CONSTRUCTION.constructionId())
+                        .build());
         final var congruentVote =
                 PreprocessingVote.newBuilder().congruentNodeId(1L).build();
         given(store.setHintsScheme(CONSTRUCTION_WITH_START_TIME.constructionId(), keys, Map.of()))
                 .willReturn(FINISHED_CONSTRUCTION);
         assertTrue(subject.addPreprocessingVote(2L, congruentVote, store));
 
-        verify(context, never()).setConstruction(any());
+        verify(context).setConstructions(FINISHED_CONSTRUCTION);
     }
 
     @Test
