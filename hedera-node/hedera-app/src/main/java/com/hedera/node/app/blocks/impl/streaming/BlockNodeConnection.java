@@ -304,7 +304,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
         switch (responseCode) {
             case STREAM_ITEMS_INTERNAL_ERROR, STREAM_ITEMS_PERSISTENCE_FAILED -> {
-                // The block node had an internal error and cannot continue processing.
+                // The block node had an end of stream error and cannot continue processing.
                 // We should wait for a short period before attempting to reconnect
                 // to avoid overwhelming the node if it's having issues
                 logger.warn(
@@ -316,14 +316,15 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
                 handleEndOfStreamError();
             }
-            case STREAM_ITEMS_BEHIND -> {
-                // The block node is "behind" the publisher.
-                // The consensus node has sent a block later than this block node
-                // can process. We should restart the stream at the block immediately
+            case STREAM_ITEMS_SUCCESS,
+                    STREAM_ITEMS_TIMEOUT,
+                    STREAM_ITEMS_OUT_OF_ORDER,
+                    STREAM_ITEMS_BAD_STATE_PROOF -> {
+                // We should restart the stream at the block immediately
                 // following the block where the node fell behind.
                 long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
                 logger.warn(
-                        "[{}] Block node {}:{} reported it is behind. Will restart stream at block {}",
+                        "[{}] Block node {}:{} reported status indicating immediate restart should be attempted. Will restart stream at block {}.",
                         Thread.currentThread().getName(),
                         node.address(),
                         node.port(),
@@ -331,17 +332,37 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
                 restartStreamAtBlock(restartBlockNumber);
             }
-            default -> {
-                // By default, restart after the last verified block + 1
+            case STREAM_ITEMS_BEHIND -> {
+                // The block node is behind us, check if we have the last verified block still available in order to
+                // restart the stream from there
                 long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
-                logger.debug(
-                        "[{}] Restarting stream at block {} due to {} for node {}:{}",
+                if (blockStreamStateManager.getBlockState(restartBlockNumber) != null) {
+                    logger.warn(
+                            "[{}] Block node {}:{} reported it is behind. Will restart stream at block {}.",
+                            Thread.currentThread().getName(),
+                            node.address(),
+                            node.port(),
+                            restartBlockNumber);
+                    restartStreamAtBlock(restartBlockNumber);
+                } else {
+                    // If we don't have the block state, we schedule retry for this connection and establish new one
+                    // with different block node
+                    logger.warn(
+                            "[{}] Block node {}:{} is behind and block state is not available. Closing connection and retrying.",
+                            Thread.currentThread().getName(),
+                            node.address(),
+                            node.port());
+                    blockNodeConnectionManager.handleConnectionError(this);
+                }
+            }
+            case STREAM_ITEMS_UNKNOWN -> {
+                // This should never happen, but if it does, we should close the connection
+                logger.error(
+                        "[{}] Block node {}:{} reported an unknown error at block {}. Closing connection.",
                         Thread.currentThread().getName(),
-                        restartBlockNumber,
-                        responseCode,
                         node.address(),
-                        node.port());
-                restartStreamAtBlock(restartBlockNumber);
+                        node.port(),
+                        blockNumber);
             }
         }
     }
