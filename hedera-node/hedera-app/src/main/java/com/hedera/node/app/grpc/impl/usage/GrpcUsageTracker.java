@@ -43,8 +43,6 @@ public class GrpcUsageTracker implements ServerInterceptor {
      */
     private static final Logger accessLogger = LogManager.getLogger("grpc-access-log");
 
-    private static final Logger clsLogger = LogManager.getLogger(GrpcUsageTracker.class);
-
     /**
      * Key used to extract the {@code X-User-Agent} header from the GRPC metadata.
      */
@@ -142,12 +140,10 @@ public class GrpcUsageTracker implements ServerInterceptor {
     void logAndResetUsageData() {
         scheduleNext();
 
-
         final Instant nextTime = toBucketTime(clock.instant());
         final UsageBucket usageBucket = bucketRef.getAndSet(new UsageBucket(nextTime));
         final String time = usageBucket.time.toString();
 
-        clsLogger.info("Logging usage data... (any => {})", !usageBucket.usageData.isEmpty());
         usageBucket.usageData.forEach((rpcEndpointName, usagesByAgent) -> {
             usagesByAgent.forEach((userAgent, counter) -> {
                 accessLogger.info(
@@ -169,8 +165,6 @@ public class GrpcUsageTracker implements ServerInterceptor {
     private void scheduleNext() {
         final GrpcUsageTrackerConfig config =
                 configProvider.getConfiguration().getConfigData(GrpcUsageTrackerConfig.class);
-
-        clsLogger.info("scheduleNext:: isEnabled={}, intervalMinutes={}", config.enabled(), config.logIntervalMinutes());
 
         isEnabled.set(config.enabled());
         executor.schedule(this::logAndResetUsageData, config.logIntervalMinutes(), TimeUnit.MINUTES);

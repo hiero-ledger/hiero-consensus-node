@@ -68,8 +68,8 @@ public class GrpcInterceptorTest extends GrpcTestBase {
 
         final List<String> accessLogs = accessLogCaptor.infoLogs();
         assertEquals(1, accessLogs.size());
-        final String expectedLog = "|service=TestService|method=TestMethod|sdkType=" + expectedAgentType.id() + "|sdkVersion="
-                + expectedVersion + "|count=1|";
+        final String expectedLog = "|service=TestService|method=TestMethod|sdkType=" + expectedAgentType.id()
+                + "|sdkVersion=" + expectedVersion + "|count=1|";
         final String actualLog = accessLogs.getFirst();
         assertTrue(
                 actualLog.contains(expectedLog),

@@ -23,7 +23,7 @@ import com.swirlds.config.api.validation.annotation.Min;
 @ConfigData("grpcUsageTracking")
 public record GrpcUsageTrackerConfig(
         @ConfigProperty(defaultValue = "true") boolean enabled,
-        @ConfigProperty(defaultValue = "2") @Min(1) int logIntervalMinutes,
+        @ConfigProperty(defaultValue = "15") @Min(1) int logIntervalMinutes,
         @ConfigProperty(defaultValue = "1000") @Min(0) int userAgentCacheSize) {
 
     public GrpcUsageTrackerConfig {
