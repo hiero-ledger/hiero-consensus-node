@@ -56,10 +56,16 @@ public enum UserAgentType {
         this.variations = requireNonNull(variations);
     }
 
+    /**
+     * @return true if this type is a known SDK, else false
+     */
     public boolean isKnownType() {
         return isKnownType;
     }
 
+    /**
+     * @return the formatted ID/name associated with this type
+     */
     public String id() {
         return id;
     }

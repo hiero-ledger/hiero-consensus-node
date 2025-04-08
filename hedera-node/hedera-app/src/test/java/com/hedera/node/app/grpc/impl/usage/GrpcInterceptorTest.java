@@ -78,8 +78,8 @@ public class GrpcInterceptorTest extends GrpcTestBase {
 
     static List<Arguments> testUserAgentArgs() {
         /*
-        This is not an exhaustive list of possible permutations. A more thorough list can be found in
-        GrpcLoggingInterceptorTest. This test is just for testing the interaction with a more real GRPC client/server.
+        This is not an exhaustive list of possible permutations. A more thorough list can be found in UserAgentTest and
+        RpcEndpointNameTest. This test is just for testing the interaction with a more real GRPC client/server.
          */
         return List.of(
                 Arguments.of("hiero-sdk-java/1.1.0", UserAgentType.HIERO_SDK_JAVA, "1.1.0"),
