@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.gossip.modular;
+package com.swirlds.platform.gossip;
 
 /**
  * Minimal interface for controlling main sync gossip intake. Used by reconnect protocol to stop gossiping while
