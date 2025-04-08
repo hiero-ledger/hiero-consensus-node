@@ -20,6 +20,8 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
 import com.swirlds.merkledb.files.DataFileReader;
+import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.DataInputStream;
@@ -93,11 +95,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * that we can optimize and avoid the cost of doing a % to find the bucket index from hash code.
      */
     private final int numOfBuckets;
-    /**
-     * The requested max size for the map, this is the maximum number of key/values expected to be
-     * stored in this map.
-     */
-    private final long mapSize;
+
     /** The name to use for the files prefix on disk */
     private final String storeName;
 
@@ -204,7 +202,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             throws IOException {
         requireNonNull(configuration);
         this.merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        this.mapSize = mapSize;
         this.storeName = storeName;
         Path indexFile = storeDir.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX);
         // create bucket pool
@@ -300,6 +297,80 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             metaOut.writeInt(numOfBuckets);
             metaOut.flush();
         }
+    }
+
+    /**
+     * Removes all stale and unknown keys from this HalfDiskHashMap using leaf information from the
+     * provided store. This method iterates over all key to path entries in this map, gets the paths,
+     * loads leaf records by the paths, and compares to the original keys. If the key from the entry
+     * doesn't match the key from the leaf record, the entry is deleted from this map. If the key
+     * from the entry is outside the given path range, the entry is deleted, too.
+     *
+     * @param firstLeafPath The first leaf path
+     * @param lastLeafPath The last leaf path
+     * @param store Path to KV store to check the keys
+     * @throws IOException If an I/O error occurs
+     */
+    public void repair(final long firstLeafPath, final long lastLeafPath, final MemoryIndexDiskKeyValueStore store)
+            throws IOException {
+        logger.info(
+                MERKLE_DB.getMarker(),
+                "Rebuilding HDHM {}, leaf path range [{},{}]",
+                storeName,
+                firstLeafPath,
+                lastLeafPath);
+        startWriting();
+        for (int i = 0; i < numOfBuckets; i++) {
+            final long bucketId = i;
+            final long bucketDataLocation = bucketIndexToBucketLocation.get(bucketId);
+            if (bucketDataLocation <= 0) {
+                continue;
+            }
+            final BufferedData bucketData =
+                    fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketId);
+            if (bucketData == null) {
+                throw new IOException("Cannot read bucket=" + bucketId + ", data location=" + bucketDataLocation);
+            }
+            try (final ParsedBucket bucket = new ParsedBucket()) {
+                bucket.readFrom(bucketData);
+                bucket.forEachEntry(entry -> {
+                    final Bytes keyBytes = entry.getKeyBytes();
+                    final long path = entry.getValue();
+                    try {
+                        boolean removeKey = true;
+                        if ((path < firstLeafPath) || (path > lastLeafPath)) {
+                            logger.warn("Delete key (path range): key={}, path={}", keyBytes, path);
+                        } else {
+                            final BufferedData recordBytes = store.get(path);
+                            assert recordBytes != null;
+                            final VirtualLeafBytes record = VirtualLeafBytes.parseFrom(recordBytes);
+                            if (!record.keyBytes().equals(keyBytes)) {
+                                logger.warn(
+                                        "Delete key (stale): path={}, expected={}, actual={}",
+                                        path,
+                                        record.keyBytes(),
+                                        keyBytes);
+                            } else {
+                                assert record.path() == path;
+                                removeKey = false;
+                            }
+                        }
+                        if (removeKey) {
+                            delete(keyBytes, entry.getHashCode());
+                        }
+                    } catch (final Exception e) {
+                        logger.error(
+                                MERKLE_DB.getMarker(),
+                                "Exception while processing bucket entry, bucket={}, key={} path={}",
+                                bucketId,
+                                keyBytes,
+                                path,
+                                e);
+                    }
+                });
+            }
+        }
+        endWriting();
     }
 
     /** {@inheritDoc} */
@@ -767,11 +838,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 MERKLE_DB.getMarker(),
                 """
                         HalfDiskHashMap Stats {
-                        	mapSize = {}
                         	numOfBuckets = {}
                         	GOOD_AVERAGE_BUCKET_ENTRY_COUNT = {}
                         }""",
-                mapSize,
                 numOfBuckets,
                 GOOD_AVERAGE_BUCKET_ENTRY_COUNT);
     }

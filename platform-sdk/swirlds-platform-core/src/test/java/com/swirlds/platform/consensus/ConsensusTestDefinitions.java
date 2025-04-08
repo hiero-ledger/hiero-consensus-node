@@ -10,7 +10,6 @@ import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestNode;
@@ -45,6 +44,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 public final class ConsensusTestDefinitions {

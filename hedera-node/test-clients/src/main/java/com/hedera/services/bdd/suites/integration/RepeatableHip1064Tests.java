@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
@@ -41,6 +42,7 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.AccountAmount;
@@ -139,16 +141,20 @@ public class RepeatableHip1064Tests {
                                     final long prePaidRewards = expectedNodeFees.get() / 4;
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
+                sleepForSeconds(2),
+                // This is considered as one transaction submitted, so one round
+                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    assertEquals(2, nodeRewards.numRoundsInStakingPeriod());
+                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
+                    // Update node 1 to have missed more than 10% of rounds
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
                                     .nodeId(1)
-                                    .numMissedJudgeRounds(2)
+                                    .numMissedJudgeRounds(3)
                                     .build())
                             .build();
                 }),
@@ -223,16 +229,19 @@ public class RepeatableHip1064Tests {
                                     final long prePaidRewards = 0;
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
+                sleepForSeconds(2),
+                // This is considered as one transaction submitted, so one round
+                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    assertEquals(2, nodeRewards.numRoundsInStakingPeriod());
+                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
                                     .nodeId(1)
-                                    .numMissedJudgeRounds(2)
+                                    .numMissedJudgeRounds(3)
                                     .build())
                             .build();
                 }),
@@ -314,16 +323,18 @@ public class RepeatableHip1064Tests {
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                     expectedMinNodeReward.set(minRewardTinybars);
                                 }))),
+                sleepForSeconds(2),
+                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    assertEquals(2, nodeRewards.numRoundsInStakingPeriod());
+                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
                                     .nodeId(1)
-                                    .numMissedJudgeRounds(2)
+                                    .numMissedJudgeRounds(3)
                                     .build())
                             .build();
                 }),
@@ -336,7 +347,7 @@ public class RepeatableHip1064Tests {
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
             overrides = {"nodes.preserveMinNodeRewardBalance"})
-    @Order(4)
+    @Order(3)
     final Stream<DynamicTest> preserveNodeRewardBalanceHasEffectWhenFeatureEnabled() {
         final AtomicLong expectedNodeFees = new AtomicLong(0);
         final AtomicLong expectedNodeRewards = new AtomicLong(0);
@@ -384,16 +395,18 @@ public class RepeatableHip1064Tests {
                                     final long prePaidRewards = expectedNodeFees.get() / 4;
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
+                sleepForSeconds(2),
+                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    assertEquals(2, nodeRewards.numRoundsInStakingPeriod());
+                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
                                     .nodeId(1)
-                                    .numMissedJudgeRounds(2)
+                                    .numMissedJudgeRounds(3)
                                     .build())
                             .build();
                 }),
