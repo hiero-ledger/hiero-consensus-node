@@ -109,7 +109,7 @@ public class BlockNodeConnectionManager {
             try {
                 final GrpcServiceClient grpcClient = createNewGrpcClient(node);
                 final BlockNodeConnection connection =
-                        new BlockNodeConnection(node, this, blockStreamStateManager, grpcClient);
+                        new BlockNodeConnection(node, this, blockStreamStateManager, grpcClient, scheduler);
                 connection.establishStream();
                 connection.getIsActiveLock().lock();
                 try {
