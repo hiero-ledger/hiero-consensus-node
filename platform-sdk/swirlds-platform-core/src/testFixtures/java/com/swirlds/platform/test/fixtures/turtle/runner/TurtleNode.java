@@ -187,6 +187,15 @@ public class TurtleNode {
         model.tick();
     }
 
+    /**
+     * Submit a transaction to the node.
+     *
+     * @param transaction the transaction to submit
+     */
+    public void submitTransaction(@NonNull final byte[] transaction) {
+        platform.createTransaction(transaction);
+    }
+
     @NonNull
     public ConsensusRoundsHolder getConsensusRoundsHolder() {
         return consensusRoundsHolder;

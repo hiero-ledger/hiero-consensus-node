@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
-import com.swirlds.logging.api.Logger;
-import com.swirlds.logging.api.Loggers;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
+import org.hiero.otter.fixtures.internal.FixedRate;
 
 /**
  * Interface representing a transaction generator.
@@ -13,9 +13,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public interface TransactionGenerator {
 
     /**
-     * Constant representing an unlimited number of transactions.
+     * Constant representing an infinite number of transactions.
      */
-    int UNLIMITED = -1;
+    int INFINITE = -1;
 
     /**
      * Generate a specified number of transactions with a given rate and distribution.
@@ -27,11 +27,14 @@ public interface TransactionGenerator {
     void generateTransactions(int count, @NonNull Rate rate, @NonNull Distribution distribution);
 
     /**
+     * Stop the transaction generation.
+     */
+    void stop();
+
+    /**
      * The {@code Rate} class represents the rate at which transactions are generated.
      */
-    class Rate {
-
-        private static final Logger log = Loggers.getLogger(Rate.class);
+    interface Rate {
 
         /**
          * Creates a rate that generates transactions at a fixed frequency.
@@ -40,10 +43,18 @@ public interface TransactionGenerator {
          * @return a {@code Rate} object representing the specified rate
          */
         @NonNull
-        public static Rate regularRateWithTps(final int tps) {
-            log.warn("Creating a regular rate with TPS is not implemented yet.");
-            return new Rate();
+        static Rate fixedRateWithTps(final int tps) {
+            return new FixedRate(tps);
         }
+
+        /**
+         * Returns the duration until when the next transaction should be generated in nanoseconds.
+         *
+         * @param start the start time of the transaction generation
+         * @param now the current time
+         * @return the duration until when the next transaction should be generated
+         */
+        long nextDelayNS(@NonNull Instant start, @NonNull Instant now);
     }
 
     /**

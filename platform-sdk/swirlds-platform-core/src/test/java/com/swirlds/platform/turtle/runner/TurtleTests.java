@@ -7,7 +7,6 @@ import com.swirlds.platform.test.fixtures.turtle.runner.Turtle;
 import com.swirlds.platform.test.fixtures.turtle.runner.TurtleBuilder;
 import java.nio.file.Path;
 import java.time.Duration;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -30,7 +29,6 @@ class TurtleTests {
      *         deadlocks a real possibility, and so it would be good to make the framework handle deadlocks.</li>
      * </ul>
      */
-    @Disabled
     @Test
     void turtleTest() {
         final Randotron randotron = Randotron.create();

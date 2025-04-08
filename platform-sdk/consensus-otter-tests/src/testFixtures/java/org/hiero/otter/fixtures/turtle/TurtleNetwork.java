@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.AVERAGE_NETWORK_DELAY;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEVIATION_NETWORK_DELAY;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.logging.api.Logger;
@@ -23,17 +22,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.generator.TransactionSubmitter;
-import org.hiero.otter.fixtures.time.TimeTickReceiver;
 
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
  */
-public class TurtleNetwork implements Network, TimeTickReceiver, TransactionSubmitter {
+public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceiver {
 
     private static final Logger log = Loggers.getLogger(TurtleNetwork.class);
 
@@ -48,6 +44,7 @@ public class TurtleNetwork implements Network, TimeTickReceiver, TransactionSubm
     private final Path rootOutputDirectory;
     private final List<TurtleNode> nodes = new ArrayList<>();
 
+    private List<Node> publicNodes = List.of();
     private ExecutorService threadPool;
     private SimulatedNetwork simulatedNetwork;
 
@@ -108,7 +105,8 @@ public class TurtleNetwork implements Network, TimeTickReceiver, TransactionSubm
                         rootOutputDirectory))
                 .toList());
 
-        return nodes.stream().map(Node.class::cast).toList();
+        publicNodes = nodes.stream().map(Node.class::cast).toList();
+        return publicNodes;
     }
 
     /**
@@ -135,6 +133,12 @@ public class TurtleNetwork implements Network, TimeTickReceiver, TransactionSubm
         throw new UnsupportedOperationException("Adding instrumented nodes is not implemented yet.");
     }
 
+    @NonNull
+    @Override
+    public List<Node> getNodes() {
+        return publicNodes;
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -158,13 +162,5 @@ public class TurtleNetwork implements Network, TimeTickReceiver, TransactionSubm
                 throw new RuntimeException(e);
             }
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void submitTransaction(@NonNull final NodeId nodeId, @NonNull final Bytes payload) {
-        log.warn("Submitting transaction is not implemented yet.");
     }
 }

@@ -24,4 +24,11 @@ public interface Node {
      * @param timeout the duration to wait before considering the revive operation as failed
      */
     void revive(@NonNull Duration timeout) throws InterruptedException;
+
+    /**
+     * Submit a transaction to the node.
+     *
+     * @param transaction the transaction to submit
+     */
+    void submitTransaction(@NonNull byte[] transaction);
 }

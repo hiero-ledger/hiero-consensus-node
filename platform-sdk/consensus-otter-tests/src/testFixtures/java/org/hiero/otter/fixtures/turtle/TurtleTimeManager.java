@@ -10,7 +10,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.time.TimeTickReceiver;
 
 /**
  * A time manager for the turtle network.
@@ -59,5 +58,23 @@ public class TurtleTimeManager implements TimeManager {
      */
     public void addTimeTickReceiver(@NonNull final TimeTickReceiver receiver) {
         timeTickReceivers.add(receiver);
+    }
+
+    /**
+     * A receiver of time ticks.
+     *
+     * <p>A receiver of time ticks is notified when the time manager advances time by the granularity specified in
+     * {@link TurtleTestEnvironment#GRANULARITY}. It is expected to perform any necessary actions that happened
+     * between this call and the previous call.
+     */
+    public interface TimeTickReceiver {
+
+        /**
+         * Called when the time manager advances the time by the configured granularity.
+         *
+         * @param now the current time in the simulation
+         */
+        void tick(@NonNull final Instant now);
+
     }
 }

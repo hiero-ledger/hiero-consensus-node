@@ -38,4 +38,12 @@ public interface Network {
      */
     @NonNull
     InstrumentedNode addInstrumentedNode();
+
+    /**
+     * Get the list of nodes in the network.
+     *
+     * @return a list of nodes in the network
+     */
+    @NonNull
+    List<Node> getNodes();
 }

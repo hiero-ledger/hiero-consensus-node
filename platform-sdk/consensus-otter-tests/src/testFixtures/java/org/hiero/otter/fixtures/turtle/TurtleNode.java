@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import static java.util.Objects.requireNonNull;
+
 import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.logging.api.Logger;
@@ -14,17 +16,17 @@ import java.time.Duration;
 import java.time.Instant;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.time.TimeTickReceiver;
 
 /**
  * A node in the turtle network.
  *
  * <p>This class implements the {@link Node} interface and provides methods to control the state of the node.
  */
-public class TurtleNode implements Node, TimeTickReceiver {
+public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
     private static final Logger log = Loggers.getLogger(TurtleNode.class);
 
+    private final NodeId nodeId;
     private final com.swirlds.platform.test.fixtures.turtle.runner.TurtleNode turtleNode;
 
     public TurtleNode(
@@ -35,6 +37,7 @@ public class TurtleNode implements Node, TimeTickReceiver {
             @NonNull final KeysAndCerts privateKey,
             @NonNull final SimulatedNetwork network,
             @NonNull final Path rootOutputDirectory) {
+        this.nodeId = requireNonNull(nodeId);
         turtleNode = new com.swirlds.platform.test.fixtures.turtle.runner.TurtleNode(
                 randotron,
                 time,
@@ -65,8 +68,16 @@ public class TurtleNode implements Node, TimeTickReceiver {
      * {@inheritDoc}
      */
     @Override
+    public void submitTransaction(@NonNull final byte[] transaction) {
+        turtleNode.submitTransaction(transaction);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void tick(@NonNull Instant now) {
-        // Not implemented. Logs no warning as this method is called with high frequency.
+        turtleNode.tick();
     }
 
     /**
@@ -74,5 +85,9 @@ public class TurtleNode implements Node, TimeTickReceiver {
      */
     public void start() {
         turtleNode.start();
+    }
+
+    public void dump() {
+        log.info("Dump of node {}: {}", nodeId, turtleNode.getConsensusRoundsHolder().getCollectedRounds());
     }
 }
