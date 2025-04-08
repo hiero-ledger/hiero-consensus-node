@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.turtle.runner;
+package com.swirlds.platform.test.fixtures.turtle.runner;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.constructable.ClassConstructorPair;

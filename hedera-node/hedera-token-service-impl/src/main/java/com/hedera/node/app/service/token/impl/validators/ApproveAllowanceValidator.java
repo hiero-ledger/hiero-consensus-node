@@ -8,7 +8,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.FUNGIBLE_TOKEN_IN_NFT_A
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_SPENDER_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NFT_IN_FUNGIBLE_TOKEN_ALLOWANCES;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SPENDER_ACCOUNT_SAME_AS_OWNER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -73,9 +72,6 @@ public class ApproveAllowanceValidator extends AllowanceValidator {
         final var cryptoAllowances = op.cryptoAllowances();
         final var tokenAllowances = op.tokenAllowances();
         final var nftAllowances = op.nftAllowances();
-
-        // feature flag for allowances. FUTURE: Will probably be moved to some other place in app in the future.
-        validateTrue(hederaConfig.allowancesIsEnabled(), NOT_SUPPORTED);
 
         // validate total count of allowances does not exceed the configured maximum
         validateAllowanceCount(cryptoAllowances, tokenAllowances, nftAllowances, hederaConfig);

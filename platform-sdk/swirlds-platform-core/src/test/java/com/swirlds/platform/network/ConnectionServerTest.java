@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
-import com.swirlds.platform.gossip.modular.PeerConnectionServer;
 import com.swirlds.platform.network.connectivity.ConnectionServer;
 import com.swirlds.platform.network.connectivity.InboundConnectionHandler;
 import com.swirlds.platform.network.connectivity.SocketFactory;
