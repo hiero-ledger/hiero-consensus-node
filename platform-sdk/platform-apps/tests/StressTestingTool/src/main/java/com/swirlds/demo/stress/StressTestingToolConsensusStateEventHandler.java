@@ -16,12 +16,12 @@ import java.time.Duration;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.ByteUtils;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
-import org.hiero.consensus.utility.ByteUtils;
 
 public class StressTestingToolConsensusStateEventHandler implements ConsensusStateEventHandler<StressTestingToolState> {
     private static final Logger logger = LogManager.getLogger(StressTestingToolConsensusStateEventHandler.class);

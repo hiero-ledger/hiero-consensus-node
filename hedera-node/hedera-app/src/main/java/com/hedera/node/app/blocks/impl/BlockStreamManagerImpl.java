@@ -471,7 +471,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
             requireNonNull(fatalShutdownFuture).complete(null);
         }
-        return closesBlock || lastRoundOfPrevBlock == 0;
+        return closesBlock;
     }
 
     @Override
@@ -596,7 +596,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
 
         // During freeze round, we should close the block regardless of other conditions
-        if (roundNumber == freezeRoundNumber) {
+        if (roundNumber == freezeRoundNumber || roundNumber == 1) {
             return true;
         }
 

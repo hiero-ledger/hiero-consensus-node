@@ -159,6 +159,13 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     }
 
     /**
+     * Returns the last consensus time used for a transaction.
+     */
+    public @Nullable Instant lastConsensusTime() {
+        return lastConsensusTime;
+    }
+
+    /**
      * Resets the state of the listener to avoid ony contamination from migration state changes done
      * during state initialization outside of {@code handleTransaction}.
      */

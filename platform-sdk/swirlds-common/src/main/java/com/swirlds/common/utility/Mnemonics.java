@@ -2,7 +2,7 @@
 package com.swirlds.common.utility;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
-import static org.hiero.consensus.utility.ByteUtils.byteArrayToShort;
+import static org.hiero.base.utility.ByteUtils.byteArrayToShort;
 
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyProvider;

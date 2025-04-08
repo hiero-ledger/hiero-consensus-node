@@ -8,7 +8,7 @@ import com.swirlds.merkle.test.fixtures.map.benchmark.BenchmarkAccount;
 import com.swirlds.merkle.test.fixtures.map.benchmark.BenchmarkKey;
 import com.swirlds.merkle.test.fixtures.map.benchmark.MerkleMapBenchmarkMetadata;
 import java.util.Random;
-import org.hiero.consensus.utility.test.fixtures.RandomUtils;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 
 /**
  * Simulate the creation of an account.

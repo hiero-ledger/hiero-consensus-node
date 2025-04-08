@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.threading.framework;
 
-import org.hiero.consensus.utility.Clearable;
+import org.hiero.base.utility.Clearable;
 
 /**
  * Similar to a {@link QueueThread}, but can hold multiple types of data.

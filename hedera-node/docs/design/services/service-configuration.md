@@ -21,7 +21,6 @@ For more detailed information on other types of configuration, please refer to t
 - **CacheConfig.java**: Manages settings related to caching, including record TTL and the number of warm-up threads.
 - **ConsensusConfig.java**: Configures various consensus-related settings, including message size limits and handling parameters for preceding and following records.
 - **ContractsConfig.java**: Manages configurations for smart contracts, including storage fees, delegate caller permissions, and gas usage limits.
-- **CryptoCreateWithAliasConfig.java**: Enables or disables the feature for creating crypto accounts with an alias.
 - **EntitiesConfig.java**: Manages settings related to entities, including maximum lifetime and token association limits.
 - **ExpiryConfig.java**: Configures expiration-related settings, including throttle resources.
 - **FeesConfig.java**: Manages fee-related configurations, including congestion multipliers and token transfer usage multipliers.

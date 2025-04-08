@@ -6,7 +6,7 @@ import static com.swirlds.common.utility.Mnemonics.generateMnemonicWords;
 import static com.swirlds.common.utility.Mnemonics.getWord;
 import static com.swirlds.common.utility.Mnemonics.getWordIndex;
 import static com.swirlds.common.utility.Mnemonics.getWordList;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
