@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.tipset;
+package org.hiero.consensus.event.creator.impl.rules;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
@@ -18,20 +18,15 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.event.creation.EventCreator;
-import com.swirlds.platform.event.creation.rules.PlatformStatusRule;
-import com.swirlds.platform.pool.TransactionPoolNexus;
 import java.time.Duration;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig_;
-import org.hiero.consensus.event.creator.impl.rules.AggregateEventCreationRules;
-import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
-import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
-import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
+import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.DisplayName;

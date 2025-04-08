@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.creation;
+package org.hiero.consensus.event.creator.impl;
 
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.ATTEMPTING_CREATION;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.IDLE;
@@ -9,20 +9,19 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LI
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
-import com.swirlds.platform.event.creation.rules.PlatformStatusRule;
-import com.swirlds.platform.pool.TransactionPoolNexus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.event.creator.impl.EventCreationStatus;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
+import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.event.creator.impl.rules.AggregateEventCreationRules;
 import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
+import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;

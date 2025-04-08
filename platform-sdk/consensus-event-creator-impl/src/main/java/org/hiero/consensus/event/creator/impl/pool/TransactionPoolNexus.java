@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.pool;
+package org.hiero.consensus.event.creator.impl.pool;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static org.hiero.base.utility.CompareTo.isLessThan;
@@ -7,8 +7,6 @@ import static org.hiero.base.utility.CompareTo.isLessThan;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
-import com.swirlds.platform.components.transaction.TransactionSupplier;
-import com.swirlds.platform.eventhandling.TransactionPoolMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -20,6 +18,7 @@ import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.TransactionConfig;
+import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
 

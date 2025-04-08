@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.eventhandling;
+package org.hiero.consensus.event.creator.impl.pool;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
