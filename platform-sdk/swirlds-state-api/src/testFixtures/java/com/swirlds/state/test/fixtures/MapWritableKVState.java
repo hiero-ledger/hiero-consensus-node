@@ -69,6 +69,10 @@ public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
         backingStore.remove(key);
     }
 
+    public Map<K, V> getBackingStore() {
+        return backingStore;
+    }
+
     /** {@inheritDoc} */
     @NonNull
     @Override

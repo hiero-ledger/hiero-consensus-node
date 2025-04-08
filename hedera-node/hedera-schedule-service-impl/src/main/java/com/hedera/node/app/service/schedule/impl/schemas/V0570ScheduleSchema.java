@@ -78,53 +78,6 @@ public final class V0570ScheduleSchema extends Schema {
         return Set.of(SCHEDULES_BY_EXPIRY_SEC_KEY, SCHEDULES_BY_EQUALITY_KEY);
     }
 
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        requireNonNull(ctx);
-
-        final ReadableKVState<ProtoLong, ScheduleList> schedulesByExpiry =
-                ctx.previousStates().get(SCHEDULES_BY_EXPIRY_SEC_KEY);
-        final WritableKVState<TimestampSeconds, ScheduledCounts> scheduledCounts =
-                ctx.newStates().get(SCHEDULED_COUNTS_KEY);
-        final WritableKVState<ScheduledOrder, ScheduleID> scheduledOrders =
-                ctx.newStates().get(SCHEDULED_ORDERS_KEY);
-
-        final var secondsMigrated = new AtomicInteger();
-        final var schedulesMigrated = new AtomicInteger();
-        StreamSupport.stream(spliteratorUnknownSize(schedulesByExpiry.keys(), DISTINCT), false)
-                .forEach(second -> {
-                    final var scheduleList = schedulesByExpiry.get(second);
-                    if (scheduleList != null) {
-                        secondsMigrated.incrementAndGet();
-                        final var schedules = scheduleList.schedules();
-                        final var n = schedules.size();
-                        scheduledCounts.put(new TimestampSeconds(second.value()), new ScheduledCounts(n, 0));
-                        for (int i = 0; i < n; i++) {
-                            scheduledOrders.put(
-                                    new ScheduledOrder(second.value(), i),
-                                    schedules.get(i).scheduleIdOrThrow());
-                        }
-                        schedulesMigrated.addAndGet(n);
-                    }
-                });
-        log.info("Migrated {} schedules from {} seconds", schedulesMigrated.get(), secondsMigrated.get());
-
-        final WritableKVState<ProtoBytes, ScheduleID> writableScheduleByEquality =
-                ctx.newStates().get(SCHEDULE_ID_BY_EQUALITY_KEY);
-        final ReadableKVState<ProtoBytes, ScheduleList> readableSchedulesByEquality =
-                ctx.previousStates().get(SCHEDULES_BY_EQUALITY_KEY);
-        StreamSupport.stream(spliteratorUnknownSize(readableSchedulesByEquality.keys(), DISTINCT), false)
-                .forEach(key -> {
-                    final var scheduleList = readableSchedulesByEquality.get(key);
-                    if (scheduleList != null) {
-                        final var schedulerId = requireNonNull(
-                                scheduleList.schedules().getFirst().scheduleId());
-                        final var newScheduleId = schedulerId.copyBuilder().build();
-                        writableScheduleByEquality.put(key, newScheduleId);
-                    }
-                });
-        log.info("Migrated schedules from SCHEDULES_BY_EQUALITY_KEY");
-    }
 
     private static StateDefinition<TimestampSeconds, ScheduledCounts> scheduledCounts() {
         return StateDefinition.onDisk(

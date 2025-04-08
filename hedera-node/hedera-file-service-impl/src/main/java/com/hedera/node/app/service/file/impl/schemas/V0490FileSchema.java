@@ -209,7 +209,7 @@ public class V0490FileSchema extends Schema {
 
     public Bytes nodeStoreNodeDetails(@NonNull final ReadableNodeStore nodeStore) {
         final var nodeDetails = new ArrayList<NodeAddress>();
-        StreamSupport.stream(Spliterators.spliterator(nodeStore.keys(), nodeStore.sizeOfState(), DISTINCT), false)
+        StreamSupport.stream(Spliterators.spliterator(nodeStore.keys().iterator(), nodeStore.sizeOfState(), DISTINCT), false)
                 .mapToLong(EntityNumber::number)
                 .mapToObj(nodeStore::get)
                 .filter(node -> node != null && !node.deleted())
@@ -235,7 +235,7 @@ public class V0490FileSchema extends Schema {
 
     public Bytes nodeStoreAddressBook(@NonNull final ReadableNodeStore nodeStore) {
         final var nodeAddresses = new ArrayList<NodeAddress>();
-        StreamSupport.stream(Spliterators.spliterator(nodeStore.keys(), nodeStore.sizeOfState(), DISTINCT), false)
+        StreamSupport.stream(Spliterators.spliterator(nodeStore.keys().iterator(), nodeStore.sizeOfState(), DISTINCT), false)
                 .mapToLong(EntityNumber::number)
                 .mapToObj(nodeStore::get)
                 .filter(node -> node != null && !node.deleted())

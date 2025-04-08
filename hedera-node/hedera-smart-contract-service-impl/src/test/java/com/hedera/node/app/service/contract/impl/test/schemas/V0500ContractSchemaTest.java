@@ -10,7 +10,6 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
-import com.hedera.node.app.service.contract.impl.schemas.V0500ContractSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.test.fixtures.MapReadableKVState;

@@ -238,7 +238,7 @@ public class ReadableFreezeUpgradeActions {
 
     private List<ActiveNode> allActiveNodes() {
         return StreamSupport.stream(
-                        Spliterators.spliterator(nodeStore.keys(), nodeStore.sizeOfState(), DISTINCT), false)
+                        Spliterators.spliterator(nodeStore.keys().iterator(), nodeStore.sizeOfState(), DISTINCT), false)
                 .mapToLong(EntityNumber::number)
                 .sorted()
                 .mapToObj(nodeStore::get)

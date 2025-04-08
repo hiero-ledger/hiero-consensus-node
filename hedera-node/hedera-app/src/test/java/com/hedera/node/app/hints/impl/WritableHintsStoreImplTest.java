@@ -112,7 +112,7 @@ class WritableHintsStoreImplTest {
     @BeforeEach
     void setUp() {
         state = emptyState();
-        subject = new WritableHintsStoreImpl(state.getWritableStates(HintsService.NAME));
+        subject = new WritableHintsStoreImpl(state.getWritableStates(HintsService.NAME), entityCounters);
     }
 
     @Test
@@ -364,7 +364,7 @@ class WritableHintsStoreImplTest {
                 .willReturn(new WritableSingletonStateBase<>(
                         ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
 
-        subject = new WritableHintsStoreImpl(writableStates);
+        subject = new WritableHintsStoreImpl(writableStates, entityCounters);
         subject.setCrsState(crsState);
         return crsState;
     }

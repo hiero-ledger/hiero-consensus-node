@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
-import com.hedera.node.app.service.contract.impl.schemas.V0500ContractSchema;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.config.data.ContractsConfig;

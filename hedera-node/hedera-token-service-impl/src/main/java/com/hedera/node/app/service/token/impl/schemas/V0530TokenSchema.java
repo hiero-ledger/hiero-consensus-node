@@ -42,22 +42,4 @@ public class V0530TokenSchema extends Schema {
                 AIRDROPS_KEY, PendingAirdropId.PROTOBUF, AccountPendingAirdrop.PROTOBUF, MAX_PENDING_AIRDROPS));
     }
 
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        setMinStakeToZero(ctx);
-    }
-
-    private void setMinStakeToZero(final MigrationContext ctx) {
-        final WritableKVState<EntityNumber, StakingNodeInfo> stakingInfos =
-                ctx.newStates().get(STAKING_INFO_KEY);
-        logger.info("Setting minStake to 0 for all nodes in the address book");
-        final var nodeIds = StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(stakingInfos.keys(), Spliterator.NONNULL), false)
-                .sorted(Comparator.comparingLong(EntityNumber::number))
-                .toList();
-        for (final var nodeId : nodeIds) {
-            final var stakingInfo = requireNonNull(stakingInfos.get(nodeId));
-            stakingInfos.put(nodeId, stakingInfo.copyBuilder().minStake(0).build());
-        }
-    }
 }

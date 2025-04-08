@@ -66,6 +66,8 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
@@ -1354,8 +1356,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         requireNonNull(initState);
         final var rosterHash = RosterUtils.hash(roster).getBytes();
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        final var entityCounters = new ReadableEntityIdStoreImpl(initState.getWritableStates(EntityIdService.NAME));
         return (!tssConfig.hintsEnabled()
-                        || new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME), entityCounters)
+                        || new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME),
+                entityCounters)
                                 .isReadyToAdopt(rosterHash))
                 && (!tssConfig.historyEnabled()
                         || new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME))
@@ -1368,7 +1372,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         if (tssConfig.hintsEnabled()) {
             final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
             final var writableStates = initState.getWritableStates(HintsService.NAME);
-            final var store = new WritableHintsStoreImpl(writableStates);
+            final var entityCounters = new WritableEntityIdStore(writableStates);
+            final var store = new WritableHintsStoreImpl(writableStates, entityCounters);
             hintsService.manageRosterAdoption(
                     store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
             ((CommittableWritableStates) writableStates).commit();

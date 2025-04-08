@@ -38,20 +38,6 @@ public class AddressBookHelper {
         throw new IllegalStateException("Utility class");
     }
 
-    /**
-     * Get the next Node ID number from the ReadableNodeStore.
-     * @param nodeStore the ReadableNodeStore
-     * @return nextNodeId the next Node ID
-     */
-    public static long getNextNodeID(@NonNull final ReadableNodeStore nodeStore) {
-        requireNonNull(nodeStore);
-        final long maxNodeId = StreamSupport.stream(
-                        Spliterators.spliterator(nodeStore.keys(), nodeStore.sizeOfState(), DISTINCT), false)
-                .mapToLong(EntityNumber::number)
-                .max()
-                .orElse(-1L);
-        return maxNodeId + 1;
-    }
 
     /**
      * Write the Certificate to a pem file.

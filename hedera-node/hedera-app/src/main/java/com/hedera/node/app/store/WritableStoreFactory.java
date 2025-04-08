@@ -106,7 +106,7 @@ public class WritableStoreFactory {
         // HintsService
         newMap.put(
                 WritableHintsStore.class,
-                new StoreEntry(HintsService.NAME, (states, entityCounters) -> new WritableHintsStoreImpl(states)));
+                new StoreEntry(HintsService.NAME, (states, entityCounters) -> new WritableHintsStoreImpl(states, entityCounters)));
         newMap.put(
                 WritableHistoryStore.class,
                 new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new WritableHistoryStoreImpl(states)));
