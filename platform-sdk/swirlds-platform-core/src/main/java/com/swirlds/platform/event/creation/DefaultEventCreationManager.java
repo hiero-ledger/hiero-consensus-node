@@ -7,7 +7,6 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.NO_ELIG
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LIMITED;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
 import com.swirlds.platform.event.creation.rules.PlatformStatusRule;
@@ -25,7 +24,6 @@ import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
 

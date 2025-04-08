@@ -31,7 +31,6 @@ import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
-import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;

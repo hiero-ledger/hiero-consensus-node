@@ -130,11 +130,10 @@ public class EventMetadata extends AbstractHashable {
     private static long calculateGeneration(@NonNull final List<EventDescriptorWrapper> allParents) {
         return 1
                 + Objects.requireNonNull(allParents).stream()
-                .mapToLong(d -> d.eventDescriptor().generation())
-                .max()
-                .orElse(EventConstants.GENERATION_UNDEFINED);
+                        .mapToLong(d -> d.eventDescriptor().generation())
+                        .max()
+                        .orElse(EventConstants.GENERATION_UNDEFINED);
     }
-
 
     /**
      * The birth round of the event. If this event was migrated - as part of birth round migration - then the value

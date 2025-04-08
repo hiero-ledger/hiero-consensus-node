@@ -22,7 +22,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;

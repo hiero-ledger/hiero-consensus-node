@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.tipset;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+
 import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.util.ArrayList;
@@ -9,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -16,9 +20,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 
 @DisplayName("ChildlessEventTracker Tests")
 class ChildlessEventTrackerTests {
@@ -40,18 +41,16 @@ class ChildlessEventTrackerTests {
         final List<PlatformEvent> batch2 = new ArrayList<>();
         for (int nodeId = 0; nodeId < numNodes; nodeId++) {
             final NodeId nonExistentParentId1 = NodeId.of(nodeId + 100);
-            final PlatformEvent nonExistentParent1 =
-                    new TestingEventBuilder(random)
-                            .setCreatorId(nonExistentParentId1)
-                            .setNGen(0)
-                            .build();
+            final PlatformEvent nonExistentParent1 = new TestingEventBuilder(random)
+                    .setCreatorId(nonExistentParentId1)
+                    .setNGen(0)
+                    .build();
 
             final NodeId nonExistentParentId2 = NodeId.of(nodeId + 100);
-            final PlatformEvent nonExistentParent2 =
-                    new TestingEventBuilder(random)
-                            .setCreatorId(nonExistentParentId2)
-                            .setNGen(0)
-                            .build();
+            final PlatformEvent nonExistentParent2 = new TestingEventBuilder(random)
+                    .setCreatorId(nonExistentParentId2)
+                    .setNGen(0)
+                    .build();
 
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(NodeId.of(nodeId))
@@ -71,23 +70,21 @@ class ChildlessEventTrackerTests {
                 .withFailMessage("Only the new events with higher generations should be tracked")
                 .containsAll(batch2);
 
-        // Decrease generation for all nodes. Each creator will create a new event, with a lower
-        // non-deterministic generation and unknown parents. None of these events should
+        // Create events with a lower generation for all nodes. Each creator will create a new event,
+        // with a lower non-deterministic generation and unknown parents. None of these events should
         // be tracked because they have a lower nGen.
         for (int nodeId = 0; nodeId < numNodes; nodeId++) {
             final NodeId nonExistentParentId1 = NodeId.of(nodeId + 100);
-            final PlatformEvent nonExistentParent1 =
-                    new TestingEventBuilder(random)
-                            .setCreatorId(nonExistentParentId1)
-                            .setNGen(0)
-                            .build();
+            final PlatformEvent nonExistentParent1 = new TestingEventBuilder(random)
+                    .setCreatorId(nonExistentParentId1)
+                    .setNGen(0)
+                    .build();
 
             final NodeId nonExistentParentId2 = NodeId.of(nodeId + 100);
-            final PlatformEvent nonExistentParent2 =
-                    new TestingEventBuilder(random)
-                            .setCreatorId(nonExistentParentId2)
-                            .setNGen(0)
-                            .build();
+            final PlatformEvent nonExistentParent2 = new TestingEventBuilder(random)
+                    .setCreatorId(nonExistentParentId2)
+                    .setNGen(0)
+                    .build();
 
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(NodeId.of(nodeId))
@@ -111,7 +108,6 @@ class ChildlessEventTrackerTests {
     @DisplayName("Events with children are not tracked")
     void testEventsWithChildrenAreNotTracked() {
         final Random random = getRandomPrintSeed();
-
         final ChildlessEventTracker tracker = new ChildlessEventTracker();
 
         // Add 3 events, created by different nodes with no parents
@@ -172,17 +168,15 @@ class ChildlessEventTrackerTests {
         for (long nodeId = 0; nodeId < numNodes; nodeId++) {
 
             final NodeId nonExistentParentId1 = NodeId.of(nodeId + 100);
-            final PlatformEvent nonExistentParent1 =
-                    new TestingEventBuilder(random)
-                            .setCreatorId(nonExistentParentId1)
-                            .setNGen(0)
-                            .build();
+            final PlatformEvent nonExistentParent1 = new TestingEventBuilder(random)
+                    .setCreatorId(nonExistentParentId1)
+                    .setNGen(0)
+                    .build();
             final NodeId nonExistentParentId2 = NodeId.of(nodeId + 101);
-            final PlatformEvent nonExistentParent2 =
-                    new TestingEventBuilder(random)
-                            .setCreatorId(nonExistentParentId2)
-                            .setNGen(0)
-                            .build();
+            final PlatformEvent nonExistentParent2 = new TestingEventBuilder(random)
+                    .setCreatorId(nonExistentParentId2)
+                    .setNGen(0)
+                    .build();
 
             final long parentGeneration = nodeId + ancientThresholdOffset - 1;
             final long birthRound = nodeId + ancientThresholdOffset;
@@ -211,11 +205,11 @@ class ChildlessEventTrackerTests {
         // so one event should be pruned in each event window update.
         for (long nodeId = 0; nodeId < numNodes; nodeId++) {
             final long ancientThreshold = nodeId + ancientThresholdOffset + 1;
-            tracker.pruneOldEvents(
-                    new EventWindow(ancientThreshold + 1, /* Ignored in this context */
-                            ancientThreshold,
-                            1, /* Ignored in this context */
-                            ancientMode));
+            tracker.pruneOldEvents(new EventWindow(
+                    ancientThreshold + 1, /* Ignored in this context */
+                    ancientThreshold,
+                    1, /* Ignored in this context */
+                    ancientMode));
             final PlatformEvent event = eventsByCreator.get(nodeId);
             assertThat(tracker.getChildlessEvents())
                     .withFailMessage("Tracker should have pruned event {}", event.getDescriptor())
@@ -233,13 +227,15 @@ class ChildlessEventTrackerTests {
     @DisplayName("Only the highest generation events from a branch are tracked")
     void testHighestGenBranchedEventsAreTracked() {
         final Random random = getRandomPrintSeed();
-
         final ChildlessEventTracker tracker = new ChildlessEventTracker();
         final NodeId nodeId = NodeId.of(0);
 
-        final PlatformEvent e0 = new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(0).build();
-        final PlatformEvent e1 = new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(1).build();
-        final PlatformEvent e2 = new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(2).build();
+        final PlatformEvent e0 =
+                new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(0).build();
+        final PlatformEvent e1 =
+                new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(1).build();
+        final PlatformEvent e2 =
+                new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(2).build();
 
         tracker.addEvent(e0);
         tracker.addEvent(e1);
@@ -278,16 +274,24 @@ class ChildlessEventTrackerTests {
         assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e3);
 
         // Branch with a higher generation, existing event should be discarded.
-        final PlatformEvent e99Branch = new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(99).build();
+        final PlatformEvent e99Branch =
+                new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(99).build();
         tracker.addEvent(e99Branch);
 
         assertThat(tracker.getChildlessEvents().size()).isEqualTo(1);
         assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e99Branch);
     }
 
-    private static List<PlatformEvent> loadTrackerWithInitialEvents(final Random random,
-            final ChildlessEventTracker tracker,
-            final int numNodes) {
+    /**
+     * Creates an initial set of events (without parents), one per node in the network, and loads them into the tracker.
+     * Once this method returns, the tracker is tracking all the initial events.
+     *
+     * @param tracker  the tracker to add the events to
+     * @param numNodes the number of nodes in the network
+     * @return the list of initial events the tracker is now tracking
+     */
+    private List<PlatformEvent> loadTrackerWithInitialEvents(
+            final Random random, final ChildlessEventTracker tracker, final int numNodes) {
         final List<PlatformEvent> initialEvents = createInitialEvents(random, numNodes);
         initialEvents.forEach(event -> {
             tracker.addEvent(event);
@@ -301,12 +305,18 @@ class ChildlessEventTrackerTests {
         return initialEvents;
     }
 
-    private static List<PlatformEvent> createInitialEvents(final Random random, final int numNodes) {
+    /**
+     * Create a single initial event (with no parents) for each node in the network.
+     *
+     * @param numNodes the number of nodes in the network.
+     * @return the initial list of events
+     */
+    private List<PlatformEvent> createInitialEvents(final Random random, final int numNodes) {
         final List<PlatformEvent> initialEvents = new ArrayList<>(numNodes);
         for (long nodeId = 0; nodeId < numNodes; nodeId++) {
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(NodeId.of(nodeId))
-                    .setNGen(0)
+                    .setNGen(EventConstants.FIRST_GENERATION)
                     .build();
             initialEvents.add(event);
         }

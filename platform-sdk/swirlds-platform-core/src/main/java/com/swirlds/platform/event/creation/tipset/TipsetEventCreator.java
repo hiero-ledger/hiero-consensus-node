@@ -260,9 +260,8 @@ public class TipsetEventCreator implements EventCreator {
         PlatformEvent bestOtherParent = null;
         TipsetAdvancementWeight bestAdvancementWeight = ZERO_ADVANCEMENT_WEIGHT;
         for (final PlatformEvent otherParent : possibleOtherParents) {
-            final TipsetAdvancementWeight advancementWeight =
-                    tipsetWeightCalculator.getTheoreticalAdvancementWeight(List.of(otherParent),
-                            lastSelfEvent.getDescriptor());
+            final TipsetAdvancementWeight advancementWeight = tipsetWeightCalculator.getTheoreticalAdvancementWeight(
+                    List.of(otherParent), lastSelfEvent.getDescriptor());
             if (advancementWeight.isGreaterThan(bestAdvancementWeight)) {
                 bestOtherParent = otherParent;
                 bestAdvancementWeight = advancementWeight;
@@ -302,8 +301,8 @@ public class TipsetEventCreator implements EventCreator {
         int selfishnessSum = 0;
         final List<Integer> selfishnessScores = new ArrayList<>(possibleOtherParents.size());
         for (final PlatformEvent possibleIgnoredNode : possibleOtherParents) {
-            final int selfishness = tipsetWeightCalculator.getSelfishnessScoreForNode(
-                    possibleIgnoredNode.getCreatorId());
+            final int selfishness =
+                    tipsetWeightCalculator.getSelfishnessScoreForNode(possibleIgnoredNode.getCreatorId());
 
             final List<PlatformEvent> theoreticalParents = new ArrayList<>(2);
             theoreticalParents.add(possibleIgnoredNode);
@@ -311,9 +310,8 @@ public class TipsetEventCreator implements EventCreator {
                 throw new IllegalStateException("no known self parent");
             }
 
-            final TipsetAdvancementWeight advancementWeight =
-                    tipsetWeightCalculator.getTheoreticalAdvancementWeight(theoreticalParents,
-                            lastSelfEvent.getDescriptor());
+            final TipsetAdvancementWeight advancementWeight = tipsetWeightCalculator.getTheoreticalAdvancementWeight(
+                    theoreticalParents, lastSelfEvent.getDescriptor());
 
             if (selfishness > 1) {
                 if (advancementWeight.isNonZero()) {

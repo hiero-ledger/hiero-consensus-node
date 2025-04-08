@@ -3,13 +3,7 @@ package com.swirlds.platform.event;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
-import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * Utility methods for events.
@@ -65,5 +59,4 @@ public final class EventUtils {
         }
         return event.getTransactionTime(event.getTransactionCount() - 1);
     }
-
 }

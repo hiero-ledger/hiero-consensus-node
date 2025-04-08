@@ -57,10 +57,14 @@ public class TipsetTracker {
      * Create a new tipset tracker.
      *
      * @param time        provides wall clock time
+     * @param selfId      the id of this node
      * @param roster      the current roster
      * @param ancientMode the {@link AncientMode} to use
      */
-    public TipsetTracker(@NonNull final Time time, @NonNull final NodeId selfId, @NonNull final Roster roster,
+    public TipsetTracker(
+            @NonNull final Time time,
+            @NonNull final NodeId selfId,
+            @NonNull final Roster roster,
             @NonNull final AncientMode ancientMode) {
 
         this.roster = Objects.requireNonNull(roster);
@@ -112,47 +116,17 @@ public class TipsetTracker {
         // Do not advance the self generation in the tipset for two reasons:
         // 1. We just created this event, and it does not yet have a generation to use because it
         // will be assigned by the orphan buffer later.
-        // 2. There is use in advancing the self generation because it does not contribute to the advancement score
+        // 2. Self advancement does not contribute to the advancement score
         final Tipset eventTipset;
         if (parentTipsets.isEmpty()) {
-            eventTipset = new Tipset(roster)
-                    .increment(selfId);
+            eventTipset = new Tipset(roster);
         } else {
-            eventTipset = merge(parentTipsets)
-                    .increment(selfId);
+            eventTipset = merge(parentTipsets);
         }
 
         tipsets.put(event.getDescriptor(), eventTipset);
 
         return eventTipset;
-    }
-
-    private void logIfNotSelfEvent(@NonNull final EventDescriptorWrapper descriptor) {
-        if (!selfId.equals(descriptor.creator())) {
-            logger.error(EXCEPTION.getMarker(),
-                    "Attempt to add peer event as self event to the TipsetTracker. Self Id: {}, Event Creator: {}",
-                    selfId.id(), descriptor.creator());
-        }
-    }
-
-    private void logIfSelfEvent(@NonNull final EventDescriptorWrapper descriptor) {
-        if (selfId.equals(descriptor.creator())) {
-            logger.error(EXCEPTION.getMarker(),
-                    "Attempt to add self event as peer event to the TipsetTracker. Self Id: {}, Event Creator: {}",
-                    selfId.id(), descriptor.creator());
-        }
-    }
-
-    @NonNull
-    private List<Tipset> getParentTipsets(@NonNull final List<EventDescriptorWrapper> parents) {
-        final List<Tipset> parentTipsets = new ArrayList<>(parents.size());
-        for (final EventDescriptorWrapper parent : parents) {
-            final Tipset parentTipset = tipsets.get(parent);
-            if (parentTipset != null) {
-                parentTipsets.add(parentTipset);
-            }
-        }
-        return parentTipsets;
     }
 
     /**
@@ -170,23 +144,47 @@ public class TipsetTracker {
 
         final Tipset eventTipset;
         if (parentTipsets.isEmpty()) {
-            eventTipset = new Tipset(roster)
-                    .advance(
-                            event.getCreatorId(),
-                            event.getNGen());
+            eventTipset = new Tipset(roster).advance(event.getCreatorId(), event.getNGen());
         } else {
-            eventTipset = merge(parentTipsets)
-                    .advance(
-                            event.getCreatorId(),
-                            event.getNGen());
+            eventTipset = merge(parentTipsets).advance(event.getCreatorId(), event.getNGen());
         }
 
         tipsets.put(event.getDescriptor(), eventTipset);
-        latestGenerations = latestGenerations.advance(
-                event.getCreatorId(),
-                event.getNGen());
+        latestGenerations = latestGenerations.advance(event.getCreatorId(), event.getNGen());
 
         return eventTipset;
+    }
+
+    private void logIfNotSelfEvent(@NonNull final EventDescriptorWrapper descriptor) {
+        if (!selfId.equals(descriptor.creator())) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Attempt to add peer event as self event to the TipsetTracker. Self Id: {}, Event Creator: {}",
+                    selfId.id(),
+                    descriptor.creator());
+        }
+    }
+
+    private void logIfSelfEvent(@NonNull final EventDescriptorWrapper descriptor) {
+        if (selfId.equals(descriptor.creator())) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Attempt to add self event as peer event to the TipsetTracker. Self Id: {}, Event Creator: {}",
+                    selfId.id(),
+                    descriptor.creator());
+        }
+    }
+
+    @NonNull
+    private List<Tipset> getParentTipsets(@NonNull final List<EventDescriptorWrapper> parents) {
+        final List<Tipset> parentTipsets = new ArrayList<>(parents.size());
+        for (final EventDescriptorWrapper parent : parents) {
+            final Tipset parentTipset = tipsets.get(parent);
+            if (parentTipset != null) {
+                parentTipsets.add(parentTipset);
+            }
+        }
+        return parentTipsets;
     }
 
     private void logIfAncient(@NonNull final EventDescriptorWrapper eventDescriptorWrapper) {

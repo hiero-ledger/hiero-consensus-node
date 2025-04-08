@@ -20,7 +20,6 @@ import com.swirlds.platform.pool.TransactionPoolNexus;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

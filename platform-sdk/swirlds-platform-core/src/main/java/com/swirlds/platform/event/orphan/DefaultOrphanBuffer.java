@@ -5,7 +5,6 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.platform.event.EventUtils;
 import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.sequence.map.SequenceMap;
@@ -81,7 +80,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
         platformContext
                 .getMetrics()
                 .getOrCreate(new FunctionGauge.Config<>(
-                        PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
+                                PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
                         .withDescription("number of orphaned events currently in the orphan buffer")
                         .withUnit("events"));
 
