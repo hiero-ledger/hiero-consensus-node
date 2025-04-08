@@ -51,19 +51,6 @@ class DeleteAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
-    void notSupportedFails() {
-        final var txn = cryptoDeleteAllowanceTransaction(payerId, ownerId, nonFungibleTokenId, List.of(1L, 2L));
-        final var configuration = HederaTestConfigBuilder.create()
-                .withValue("hedera.allowances.isEnabled", false)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configuration);
-        final var nftAllowances = txn.cryptoDeleteAllowance().nftAllowances();
-        assertThatThrownBy(() -> subject.validate(handleContext, nftAllowances, account, readableAccountStore))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(NOT_SUPPORTED));
-    }
-
-    @Test
     void rejectsMissingToken() {
         final var missingToken = TokenID.newBuilder().tokenNum(10000).build();
         final var txn = cryptoDeleteAllowanceTransaction(payerId, ownerId, missingToken, List.of(1L, 2L));

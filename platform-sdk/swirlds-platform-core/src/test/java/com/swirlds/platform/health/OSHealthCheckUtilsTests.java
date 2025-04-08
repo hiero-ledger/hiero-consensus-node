@@ -11,8 +11,8 @@ import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
-import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.Test;
 
 class OSHealthCheckUtilsTests {

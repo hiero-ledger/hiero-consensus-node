@@ -248,13 +248,21 @@ public class HandleWorkflow {
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
+
         try {
             transactionsDispatched |= handleEvents(state, round, stateSignatureTxnCallback);
             try {
-                transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
-                        state,
-                        boundaryStateChangeListener.lastConsensusTimeOrThrow().plusNanos(1),
-                        systemTransactions);
+                // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
+                // Dispatch rewards for active nodes after atleast one user transaction is handled
+                final var timeStamp = boundaryStateChangeListener.lastConsensusTime();
+                if (timeStamp != null) {
+                    transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
+                            state,
+                            boundaryStateChangeListener
+                                    .lastConsensusTimeOrThrow()
+                                    .plusNanos(1),
+                            systemTransactions);
+                }
             } catch (Exception e) {
                 logger.warn("Failed to reward active nodes", e);
             }
@@ -271,8 +279,7 @@ public class HandleWorkflow {
             recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
         }
         try {
-            reconcileTssState(
-                    state, boundaryStateChangeListener.lastConsensusTimeOrThrow(), round.getConsensusTimestamp());
+            reconcileTssState(state, round.getConsensusTimestamp());
         } catch (Exception e) {
             logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
         }
@@ -282,8 +289,8 @@ public class HandleWorkflow {
      * Applies all effects of the events in the given round to the given state, writing stream items
      * that capture these effects in the process.
      *
-     * @param state the state to apply the effects to
-     * @param round the round to apply the effects of
+     * @param state                     the state to apply the effects to
+     * @param round                     the round to apply the effects of
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     private boolean handleEvents(
@@ -370,9 +377,9 @@ public class HandleWorkflow {
      * executing the workflow for the transaction. This produces a stream of records that are then passed to the
      * {@link BlockRecordManager} to be externalized.
      *
-     * @param state the writable {@link State} that this transaction will work on
-     * @param creator the {@link NodeInfo} of the creator of the transaction
-     * @param txn the {@link ConsensusTransaction} to be handled
+     * @param state      the writable {@link State} that this transaction will work on
+     * @param creator    the {@link NodeInfo} of the creator of the transaction
+     * @param txn        the {@link ConsensusTransaction} to be handled
      * @param txnVersion the software version for the event containing the transaction
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
@@ -849,16 +856,13 @@ public class HandleWorkflow {
      * Notice that when TSS is enabled but the signer is not yet ready, <b>only</b> the round timestamp advances,
      * since we don't create block boundaries until we can sign them.
      *
-     * @param state the state to use when reconciling the TSS system state with the active rosters
-     * @param boundaryTimestamp the current boundary state changes timestamp
+     * @param state          the state to use when reconciling the TSS system state with the active rosters
      * @param roundTimestamp the current round timestamp
      */
-    private void reconcileTssState(
-            @NonNull final State state,
-            @NonNull final Instant boundaryTimestamp,
-            @NonNull final Instant roundTimestamp) {
+    private void reconcileTssState(@NonNull final State state, @NonNull final Instant roundTimestamp) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
+            final var boundaryTimestamp = boundaryStateChangeListener.lastConsensusTimeOrThrow();
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var activeRosters = ActiveRosters.from(rosterStore);
             final var isActive = currentPlatformStatus.get() == ACTIVE;

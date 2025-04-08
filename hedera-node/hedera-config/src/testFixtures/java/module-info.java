@@ -11,5 +11,6 @@ module com.hedera.node.config.test.fixtures {
     requires com.swirlds.merkledb;
     requires com.swirlds.platform.core;
     requires com.swirlds.virtualmap;
+    requires org.hiero.consensus.utility;
     requires static transitive com.github.spotbugs.annotations;
 }
