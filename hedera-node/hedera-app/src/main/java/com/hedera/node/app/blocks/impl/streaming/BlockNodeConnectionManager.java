@@ -46,7 +46,7 @@ public class BlockNodeConnectionManager {
     private final Random random = new Random();
 
     private final Map<BlockNodeConfig, BlockNodeConnection> activeConnections;
-    private final Map<String, Long> lastVerifiedBlockPerConnection;
+    private final Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection;
 
     private final BlockNodeConfigExtractor blockNodeConfigurations;
     private final BlockStreamStateManager blockStreamStateManager;
@@ -308,19 +308,20 @@ public class BlockNodeConnectionManager {
     }
 
     /**
-     * @param connectionId the connection id to update the last verified block for
+     * @param blockNodeConfig the configuration for the block node
      * @param blockNumber the block number of the last verified block
      */
-    public void updateLastVerifiedBlock(@NonNull final String connectionId, @Nullable final Long blockNumber) {
-        requireNonNull(connectionId);
+    public void updateLastVerifiedBlock(
+            @NonNull final BlockNodeConfig blockNodeConfig, @Nullable final Long blockNumber) {
+        requireNonNull(blockNodeConfig);
 
-        final Long latestBlock = lastVerifiedBlockPerConnection.computeIfAbsent(connectionId, key -> -1L);
+        final Long latestBlock = lastVerifiedBlockPerConnection.computeIfAbsent(blockNodeConfig, key -> -1L);
         if (blockNumber != null && blockNumber > latestBlock) {
-            lastVerifiedBlockPerConnection.put(connectionId, blockNumber);
+            lastVerifiedBlockPerConnection.put(blockNodeConfig, blockNumber);
         } else {
             logger.warn(
                     "Attempted to update connection {} with invalid block number {} (highest {})",
-                    connectionId,
+                    blockNodeConfig,
                     blockNumber,
                     latestBlock);
         }
