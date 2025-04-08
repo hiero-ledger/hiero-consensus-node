@@ -23,6 +23,7 @@ module com.swirlds.platform.core.test.fixtures {
     requires com.swirlds.merkledb;
     requires com.swirlds.state.api.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;
+    requires org.hiero.consensus.utility;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
     requires java.desktop;

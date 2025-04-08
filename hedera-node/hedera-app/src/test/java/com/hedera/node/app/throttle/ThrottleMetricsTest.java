@@ -9,7 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
-import com.hedera.node.app.hapi.utils.throttles.GasLimitDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
 import com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.metrics.api.DoubleGauge;
@@ -101,7 +101,7 @@ class ThrottleMetricsTest {
     }
 
     @Test
-    void setupGasMetricShouldCreateMetric(@Mock GasLimitDeterministicThrottle throttle) {
+    void setupGasMetricShouldCreateMetric(@Mock LeakyBucketDeterministicThrottle throttle) {
         // given
         final var configuration = HederaTestConfigBuilder.create()
                 .withValue("stats.hapiThrottlesToSample", "<GAS>")
@@ -116,7 +116,7 @@ class ThrottleMetricsTest {
     }
 
     @Test
-    void setupNonTrackedGasMetricShouldNotCreateMetric(@Mock GasLimitDeterministicThrottle throttle) {
+    void setupNonTrackedGasMetricShouldNotCreateMetric(@Mock LeakyBucketDeterministicThrottle throttle) {
         // given
         final var configuration = HederaTestConfigBuilder.create()
                 .withValue("stats.hapiThrottlesToSample", "")
@@ -185,7 +185,7 @@ class ThrottleMetricsTest {
     }
 
     @Test
-    void updateGasMetricSucceeds(@Mock GasLimitDeterministicThrottle gasThrottle, @Mock DoubleGauge gauge) {
+    void updateGasMetricSucceeds(@Mock LeakyBucketDeterministicThrottle gasThrottle, @Mock DoubleGauge gauge) {
         // given
         when(gasThrottle.instantaneousPercentUsed()).thenReturn(-Math.PI);
         when(metrics.getOrCreate(any(DoubleGauge.Config.class))).thenReturn(gauge);
