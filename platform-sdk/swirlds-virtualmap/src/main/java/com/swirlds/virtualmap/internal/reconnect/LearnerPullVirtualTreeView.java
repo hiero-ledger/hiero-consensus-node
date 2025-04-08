@@ -15,11 +15,11 @@ import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
@@ -97,7 +97,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      */
     public LearnerPullVirtualTreeView(
             final ReconnectConfig reconnectConfig,
-            final VirtualRootNode root,
+            final VirtualMap root,
             final RecordAccessor originalRecords,
             final VirtualMapState originalState,
             final VirtualMapState reconnectState,

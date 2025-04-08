@@ -8,10 +8,10 @@ import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TreeView;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import java.util.Objects;
 
 /**
@@ -22,7 +22,7 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
      * The root node that is involved in reconnect. This would be the saved state for the teacher, and
      * the new root node into which things are being serialized for the learner.
      */
-    protected final VirtualRootNode root;
+    protected final VirtualMap root;
 
     /**
      * The state representing the tree being reconnected. For the teacher, this corresponds to the saved state.
@@ -48,7 +48,7 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
      * 		The state of the trees being reconnected. Cannot be null.
      */
     protected VirtualTreeViewBase(
-            final VirtualRootNode root, final VirtualMapState originalState, final VirtualMapState reconnectState) {
+            final VirtualMap root, final VirtualMapState originalState, final VirtualMapState reconnectState) {
         this.root = Objects.requireNonNull(root);
         this.originalState = Objects.requireNonNull(originalState);
         this.reconnectState = Objects.requireNonNull(reconnectState);
@@ -117,7 +117,7 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
         } else if (originalNode > ROOT_PATH) {
             return VirtualInternalNode.CLASS_ID;
         } else {
-            return VirtualRootNode.CLASS_ID;
+            return VirtualMap.CLASS_ID;
         }
     }
 

@@ -295,7 +295,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         // Create a copy of the resulting map
         final VirtualMap afterCopy = afterMap.copy();
         // Enforce computing the hash of its root node
-        assertNotNull(afterCopy.getLeft().getHash());
+        assertNotNull(afterCopy.getHash());
 
         afterSyncLearnerTree.release();
         copy.release();

@@ -43,7 +43,6 @@ import com.swirlds.state.test.fixtures.merkle.TestSchema;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig_;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -148,11 +147,10 @@ class SerializationTest extends MerkleTestBase {
                 vmField.setAccessible(true);
                 VirtualMap vm = (VirtualMap) vmField.get(state);
 
-                final VirtualRootNode root = vm.getLeft();
                 if (vm.size() > 1) {
-                    root.enableFlush();
+                    vm.enableFlush();
                     vm.release();
-                    root.waitUntilFlushed();
+                    vm.waitUntilFlushed();
                 }
             } catch (IllegalAccessException | NoSuchFieldException | InterruptedException e) {
                 throw new RuntimeException(e);

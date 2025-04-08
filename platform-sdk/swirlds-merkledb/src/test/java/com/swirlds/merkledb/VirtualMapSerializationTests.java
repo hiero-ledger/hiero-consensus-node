@@ -2,7 +2,7 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static java.util.concurrent.TimeUnit.*;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -25,7 +25,6 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -205,8 +204,7 @@ class VirtualMapSerializationTests {
             map1.release();
             map2.release();
 
-            final VirtualRootNode root = map2.getLeft();
-            assertTrue(root.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+            assertTrue(map2.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -256,16 +254,15 @@ class VirtualMapSerializationTests {
         System.out.println("seed = " + seed);
 
         final VirtualMap map = generateRandomMap(seed, count, "test");
-        final VirtualRootNode root = map.getChild(0).cast();
         final VirtualMap copy = map.copy();
 
         try {
             testMapSerialization(map);
-            assertFalse(root.isFlushed(), "for this test, the root is expected not to be flushed");
+            assertFalse(map.isFlushed(), "for this test, the root is expected not to be flushed");
         } finally {
             map.release();
             copy.release();
-            assertTrue(root.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+            assertTrue(map.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -277,22 +274,21 @@ class VirtualMapSerializationTests {
         System.out.println("seed = " + seed);
 
         final VirtualMap map = generateRandomMap(seed, count, "test");
-        final VirtualRootNode root = map.getChild(0);
-        root.enableFlush();
+        map.enableFlush();
 
         final VirtualMap serializedCopy = map.copy();
         final VirtualMap mutableCopy = serializedCopy.copy();
 
         try {
             map.release();
-            root.waitUntilFlushed();
+            map.waitUntilFlushed();
 
             testMapSerialization(serializedCopy);
-            assertTrue(root.isFlushed(), "for this test, the root is expected to be flushed");
+            assertTrue(map.isFlushed(), "for this test, the root is expected to be flushed");
         } finally {
             serializedCopy.release();
             mutableCopy.release();
-            assertTrue(root.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+            assertTrue(map.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -304,8 +300,7 @@ class VirtualMapSerializationTests {
         System.out.println("seed = " + seed);
 
         final VirtualMap map = generateRandomMap(seed, count, "test");
-        final VirtualRootNode root = map.getChild(0).cast();
-        root.enableFlush();
+        map.enableFlush();
 
         final VirtualMap copy0 = map.copy();
         addRandomEntries(copy0, count, count / 2, seed * 2 + 1);
@@ -313,19 +308,17 @@ class VirtualMapSerializationTests {
 
         try {
             map.release();
-            root.waitUntilFlushed();
+            map.waitUntilFlushed();
 
             System.out.println("map size: " + map.size() + ", copy0 size: " + copy0.size());
             testMapSerialization(copy0);
 
-            final VirtualRootNode root0 = copy0.getChild(0).cast();
-
-            assertTrue(root.isFlushed(), "for this test, the root is expected to be flushed");
-            assertFalse(root0.isFlushed(), "for this test, the root0 is expected to not be flushed");
+            assertTrue(map.isFlushed(), "for this test, the root is expected to be flushed");
+            assertFalse(copy0.isFlushed(), "for this test, the root0 is expected to not be flushed");
         } finally {
             copy0.release();
             copy1.release();
-            assertTrue(root.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+            assertTrue(map.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
     }
 }

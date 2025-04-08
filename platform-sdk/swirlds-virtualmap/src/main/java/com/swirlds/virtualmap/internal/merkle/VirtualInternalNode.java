@@ -38,14 +38,14 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
      * The {@link VirtualMap} associated with this node. Nodes cannot be moved from one map
      * to another.
      */
-    private final VirtualRootNode root;
+    private final VirtualMap root;
 
     /**
      * The {@link VirtualHashRecord} is the backing data for this node.
      */
     private final VirtualHashRecord virtualHashRecord;
 
-    public VirtualInternalNode(final VirtualRootNode root, final VirtualHashRecord virtualHashRecord) {
+    public VirtualInternalNode(final VirtualMap root, final VirtualHashRecord virtualHashRecord) {
         this.root = Objects.requireNonNull(root);
         this.virtualHashRecord = Objects.requireNonNull(virtualHashRecord);
         setHash(virtualHashRecord.hash());
@@ -79,7 +79,6 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
         }
 
         final long targetPath = node.getPath();
-        // 0 (left) is the root of the VirtualTree
         final List<Integer> routePath = Path.getRouteStepsFromRoot(targetPath);
         final MerkleRoute nodeRoute = this.root.getRoute().extendRoute(routePath);
         node.setRoute(nodeRoute);
