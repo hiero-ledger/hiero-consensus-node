@@ -172,11 +172,11 @@ class GrpcUsageTrackerTest {
         List<String> logs = accessLogCaptor.infoLogs();
         assertEquals(3, logs.size());
         final String log1 =
-                "|time=2025-04-03T15:30:00Z|endpoint=MyService:Commit|sdkType=HieroSdkJava|sdkVersion=2.3.1|count=2|";
+                "|time=2025-04-03T15:30:00Z|service=MyService|method=Commit|sdkType=HieroSdkJava|sdkVersion=2.3.1|count=2|";
         final String log2 =
-                "|time=2025-04-03T15:30:00Z|endpoint=MyService:Commit|sdkType=Unknown|sdkVersion=Unknown|count=1|";
+                "|time=2025-04-03T15:30:00Z|service=MyService|method=Commit|sdkType=Unknown|sdkVersion=Unknown|count=1|";
         final String log3 =
-                "|time=2025-04-03T15:30:00Z|endpoint=MyService:Get|sdkType=HieroSdkGo|sdkVersion=1.5.6|count=1|";
+                "|time=2025-04-03T15:30:00Z|service=MyService|method=Get|sdkType=HieroSdkGo|sdkVersion=1.5.6|count=1|";
 
         assertTrue(logs.contains(log1));
         assertTrue(logs.contains(log2));
