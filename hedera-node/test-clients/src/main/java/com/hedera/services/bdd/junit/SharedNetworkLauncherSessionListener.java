@@ -13,7 +13,9 @@ import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
+import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -61,61 +63,10 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     switch (embedding) {
                             // Embedding is not applicable for a subprocess network
                         case NA -> {
-                            final int networkSize = Optional.ofNullable(System.getProperty("hapi.spec.network.size"))
-                                    .map(Integer::parseInt)
-                                    .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
-                            final var initialPortProperty = System.getProperty("hapi.spec.initial.port");
-                            if (!initialPortProperty.isBlank()) {
-                                final var initialPort = Integer.parseInt(initialPortProperty);
-                                SubProcessNetwork.initializeNextPortsForNetwork(networkSize, initialPort);
-                            }
-                            final var prepareUpgradeOffsetsProperty =
-                                    System.getProperty("hapi.spec.prepareUpgradeOffsets");
-                            if (prepareUpgradeOffsetsProperty != null) {
-                                final List<Duration> offsets = Arrays.stream(prepareUpgradeOffsetsProperty.split(","))
-                                        .map(Duration::parse)
-                                        .sorted()
-                                        .distinct()
-                                        .toList();
-                                if (!offsets.isEmpty()) {
-                                    HapiSpec.doDelayedPrepareUpgrades(offsets);
-                                }
-                            }
-                            SubProcessNetwork subProcessNetwork =
-                                    (SubProcessNetwork) SubProcessNetwork.newSharedNetwork(networkSize);
-
-                            // Check for the blocknode mode system property
-                            String blockNodeModeProperty = System.getProperty("hapi.spec.blocknode.mode");
-                            if (blockNodeModeProperty != null && !blockNodeModeProperty.isEmpty()) {
-                                switch (blockNodeModeProperty.toUpperCase()) {
-                                    case "SIM":
-                                        subProcessNetwork.setBlockNodeMode(BlockNodeMode.SIMULATOR);
-                                        break;
-                                    case "REAL":
-                                        subProcessNetwork.setBlockNodeMode(BlockNodeMode.REAL);
-                                        break;
-                                    case "LOCAL":
-                                        subProcessNetwork.setBlockNodeMode(BlockNodeMode.LOCAL_NODE);
-                                        break;
-                                    default:
-                                        log.warn(
-                                                "Invalid hapi.spec.blocknode.mode value: {}. Using NONE.",
-                                                blockNodeModeProperty);
-                                        subProcessNetwork.setBlockNodeMode(BlockNodeMode.NONE);
-                                }
-                            } else {
-                                // Default to NONE if not specified
-                                subProcessNetwork.setBlockNodeMode(BlockNodeMode.NONE);
-                            }
-
-                            String blockNodeManyToOneProperty =
-                                    System.getProperty("hapi.spec.blocknode.simulator.manyToOne");
-                            if (blockNodeManyToOneProperty != null && !blockNodeManyToOneProperty.isEmpty()) {
-                                subProcessNetwork.setManyToOneSimulator(
-                                        Boolean.parseBoolean(blockNodeManyToOneProperty));
-                            }
-
-                            yield subProcessNetwork;
+                            final boolean isRemote = Optional.ofNullable(System.getProperty("hapi.spec.remote"))
+                                    .map(Boolean::parseBoolean)
+                                    .orElse(false);
+                            yield isRemote ? sharedRemoteNetworkIfRequested() : sharedSubProcessNetwork();
                         }
                             // For the default Test task, we need to run some tests in concurrent embedded mode and
                             // some in repeatable embedded mode, depending on the value of their @TargetEmbeddedMode
@@ -157,6 +108,62 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             if (SHARED_NETWORK.get() == null) {
                 startSharedEmbedded(mode);
             }
+        }
+
+        private @Nullable HederaNetwork sharedRemoteNetworkIfRequested() {
+            final var sharedTargetYml = System.getProperty("hapi.spec.nodes.remoteYml");
+            return (sharedTargetYml != null) ? RemoteNetworkFactory.newWithTargetFrom(sharedTargetYml) : null;
+        }
+
+        private HederaNetwork sharedSubProcessNetwork() {
+            final int networkSize = Optional.ofNullable(System.getProperty("hapi.spec.network.size"))
+                    .map(Integer::parseInt)
+                    .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
+            final var initialPortProperty = System.getProperty("hapi.spec.initial.port");
+            if (!initialPortProperty.isBlank()) {
+                final var initialPort = Integer.parseInt(initialPortProperty);
+                SubProcessNetwork.initializeNextPortsForNetwork(networkSize, initialPort);
+            }
+            final var prepareUpgradeOffsetsProperty = System.getProperty("hapi.spec.prepareUpgradeOffsets");
+            if (prepareUpgradeOffsetsProperty != null) {
+                final List<Duration> offsets = Arrays.stream(prepareUpgradeOffsetsProperty.split(","))
+                        .map(Duration::parse)
+                        .sorted()
+                        .distinct()
+                        .toList();
+                if (!offsets.isEmpty()) {
+                    HapiSpec.doDelayedPrepareUpgrades(offsets);
+                }
+            }
+            SubProcessNetwork subProcessNetwork = (SubProcessNetwork) SubProcessNetwork.newSharedNetwork(networkSize);
+
+            // Check for the blocknode mode system property
+            String blockNodeModeProperty = System.getProperty("hapi.spec.blocknode.mode");
+            if (blockNodeModeProperty != null && !blockNodeModeProperty.isEmpty()) {
+                switch (blockNodeModeProperty.toUpperCase()) {
+                    case "SIM":
+                        subProcessNetwork.setBlockNodeMode(BlockNodeMode.SIMULATOR);
+                        break;
+                    case "REAL":
+                        subProcessNetwork.setBlockNodeMode(BlockNodeMode.REAL);
+                        break;
+                    case "LOCAL":
+                        subProcessNetwork.setBlockNodeMode(BlockNodeMode.LOCAL_NODE);
+                        break;
+                    default:
+                        log.warn("Invalid hapi.spec.blocknode.mode value: {}. Using NONE.", blockNodeModeProperty);
+                        subProcessNetwork.setBlockNodeMode(BlockNodeMode.NONE);
+                }
+            } else {
+                // Default to NONE if not specified
+                subProcessNetwork.setBlockNodeMode(BlockNodeMode.NONE);
+            }
+
+            String blockNodeManyToOneProperty = System.getProperty("hapi.spec.blocknode.simulator.manyToOne");
+            if (blockNodeManyToOneProperty != null && !blockNodeManyToOneProperty.isEmpty()) {
+                subProcessNetwork.setManyToOneSimulator(Boolean.parseBoolean(blockNodeManyToOneProperty));
+            }
+            return subProcessNetwork;
         }
 
         private static void startSharedEmbedded(@NonNull final EmbeddedMode mode) {

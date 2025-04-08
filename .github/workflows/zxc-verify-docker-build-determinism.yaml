@@ -70,7 +70,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
+        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
         with:
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
           service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
@@ -122,7 +122,7 @@ jobs:
           sudo apt-get install --yes --no-install-recommends skopeo jq
 
       - name: Setup QEmu Support
-        uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3.0
+        uses: docker/setup-qemu-action@5964de0df58d5ad28b04d8fe2e6b80ad47105b91 # v3.5.0
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
 
       - name: Setup Docker Buildx Support
@@ -170,7 +170,7 @@ jobs:
           printf "VERSION=%s\nCOMMIT=%s\nDATE=%s" "$(./gradlew -q showVersion)" "$(git log -1 --format='%H' | cut -c1-8)" "$(date -u)" | tee "${{ github.workspace }}/${{ env.DOCKER_CONTEXT_PATH }}/sdk/VERSION"
 
       - name: Build Docker Image
-        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
+        uses: docker/build-push-action@0adf9959216b96bec444f325f1e493d4aa344497 # v6.14.0
         env:
           SOURCE_DATE_EPOCH: ${{ steps.commit.outputs.source-date }}
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
@@ -266,7 +266,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
+        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
         with:
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
           service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
@@ -308,7 +308,7 @@ jobs:
         run: echo "directory=$(tr -d '[:space:]' < <(cd ~ && pwd))" >> "${GITHUB_OUTPUT}"
 
       - name: Setup QEmu Support
-        uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3.0
+        uses: docker/setup-qemu-action@5964de0df58d5ad28b04d8fe2e6b80ad47105b91 # v3.5.0
 
       - name: Setup Docker Buildx Support
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
@@ -329,7 +329,7 @@ jobs:
         run: docker info
 
       - name: Build Docker Image
-        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
+        uses: docker/build-push-action@0adf9959216b96bec444f325f1e493d4aa344497 # v6.14.0
         env:
           SOURCE_DATE_EPOCH: ${{ needs.generate-baseline.outputs.source-date }}
         with:

@@ -21,11 +21,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 
 /**
  * A builder for creating event instances for testing purposes.
@@ -233,7 +233,10 @@ public class TestingEventBuilder {
      *
      * @param numberOfSystemTransactions the number of system transactions
      * @return this instance
+     * @deprecated system transaction are no longer in the consensus domain, so this method just adds app transactions
+     * at the moment. it should be removed and cannot be relied upon.
      */
+    @Deprecated
     public @NonNull TestingEventBuilder setSystemTransactionCount(final int numberOfSystemTransactions) {
         if (transactionBytes != null) {
             throw new IllegalStateException("Cannot set system transaction count when transactions are explicitly set");
@@ -267,7 +270,9 @@ public class TestingEventBuilder {
      *
      * @param transactions the transactions
      * @return this instance
+     * @deprecated the {@link EventTransaction} type will be removed in the future
      */
+    @Deprecated
     public @NonNull TestingEventBuilder setTransactions(@Nullable final List<EventTransaction> transactions) {
         if (appTransactionCount != null || systemTransactionCount != null || transactionSize != null) {
             throw new IllegalStateException(

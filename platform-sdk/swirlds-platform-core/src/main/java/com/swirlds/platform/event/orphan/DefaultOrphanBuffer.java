@@ -5,7 +5,6 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.sequence.map.SequenceMap;
 import com.swirlds.platform.sequence.map.StandardSequenceMap;
@@ -16,6 +15,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
@@ -89,17 +89,8 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
         this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
-        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-            missingParentMap = new StandardSequenceMap<>(
-                    0, INITIAL_CAPACITY, true, ed -> ed.eventDescriptor().birthRound());
-            eventsWithParents = new StandardSequenceMap<>(
-                    0, INITIAL_CAPACITY, true, ed -> ed.eventDescriptor().birthRound());
-        } else {
-            missingParentMap = new StandardSequenceMap<>(
-                    0, INITIAL_CAPACITY, true, ed -> ed.eventDescriptor().generation());
-            eventsWithParents = new StandardSequenceMap<>(
-                    0, INITIAL_CAPACITY, true, ed -> ed.eventDescriptor().generation());
-        }
+        missingParentMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
+        eventsWithParents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
     }
 
     /**

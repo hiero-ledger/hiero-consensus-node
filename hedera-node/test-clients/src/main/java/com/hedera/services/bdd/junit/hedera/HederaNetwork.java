@@ -158,4 +158,22 @@ public interface HederaNetwork {
      * Waits for all nodes in the network to be ready within the given timeout.
      */
     void awaitReady(@NonNull Duration timeout);
+
+    /**
+     * Returns the shard of the network.
+     * <p>
+     * (FUTURE) Implement sensibly for non-{@link RemoteNetwork} implementations.
+     */
+    default long shard() {
+        return 0;
+    }
+
+    /**
+     * Returns the realm of the network.
+     * <p>
+     * (FUTURE) Implement sensibly for non-{@link RemoteNetwork} implementations.
+     */
+    default long realm() {
+        return 0;
+    }
 }

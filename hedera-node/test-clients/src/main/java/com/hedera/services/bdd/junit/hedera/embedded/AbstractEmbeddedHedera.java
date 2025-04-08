@@ -359,7 +359,12 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         requireNonNull(nodeAccountId);
         requireNonNull(nodeId);
         // Bypass ingest for any other node, but make a little noise to remind test author this happens
-        log.warn("Bypassing ingest checks for transaction to node{} (0.0.{})", nodeId, nodeAccountId.getAccountNum());
+        log.warn(
+                "Bypassing ingest checks for transaction to node{} ({}.{}.{})",
+                nodeId,
+                nodeAccountId.getShardNum(),
+                nodeAccountId.getRealmNum(),
+                nodeAccountId.getAccountNum());
     }
 
     private static boolean isFree(@NonNull final Query query) {

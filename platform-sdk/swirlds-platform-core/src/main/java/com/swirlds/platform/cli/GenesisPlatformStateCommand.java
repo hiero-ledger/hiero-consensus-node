@@ -14,7 +14,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.WritableRosterStore;
@@ -28,6 +27,7 @@ import com.swirlds.state.spi.WritableStates;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
+import org.hiero.consensus.config.EventConfig;
 import picocli.CommandLine;
 
 @CommandLine.Command(

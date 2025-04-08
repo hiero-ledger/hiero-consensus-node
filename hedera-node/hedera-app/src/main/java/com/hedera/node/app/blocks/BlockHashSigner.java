@@ -21,4 +21,15 @@ public interface BlockHashSigner {
      * @return the future
      */
     CompletableFuture<Bytes> signFuture(@NonNull Bytes blockHash);
+
+    /**
+     * Returns the scheme ids this signer is currently using at a point in the block stream
+     * where a proof is needed.
+     */
+    long activeSchemeId();
+
+    /**
+     * Returns the verification key for the active signing scheme.
+     */
+    Bytes activeVerificationKey();
 }

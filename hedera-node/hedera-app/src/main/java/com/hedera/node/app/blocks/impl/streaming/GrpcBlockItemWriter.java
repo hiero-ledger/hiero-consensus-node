@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
+import com.hedera.node.internal.network.PendingProof;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,7 +48,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void closeBlock() {
+    public void closeCompleteBlock() {
         blockStreamStateManager.closeBlock(blockNumber);
         logger.debug("Closed block in GrpcBlockItemWriter");
     }
@@ -55,5 +56,10 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     @Override
     public void writePreBlockProofItems() {
         blockStreamStateManager.streamPreBlockProofItems(blockNumber);
+    }
+
+    @Override
+    public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
+        // No-op
     }
 }
