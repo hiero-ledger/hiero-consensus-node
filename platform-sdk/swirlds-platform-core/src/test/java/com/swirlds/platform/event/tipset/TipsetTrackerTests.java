@@ -57,7 +57,7 @@ class TipsetTrackerTests {
      * tipsets for those added events are returned. Lastly, it advances the event window and verifies that tipsets for
      * ancient events are no longer returned by the tracker.
      *
-     * @param ancientMode
+     * @param ancientMode the ancient mode to use (i.e. generation or birth round)
      */
     @ParameterizedTest
     @EnumSource(AncientMode.class)
@@ -114,33 +114,33 @@ class TipsetTrackerTests {
                 }
             }
 
-            final PlatformEvent potentialEvent = new TestingEventBuilder(random)
+            final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(creator)
                     .setSelfParent(latestEvents.get(creator))
                     .setOtherParents(otherParents)
                     .setBirthRound(birthRound)
                     .setNGen(nGen)
                     .build();
-            latestEvents.put(creator, potentialEvent);
+            latestEvents.put(creator, event);
 
             final Tipset newTipset;
             if (creator.equals(selfId)) {
-                newTipset = tracker.addSelfEvent(toUnsignedEvent(potentialEvent));
+                newTipset = tracker.addSelfEvent(toUnsignedEvent(event));
             } else {
-                newTipset = tracker.addPeerEvent(potentialEvent);
+                newTipset = tracker.addPeerEvent(event);
             }
             assertThat(newTipset.getTipGenerationForNode(selfId))
                     .withFailMessage("The generation should always be -1 for the self node")
                     .isEqualTo(-1);
-            assertSame(newTipset, tracker.getTipset(potentialEvent.getDescriptor()));
+            assertSame(newTipset, tracker.getTipset(event.getDescriptor()));
 
             // Now, reconstruct the tipset manually, and make sure it matches what we were expecting.
             final List<Tipset> parentTipsets = new ArrayList<>();
             for (final PlatformEvent otherParent : otherParents) {
                 parentTipsets.add(expectedTipsets.get(otherParent.getDescriptor()));
             }
-            if (expectedTipsets.get(potentialEvent.getSelfParent()) != null) {
-                parentTipsets.add(expectedTipsets.get(potentialEvent.getSelfParent()));
+            if (expectedTipsets.get(event.getSelfParent()) != null) {
+                parentTipsets.add(expectedTipsets.get(event.getSelfParent()));
             }
 
             final Tipset expectedTipset;
@@ -154,7 +154,7 @@ class TipsetTrackerTests {
                 expectedTipset.advance(creator, nGen);
             }
 
-            expectedTipsets.put(potentialEvent.getDescriptor(), expectedTipset);
+            expectedTipsets.put(event.getDescriptor(), expectedTipset);
             assertTipsetEquality(roster, expectedTipset, newTipset);
         }
 
