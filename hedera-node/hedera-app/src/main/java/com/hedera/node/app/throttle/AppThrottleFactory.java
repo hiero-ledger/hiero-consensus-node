@@ -65,6 +65,7 @@ public class AppThrottleFactory implements Throttle.Factory {
                 ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE,
                 softwareVersionFactory);
         throttleAccumulator.applyGasConfig();
+        throttleAccumulator.applyBytesConfig();
         throttleAccumulator.rebuildFor(definitionsSupplier.get());
         if (initialUsageSnapshots != null) {
             final var tpsThrottles = throttleAccumulator.allActiveThrottles();
