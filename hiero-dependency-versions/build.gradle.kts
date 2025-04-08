@@ -31,7 +31,7 @@ val pbj = "0.10.3" // ATTENTION: keep in sync with plugin version in 'hapi/build
 val protobuf = "4.30.2"
 val testContainers = "1.20.6"
 val tuweni = "2.4.2"
-val webcompare = "2.1.7"
+val webcompare = "2.1.8"
 
 dependencies.constraints {
     api("io.helidon.common:helidon-common:$helidon") { because("io.helidon.common") }
