@@ -28,14 +28,12 @@ public class DefaultSignedStatesTestCollector implements SignedStatesTestCollect
      */
     @Override
     public void interceptReservedSignedState(@NonNull final ReservedSignedState signedState) {
-        try (signedState) {
-            assertThat(collectedSignedStates)
-                    .withFailMessage(String.format(
-                            "SignedState from round %s has been already produced by node %d",
-                            signedState.get().getRound(), selfNodeId.id()))
-                    .doesNotContainKey(signedState.get().getRound());
-            collectedSignedStates.put(signedState.get().getRound(), signedState);
-        }
+        assertThat(collectedSignedStates)
+                .withFailMessage(String.format(
+                        "SignedState from round %s has been already produced by node %d",
+                        signedState.get().getRound(), selfNodeId.id()))
+                .doesNotContainKey(signedState.get().getRound());
+        collectedSignedStates.put(signedState.get().getRound(), signedState);
     }
 
     /**
