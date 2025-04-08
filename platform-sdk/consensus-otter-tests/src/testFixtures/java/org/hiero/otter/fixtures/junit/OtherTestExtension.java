@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.junit;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.reflect.Parameter;
+import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -120,6 +121,15 @@ public class OtherTestExtension implements InvocationInterceptor, ParameterResol
      * @param extensionContext the current extension context; never {@code null}
      */
     private static void clear(@NonNull final ExtensionContext extensionContext) {
-        extensionContext.getStore(EXTENSION_NAMESPACE).remove(ENVIRONMENT_KEY);
+        final TestEnvironment testEnvironment = (TestEnvironment) extensionContext.getStore(EXTENSION_NAMESPACE).remove(ENVIRONMENT_KEY);
+        if (testEnvironment != null) {
+            testEnvironment.network().getNodes().forEach(node -> {
+                try {
+                    node.kill(Duration.ofSeconds(30));
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
     }
 }
