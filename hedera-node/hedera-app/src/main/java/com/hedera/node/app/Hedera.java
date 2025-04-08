@@ -550,6 +550,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
 
     /**
      * {@inheritDoc}
+     * It is not used. But deletion will cause more changes because of SwirldMain interface.
+     * It will be deleted in PR 18648
      *
      * <p>Called immediately after the constructor to get the version of this software. In an upgrade scenario, this
      * version will be greater than the one in the saved state.
@@ -668,7 +670,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         if (trigger != GENESIS) {
             requireNonNull(deserializedVersion, "Deserialized version cannot be null for trigger " + trigger);
         }
-        if (deserializedVersion != null && SEMANTIC_VERSION_COMPARATOR.compare(version, deserializedVersion) < 0) {
+        if (SEMANTIC_VERSION_COMPARATOR.compare(version, deserializedVersion) < 0) {
             logger.fatal(
                     "Fatal error, state source version {} is higher than node software version {}",
                     deserializedVersion,
@@ -739,10 +741,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             @NonNull final InitTrigger trigger,
             @NonNull final Metrics metrics,
             @NonNull final Configuration platformConfig) {
-        final var deserializedVersionCompare = deserializedVersion == null
-                ? SemanticVersion.newBuilder().minor(1).build()
-                : deserializedVersion;
-        final var isUpgrade = SEMANTIC_VERSION_COMPARATOR.compare(version, deserializedVersionCompare) > 0;
+        final var isUpgrade = SEMANTIC_VERSION_COMPARATOR.compare(version, deserializedVersion) > 0;
         logger.info(
                 "{} from Services version {} @ current {} with trigger {}",
                 () -> isUpgrade ? "Upgrading" : (deserializedVersion == null ? "Starting" : "Restarting"),
