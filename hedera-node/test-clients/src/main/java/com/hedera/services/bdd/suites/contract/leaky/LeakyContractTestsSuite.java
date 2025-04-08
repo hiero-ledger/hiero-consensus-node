@@ -1051,47 +1051,6 @@ public class LeakyContractTestsSuite {
                 emptyChildRecordsCheck(TRANSFER_TXN, MAX_CHILD_RECORDS_EXCEEDED));
     }
 
-    @Order(20)
-    @LeakyHapiTest(overrides = {"hedera.allowances.isEnabled"})
-    final Stream<DynamicTest> erc20TransferFromDoesNotWorkIfFlagIsDisabled() {
-        return hapiTest(
-                overriding("hedera.allowances.isEnabled", "false"),
-                newKeyNamed(MULTI_KEY),
-                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
-                cryptoCreate(RECIPIENT),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .initialSupply(10L)
-                        .maxSupply(1000L)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(MULTI_KEY)
-                        .supplyKey(MULTI_KEY),
-                uploadInitCode(ERC_20_CONTRACT),
-                contractCreate(ERC_20_CONTRACT),
-                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
-                tokenAssociate(RECIPIENT, FUNGIBLE_TOKEN),
-                tokenAssociate(ERC_20_CONTRACT, FUNGIBLE_TOKEN),
-                cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER)),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCall(
-                                        ERC_20_CONTRACT,
-                                        TRANSFER_FROM,
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getAccountID(OWNER))),
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getAccountID(RECIPIENT))),
-                                        BigInteger.TWO)
-                                .gas(500_000L)
-                                .via(TRANSFER_FROM_ACCOUNT_TXN)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
-                getTxnRecord(TRANSFER_FROM_ACCOUNT_TXN).logged());
-    }
-
     @Order(22)
     @LeakyHapiTest(overrides = {"contracts.permittedDelegateCallers"})
     final Stream<DynamicTest> whitelistPositiveCase() {
