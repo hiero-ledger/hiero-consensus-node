@@ -7,11 +7,11 @@ import static com.swirlds.platform.consensus.ConsensusTestArgs.RANDOM_WEIGHT_DES
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.platform.ConsensusImpl;
-import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestParams;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestRunner;
 import java.util.List;
+import org.hiero.consensus.config.EventConfig_;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

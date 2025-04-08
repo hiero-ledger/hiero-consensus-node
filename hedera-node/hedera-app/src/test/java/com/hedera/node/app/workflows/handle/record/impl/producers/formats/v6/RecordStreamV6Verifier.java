@@ -99,9 +99,8 @@ public class RecordStreamV6Verifier {
             final List<List<SingleTransactionRecord>> expectedDataBlocks,
             final long firstBlockNumber)
             throws Exception {
-        final boolean compressed = recordStreamConfig.compressFilesOnCreation();
         final Path sidecarsDir = recordsDir.resolve(recordStreamConfig.sidecarDir());
-        final String extension = compressed ? RECORD_EXTENSION + COMPRESSION_ALGORITHM_EXTENSION : RECORD_EXTENSION;
+        final String extension = RECORD_EXTENSION + COMPRESSION_ALGORITHM_EXTENSION;
         List<RecordFileSet> recordFileSets = scanForRecordFiles(recordsDir, sidecarsDir, extension);
         // start running hashes
         Bytes runningHash = null;

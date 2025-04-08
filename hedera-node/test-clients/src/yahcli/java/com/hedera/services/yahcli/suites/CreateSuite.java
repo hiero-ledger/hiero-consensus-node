@@ -5,6 +5,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
@@ -39,6 +40,8 @@ public class CreateSuite extends HapiSuite {
     private final boolean receiverSigRequired;
 
     private final String novelTarget;
+    private final String keyLoc;
+    private final String passLoc;
 
     private final AtomicLong createdNo = new AtomicLong(0);
 
@@ -49,7 +52,9 @@ public class CreateSuite extends HapiSuite {
             final String novelTarget,
             final SigControl sigType,
             final int numBusyRetries,
-            final boolean receiverSigRequired) {
+            final boolean receiverSigRequired,
+            final String keyLoc,
+            final String passLoc) {
         this.memo = memo;
         this.specConfig = specConfig;
         this.novelTarget = novelTarget;
@@ -57,6 +62,8 @@ public class CreateSuite extends HapiSuite {
         this.numBusyRetries = numBusyRetries;
         this.initialBalance = initialBalance;
         this.receiverSigRequired = receiverSigRequired;
+        this.keyLoc = keyLoc;
+        this.passLoc = passLoc;
     }
 
     @Override
@@ -73,13 +80,22 @@ public class CreateSuite extends HapiSuite {
         final var newKey = "newKey";
         final var success = new AtomicBoolean(false);
         final var novelPass = TxnUtils.randomAlphaNumeric(12);
+
+        // Default operation of creating a new key is assigned
         NewSpecKey newSpecKey = UtilVerbs.newKeyNamed(newKey)
                 .exportingTo(novelTarget, novelPass)
                 .shape(sigType);
         newSpecKey = (sigType == SigControl.ED25519_ON) ? newSpecKey.includingEd25519Mnemonic() : newSpecKey;
+
+        // If an existing key is specified, use that instead of generating a new one
+        SpecOperation keyOp = newSpecKey;
+        if (usingExistingKey()) {
+            keyOp = UtilVerbs.keyFromFile(newKey, keyLoc);
+        }
+
         return HapiSpec.customHapiSpec("DoCreate")
                 .withProperties(specConfig)
-                .given(newSpecKey)
+                .given(keyOp)
                 .when(UtilVerbs.withOpContext((spec, opLog) -> {
                     int attemptNo = 1;
                     do {
@@ -109,7 +125,10 @@ public class CreateSuite extends HapiSuite {
                     } while (attemptNo++ <= numBusyRetries);
                 }))
                 .then(UtilVerbs.withOpContext((spec, opLog) -> {
-                    if (success.get()) {
+                    final boolean completedSuccessfully = success.get();
+                    if (completedSuccessfully && usingExistingKey()) {
+                        System.out.println(".i. Key '" + keyLoc + "' used for new account");
+                    } else if (completedSuccessfully) {
                         final var locs = new ArrayList<String>() {
                             {
                                 add(novelTarget);
@@ -137,5 +156,13 @@ public class CreateSuite extends HapiSuite {
 
     public AtomicLong getCreatedNo() {
         return createdNo;
+    }
+
+    public static boolean existingKeyPresent(String keyLoc, String passLoc) {
+        return keyLoc != null && !keyLoc.isBlank() && passLoc != null && !passLoc.isBlank();
+    }
+
+    private boolean usingExistingKey() {
+        return existingKeyPresent(keyLoc, passLoc);
     }
 }

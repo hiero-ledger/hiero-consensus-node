@@ -8,7 +8,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.components.transaction.TransactionSupplier;
-import com.swirlds.platform.config.TransactionConfig;
 import com.swirlds.platform.eventhandling.TransactionPoolMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -20,6 +19,7 @@ import java.util.Objects;
 import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.config.TransactionConfig;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
 
