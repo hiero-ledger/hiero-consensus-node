@@ -160,7 +160,12 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 // If the block is complete and we've sent all requests, move to the next block
                 if (blockState.isComplete()
                         && currentRequestIndex.get() >= blockState.requests().size()) {
-                    moveToNextBlock();
+                    final boolean higherPriorityReady = blockNodeConnectionManager.isHigherPriorityReady(this);
+                    if (!higherPriorityReady) {
+                        moveToNextBlock();
+                    } else {
+                        close();
+                    }
                 }
             } catch (InterruptedException e) {
                 logger.error("[] Request worker thread interrupted for node {}:{}", node.address(), node.port());

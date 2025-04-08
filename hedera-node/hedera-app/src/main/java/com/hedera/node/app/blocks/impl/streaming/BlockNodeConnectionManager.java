@@ -118,6 +118,7 @@ public class BlockNodeConnectionManager {
             // If available, make the secondary connection the primary connection
             if (Objects.equals(connection, primary) && !secondaryActive()) {
                 primary = secondary;
+                secondary = connection;
             }
             connectionsInRetry.putIfAbsent(connection.getNodeConfig(), connection);
         }
@@ -409,6 +410,26 @@ public class BlockNodeConnectionManager {
     private boolean connectionInRetry(@NonNull BlockNodeConnection connection) {
         requireNonNull(connection);
         return connectionsInRetry.containsKey(connection.getNodeConfig());
+    }
+
+    public boolean isHigherPriorityReady(BlockNodeConnection connection) {
+        synchronized (connectionLock) {
+            if (!primaryActive() || !secondaryActive()) {
+                return false;
+            }
+
+            if (Objects.equals(connection, primary)
+                    && secondary.getNodeConfig().priority()
+                            > primary.getNodeConfig().priority()) {
+                // If the secondary connection has a higher priority, we can use it
+                primary = secondary;
+                secondary = connection;
+                return true;
+            } else {
+                // If the primary connection has a higher priority, we can use it
+                return false;
+            }
+        }
     }
 
     // This class exists solely to avoid checking for null every time we reference a connection in connectionsInRetry
