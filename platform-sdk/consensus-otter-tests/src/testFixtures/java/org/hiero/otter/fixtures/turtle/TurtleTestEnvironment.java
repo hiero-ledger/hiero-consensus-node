@@ -54,7 +54,8 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
         final Path rootOutputDirectory = Path.of("build", "turtle");
-        network = new TurtleNetwork(randotron, time, rootOutputDirectory, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
+        network = new TurtleNetwork(
+                randotron, time, rootOutputDirectory, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
 
         generator = new TransactionGeneratorImpl(network);
 

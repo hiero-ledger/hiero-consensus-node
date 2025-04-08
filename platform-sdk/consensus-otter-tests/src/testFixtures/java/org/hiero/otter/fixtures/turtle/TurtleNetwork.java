@@ -37,7 +37,11 @@ public class TurtleNetwork implements Network, TimeTickReceiver, TransactionSubm
 
     private static final Logger log = Loggers.getLogger(TurtleNetwork.class);
 
-    private enum State { INIT, RUNNING, SHUTDOWN }
+    private enum State {
+        INIT,
+        RUNNING,
+        SHUTDOWN
+    }
 
     private final Randotron randotron;
     private final Time time;
@@ -78,21 +82,22 @@ public class TurtleNetwork implements Network, TimeTickReceiver, TransactionSubm
         if (state != State.INIT) {
             throw new IllegalStateException("Cannot add nodes after the network has been started.");
         }
-        if (! nodes.isEmpty()) {
+        if (!nodes.isEmpty()) {
             throw new UnsupportedOperationException("Adding nodes incrementally is not supported yet.");
         }
 
         threadPool = Executors.newFixedThreadPool(
                 Math.min(count, Runtime.getRuntime().availableProcessors()));
 
-        final RandomAddressBookBuilder addressBookBuilder = RandomAddressBookBuilder.create(randotron)
-                .withSize(count)
-                .withRealKeysEnabled(true);
+        final RandomAddressBookBuilder addressBookBuilder =
+                RandomAddressBookBuilder.create(randotron).withSize(count).withRealKeysEnabled(true);
         final AddressBook addressBook = addressBookBuilder.build();
 
-        simulatedNetwork = new SimulatedNetwork(randotron, addressBook, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
+        simulatedNetwork =
+                new SimulatedNetwork(randotron, addressBook, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
 
-            nodes.addAll(addressBook.getNodeIdSet().stream().sorted()
+        nodes.addAll(addressBook.getNodeIdSet().stream()
+                .sorted()
                 .map(nodeId -> new TurtleNode(
                         randotron,
                         time,
