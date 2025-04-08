@@ -160,7 +160,7 @@ class TipsetTrackerTests {
 
         // At the very end, we shouldn't see any modified tipsets
         for (final EventDescriptorWrapper descriptor : expectedTipsets.keySet()) {
-            final Tipset tipset = expectedTipsets.get(descriptor);
+            final Tipset tipset = tracker.getTipset(descriptor);
             assertThat(tipset).isNotNull();
             assertTipsetEquality(roster, expectedTipsets.get(descriptor), tipset);
         }
