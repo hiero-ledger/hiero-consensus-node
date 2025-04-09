@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.utility.interrupt;
+package org.hiero.base.concurrent.interrupt;
 
 import java.util.function.Consumer;
 

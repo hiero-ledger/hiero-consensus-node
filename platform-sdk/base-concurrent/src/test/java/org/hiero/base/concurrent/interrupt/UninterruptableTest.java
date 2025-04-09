@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.interrupt;
+package org.hiero.base.concurrent.interrupt;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFalse;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndLogIfInterrupted;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortIfInterrupted;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.retryIfInterrupted;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.tryToSleep;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndLogIfInterrupted;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortIfInterrupted;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.retryIfInterrupted;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.tryToSleep;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -20,7 +20,7 @@ import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.hiero.consensus.model.utility.interrupt.InterruptableSupplier;
+import org.hiero.base.concurrent.interrupt.InterruptableSupplier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

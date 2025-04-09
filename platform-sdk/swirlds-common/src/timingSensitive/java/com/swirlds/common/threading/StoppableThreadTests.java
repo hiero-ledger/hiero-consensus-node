@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
+import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

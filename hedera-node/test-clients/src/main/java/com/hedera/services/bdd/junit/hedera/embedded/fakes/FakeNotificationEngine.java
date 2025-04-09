@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
 import org.hiero.consensus.model.notification.Notification;
-import org.hiero.consensus.model.utility.StandardFuture;
+import org.hiero.base.concurrent.futures.StandardFuture;
 
 public class FakeNotificationEngine implements NotificationEngine {
     public final List<PlatformStatusChangeListener> statusChangeListeners = new CopyOnWriteArrayList<>();

@@ -15,7 +15,7 @@ import static com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo.asOcte
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;

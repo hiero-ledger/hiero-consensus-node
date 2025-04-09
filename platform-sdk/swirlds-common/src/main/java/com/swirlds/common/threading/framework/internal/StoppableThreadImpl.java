@@ -8,7 +8,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.hiero.base.utility.CompareTo.isGreaterThan;
 import static org.hiero.base.utility.StackTrace.getStackTrace;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.retryIfInterrupted;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.retryIfInterrupted;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.threading.framework.Stoppable;
@@ -23,7 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.DurationUtils;
 import org.hiero.base.utility.StackTrace;
-import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
+import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 
 /**
  * Implements the concept of a thread that can be gracefully stopped. Once stopped this instance can no longer be used

@@ -33,7 +33,7 @@ import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.utility.StandardFuture.CompletionCallback;
+import org.hiero.base.concurrent.futures.StandardFuture.CompletionCallback;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
