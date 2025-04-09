@@ -3,6 +3,8 @@ package com.hedera.node.app.history.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.base.Supplier;
+import com.google.common.base.Suppliers;
 import com.hedera.cryptography.rpm.HistoryLibraryBridge;
 import com.hedera.cryptography.rpm.ProvingAndVerifyingSnarkKeys;
 import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
@@ -23,20 +25,18 @@ public class HistoryLibraryImpl implements HistoryLibrary {
 
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final HistoryLibraryBridge BRIDGE = HistoryLibraryBridge.getInstance();
-    private static final ProvingAndVerifyingSnarkKeys SNARK_KEYS;
-
-    static {
+    private static final Supplier<ProvingAndVerifyingSnarkKeys> SNARK_KEYS = Suppliers.memoize(() -> {
         try {
-            final var elf = HistoryLibraryBridge.loadAddressBookRotationProgram();
-            SNARK_KEYS = BRIDGE.snarkVerificationKey(elf);
+            var elf = HistoryLibraryBridge.loadAddressBookRotationProgram();
+            return BRIDGE.snarkVerificationKey(elf);
         } catch (IOException e) {
             throw new IllegalStateException("Could not load HistoryLibrary ELF", e);
         }
-    }
+    });
 
     @Override
     public Bytes snarkVerificationKey() {
-        return Bytes.wrap(SNARK_KEYS.verifyingKey());
+        return Bytes.wrap(SNARK_KEYS.get().verifyingKey());
     }
 
     @Override
@@ -103,8 +103,8 @@ public class HistoryLibraryImpl implements HistoryLibrary {
             throw new IllegalArgumentException("The number of weights and verifying keys must be the same");
         }
         final var proof = BRIDGE.proveChainOfTrust(
-                SNARK_KEYS.provingKey(),
-                SNARK_KEYS.verifyingKey(),
+                SNARK_KEYS.get().provingKey(),
+                SNARK_KEYS.get().verifyingKey(),
                 genesisAddressBookHash.toByteArray(),
                 currentAddressBookVerifyingKeys,
                 currentAddressBookWeights,
@@ -120,6 +120,6 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     @Override
     public boolean verifyChainOfTrust(@NonNull final Bytes proof) {
         requireNonNull(proof);
-        return BRIDGE.verifyChainOfTrust(SNARK_KEYS.verifyingKey(), proof.toByteArray());
+        return BRIDGE.verifyChainOfTrust(SNARK_KEYS.get().verifyingKey(), proof.toByteArray());
     }
 }

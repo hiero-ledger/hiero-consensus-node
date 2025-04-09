@@ -8,6 +8,7 @@ import com.hedera.hapi.block.PublishStreamResponse;
 import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.grpc.GrpcClient;
 import io.helidon.webclient.grpc.GrpcClientMethodDescriptor;
@@ -45,6 +46,8 @@ public class BlockNodeConnectionManager {
     private final Random random = new Random();
 
     private final Map<BlockNodeConfig, BlockNodeConnection> activeConnections;
+    private final Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection;
+
     private final BlockNodeConfigExtractor blockNodeConfigurations;
     private final BlockStreamStateManager blockStreamStateManager;
 
@@ -66,6 +69,7 @@ public class BlockNodeConnectionManager {
         this.blockStreamStateManager =
                 requireNonNull(blockStreamStateManager, "blockStreamStateManager must not be null");
         this.activeConnections = new ConcurrentHashMap<>();
+        this.lastVerifiedBlockPerConnection = new ConcurrentHashMap<>();
     }
 
     /**
@@ -301,5 +305,25 @@ public class BlockNodeConnectionManager {
      */
     public String getGrpcEndPoint() {
         return GRPC_END_POINT;
+    }
+
+    /**
+     * @param blockNodeConfig the configuration for the block node
+     * @param blockNumber the block number of the last verified block
+     */
+    public void updateLastVerifiedBlock(
+            @NonNull final BlockNodeConfig blockNodeConfig, @Nullable final Long blockNumber) {
+        requireNonNull(blockNodeConfig);
+
+        final Long latestBlock = lastVerifiedBlockPerConnection.computeIfAbsent(blockNodeConfig, key -> -1L);
+        if (blockNumber != null && blockNumber > latestBlock) {
+            lastVerifiedBlockPerConnection.put(blockNodeConfig, blockNumber);
+        } else {
+            logger.warn(
+                    "Attempted to update connection {} with invalid block number {} (highest {})",
+                    blockNodeConfig,
+                    blockNumber,
+                    latestBlock);
+        }
     }
 }

@@ -2,7 +2,7 @@
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.demo.consistency.ConsistencyTestingToolState.isSystemTransaction;
-import static org.hiero.consensus.utility.ByteUtils.byteArrayToLong;
+import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;

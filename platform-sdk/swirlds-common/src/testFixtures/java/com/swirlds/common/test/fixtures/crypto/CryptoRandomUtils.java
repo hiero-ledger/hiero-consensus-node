@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.crypto;
 
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.randomByteArray;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomByteArray;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.crypto.Signature;
