@@ -3,10 +3,14 @@ package com.hedera.node.app.service.contract.impl.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.operations.CustomizedOpcodes.CREATE;
 import static java.util.Objects.requireNonNull;
+import static org.hyperledger.besu.evm.internal.Words.clampedAdd;
+import static org.hyperledger.besu.evm.internal.Words.clampedToInt;
 
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Supplier;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
@@ -18,8 +22,8 @@ public class CustomCreateOperation extends AbstractCustomCreateOperation {
      * Constructor for custom create operations.
      * @param gasCalculator the gas calculator to use
      */
-    public CustomCreateOperation(@NonNull final GasCalculator gasCalculator) {
-        super(CREATE.opcode(), "ħCREATE", 3, 1, gasCalculator);
+    public CustomCreateOperation(@NonNull final GasCalculator gasCalculator, @NonNull final CodeFactory codeFactory) {
+        super(CREATE.opcode(), "ħCREATE", 3, 1, gasCalculator, codeFactory);
     }
 
     @Override
@@ -33,9 +37,24 @@ public class CustomCreateOperation extends AbstractCustomCreateOperation {
         // a side effect of dispatching from ProxyWorldUpdater#createAccount()
     }
 
+    /**
+     * Returns the amount of gas the CREATE operation will consume.
+     *
+     * @param frame The current frame
+     * @return the amount of gas the CREATE operation will consume
+     * <p>Compose the operation cost from {@link GasCalculator#txCreateCost()}, {@link
+     * GasCalculator#memoryExpansionGasCost(MessageFrame, long, long)}, and {@link GasCalculator#initcodeCost(int)} As done
+     * in {@link org.hyperledger.besu.evm.operation.CreateOperation#cost(MessageFrame, Supplier)}
+     */
     @Override
     protected long cost(@NonNull final MessageFrame frame) {
-        return gasCalculator().createOperationGasCost(frame);
+        final int inputOffset = clampedToInt(frame.getStackItem(1));
+        final int inputSize = clampedToInt(frame.getStackItem(2));
+        return clampedAdd(
+                clampedAdd(
+                        gasCalculator().txCreateCost(),
+                        gasCalculator().memoryExpansionGasCost(frame, inputOffset, inputSize)),
+                gasCalculator().initcodeCost(inputSize));
     }
 
     @Override

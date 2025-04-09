@@ -60,7 +60,7 @@ class CustomContractCreationProcessorTest {
     @BeforeEach
     void setUp() {
         subject = new CustomContractCreationProcessor(
-                evm, gasCalculator, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, STANDARD_RULES, INITIAL_CONTRACT_NONCE);
+                evm, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, STANDARD_RULES, INITIAL_CONTRACT_NONCE);
     }
 
     @Test
