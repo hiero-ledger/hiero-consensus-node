@@ -4,7 +4,7 @@ package com.swirlds.common.threading.pool;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.futures.ConcurrentFuturePool;
+import org.hiero.base.concurrent.futures.ConcurrentFuturePool;
 import com.swirlds.common.threading.manager.ThreadManager;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;

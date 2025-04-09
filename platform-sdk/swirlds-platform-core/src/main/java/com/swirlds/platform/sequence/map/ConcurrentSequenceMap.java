@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.sequence.map;
 
-import com.swirlds.common.threading.locks.IndexLock;
-import com.swirlds.common.threading.locks.Locks;
+import org.hiero.base.concurrent.locks.IndexLock;
+import org.hiero.base.concurrent.locks.Locks;
 import com.swirlds.platform.sequence.map.internal.AbstractSequenceMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;

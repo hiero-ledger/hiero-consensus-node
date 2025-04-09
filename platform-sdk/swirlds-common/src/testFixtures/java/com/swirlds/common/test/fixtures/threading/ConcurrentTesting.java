@@ -3,7 +3,7 @@ package com.swirlds.common.test.fixtures.threading;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 
-import com.swirlds.common.threading.utility.ThrowingRunnable;
+import org.hiero.base.concurrent.ThrowingRunnable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;

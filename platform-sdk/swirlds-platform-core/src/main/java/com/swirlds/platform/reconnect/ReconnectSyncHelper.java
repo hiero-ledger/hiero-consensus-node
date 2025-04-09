@@ -4,8 +4,8 @@ package com.swirlds.platform.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
-import com.swirlds.common.threading.BlockingResourceProvider;
-import com.swirlds.common.threading.locks.locked.LockedResource;
+import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.base.concurrent.locks.locked.LockedResource;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;

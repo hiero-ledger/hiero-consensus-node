@@ -2,8 +2,9 @@
 package com.swirlds.common.threading;
 
 import com.swirlds.common.test.fixtures.threading.ConcurrentTesting;
-import com.swirlds.common.threading.locks.locked.LockedResource;
-import com.swirlds.common.threading.utility.ThrowingRunnable;
+import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.base.concurrent.locks.locked.LockedResource;
+import org.hiero.base.concurrent.ThrowingRunnable;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;

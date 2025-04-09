@@ -46,15 +46,10 @@ module com.swirlds.common {
     exports com.swirlds.common.platform;
     exports com.swirlds.common.stream;
     exports com.swirlds.common.stream.internal;
-    exports com.swirlds.common.threading;
     exports com.swirlds.common.threading.framework;
     exports com.swirlds.common.threading.framework.config;
-    exports com.swirlds.common.threading.futures;
-    exports com.swirlds.common.threading.locks;
-    exports com.swirlds.common.threading.locks.locked;
     exports com.swirlds.common.threading.manager;
     exports com.swirlds.common.threading.pool;
-    exports com.swirlds.common.threading.utility;
     exports com.swirlds.common.time;
     exports com.swirlds.common.utility;
     exports com.swirlds.common.utility.throttle;
@@ -127,7 +122,6 @@ module com.swirlds.common {
             com.swirlds.platform.test,
             com.swirlds.platform.gui;
     exports com.swirlds.common.startup;
-    exports com.swirlds.common.threading.atomic;
     exports com.swirlds.common.concurrent;
     exports com.swirlds.common.merkle.synchronization.stats;
 
@@ -144,6 +138,7 @@ module com.swirlds.common {
     requires transitive io.prometheus.simpleclient;
     requires transitive lazysodium.java;
     requires transitive org.apache.logging.log4j;
+    requires org.hiero.base.concurrent;
     requires com.sun.jna;
     requires io.github.classgraph;
     requires io.prometheus.simpleclient.httpserver;

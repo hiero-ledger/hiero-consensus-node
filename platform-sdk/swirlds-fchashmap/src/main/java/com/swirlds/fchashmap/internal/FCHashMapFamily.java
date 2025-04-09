@@ -4,9 +4,9 @@ package com.swirlds.fchashmap.internal;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.threading.locks.AutoClosableLock;
-import com.swirlds.common.threading.locks.Locks;
-import com.swirlds.common.threading.locks.locked.Locked;
+import org.hiero.base.concurrent.locks.AutoClosableLock;
+import org.hiero.base.concurrent.locks.Locks;
+import org.hiero.base.concurrent.locks.locked.Locked;
 import com.swirlds.common.utility.UnmodifiableIterator;
 import com.swirlds.common.utility.ValueReference;
 import com.swirlds.fchashmap.FCHashMap;
