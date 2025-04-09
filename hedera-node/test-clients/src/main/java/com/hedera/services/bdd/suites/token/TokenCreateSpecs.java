@@ -1127,7 +1127,41 @@ public class TokenCreateSpecs {
                 .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE)
         );
     }
-    
+
+    @HapiTest
+    final Stream<DynamicTest> withLongMinAutoRenewPeriod() {
+        return hapiTest(
+            cryptoCreate(TOKEN_TREASURY),
+            cryptoCreate("autoRenewAccount"),
+
+            tokenCreate(token)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .supplyKey(GENESIS)
+                .initialSupply(0L)
+                .treasury(TOKEN_TREASURY)
+                .autoRenewAccount("autoRenewAccount")
+                .autoRenewPeriod(Long.MIN_VALUE)
+                .hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE)
+        );
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withNegativeMinAutoRenewPeriod() {
+        return hapiTest(
+            cryptoCreate(TOKEN_TREASURY),
+            cryptoCreate("autoRenewAccount"),
+
+            tokenCreate(token)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .supplyKey(GENESIS)
+                .initialSupply(0L)
+                .treasury(TOKEN_TREASURY)
+                .autoRenewAccount("autoRenewAccount")
+                .autoRenewPeriod(-1)
+                .hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE)
+        );
+    }
+
     private final long hbarAmount = 1_234L;
     private final long htsAmount = 2_345L;
     private final long numerator = 1;
