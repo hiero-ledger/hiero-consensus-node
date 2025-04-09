@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.concurrent;
+package org.hiero.base.concurrent;
 
-import com.swirlds.common.concurrent.internal.DefaultExecutorFactory;
+import org.hiero.base.concurrent.internal.DefaultExecutorFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.Thread.UncaughtExceptionHandler;

@@ -5,7 +5,7 @@ import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.concurrent.ExecutorFactory;
+import org.hiero.base.concurrent.ExecutorFactory;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;

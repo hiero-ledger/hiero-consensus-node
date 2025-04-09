@@ -122,7 +122,6 @@ module com.swirlds.common {
             com.swirlds.platform.test,
             com.swirlds.platform.gui;
     exports com.swirlds.common.startup;
-    exports com.swirlds.common.concurrent;
     exports com.swirlds.common.merkle.synchronization.stats;
 
     requires transitive com.hedera.pbj.runtime;

@@ -2,7 +2,7 @@
 package com.swirlds.common.context;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.concurrent.ExecutorFactory;
+import org.hiero.base.concurrent.ExecutorFactory;
 import com.swirlds.common.context.internal.PlatformUncaughtExceptionHandler;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;

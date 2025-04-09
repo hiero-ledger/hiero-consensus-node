@@ -3,7 +3,7 @@ package com.swirlds.common.merkle.hash;
 
 import static com.swirlds.common.crypto.Cryptography.DEFAULT_SET_HASH;
 
-import com.swirlds.common.concurrent.AbstractTask;
+import org.hiero.base.concurrent.AbstractTask;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
