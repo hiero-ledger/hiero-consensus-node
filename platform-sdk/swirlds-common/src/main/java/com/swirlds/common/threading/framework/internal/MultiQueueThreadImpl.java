@@ -10,7 +10,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import org.hiero.consensus.model.utility.interrupt.InterruptableConsumer;
+import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 
 /**
  * A wrapper around a {@link QueueThread} that provides boilerplate

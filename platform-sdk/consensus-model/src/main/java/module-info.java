@@ -14,12 +14,10 @@ module org.hiero.consensus.model {
     exports org.hiero.consensus.model.stream;
     exports org.hiero.consensus.model.transaction;
     exports org.hiero.consensus.model.utility;
-    exports org.hiero.consensus.model.utility.interrupt;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
-    requires transitive com.swirlds.base;
-    requires com.swirlds.logging;
-    requires org.apache.logging.log4j;
+    requires transitive org.hiero.base.concurrent;
+    requires com.swirlds.base;
     requires static transitive com.github.spotbugs.annotations;
 }

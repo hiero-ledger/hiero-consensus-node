@@ -36,12 +36,12 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.futures.StandardFuture;
 import org.hiero.base.utility.exceptions.PlatformException;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.SelfSerializable;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.utility.StandardFuture;
 
 /**
  * A cache for virtual merkel trees.
