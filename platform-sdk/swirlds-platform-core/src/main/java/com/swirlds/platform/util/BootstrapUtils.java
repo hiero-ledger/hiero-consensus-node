@@ -65,7 +65,7 @@ import javax.swing.UnsupportedLookAndFeelException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.utility.StackTrace;
+import org.hiero.base.utility.StackTrace;
 
 /**
  * Utility methods that are helpful when starting up a JVM.

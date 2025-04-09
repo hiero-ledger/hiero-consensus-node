@@ -7,7 +7,7 @@ import static com.swirlds.logging.legacy.LogMarker.THREADS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.hiero.base.utility.CompareTo.isGreaterThan;
-import static org.hiero.consensus.model.utility.StackTrace.getStackTrace;
+import static org.hiero.base.utility.StackTrace.getStackTrace;
 import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.retryIfInterrupted;
 
 import com.swirlds.base.utility.ToStringBuilder;
@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.DurationUtils;
-import org.hiero.consensus.model.utility.StackTrace;
+import org.hiero.base.utility.StackTrace;
 import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
 
 /**

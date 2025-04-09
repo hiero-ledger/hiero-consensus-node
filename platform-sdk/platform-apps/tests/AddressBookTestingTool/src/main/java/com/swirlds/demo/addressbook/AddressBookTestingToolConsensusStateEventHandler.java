@@ -48,7 +48,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
-import org.hiero.consensus.model.utility.StackTrace;
+import org.hiero.base.utility.StackTrace;
 
 /**
  * This class is responsible for processing lifecycle events for the {@link AddressBookTestingToolState}.
