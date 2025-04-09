@@ -27,7 +27,7 @@ public record ContractsConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enforceCreationThrottle,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSec,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSecBackend,
-        @ConfigProperty(defaultValue = "2") @NetworkProperty int gasThrottleBurstSeconds,
+        @ConfigProperty(defaultValue = "1") @NetworkProperty int gasThrottleBurstSeconds,
         @ConfigProperty(value = "maxKvPairs.aggregate", defaultValue = "500000000") @NetworkProperty
                 long maxKvPairsAggregate,
         @ConfigProperty(value = "maxKvPairs.individual", defaultValue = "16384000") @NetworkProperty

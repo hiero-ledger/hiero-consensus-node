@@ -1354,7 +1354,7 @@ public class RepeatableHip423Tests {
 
     @LeakyRepeatableHapiTest(
             value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION,
-            overrides = {"scheduling.whitelist", "contracts.maxGasPerSec"})
+            overrides = {"scheduling.whitelist", "contracts.maxGasPerSec", "contracts.maxGasPerSecBackend"})
     @DisplayName("Gas throttle works as expected")
     final Stream<DynamicTest> gasThrottleWorksAsExpected() {
         final var contract = "TestContract";
@@ -1365,6 +1365,7 @@ public class RepeatableHip423Tests {
         final var gasToOffer = 2_000_000L;
         return hapiTest(flattened(
                 overriding("contracts.maxGasPerSec", "4000000"),
+                overriding("contracts.maxGasPerSecBackend", "4000000"),
                 cryptoCreate("PAYING_ACCOUNT"),
                 uploadTestContracts(contract),
                 contractCreate(contract, addressTwo, BigInteger.ONE)
