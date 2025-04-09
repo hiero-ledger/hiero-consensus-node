@@ -2,7 +2,7 @@
 
 ## Purpose
 
-- Raise the limit on the size of Ethereum transaction data to 128KB, and the limit on the total size of Ethereum transactions from 6KB to 130KB.
+- Raise the limit on the size of Ethereum call data to 128KB, and the limit on the total size of Ethereum transactions from 6KB to 130KB.
 - Introduce a new throttle bucket that represents the max bytes-per-second for accepting "jumbo" transactions larger than 6KB on the network.
 - Introduce non-linear pricing for transactions larger than 6KB to incentivize smaller sized transactions where possible.
   **Note:** Fees are still in discussion and not yet finalized.
@@ -81,23 +81,27 @@ if (buffer.length() > maxSize) {
 void checkJumboTransactionBody(TransactionInfo txInfo) throws PreCheckException {
     final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
     final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
-    final var maxJumboEthereumCallDataSize = jumboTransactionsConfig.ethereumMaxCallDataSize();
 
     if (jumboTxnEnabled
             && txInfo.serializedTransaction().length() > hederaConfig.transactionMaxBytes()
             && !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))) {
         throw new PreCheckException(TRANSACTION_OVERSIZE);
     }
-
-    if (txInfo.txBody() != null
-            && txInfo.txBody().hasEthereumTransaction()
-            && txInfo.txBody().ethereumTransaction().ethereumData().length() > maxJumboEthereumCallDataSize) {
-        throw new PreCheckException(TRANSACTION_OVERSIZE);
-    }
 }
 ```
 
 - Additionally, check after Ethereum hydrate is done if the `ethereumCallData` field is up to 128KB
+
+```java
+private void validateHevmTransaction(HederaEvmTransaction hevmTransaction) {
+    final var maxJumboEthereumCallDataSize =
+            configuration.getConfigData(JumboTransactionsConfig.class).ethereumMaxCallDataSize();
+
+    if (hevmTransaction.payload().length() > maxJumboEthereumCallDataSize) {
+        throw new HandleException(TRANSACTION_OVERSIZE);
+    }
+}
+```
 
 ### Throttles
 
