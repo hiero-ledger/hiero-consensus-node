@@ -51,6 +51,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.salted;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_MUST_BE_POSITIVE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_NOT_FULLY_SPECIFIED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_ROYALTY_FEE_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE;
@@ -1048,6 +1049,85 @@ public class TokenCreateSpecs {
                         .hasKnownStatus(INVALID_RENEWAL_PERIOD));
     }
 
+
+    @HapiTest
+    final Stream<DynamicTest> withLongMinNumeratorRoyaltyFeeWithFallback() {
+        return hapiTest(
+            newKeyNamed("supplyKey"),
+            cryptoCreate(TOKEN_TREASURY),
+            cryptoCreate("autoRenewAccount"),
+            cryptoCreate("feeCollector"),
+            tokenCreate("feeToken"),
+            tokenAssociate("feeCollector", "feeToken"),
+
+            tokenCreate("nonFungibleToken")
+                .treasury(TOKEN_TREASURY)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .initialSupply(0L)
+                .supplyKey("supplyKey")
+                .autoRenewAccount("autoRenewAccount")
+                .withCustom(royaltyFeeWithFallback(
+                    Long.MIN_VALUE, 10L, fixedHbarFeeInheritingRoyaltyCollector(123L), "feeCollector"))
+                .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE)
+
+        );
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withLongMinDenominatorRoyaltyFeeWithFallback() {
+        return hapiTest(
+            newKeyNamed("supplyKey"),
+            cryptoCreate(TOKEN_TREASURY),
+            cryptoCreate("autoRenewAccount"),
+            cryptoCreate("feeCollector"),
+            tokenCreate("feeToken"),
+            tokenAssociate("feeCollector", "feeToken"),
+
+            tokenCreate("nonFungibleToken")
+                .treasury(TOKEN_TREASURY)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .initialSupply(0L)
+                .supplyKey("supplyKey")
+                .autoRenewAccount("autoRenewAccount")
+                .withCustom(royaltyFeeWithFallback(
+                    1, Long.MIN_VALUE, fixedHbarFeeInheritingRoyaltyCollector(123L), "feeCollector"))
+                .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE)
+
+        );
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withLongMinNumeratorRoyaltyFeeNoFallback() {
+        return hapiTest(
+            cryptoCreate(TOKEN_TREASURY),
+            cryptoCreate("feeCollector"),
+
+            tokenCreate(token)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .supplyKey(GENESIS)
+                .initialSupply(0L)
+                .treasury(TOKEN_TREASURY)
+                .withCustom(royaltyFeeNoFallback(Long.MIN_VALUE, 2, "feeCollector"))
+                .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE)
+        );
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withLongMinDenominatorRoyaltyFeeNoFallback() {
+        return hapiTest(
+            cryptoCreate(TOKEN_TREASURY),
+            cryptoCreate("feeCollector"),
+
+            tokenCreate(token)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .supplyKey(GENESIS)
+                .initialSupply(0L)
+                .treasury(TOKEN_TREASURY)
+                .withCustom(royaltyFeeNoFallback(1, Long.MIN_VALUE, "feeCollector"))
+                .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE)
+        );
+    }
+    
     private final long hbarAmount = 1_234L;
     private final long htsAmount = 2_345L;
     private final long numerator = 1;
