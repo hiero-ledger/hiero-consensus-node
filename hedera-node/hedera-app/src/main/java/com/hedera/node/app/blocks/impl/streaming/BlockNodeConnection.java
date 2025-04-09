@@ -309,6 +309,42 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         endStreamAndRestartAtBlock(restartBlockNumber);
     }
 
+    private void handleResendBlock(@NonNull PublishStreamResponse.ResendBlock resendBlock) {
+        final var resendBlockNumber = resendBlock.blockNumber();
+
+        logger.debug(
+                "[{}] Received ResendBlock from block node {} for block {}",
+                Thread.currentThread().getName(),
+                connectionDescriptor,
+                resendBlockNumber);
+
+        if (blockNodeConnectionManager.isBlockAlreadyAcknowledged(resendBlockNumber)) {
+            logger.debug(
+                    "[{}] Block {} already acknowledged, skipping resend for block node {}",
+                    Thread.currentThread().getName(),
+                    resendBlockNumber,
+                    connectionDescriptor);
+            return;
+        }
+
+        final var lastVerifiedBlockNumber = blockNodeConnectionManager.getLastVerifiedBlock(blockNodeConfig);
+        // Check whether the resend block number is the next block after the last verified one
+        if (resendBlockNumber == lastVerifiedBlockNumber + 1L) {
+            logger.debug(
+                    "[{}] Restarting stream at the next block {} after the last verified one for block node {}",
+                    Thread.currentThread().getName(),
+                    resendBlockNumber,
+                    connectionDescriptor);
+            endStreamAndRestartAtBlock(resendBlockNumber);
+        } else {
+            logger.warn(
+                    "[{}] Received ResendBlock for block {} but last verified block is {}",
+                    Thread.currentThread().getName(),
+                    resendBlockNumber,
+                    lastVerifiedBlockNumber);
+        }
+    }
+
     private void removeFromActiveConnections(BlockNodeConfig node) {
         blockNodeConnectionManager.disconnectFromNode(node);
     }
@@ -506,14 +542,11 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             handleEndOfStream(response.endStream());
         } else if (response.hasSkipBlock()) {
             logger.debug(
-                    "Received SkipBlock from Block Node {}  Block #{}",
+                    "Received SkipBlock from block node {}  Block #{}",
                     connectionDescriptor,
                     response.skipBlock().blockNumber());
         } else if (response.hasResendBlock()) {
-            logger.debug(
-                    "Received ResendBlock from Block Node {}  Block #{}",
-                    connectionDescriptor,
-                    response.resendBlock().blockNumber());
+            handleResendBlock(response.resendBlock());
         }
     }
 
