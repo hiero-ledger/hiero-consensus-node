@@ -19,7 +19,7 @@ public record ExpiryMeta(long expiry, long autoRenewPeriod, @Nullable AccountID 
     /**
      * A sentinel value indicating some part of the metadata is not available..
      */
-    public static long NA = Long.MIN_VALUE;
+    public static long NA = 0;
 
     /**
      * Returns true if the expiry is explicitly set.

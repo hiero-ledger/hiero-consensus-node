@@ -1079,4 +1079,34 @@ public class TokenUpdateSpecs {
                 .autoRenewPeriod(-1)
                 .hasKnownStatus(INVALID_RENEWAL_PERIOD));
     }
+
+    @HapiTest
+    final Stream<DynamicTest> withLongMinExpiry() {
+        return hapiTest(
+            cryptoCreate("adminKey"),
+            cryptoCreate("supplyKey"),
+            tokenCreate("token")
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .initialSupply(0)
+                .adminKey("adminKey")
+                .supplyKey("supplyKey"),
+            tokenUpdate("token")
+                .expiry(Long.MIN_VALUE)
+                .hasKnownStatus(INVALID_EXPIRATION_TIME));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withNegativeExpiry() {
+        return hapiTest(
+            cryptoCreate("adminKey"),
+            cryptoCreate("supplyKey"),
+            tokenCreate("token")
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .initialSupply(0)
+                .adminKey("adminKey")
+                .supplyKey("supplyKey"),
+            tokenUpdate("token")
+                .expiry(-1)
+                .hasKnownStatus(INVALID_EXPIRATION_TIME));
+    }
 }

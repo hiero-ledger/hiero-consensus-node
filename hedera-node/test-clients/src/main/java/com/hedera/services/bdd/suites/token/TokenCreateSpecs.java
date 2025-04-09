@@ -1141,7 +1141,7 @@ public class TokenCreateSpecs {
                 .treasury(TOKEN_TREASURY)
                 .autoRenewAccount("autoRenewAccount")
                 .autoRenewPeriod(Long.MIN_VALUE)
-                .hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE)
+                .hasPrecheck(INVALID_RENEWAL_PERIOD)
         );
     }
 
@@ -1158,7 +1158,39 @@ public class TokenCreateSpecs {
                 .treasury(TOKEN_TREASURY)
                 .autoRenewAccount("autoRenewAccount")
                 .autoRenewPeriod(-1)
-                .hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE)
+                .hasPrecheck(INVALID_RENEWAL_PERIOD)
+        );
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withLongMinExpiry() {
+        return hapiTest(
+            cryptoCreate(TOKEN_TREASURY),
+            cryptoCreate("autoRenewAccount"),
+
+            tokenCreate(token)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .supplyKey(GENESIS)
+                .initialSupply(0L)
+                .treasury(TOKEN_TREASURY)
+                .expiry(Long.MIN_VALUE)
+                .hasKnownStatus(INVALID_EXPIRATION_TIME)
+        );
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withNegativeExpiry() {
+        return hapiTest(
+            cryptoCreate(TOKEN_TREASURY),
+            cryptoCreate("autoRenewAccount"),
+
+            tokenCreate(token)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .supplyKey(GENESIS)
+                .initialSupply(0L)
+                .treasury(TOKEN_TREASURY)
+                .expiry(-1)
+                .hasKnownStatus(INVALID_EXPIRATION_TIME)
         );
     }
 
