@@ -78,6 +78,7 @@ public class NodeCreateTest {
             .setDomainName("service.com")
             .setPort(234)
             .build());
+    private static final ServiceEndpoint GRPC_PROXY_ENDPOINT = endpointFor("grpc.web.proxy.com", 123);
     public static List<ServiceEndpoint> GOSSIP_ENDPOINTS_IPS =
             Arrays.asList(endpointFor("192.168.1.200", 123), endpointFor("192.168.1.201", 123));
     public static List<ServiceEndpoint> SERVICES_ENDPOINTS_IPS = List.of(endpointFor("192.168.1.205", 234));
@@ -334,6 +335,7 @@ public class NodeCreateTest {
                 .accountId(asAccount(asEntityString(100)))
                 .gossipEndpoint(GOSSIP_ENDPOINTS)
                 .serviceEndpoint(SERVICES_ENDPOINTS)
+                .grpcWebProxyEndpoint(GRPC_PROXY_ENDPOINT)
                 .adminKey(ED_25519_KEY)
                 .hasPrecheck(OK)
                 .hasKnownStatus(SUCCESS);
@@ -359,7 +361,8 @@ public class NodeCreateTest {
                     assertEquals(100, node.accountId().accountNum(), "Account ID invalid");
                     assertEqualServiceEndpoints(GOSSIP_ENDPOINTS, node.gossipEndpoint());
                     assertEqualServiceEndpoints(SERVICES_ENDPOINTS, node.serviceEndpoint());
-                    assertNotNull(nodeCreate.getAdminKey()," Admin key invalid");
+                    assertEqualServiceEndpoints(List.of(GRPC_PROXY_ENDPOINT), List.of(node.grpcProxyEndpoint()));
+                    assertNotNull(nodeCreate.getAdminKey(), " Admin key invalid");
                     assertEquals(toPbj(nodeCreate.getAdminKey()), node.adminKey(), "Admin key invalid");
                 }));
     }

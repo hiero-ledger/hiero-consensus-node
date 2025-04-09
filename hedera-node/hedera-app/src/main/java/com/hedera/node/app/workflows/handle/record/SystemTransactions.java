@@ -116,6 +116,7 @@ public class SystemTransactions {
     private static final long FIRST_MISC_ACCOUNT_NUM = 900L;
     private static final List<ServiceEndpoint> UNKNOWN_HAPI_ENDPOINT =
             List.of(V053AddressBookSchema.endpointFor("1.0.0.0", 1));
+    private static final ServiceEndpoint UNKNOWN_GRPC_PROXY_ENDPOINT = V053AddressBookSchema.endpointFor("2.0.0.0", 1);
 
     private static final EnumSet<ResponseCodeEnum> SUCCESSES =
             EnumSet.of(SUCCESS, SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
@@ -304,6 +305,7 @@ public class SystemTransactions {
                         .gossipEndpoint(nodeInfo.gossipEndpoints())
                         .gossipCaCertificate(nodeInfo.sigCertBytes())
                         .serviceEndpoint(hapiEndpoints)
+                        .grpcProxyEndpoint(UNKNOWN_GRPC_PROXY_ENDPOINT)
                         .declineReward(isSystemAccount)
                         .build();
                 b.nodeCreate(nodeCreate);

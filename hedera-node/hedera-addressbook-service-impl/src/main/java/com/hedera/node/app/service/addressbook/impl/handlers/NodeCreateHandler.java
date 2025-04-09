@@ -97,7 +97,7 @@ public class NodeCreateHandler implements TransactionHandler {
         addressBookValidator.validateDescription(op.description(), nodeConfig);
         addressBookValidator.validateGossipEndpoint(op.gossipEndpoint(), nodeConfig);
         addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
-//        validateTrue(op.grpcProxyEndpoint()!=null, INVALID_GRPC_WEB_PROXY_ENDPOINT);
+        validateTrue(op.grpcProxyEndpoint() != null, INVALID_GRPC_WEB_PROXY_ENDPOINT);
         addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
         handleContext.attributeValidator().validateKey(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
 
