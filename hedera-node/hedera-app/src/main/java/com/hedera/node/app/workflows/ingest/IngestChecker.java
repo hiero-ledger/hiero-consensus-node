@@ -53,7 +53,6 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
-import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.SoftwareVersion;
@@ -323,8 +322,6 @@ public final class IngestChecker {
                             .equals(payer.alias()))
                     .findFirst();
             validateTruePreCheck(originals.isPresent(), INVALID_SIGNATURE);
-            validateTruePreCheck(
-                    configuration.getConfigData(LazyCreationConfig.class).enabled(), INVALID_SIGNATURE);
             signatureExpander.expand(List.of(originals.get()), expandedSigs);
         }
 

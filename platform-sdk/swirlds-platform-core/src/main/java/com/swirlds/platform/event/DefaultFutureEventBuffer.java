@@ -5,7 +5,6 @@ import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.sequence.map.SequenceMap;
 import com.swirlds.platform.sequence.map.StandardSequenceMap;
 import com.swirlds.platform.wiring.NoInput;
@@ -16,6 +15,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;

@@ -104,7 +104,6 @@ module com.swirlds.platform.core {
     opens com.swirlds.platform.cli to
             info.picocli;
 
-    exports com.swirlds.platform.components.transaction;
     exports com.swirlds.platform.event.preconsensus;
     exports com.swirlds.platform.gossip.sync.protocol;
     exports com.swirlds.platform.gossip;
@@ -122,7 +121,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.event.orphan;
     exports com.swirlds.platform.publisher;
     exports com.swirlds.platform.components.consensus;
-    exports com.swirlds.platform.pool;
     exports com.swirlds.platform.state.snapshot;
     exports com.swirlds.platform.state.service.schemas;
     exports com.swirlds.platform.state.service;
@@ -152,6 +150,7 @@ module com.swirlds.platform.core {
     requires com.swirlds.merkle;
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
+    requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;
