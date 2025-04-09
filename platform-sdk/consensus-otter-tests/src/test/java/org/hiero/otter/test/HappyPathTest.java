@@ -29,7 +29,7 @@ public class HappyPathTest {
         timeManager.waitFor(Duration.ofMinutes(2L));
 
         // Temporary to show that "something" happened
-        ((TurtleNode)network.getNodes().getFirst()).dump();
+        ((TurtleNode) network.getNodes().getFirst()).dump();
 
         // Validations
         env.validator().validateRemaining(Profile.DEFAULT);

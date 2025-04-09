@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -16,5 +17,4 @@ public interface NodeConfiguration<T extends NodeConfiguration> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     T set(@NonNull String key, boolean value);
-
 }

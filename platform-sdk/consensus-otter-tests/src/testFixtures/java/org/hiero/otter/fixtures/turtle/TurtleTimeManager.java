@@ -75,6 +75,5 @@ public class TurtleTimeManager implements TimeManager {
          * @param now the current time in the simulation
          */
         void tick(@NonNull final Instant now);
-
     }
 }

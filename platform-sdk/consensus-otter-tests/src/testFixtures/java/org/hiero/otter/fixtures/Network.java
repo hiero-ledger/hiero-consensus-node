@@ -58,7 +58,6 @@ public interface Network {
      */
     void prepareUpgrade(@NonNull Duration timeout) throws InterruptedException;
 
-
     /**
      * Resumes the network after it has previously been paused, e.g. to prepare for an upgrade.
      *

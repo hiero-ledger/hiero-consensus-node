@@ -121,7 +121,8 @@ public class OtherTestExtension implements InvocationInterceptor, ParameterResol
      * @param extensionContext the current extension context; never {@code null}
      */
     private static void clear(@NonNull final ExtensionContext extensionContext) {
-        final TestEnvironment testEnvironment = (TestEnvironment) extensionContext.getStore(EXTENSION_NAMESPACE).remove(ENVIRONMENT_KEY);
+        final TestEnvironment testEnvironment =
+                (TestEnvironment) extensionContext.getStore(EXTENSION_NAMESPACE).remove(ENVIRONMENT_KEY);
         if (testEnvironment != null) {
             testEnvironment.network().getNodes().forEach(node -> {
                 try {

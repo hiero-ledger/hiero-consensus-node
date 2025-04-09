@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,7 +16,6 @@ public class FixedRate implements Rate {
         }
         this.intervalNanos = 1_000_000_000 / tps;
     }
-
 
     @Override
     public long nextDelayNS(@NonNull Instant start, @NonNull Instant now) {

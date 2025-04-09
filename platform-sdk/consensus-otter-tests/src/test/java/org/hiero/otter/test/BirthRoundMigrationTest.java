@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
 import static org.hiero.otter.fixtures.TransactionGenerator.INFINITE;
@@ -47,9 +48,6 @@ class BirthRoundMigrationTest {
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Validations
-        env.validator()
-                .assertPlatformStatus()
-                .assertLogErrors()
-                .assertMetrics();
+        env.validator().assertPlatformStatus().assertLogErrors().assertMetrics();
     }
 }

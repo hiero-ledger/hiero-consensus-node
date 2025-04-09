@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
@@ -37,7 +38,8 @@ public class TurtleTransactionGenerator implements TransactionGenerator, TimeTic
      * {@inheritDoc}
      */
     @Override
-    public void generateTransactions(final int count, @NonNull final Rate rate, @NonNull final Distribution distribution) {
+    public void generateTransactions(
+            final int count, @NonNull final Rate rate, @NonNull final Distribution distribution) {
         stop();
         if (distribution != Distribution.UNIFORM) {
             throw new IllegalArgumentException("Only UNIFORM distribution is supported");
