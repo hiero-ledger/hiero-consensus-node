@@ -1,17 +1,46 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.tipset;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
+import com.swirlds.platform.event.creation.tipset.Tipset;
+import com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight;
+import com.swirlds.platform.event.creation.tipset.TipsetTracker;
+import com.swirlds.platform.event.creation.tipset.TipsetWeightCalculator;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
+import static com.swirlds.platform.event.creation.tipset.Tipset.merge;
+import static com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 @DisplayName("TipsetWeightCalculator Tests")
 class TipsetWeightCalculatorTests {
-
-    private TestingEventBuilder eventBuilder;
 
     /**
      * Create a new event descriptor with the given parameters and {@link EventConstants#BIRTH_ROUND_UNDEFINED} for the
@@ -21,153 +50,158 @@ class TipsetWeightCalculatorTests {
      * @param nGen    the non-deterministic generation of the event
      * @return the event
      */
-    private PlatformEvent newEventDescriptor(@NonNull final NodeId creator, final long nGen) {
-        return eventBuilder
-                .setCreatorId(creator)
-                .setBirthRound(EventConstants.BIRTH_ROUND_UNDEFINED)
-                .setNGen(nGen)
-                .build();
+//    private PlatformEvent newEventDescriptor(@NonNull final NodeId creator, final long nGen) {
+//        return eventBuilder
+//                .setCreatorId(creator)
+//                .setBirthRound(EventConstants.BIRTH_ROUND_UNDEFINED)
+//                .setNGen(nGen)
+//                .build();
         //        return new EventDescriptorWrapper(
         //                new EventDescriptor(hash.getBytes(), creator.id(), EventConstants.BIRTH_ROUND_UNDEFINED,
         // generation));
+//    }
+
+    @Test
+    @DisplayName("Basic Behavior Test")
+    void basicBehaviorTest() {
+        final Random random = getRandomPrintSeed();
+        final int nodeCount = 5;
+
+        final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
+
+        final Roster roster = RandomRosterBuilder.create(random).withSize(nodeCount).build();
+
+        final Map<NodeId, Long> weightMap = new HashMap<>();
+        long totalWeight = 0;
+        for (final RosterEntry address : roster.rosterEntries()) {
+            weightMap.put(NodeId.of(address.nodeId()), address.weight());
+            totalWeight += address.weight();
+        }
+
+        final NodeId selfId = NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
+
+        final PlatformContext platformContext = TestPlatformContextBuilder.create().build();
+
+        // FUTURE WORK: Expand test to include birth round based ancient threshold.
+        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), selfId, roster,
+                AncientMode.GENERATION_THRESHOLD);
+        final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
+        final TipsetWeightCalculator calculator =
+                new TipsetWeightCalculator(platformContext, roster, selfId, tipsetTracker, childlessEventTracker);
+
+        List<PlatformEvent> previousParents = List.of();
+        TipsetAdvancementWeight runningAdvancementScore = ZERO_ADVANCEMENT_WEIGHT;
+        Tipset previousSnapshot = calculator.getSnapshot();
+
+        for (int eventIndex = 0; eventIndex < 1000; eventIndex++) {
+            System.out.println(eventIndex);
+            final NodeId creator = NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
+            final long nGen;
+            if (latestEvents.containsKey(creator)) {
+                nGen = latestEvents.get(creator).getNGen() + 1;
+            } else {
+                nGen = 1; // TODO should this change to be 0?
+            }
+
+            // Select some nodes we'd like to be our parents.
+            final Set<NodeId> desiredOtherParents = new HashSet<>();
+            final int maxParentCount = random.nextInt(nodeCount);
+            for (int parentIndex = 0; parentIndex < maxParentCount; parentIndex++) {
+                final NodeId parent = NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
+
+                // We are only trying to generate a random number of parents, the exact count is unimportant.
+                // So it doesn't matter if the actual number of parents is less than the number we requested.
+                if (parent.equals(creator)) {
+                    continue;
+                }
+                desiredOtherParents.add(parent);
+            }
+
+            // Select the actual parents.
+            final PlatformEvent selfParent = latestEvents.get(creator);
+
+            final List<PlatformEvent> otherParents = new ArrayList<>(desiredOtherParents.size());
+            for (final NodeId desiredOtherParent : desiredOtherParents) {
+                final PlatformEvent otherParent = latestEvents.get(desiredOtherParent);
+                if (otherParent != null) {
+                    otherParents.add(otherParent);
+                }
+            }
+            final PlatformEvent event = new TestingEventBuilder(random)
+                    .setCreatorId(creator)
+                    .setNGen(nGen)
+                    .setSelfParent(selfParent)
+                    .setOtherParents(otherParents)
+                    .build();
+            latestEvents.put(creator, event);
+
+            if (creator.equals(selfId)) {
+                tipsetTracker.addSelfEvent(toUnsignedEvent(event));
+            } else {
+                tipsetTracker.addPeerEvent(event);
+            }
+
+            if (creator != selfId) {
+                // The following validation only needs to happen for events created by self
+
+                // Only do previous parent validation if we create two or more events in a row.
+                previousParents = List.of();
+
+                continue;
+            }
+
+            // Manually calculate the advancement score.
+            final List<Tipset> parentTipsets = new ArrayList<>(event.getAllParents().size());
+            for (final EventDescriptorWrapper parent : event.getAllParents()) {
+                parentTipsets.add(tipsetTracker.getTipset(parent));
+            }
+
+            final Tipset newTipset;
+            if (parentTipsets.isEmpty()) {
+                newTipset = new Tipset(roster);//.advance(creator, nGen);
+            } else {
+                newTipset = merge(parentTipsets);//.advance(creator, nGen);
+            }
+
+            final TipsetAdvancementWeight expectedAdvancementScoreChange =
+                    previousSnapshot.getTipAdvancementWeight(selfId, newTipset).minus(runningAdvancementScore);
+
+            // For events created by "this" node, check that the calculator is updated correctly.
+            final TipsetAdvancementWeight advancementScoreChange =
+                    calculator.addEventAndGetAdvancementWeight(event.getDescriptor());
+
+            assertEquals(expectedAdvancementScoreChange, advancementScoreChange);
+
+            // Special case: if we create more than one event in a row and our current parents are a
+            // subset of the previous parents, then we should expect an advancement score of zero.
+            boolean subsetOfPreviousParents = true;
+            for (final PlatformEvent otherParent : otherParents) {
+                if (!previousParents.contains(otherParent)) {
+                    subsetOfPreviousParents = false;
+                    break;
+                }
+            }
+            if (subsetOfPreviousParents) {
+                assertEquals(ZERO_ADVANCEMENT_WEIGHT, advancementScoreChange);
+            }
+            previousParents = otherParents;
+
+            // Validate that the snapshot advances correctly.
+            runningAdvancementScore = runningAdvancementScore.plus(advancementScoreChange);
+            if (SUPER_MAJORITY.isSatisfiedBy(
+                    runningAdvancementScore.advancementWeight() + weightMap.get(selfId), totalWeight)) {
+                // The snapshot should have been updated.
+                assertNotSame(previousSnapshot, calculator.getSnapshot());
+                previousSnapshot = calculator.getSnapshot();
+                System.out.println("Resetting runningAdvancementScore");
+                runningAdvancementScore = ZERO_ADVANCEMENT_WEIGHT;
+            } else {
+                // The snapshot should have not been updated.
+                assertSame(previousSnapshot, calculator.getSnapshot());
+            }
+        }
     }
 
-    //    @Test
-    //    @DisplayName("Basic Behavior Test")
-    //    void basicBehaviorTest() {
-    //        final Random random = getRandomPrintSeed();
-    //        eventBuilder = new TestingEventBuilder(random);
-    //        final int nodeCount = 5;
-    //
-    //        final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
-    //
-    //        final Roster roster = RandomRosterBuilder.create(random).withSize(nodeCount).build();
-    //
-    //        final Map<NodeId, Long> weightMap = new HashMap<>();
-    //        long totalWeight = 0;
-    //        for (final RosterEntry address : roster.rosterEntries()) {
-    //            weightMap.put(NodeId.of(address.nodeId()), address.weight());
-    //            totalWeight += address.weight();
-    //        }
-    //
-    //        final NodeId selfId = NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
-    //
-    //        final PlatformContext platformContext = TestPlatformContextBuilder.create().build();
-    //
-    //        // FUTURE WORK: Expand test to include birth round based ancient threshold.
-    //        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), selfId, roster,
-    //                AncientMode.GENERATION_THRESHOLD);
-    //        final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
-    //        final TipsetWeightCalculator calculator =
-    //                new TipsetWeightCalculator(platformContext, roster, selfId, tipsetTracker, childlessEventTracker);
-    //
-    //        List<PlatformEvent> previousParents = List.of();
-    //        TipsetAdvancementWeight runningAdvancementScore = ZERO_ADVANCEMENT_WEIGHT;
-    //        Tipset previousSnapshot = calculator.getSnapshot();
-    //
-    //        for (int eventIndex = 0; eventIndex < 1000; eventIndex++) {
-    //            final NodeId creator = NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
-    //            final long nGen;
-    //            if (latestEvents.containsKey(creator)) {
-    //                nGen = latestEvents.get(creator).getNGen() + 1;
-    //            } else {
-    //                nGen = 1; // TODO should this change to be 0?
-    //            }
-    //
-    //
-    //            // Select some nodes we'd like to be our parents.
-    //            final Set<NodeId> desiredParents = new HashSet<>();
-    //            final int maxParentCount = random.nextInt(nodeCount);
-    //            for (int parentIndex = 0; parentIndex < maxParentCount; parentIndex++) {
-    //                final NodeId parent = NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
-    //
-    //                // We are only trying to generate a random number of parents, the exact count is unimportant.
-    //                // So it doesn't matter if the actual number of parents is less than the number we requested.
-    //                if (parent.equals(creator)) {
-    //                    continue;
-    //                }
-    //                desiredParents.add(parent);
-    //            }
-    //
-    //            // Select the actual parents.
-    //            final PlatformEvent selfParent = latestEvents.get(creator);
-    //
-    //            final List<PlatformEvent> otherParents = new ArrayList<>(desiredParents.size());
-    //            for (final NodeId parent : desiredParents) {
-    //                final PlatformEvent parentFingerprint = latestEvents.get(parent);
-    //                if (parentFingerprint != null) {
-    //                    otherParents.add(parentFingerprint);
-    //                }
-    //            }
-    //            final PlatformEvent fingerprint = eventBuilder
-    //                    .setCreatorId(creator)
-    //                    .setNGen(nGen)
-    //                    .setSelfParent(selfParent)
-    //                    .build();
-    //            latestEvents.put(creator, fingerprint);
-    //
-    //            tipsetTracker.addPeerEvent(fingerprint, otherParents);
-    //
-    //            if (creator != selfId) {
-    //                // The following validation only needs to happen for events created by self
-    //
-    //                // Only do previous parent validation if we create two or more events in a row.
-    //                previousParents = List.of();
-    //
-    //                continue;
-    //            }
-    //
-    //            // Manually calculate the advancement score.
-    //            final List<Tipset> parentTipsets = new ArrayList<>(otherParents.size());
-    //            for (final EventDescriptorWrapper parentFingerprint : otherParents) {
-    //                parentTipsets.add(tipsetTracker.getTipset(parentFingerprint));
-    //            }
-    //
-    //            final Tipset newTipset;
-    //            if (parentTipsets.isEmpty()) {
-    //                newTipset = new Tipset(roster).advance(creator, nGen);
-    //            } else {
-    //                newTipset = merge(parentTipsets).advance(creator, nGen);
-    //            }
-    //
-    //            final TipsetAdvancementWeight expectedAdvancementScoreChange =
-    //                    previousSnapshot.getTipAdvancementWeight(selfId, newTipset).minus(runningAdvancementScore);
-    //
-    //            // For events created by "this" node, check that the calculator is updated correctly.
-    //            final TipsetAdvancementWeight advancementScoreChange =
-    //                    calculator.addEventAndGetAdvancementWeight(fingerprint);
-    //
-    //            assertEquals(expectedAdvancementScoreChange, advancementScoreChange);
-    //
-    //            // Special case: if we create more than one event in a row and our current parents are a
-    //            // subset of the previous parents, then we should expect an advancement score of zero.
-    //            boolean subsetOfPreviousParents = true;
-    //            for (final EventDescriptorWrapper parentFingerprint : otherParents) {
-    //                if (!previousParents.contains(parentFingerprint)) {
-    //                    subsetOfPreviousParents = false;
-    //                    break;
-    //                }
-    //            }
-    //            if (subsetOfPreviousParents) {
-    //                assertEquals(ZERO_ADVANCEMENT_WEIGHT, advancementScoreChange);
-    //            }
-    //            previousParents = otherParents;
-    //
-    //            // Validate that the snapshot advances correctly.
-    //            runningAdvancementScore = runningAdvancementScore.plus(advancementScoreChange);
-    //            if (SUPER_MAJORITY.isSatisfiedBy(
-    //                    runningAdvancementScore.advancementWeight() + weightMap.get(selfId), totalWeight)) {
-    //                // The snapshot should have been updated.
-    //                assertNotSame(previousSnapshot, calculator.getSnapshot());
-    //                previousSnapshot = calculator.getSnapshot();
-    //                runningAdvancementScore = ZERO_ADVANCEMENT_WEIGHT;
-    //            } else {
-    //                // The snapshot should have not been updated.
-    //                assertSame(previousSnapshot, calculator.getSnapshot());
-    //            }
-    //        }
-    //    }
-    //
     //    @Test
     //    @DisplayName("Selfish Node Test")
     //    void selfishNodeTest() {
@@ -532,4 +566,19 @@ class TipsetWeightCalculatorTests {
     //            calculator.addEventAndGetAdvancementWeight(eventA2);
     //        });
     //    }
+
+    private UnsignedEvent toUnsignedEvent(final PlatformEvent potentialEvent) {
+        final UnsignedEvent event = new UnsignedEvent(
+                potentialEvent.getSoftwareVersion(),
+                potentialEvent.getCreatorId(),
+                potentialEvent.getSelfParent(),
+                potentialEvent.getOtherParents(),
+                potentialEvent.getBirthRound(),
+                potentialEvent.getTimeCreated(),
+                potentialEvent.getTransactions().stream()
+                        .map(TransactionWrapper::getApplicationTransaction)
+                        .toList());
+        event.setHash(potentialEvent.getHash());
+        return event;
+    }
 }

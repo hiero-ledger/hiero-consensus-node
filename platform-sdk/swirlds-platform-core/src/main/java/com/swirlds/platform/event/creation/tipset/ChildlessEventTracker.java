@@ -54,7 +54,8 @@ public class ChildlessEventTracker {
     }
 
     /**
-     * Register a self event. Removes parents but does not add the event to the set of childless events.
+     * Register a self event. Removes parents but does not add the event to the set of childless events, because
+     * we only track childless events created by other nodes that we might use as other parents in the future.
      *
      * @param parents the parents of the self event
      */

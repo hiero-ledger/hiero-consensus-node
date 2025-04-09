@@ -158,7 +158,7 @@ public class TipsetWeightCalculator {
      * Whenever the total advancement weight of a new event exceeds the threshold (2/3 minus self weight), the snapshot
      * is set to be equal to this event's tipset.
      *
-     * @param event the event that is being added
+     * @param event the self event that is being added
      * @return the change in this event's tipset advancement weight compared to the tipset advancement weight of the
      * previous event passed to this method
      */
