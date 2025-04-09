@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.locks;
+package org.hiero.base.concurrent.locks;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;

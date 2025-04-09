@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading;
+package org.hiero.base.concurrent;
 
-import com.swirlds.common.test.fixtures.threading.ConcurrentTesting;
-import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.base.concurrent.test.fixtures.ConcurrentTesting;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
-import org.hiero.base.concurrent.ThrowingRunnable;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;

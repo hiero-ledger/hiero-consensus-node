@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.futures;
+package org.hiero.base.concurrent.futures;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
