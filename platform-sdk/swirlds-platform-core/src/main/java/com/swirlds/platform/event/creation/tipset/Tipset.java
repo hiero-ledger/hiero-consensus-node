@@ -8,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -26,7 +27,7 @@ public class Tipset {
      * The value used to represent an undefined tip generation, either because the node ID is not in the address book or
      * because there is no known event for the node ID in this event's ancestry.
      */
-    public static final long UNDEFINED = -1L;
+    public static final long UNDEFINED = EventConstants.GENERATION_UNDEFINED;
 
     /**
      * Create an empty tipset.
@@ -153,7 +154,6 @@ public class Tipset {
 
             if (this.tips[index] < that.tips[index]) {
                 final RosterEntry address = roster.rosterEntries().get(index);
-                final NodeId nodeId = NodeId.of(address.nodeId());
 
                 if (address.weight() == 0) {
                     zeroWeightCount += 1;

@@ -158,6 +158,8 @@ public class TestingEventBuilder {
      */
     private Long consensusOrder;
 
+    private long nGen;
+
     /**
      * Constructor
      *
@@ -178,6 +180,11 @@ public class TestingEventBuilder {
      */
     public @NonNull TestingEventBuilder setCreatorId(@Nullable final NodeId creatorId) {
         this.creatorId = creatorId;
+        return this;
+    }
+
+    public @NonNull TestingEventBuilder setNGen(final long nGen) {
+        this.nGen = nGen;
         return this;
     }
 
@@ -576,6 +583,8 @@ public class TestingEventBuilder {
         final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, signature);
 
         platformEvent.setHash(CryptoRandomUtils.randomHash(random));
+
+        platformEvent.setNGen(nGen);
 
         if (consensusTimestamp != null || consensusOrder != null) {
             platformEvent.setConsensusData(new EventConsensusData.Builder()
