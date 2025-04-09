@@ -39,13 +39,13 @@ class ReadableStakingInfoStoreImplTest {
                 .build();
         given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
 
-        subject = new ReadableStakingInfoStoreImpl(states);
+        subject = new ReadableStakingInfoStoreImpl(states, entityCounters);
     }
 
     @Test
     void testNullConstructorArgs() {
         //noinspection DataFlowIssue
-        assertThrows(NullPointerException.class, () -> new ReadableStakingInfoStoreImpl(null));
+        assertThrows(NullPointerException.class, () -> new ReadableStakingInfoStoreImpl(null, entityCounters));
     }
 
     @Test
@@ -67,7 +67,7 @@ class ReadableStakingInfoStoreImplTest {
                 .value(NODE_ID_20, mock(StakingNodeInfo.class))
                 .build();
         given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
-        subject = new ReadableStakingInfoStoreImpl(states);
+        subject = new ReadableStakingInfoStoreImpl(states, entityCounters);
 
         final var result = subject.getAll();
         Assertions.assertThat(result).containsExactlyInAnyOrder(NODE_ID_10.number(), NODE_ID_20.number());
@@ -78,7 +78,7 @@ class ReadableStakingInfoStoreImplTest {
         final var readableStakingNodes = MapReadableKVState.<EntityNumber, StakingNodeInfo>builder(STAKING_INFO_KEY)
                 .build(); // Intentionally empty
         given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
-        subject = new ReadableStakingInfoStoreImpl(states);
+        subject = new ReadableStakingInfoStoreImpl(states, entityCounters);
 
         final var result = subject.getAll();
         Assertions.assertThat(result).isEmpty();

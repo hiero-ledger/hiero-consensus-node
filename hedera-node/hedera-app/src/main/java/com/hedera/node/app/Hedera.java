@@ -1358,8 +1358,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         final var entityCounters = new ReadableEntityIdStoreImpl(initState.getWritableStates(EntityIdService.NAME));
         return (!tssConfig.hintsEnabled()
-                        || new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME),
-                entityCounters)
+                        || new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME), entityCounters)
                                 .isReadyToAdopt(rosterHash))
                 && (!tssConfig.historyEnabled()
                         || new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME))

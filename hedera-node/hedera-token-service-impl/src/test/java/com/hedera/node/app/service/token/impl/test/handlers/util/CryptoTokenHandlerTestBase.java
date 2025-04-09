@@ -649,7 +649,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
                 .value(node1Id, node1Info)
                 .build();
         given(readableStates.<EntityNumber, StakingNodeInfo>get(STAKING_INFO)).willReturn(readableStakingInfoState);
-        readableStakingInfoStore = new ReadableStakingInfoStoreImpl(readableStates);
+        readableStakingInfoStore = new ReadableStakingInfoStoreImpl(readableStates, entityCounters);
     }
 
     private void givenWritableStakingInfoStore() {

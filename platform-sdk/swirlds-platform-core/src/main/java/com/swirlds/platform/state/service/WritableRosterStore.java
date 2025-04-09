@@ -16,12 +16,8 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 
 /**
  * Read-write implementation for accessing rosters states.
@@ -155,7 +151,8 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
      * the RosterService states to a vanilla state, for example to reproduce the genesis state.
      */
     public void resetRosters() {
-        for (final RoundRosterPair roundRosterPair : requireNonNull(rosterState.get()).roundRosterPairs()) {
+        for (final RoundRosterPair roundRosterPair :
+                requireNonNull(rosterState.get()).roundRosterPairs()) {
             rosterMap.remove(new ProtoBytes(roundRosterPair.activeRosterHash()));
         }
         rosterMap.remove(new ProtoBytes(requireNonNull(rosterState.get()).candidateRosterHash()));

@@ -17,7 +17,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
 
@@ -78,10 +77,10 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
     public List<EntityNumber> keys() {
         final var size = sizeOfState();
         final var keys = new ArrayList<EntityNumber>();
-        for(int i =0; i < size; i++) {
+        for (int i = 0; i < size; i++) {
             final var key = EntityNumber.newBuilder().number(i).build();
             final var node = nodesState.get(key);
-            if(node == null) {
+            if (node == null) {
                 continue;
             }
             keys.add(key);
@@ -90,8 +89,7 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
     }
 
     private Roster constructFromNodesStateWithStakingInfoWeight(
-            @NonNull final ReadableNodeStoreImpl nodeStore,
-            @NonNull final Function<Long, Long> weightProvider) {
+            @NonNull final ReadableNodeStoreImpl nodeStore, @NonNull final Function<Long, Long> weightProvider) {
         final var rosterEntries = new ArrayList<RosterEntry>();
         for (final var nodeNumber : nodeStore.keys()) {
             final var node = requireNonNull(nodeStore.get(nodeNumber.number()));

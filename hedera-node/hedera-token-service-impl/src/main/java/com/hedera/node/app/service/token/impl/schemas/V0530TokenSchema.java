@@ -1,24 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.schemas;
 
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
-import com.hedera.hapi.node.state.token.StakingNodeInfo;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
-import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Comparator;
 import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,5 +30,4 @@ public class V0530TokenSchema extends Schema {
         return Set.of(StateDefinition.onDisk(
                 AIRDROPS_KEY, PendingAirdropId.PROTOBUF, AccountPendingAirdrop.PROTOBUF, MAX_PENDING_AIRDROPS));
     }
-
 }

@@ -183,7 +183,6 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -1876,13 +1875,16 @@ public class RepeatableHip423Tests {
         return doingContextual(spec -> {
             final var lastExpiry = spec.consensusTime().getEpochSecond() + seconds;
             allRunFor(spec, sleepFor(seconds * 1_000L));
-            final MapWritableKVState<TimestampSeconds, ScheduledCounts> counts = (MapWritableKVState) spec.embeddedStateOrThrow()
-                    .getWritableStates(ScheduleService.NAME)
-                    .get(SCHEDULED_COUNTS_KEY);
-            final int numEarlier =
-                    (int) StreamSupport.stream(spliteratorUnknownSize(counts.getBackingStore().keySet().iterator(), DISTINCT | NONNULL), false)
-                            .filter(k -> k.seconds() <= lastExpiry)
-                            .count();
+            final MapWritableKVState<TimestampSeconds, ScheduledCounts> counts =
+                    (MapWritableKVState) spec.embeddedStateOrThrow()
+                            .getWritableStates(ScheduleService.NAME)
+                            .get(SCHEDULED_COUNTS_KEY);
+            final int numEarlier = (int) StreamSupport.stream(
+                            spliteratorUnknownSize(
+                                    counts.getBackingStore().keySet().iterator(), DISTINCT | NONNULL),
+                            false)
+                    .filter(k -> k.seconds() <= lastExpiry)
+                    .count();
             final var expectedSize = (int) counts.size() - numEarlier;
             for (int i = 0; i < numEarlier; i++) {
                 allRunFor(spec, cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)));

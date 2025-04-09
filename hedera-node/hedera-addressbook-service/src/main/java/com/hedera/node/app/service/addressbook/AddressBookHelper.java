@@ -4,9 +4,7 @@ package com.hedera.node.app.service.addressbook;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
-import static java.util.Spliterator.DISTINCT;
 
-import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.config.data.NodesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,8 +19,6 @@ import java.nio.file.Path;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Objects;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.openssl.PEMParser;
@@ -37,7 +33,6 @@ public class AddressBookHelper {
     private AddressBookHelper() {
         throw new IllegalStateException("Utility class");
     }
-
 
     /**
      * Write the Certificate to a pem file.

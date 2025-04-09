@@ -10,7 +10,6 @@ import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
@@ -29,15 +28,11 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 
 /**
  * Provides read access to the {@link HintsConstruction} and {@link PreprocessingVote} instances in state.
@@ -51,8 +46,7 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
     private final ReadableKVState<NodeId, CrsPublicationTransactionBody> crsPublications;
     private final ReadableEntityCounters entityCounters;
 
-    public ReadableHintsStoreImpl(@NonNull final ReadableStates states,
-                                  final ReadableEntityCounters entityCounters) {
+    public ReadableHintsStoreImpl(@NonNull final ReadableStates states, final ReadableEntityCounters entityCounters) {
         requireNonNull(states);
         this.hintsKeys = states.get(HINTS_KEY_SETS_KEY);
         this.nextConstruction = states.getSingleton(NEXT_HINT_CONSTRUCTION_KEY);

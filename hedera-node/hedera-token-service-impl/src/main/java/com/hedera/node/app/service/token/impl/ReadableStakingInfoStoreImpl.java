@@ -2,10 +2,13 @@
 package com.hedera.node.app.service.token.impl;
 
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,14 +22,22 @@ import java.util.Set;
  */
 public class ReadableStakingInfoStoreImpl implements ReadableStakingInfoStore {
 
-    /** The underlying data storage class that holds node staking data. */
+    /**
+     * The underlying data storage class that holds node staking data.
+     */
     private final ReadableKVState<EntityNumber, StakingNodeInfo> stakingInfoState;
+
+    private final ReadableEntityCounters entityCounters;
 
     /**
      * Create a new {@link ReadableStakingInfoStoreImpl} instance.
-     * @param states The state to use.
+     *
+     * @param states         The state to use.
+     * @param entityCounters
      */
-    public ReadableStakingInfoStoreImpl(@NonNull final ReadableStates states) {
+    public ReadableStakingInfoStoreImpl(
+            @NonNull final ReadableStates states, final ReadableEntityCounters entityCounters) {
+        this.entityCounters = requireNonNull(entityCounters);
         this.stakingInfoState = states.get(STAKING_INFO_KEY);
     }
 
@@ -39,16 +50,17 @@ public class ReadableStakingInfoStoreImpl implements ReadableStakingInfoStore {
     @NonNull
     @Override
     public Set<Long> getAll() {
-        // For entity types that have many instances this code would be a bad idea, but for node staking info there
-        // should only be a limited number of staking nodes in state. Iterating over all of them should not be expensive
-        final var keysIter = stakingInfoState.keys();
-        if (!keysIter.hasNext()) return Collections.emptySet();
-
-        final var nodeIds = new HashSet<Long>();
-        while (keysIter.hasNext()) {
-            nodeIds.add(keysIter.next().number());
+        final var numStakingInfo = entityCounters.getCounterFor(EntityType.STAKING_INFO);
+        if (numStakingInfo == 0) {
+            return Collections.emptySet();
         }
-
+        final var nodeIds = new HashSet<Long>();
+        for (var i = 0; i < numStakingInfo; i++) {
+            final var nodeId = EntityNumber.newBuilder().number(i).build();
+            if (stakingInfoState.contains(nodeId)) {
+                nodeIds.add(nodeId.number());
+            }
+        }
         return nodeIds;
     }
 }
