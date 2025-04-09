@@ -7,8 +7,6 @@ import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEV
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.logging.api.Logger;
-import com.swirlds.logging.api.Loggers;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
@@ -22,6 +20,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -31,7 +31,7 @@ import org.hiero.otter.fixtures.Node;
  */
 public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceiver {
 
-    private static final Logger log = Loggers.getLogger(TurtleNetwork.class);
+    private static final Logger log = LogManager.getLogger(TurtleNetwork.class);
 
     private enum State {
         INIT,

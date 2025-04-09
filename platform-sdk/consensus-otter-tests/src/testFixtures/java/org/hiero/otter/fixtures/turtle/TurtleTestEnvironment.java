@@ -7,19 +7,23 @@ import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.logging.api.Logger;
-import com.swirlds.logging.api.Loggers;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.Validator;
+import org.hiero.otter.fixtures.internal.logging.InMemoryAppender;
 import org.hiero.otter.fixtures.validator.ValidatorImpl;
 
 /**
@@ -30,7 +34,7 @@ import org.hiero.otter.fixtures.validator.ValidatorImpl;
  */
 public class TurtleTestEnvironment implements TestEnvironment {
 
-    private static final Logger log = Loggers.getLogger(TurtleTestEnvironment.class);
+    private static final Logger log = LogManager.getLogger(TurtleTestEnvironment.class);
 
     static final Duration GRANULARITY = Duration.ofMillis(10);
     static final Duration AVERAGE_NETWORK_DELAY = Duration.ofMillis(200);
@@ -44,6 +48,21 @@ public class TurtleTestEnvironment implements TestEnvironment {
      * Constructor for the {@link TurtleTestEnvironment} class.
      */
     public TurtleTestEnvironment() {
+        final LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
+        final Configuration loggerContextConfig = loggerContext.getConfiguration();
+
+        if (loggerContextConfig.getAppender("InMemory") == null) {
+            final InMemoryAppender inMemoryAppender = InMemoryAppender.createAppender("InMemory");
+            inMemoryAppender.start();
+            loggerContextConfig.addAppender(inMemoryAppender);
+
+            final LoggerConfig rootLoggerConfig = loggerContextConfig.getLoggerConfig(LogManager.ROOT_LOGGER_NAME);
+            rootLoggerConfig.addAppender(inMemoryAppender, null, null);
+            rootLoggerConfig.setLevel(org.apache.logging.log4j.Level.ALL);
+
+            loggerContext.updateLoggers(); // Apply the changes
+        }
+
         final Randotron randotron = Randotron.create();
 
         try {

@@ -5,8 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.logging.api.Logger;
-import com.swirlds.logging.api.Loggers;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
@@ -14,6 +12,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
@@ -25,7 +26,7 @@ import org.hiero.otter.fixtures.NodeConfiguration;
  */
 public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
-    private static final Logger log = Loggers.getLogger(TurtleNode.class);
+    private static final Logger log = LogManager.getLogger(TurtleNode.class);
 
     private final NodeId nodeId;
     private final com.swirlds.platform.test.fixtures.turtle.runner.TurtleNode turtleNode;
@@ -38,6 +39,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             @NonNull final KeysAndCerts privateKey,
             @NonNull final SimulatedNetwork network,
             @NonNull final Path rootOutputDirectory) {
+        ThreadContext.put("nodeId", nodeId.toString());
         this.nodeId = requireNonNull(nodeId);
         turtleNode = new com.swirlds.platform.test.fixtures.turtle.runner.TurtleNode(
                 randotron,
@@ -54,6 +56,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     public void kill(@NonNull final Duration timeout) {
+        ThreadContext.clearAll();
         log.warn("Killing a node has not been implemented yet.");
     }
 
@@ -98,6 +101,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     }
 
     public void dump() {
-        log.info("Dump of node {}: {}", nodeId, turtleNode.getConsensusRoundsHolder().getCollectedRounds());
+        log.info(
+                "Dump of node {}: {}",
+                nodeId,
+                turtleNode.getConsensusRoundsHolder().getCollectedRounds());
     }
 }

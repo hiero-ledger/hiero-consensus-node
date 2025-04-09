@@ -1,8 +1,9 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import com.swirlds.logging.api.Logger;
-import com.swirlds.logging.api.Loggers;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.NodeConfiguration;
 
 /**
@@ -10,7 +11,7 @@ import org.hiero.otter.fixtures.NodeConfiguration;
  */
 public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConfiguration> {
 
-    private static final Logger log = Loggers.getLogger(TurtleNodeConfiguration.class);
+    private static final Logger log = LogManager.getLogger(TurtleNodeConfiguration.class);
 
     /**
      * {@inheritDoc}

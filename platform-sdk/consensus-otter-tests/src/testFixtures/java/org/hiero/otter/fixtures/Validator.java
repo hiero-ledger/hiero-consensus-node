@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
-import com.swirlds.logging.api.Logger;
-import com.swirlds.logging.api.Loggers;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Interface for validating the results of a test.
@@ -102,7 +102,7 @@ public interface Validator {
      */
     class LogErrorConfig {
 
-        private static final Logger log = Loggers.getLogger(LogErrorConfig.class);
+        private static final Logger log = LogManager.getLogger(LogErrorConfig.class);
 
         /**
          * Creates a configuration to ignore specific log markers.
@@ -122,7 +122,7 @@ public interface Validator {
      */
     class EventStreamConfig {
 
-        private static final Logger log = Loggers.getLogger(EventStreamConfig.class);
+        private static final Logger log = LogManager.getLogger(EventStreamConfig.class);
 
         /**
          * Creates a configuration to ignore the event streams of specific nodes.
@@ -143,7 +143,7 @@ public interface Validator {
      */
     class RatioConfig {
 
-        private static final Logger log = Loggers.getLogger(RatioConfig.class);
+        private static final Logger log = LogManager.getLogger(RatioConfig.class);
 
         /**
          * Creates a configuration to check whether the ratio is within the given range.
@@ -163,16 +163,12 @@ public interface Validator {
      * Configuration for the validator that checks whether the {@link org.hiero.consensus.model.status.PlatformStatus}
      * is going through the expected lifecycle.
      */
-    class PlatformStatusConfig {
-
-    }
+    class PlatformStatusConfig {}
 
     /**
      * Configuration for the validator that checks whether the metrics are within the expected range.
      */
-    class MetricsConfig {
-
-    }
+    class MetricsConfig {}
 
     /**
      * A {@code Profile} represents a predefined set of validators with default configurations.
