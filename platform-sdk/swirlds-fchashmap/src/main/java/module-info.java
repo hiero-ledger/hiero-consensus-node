@@ -5,6 +5,7 @@
 module com.swirlds.fchashmap {
     requires transitive com.swirlds.common;
     requires transitive org.hiero.base.utility;
+    requires org.hiero.base.concurrent;
     requires static transitive com.github.spotbugs.annotations;
 
     exports com.swirlds.fchashmap;

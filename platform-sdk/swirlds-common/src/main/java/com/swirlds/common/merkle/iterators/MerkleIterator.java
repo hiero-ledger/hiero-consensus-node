@@ -20,7 +20,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import org.hiero.consensus.model.utility.interrupt.InterruptableConsumer;
+import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 
 /**
  * Iterate over a merkle tree.
