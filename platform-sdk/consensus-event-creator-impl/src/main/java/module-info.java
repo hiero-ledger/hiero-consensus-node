@@ -10,6 +10,7 @@ module org.hiero.consensus.event.creator.impl {
     requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.base;
+    requires org.hiero.base.utility;
     requires static transitive com.github.spotbugs.annotations;
 
     provides org.hiero.consensus.event.creator.ConsensusEventCreator with
