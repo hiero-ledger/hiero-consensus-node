@@ -12,8 +12,8 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerT
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.assertj.core.api.Fail.fail;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.randomInstant;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -344,39 +344,31 @@ class DeterministicModelTests {
         final long meshSeed = random.nextLong();
         final long dataSeed = random.nextLong();
 
-        final long value1 = evaluateMesh(
-                dataSeed,
-                generateWiringMesh(
-                        meshSeed,
-                        WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
-                                .build(),
-                        enableHeartbeat),
-                () -> {
-                    try {
-                        MILLISECONDS.sleep(1);
-                    } catch (final InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException(e);
-                    }
-                });
+        final WiringModel model1 =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+        final long value1 = evaluateMesh(dataSeed, generateWiringMesh(meshSeed, model1, enableHeartbeat), () -> {
+            try {
+                MILLISECONDS.sleep(1);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        });
 
-        final long value2 = evaluateMesh(
-                dataSeed,
-                generateWiringMesh(
-                        meshSeed,
-                        WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
-                                .build(),
-                        enableHeartbeat),
-                () -> {
-                    try {
-                        MILLISECONDS.sleep(1);
-                    } catch (final InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException(e);
-                    }
-                });
+        final WiringModel model2 =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+        final long value2 = evaluateMesh(dataSeed, generateWiringMesh(meshSeed, model2, enableHeartbeat), () -> {
+            try {
+                MILLISECONDS.sleep(1);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        });
 
         assertNotEquals(value1, value2);
+        model1.stop();
+        model2.stop();
     }
 
     @Test
@@ -386,7 +378,6 @@ class DeterministicModelTests {
         final long dataSeed = random.nextLong();
 
         final FakeTime time = new FakeTime(randomInstant(random), Duration.ZERO);
-
         final DeterministicWiringModel deterministicWiringModel1 = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
@@ -407,6 +398,8 @@ class DeterministicModelTests {
                 });
 
         assertEquals(value1, value2);
+        deterministicWiringModel1.stop();
+        deterministicWiringModel2.stop();
     }
 
     /**

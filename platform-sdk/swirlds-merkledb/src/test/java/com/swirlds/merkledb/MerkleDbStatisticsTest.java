@@ -3,7 +3,7 @@ package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.MerkleDbStatistics.STAT_CATEGORY;
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.nextInt;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;

@@ -21,8 +21,8 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import org.hiero.consensus.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.utility.test.fixtures.ResettableRandom;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.base.utility.test.fixtures.ResettableRandom;
 
 /** A builder for {@link ConsensusTestOrchestrator} instances */
 public class OrchestratorBuilder {

@@ -2,8 +2,8 @@
 package com.swirlds.fcqueue;
 
 import static com.swirlds.fcqueue.internal.FCQHashAlgorithm.HASH_RADIX;
-import static org.hiero.consensus.utility.ByteUtils.byteArrayToLong;
-import static org.hiero.consensus.utility.ByteUtils.longToByteArray;
+import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
+import static org.hiero.base.utility.ByteUtils.longToByteArray;
 
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.test.fixtures.fcqueue.FCInt;

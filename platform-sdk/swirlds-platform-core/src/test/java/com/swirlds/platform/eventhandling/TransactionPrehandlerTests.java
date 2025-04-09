@@ -19,8 +19,8 @@ import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
