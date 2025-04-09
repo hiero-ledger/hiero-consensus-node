@@ -775,7 +775,6 @@ class BlockStreamManagerImplTest {
         givenEndOfRoundSetup();
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.activeSchemeId()).willReturn(1L);
 
         // Set up the signature future to complete immediately and run the callback synchronously
         given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
@@ -792,15 +791,15 @@ class BlockStreamManagerImplTest {
         subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
 
         // First round (not mod 2)
-        given(round.getRoundNum()).willReturn(1L);
+        given(round.getRoundNum()).willReturn(3L);
         subject.startRound(round, state);
-        subject.endRound(state, 1L);
+        subject.endRound(state, 3L);
         verify(aWriter, never()).closeCompleteBlock();
 
         // Second round (mod 2)
-        given(round.getRoundNum()).willReturn(2L);
+        given(round.getRoundNum()).willReturn(4L);
         subject.startRound(round, state);
-        subject.endRound(state, 2L);
+        subject.endRound(state, 4L);
         verify(aWriter).closeCompleteBlock();
     }
 

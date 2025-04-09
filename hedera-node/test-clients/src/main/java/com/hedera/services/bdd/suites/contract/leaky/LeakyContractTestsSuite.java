@@ -19,8 +19,6 @@ import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contra
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType.THRESHOLD;
 import static com.hedera.services.bdd.spec.keys.KeyShape.DELEGATE_CONTRACT;
-import static com.hedera.services.bdd.spec.keys.KeyShape.ON;
-import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
@@ -36,7 +34,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCustomCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
@@ -47,14 +44,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadSingleIni
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddressArray;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
-import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractActionSidecarFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractStateChangesSidecarFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.sidecarValidation;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmountAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
@@ -66,8 +60,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.reduceFeeFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferList;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferLists;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_SENDER;
@@ -128,7 +120,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
@@ -231,7 +222,6 @@ public class LeakyContractTestsSuite {
     public static final String TRANSFER_SIGNATURE = "Transfer(address,address,uint256)";
     private static final String EVM_VERSION_PROPERTY = "contracts.evm.version";
     private static final String EVM_VERSION_038 = "v0.38";
-    public static final String LAZY_CREATION_ENABLED = "lazyCreation.enabled";
     private static final String CREATION = "creation";
     private static final String ENTITY_MEMO = "JUST DO IT";
     private static final String CREATE_2_TXN = "create2Txn";
@@ -848,66 +838,6 @@ public class LeakyContractTestsSuite {
                         .via(callTxn)));
     }
 
-    @LeakyHapiTest(overrides = {"lazyCreation.enabled"})
-    final Stream<DynamicTest> lazyCreateThroughPrecompileNotSupportedWhenFlagDisabled() {
-        final var CONTRACT = CRYPTO_TRANSFER;
-        final var SENDER = "sender";
-        final var FUNGIBLE_TOKEN = "fungibleToken";
-        final var DELEGATE_KEY = "contractKey";
-        final var NOT_SUPPORTED_TXN = "notSupportedTxn";
-        final var TOTAL_SUPPLY = 1_000;
-
-        return hapiTest(
-                overriding("lazyCreation.enabled", "false"),
-                cryptoCreate(SENDER).balance(10 * ONE_HUNDRED_HBARS),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(TOTAL_SUPPLY)
-                        .treasury(TOKEN_TREASURY),
-                tokenAssociate(SENDER, List.of(FUNGIBLE_TOKEN)),
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(moving(200, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).maxAutomaticTokenAssociations(1),
-                getContractInfo(CONTRACT)
-                        .has(ContractInfoAsserts.contractWith().maxAutoAssociations(1))
-                        .logged(),
-                withOpContext((spec, opLog) -> {
-                    final var ecdsaKey = spec.registry().getKey(SECP_256K1_SOURCE_KEY);
-                    final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
-                    final var addressBytes = recoverAddressFromPubKey(tmp);
-                    final var token = spec.registry().getTokenID(FUNGIBLE_TOKEN);
-                    final var sender = spec.registry().getAccountID(SENDER);
-                    final var amountToBeSent = 50L;
-
-                    allRunFor(
-                            spec,
-                            newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, CONTRACT))),
-                            cryptoUpdate(SENDER).key(DELEGATE_KEY),
-                            contractCall(
-                                            CONTRACT,
-                                            "transferMultipleTokens",
-                                            tokenTransferLists()
-                                                    .withTokenTransferList(tokenTransferList()
-                                                            .forToken(token)
-                                                            .withAccountAmounts(
-                                                                    accountAmount(sender, -amountToBeSent),
-                                                                    accountAmountAlias(addressBytes, amountToBeSent))
-                                                            .build())
-                                                    .build())
-                                    .payingWith(GENESIS)
-                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                    .via(NOT_SUPPORTED_TXN)
-                                    .gas(GAS_TO_OFFER),
-                            getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).hasCostAnswerPrecheck(INVALID_ACCOUNT_ID),
-                            childRecordsCheck(
-                                    NOT_SUPPORTED_TXN,
-                                    CONTRACT_REVERT_EXECUTED,
-                                    recordWith().status(NOT_SUPPORTED)));
-                }));
-    }
-
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> evmLazyCreateViaSolidityCall() {
         final var LAZY_CREATE_CONTRACT = "NestedLazyCreateContract";
@@ -1049,47 +979,6 @@ public class LeakyContractTestsSuite {
                                     .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID));
                 }),
                 emptyChildRecordsCheck(TRANSFER_TXN, MAX_CHILD_RECORDS_EXCEEDED));
-    }
-
-    @Order(20)
-    @LeakyHapiTest(overrides = {"hedera.allowances.isEnabled"})
-    final Stream<DynamicTest> erc20TransferFromDoesNotWorkIfFlagIsDisabled() {
-        return hapiTest(
-                overriding("hedera.allowances.isEnabled", "false"),
-                newKeyNamed(MULTI_KEY),
-                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
-                cryptoCreate(RECIPIENT),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .initialSupply(10L)
-                        .maxSupply(1000L)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(MULTI_KEY)
-                        .supplyKey(MULTI_KEY),
-                uploadInitCode(ERC_20_CONTRACT),
-                contractCreate(ERC_20_CONTRACT),
-                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
-                tokenAssociate(RECIPIENT, FUNGIBLE_TOKEN),
-                tokenAssociate(ERC_20_CONTRACT, FUNGIBLE_TOKEN),
-                cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER)),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCall(
-                                        ERC_20_CONTRACT,
-                                        TRANSFER_FROM,
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getAccountID(OWNER))),
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getAccountID(RECIPIENT))),
-                                        BigInteger.TWO)
-                                .gas(500_000L)
-                                .via(TRANSFER_FROM_ACCOUNT_TXN)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
-                getTxnRecord(TRANSFER_FROM_ACCOUNT_TXN).logged());
     }
 
     @Order(22)

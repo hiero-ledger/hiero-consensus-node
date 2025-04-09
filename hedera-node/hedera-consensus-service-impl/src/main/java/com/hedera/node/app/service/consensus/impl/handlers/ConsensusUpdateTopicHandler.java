@@ -273,7 +273,7 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         if (updatesExpiryMeta(op)) {
             final var updateMeta = new ExpiryMeta(effExpiryOf(op), effAutoRenewPeriodOf(op), op.autoRenewAccount());
             try {
-                return expiryValidator.resolveUpdateAttempt(currentMeta, updateMeta, false);
+                return expiryValidator.resolveUpdateAttempt(currentMeta, updateMeta);
             } catch (final HandleException e) {
                 if (e.getStatus() == INVALID_RENEWAL_PERIOD) {
                     // Tokens throw INVALID_EXPIRATION_TIME, but for topic it's expected currently to throw

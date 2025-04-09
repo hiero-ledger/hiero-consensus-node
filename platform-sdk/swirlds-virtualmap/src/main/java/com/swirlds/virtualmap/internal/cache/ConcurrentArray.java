@@ -15,7 +15,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.utility.StandardFuture;
+import org.hiero.base.concurrent.futures.StandardFuture;
 
 /**
  * An array-backed concurrent data structure optimized for use by the {@link VirtualNodeCache}.

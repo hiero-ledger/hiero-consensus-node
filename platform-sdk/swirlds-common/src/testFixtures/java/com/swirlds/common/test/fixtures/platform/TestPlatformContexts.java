@@ -14,11 +14,11 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.event.preconsensus.PcesConfig_;
-import com.swirlds.platform.eventhandling.EventConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.Optional;
+import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.AncientMode;
 
 /**
