@@ -1051,62 +1051,58 @@ public class TokenUpdateSpecs {
     @HapiTest
     final Stream<DynamicTest> withLongMinAutoRenewPeriod() {
         return hapiTest(
-            cryptoCreate("adminKey"),
-            cryptoCreate("supplyKey"),
-            tokenCreate("token")
-                .tokenType(NON_FUNGIBLE_UNIQUE)
-                .initialSupply(0)
-                .adminKey("adminKey")
-                .supplyKey("supplyKey"),
-            tokenUpdate("token")
-                .autoRenewAccount("supplyKey")
-                .autoRenewPeriod(Long.MIN_VALUE)
-                .hasKnownStatus(INVALID_RENEWAL_PERIOD));
+                cryptoCreate("adminKey"),
+                cryptoCreate("supplyKey"),
+                tokenCreate("token")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .adminKey("adminKey")
+                        .supplyKey("supplyKey"),
+                tokenUpdate("token")
+                        .autoRenewAccount("supplyKey")
+                        .autoRenewPeriod(Long.MIN_VALUE)
+                        .hasKnownStatus(INVALID_RENEWAL_PERIOD));
     }
 
     @HapiTest
     final Stream<DynamicTest> withNegativeAutoRenewPeriod() {
         return hapiTest(
-            cryptoCreate("adminKey"),
-            cryptoCreate("supplyKey"),
-            tokenCreate("token")
-                .tokenType(NON_FUNGIBLE_UNIQUE)
-                .initialSupply(0)
-                .adminKey("adminKey")
-                .supplyKey("supplyKey"),
-            tokenUpdate("token")
-                .autoRenewAccount("supplyKey")
-                .autoRenewPeriod(-1)
-                .hasKnownStatus(INVALID_RENEWAL_PERIOD));
+                cryptoCreate("adminKey"),
+                cryptoCreate("supplyKey"),
+                tokenCreate("token")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .adminKey("adminKey")
+                        .supplyKey("supplyKey"),
+                tokenUpdate("token")
+                        .autoRenewAccount("supplyKey")
+                        .autoRenewPeriod(-1)
+                        .hasKnownStatus(INVALID_RENEWAL_PERIOD));
     }
 
     @HapiTest
     final Stream<DynamicTest> withLongMinExpiry() {
         return hapiTest(
-            cryptoCreate("adminKey"),
-            cryptoCreate("supplyKey"),
-            tokenCreate("token")
-                .tokenType(NON_FUNGIBLE_UNIQUE)
-                .initialSupply(0)
-                .adminKey("adminKey")
-                .supplyKey("supplyKey"),
-            tokenUpdate("token")
-                .expiry(Long.MIN_VALUE)
-                .hasKnownStatus(INVALID_EXPIRATION_TIME));
+                cryptoCreate("adminKey"),
+                cryptoCreate("supplyKey"),
+                tokenCreate("token")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .adminKey("adminKey")
+                        .supplyKey("supplyKey"),
+                tokenUpdate("token").expiry(Long.MIN_VALUE).hasKnownStatus(INVALID_EXPIRATION_TIME));
     }
 
     @HapiTest
     final Stream<DynamicTest> withNegativeExpiry() {
         return hapiTest(
-            cryptoCreate("adminKey"),
-            cryptoCreate("supplyKey"),
-            tokenCreate("token")
-                .tokenType(NON_FUNGIBLE_UNIQUE)
-                .initialSupply(0)
-                .adminKey("adminKey")
-                .supplyKey("supplyKey"),
-            tokenUpdate("token")
-                .expiry(-1)
-                .hasKnownStatus(INVALID_EXPIRATION_TIME));
+                cryptoCreate("adminKey"),
+                cryptoCreate("supplyKey"),
+                tokenCreate("token")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .adminKey("adminKey")
+                        .supplyKey("supplyKey"),
+                tokenUpdate("token").expiry(-1).hasKnownStatus(INVALID_EXPIRATION_TIME));
     }
 }
