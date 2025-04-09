@@ -79,6 +79,23 @@ public interface Validator {
     Validator staleRatio(@NonNull RatioConfig... configs);
 
     /**
+     * Allows to configure the validator that checks whether the {@link org.hiero.consensus.model.status.PlatformStatus}
+     * is going through the expected lifecycle.
+     *
+     * @return this {@code Validator} instance for method chaining
+     */
+    @NonNull
+    Validator assertPlatformStatus(@NonNull PlatformStatusConfig... configs);
+
+    /**
+     * Allows to configure the validator that checks whether the metrics are within the expected range.
+     *
+     * @return this {@code Validator} instance for method chaining
+     */
+    @NonNull
+    Validator assertMetrics(@NonNull MetricsConfig... configs);
+
+    /**
      * Configuration for the log error validator that checks for error messages in the logs.
      *
      * <p>This configuration can for example be used to specify errors that are expected and can be ignored.
@@ -140,6 +157,21 @@ public interface Validator {
             log.warn("Creating a ratio config is not implemented yet.");
             return new RatioConfig();
         }
+    }
+
+    /**
+     * Configuration for the validator that checks whether the {@link org.hiero.consensus.model.status.PlatformStatus}
+     * is going through the expected lifecycle.
+     */
+    class PlatformStatusConfig {
+
+    }
+
+    /**
+     * Configuration for the validator that checks whether the metrics are within the expected range.
+     */
+    class MetricsConfig {
+
     }
 
     /**

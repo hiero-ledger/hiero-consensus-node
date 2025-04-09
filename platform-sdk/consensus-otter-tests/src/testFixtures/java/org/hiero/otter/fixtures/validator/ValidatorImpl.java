@@ -83,4 +83,24 @@ public class ValidatorImpl implements Validator {
         log.warn("stale ratio validation is not implemented yet.");
         return this;
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Validator assertPlatformStatus(@NonNull PlatformStatusConfig... configs) {
+        log.warn("platform status validation is not implemented yet.");
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Validator assertMetrics(@NonNull MetricsConfig... configs) {
+        log.warn("metrics validation is not implemented yet.");
+        return this;
+    }
 }

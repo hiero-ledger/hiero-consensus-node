@@ -20,6 +20,7 @@ public class TurtleTransactionGenerator implements TransactionGenerator, TimeTic
     private Distributor distributor;
     private Instant startTime;
     private Instant lastTimestamp;
+    private boolean paused;
 
     /**
      * Constructor for the {@link TurtleTransactionGenerator} class.
@@ -46,6 +47,9 @@ public class TurtleTransactionGenerator implements TransactionGenerator, TimeTic
         this.distributor = new UniformDistributor(network, randotron);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void stop() {
         rate = null;
@@ -54,9 +58,28 @@ public class TurtleTransactionGenerator implements TransactionGenerator, TimeTic
         lastTimestamp = null;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void pause() {
+        paused = true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void resume() {
+        if (paused) {
+            paused = false;
+            lastTimestamp = null;
+        }
+    }
+
     @Override
     public void tick(@NonNull Instant now) {
-        if (rate == null) {
+        if (rate == null && paused) {
             return;
         }
         if (lastTimestamp != null) {

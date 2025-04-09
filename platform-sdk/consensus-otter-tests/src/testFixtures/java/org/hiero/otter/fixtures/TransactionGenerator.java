@@ -32,6 +32,16 @@ public interface TransactionGenerator {
     void stop();
 
     /**
+     * Pause the transaction generation. Once paused, the transaction generation can be resumed by calling {@link #resume()}.
+     */
+    void pause();
+
+    /**
+     * Resume the transaction generation after it has been paused.
+     */
+    void resume();
+
+    /**
      * The {@code Rate} class represents the rate at which transactions are generated.
      */
     interface Rate {

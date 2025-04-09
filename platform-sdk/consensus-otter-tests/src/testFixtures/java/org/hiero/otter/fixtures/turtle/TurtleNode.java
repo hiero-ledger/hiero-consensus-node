@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.NodeConfiguration;
 
 /**
  * A node in the turtle network.
@@ -70,6 +71,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     @Override
     public void submitTransaction(@NonNull final byte[] transaction) {
         turtleNode.submitTransaction(transaction);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public NodeConfiguration getConfiguration() {
+        return null;
     }
 
     /**

@@ -25,6 +25,7 @@ public interface Network {
      * Start the network with the currently configured setup.
      *
      * @param timeout the duration to wait before considering the start operation as failed
+     * @throws InterruptedException if the thread is interrupted while waiting
      */
     void start(@NonNull Duration timeout) throws InterruptedException;
 
@@ -46,4 +47,23 @@ public interface Network {
      */
     @NonNull
     List<Node> getNodes();
+
+    /**
+     * Prepares the network for an upgrade. All required preparations steps are executed and the network
+     * is shutdown. Once shutdown, it is possible to change the configuration etc. before resuming the
+     * network with {@link #resume(Duration)}.
+     *
+     * @param timeout the duration to wait before considering the preparation operation as failed
+     * @throws InterruptedException if the thread is interrupted while waiting
+     */
+    void prepareUpgrade(@NonNull Duration timeout) throws InterruptedException;
+
+
+    /**
+     * Resumes the network after it has previously been paused, e.g. to prepare for an upgrade.
+     *
+     * @param duration the duration to wait before considering the resume operation as failed
+     * @throws InterruptedException if the thread is interrupted while waiting
+     */
+    void resume(@NonNull Duration duration) throws InterruptedException;
 }

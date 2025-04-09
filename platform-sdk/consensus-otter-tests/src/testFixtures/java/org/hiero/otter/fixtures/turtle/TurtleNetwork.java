@@ -133,10 +133,29 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         throw new UnsupportedOperationException("Adding instrumented nodes is not implemented yet.");
     }
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
     public List<Node> getNodes() {
         return publicNodes;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void prepareUpgrade(@NonNull Duration timeout) throws InterruptedException {
+        log.warn("Preparing upgrade is not implemented yet.");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void resume(@NonNull Duration duration) throws InterruptedException {
+        log.warn("Resuming the network is not implemented yet.");
     }
 
     /**
