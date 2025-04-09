@@ -117,7 +117,7 @@ message NodeCreateTransactionBody {
     bytes grpc_certificate_hash = 6;
 
     /**
-    * An administrative key controlled by the node operator.
+     * An administrative key controlled by the node operator.
      * <p>
      * This key MUST sign this transaction.<br/>
      * This key MUST sign each transaction to update this node.<br/>
@@ -134,4 +134,9 @@ message NodeCreateTransactionBody {
      * node rewards.<br/>
      */
     bool decline_reward = 8;
+
+    /**
+     * A web proxy for gRPC from non-gRPC clients.
+     */
+    proto.ServiceEndpoint grpc_proxy_endpoint = 9;
 }
