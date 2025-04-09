@@ -580,4 +580,26 @@ public class CryptoUpdateSuite {
                         .newDeclinedReward(true)
                         .hasKnownStatus(ACCOUNT_DELETED));
     }
+
+    @HapiTest
+    final Stream<DynamicTest> withLongMinExpiry() {
+        final var account = "acc";
+        return hapiTest(
+            cryptoCreate(account).declinedReward(false),
+            cryptoUpdate(account)
+                .payingWith(DEFAULT_PAYER)
+                .expiring(Long.MIN_VALUE)
+                .hasKnownStatus(INVALID_EXPIRATION_TIME));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withNegativeExpiry() {
+        final var account = "acc";
+        return hapiTest(
+            cryptoCreate(account).declinedReward(false),
+            cryptoUpdate(account)
+                .payingWith(DEFAULT_PAYER)
+                .expiring(-1)
+                .hasKnownStatus(INVALID_EXPIRATION_TIME));
+    }
 }
