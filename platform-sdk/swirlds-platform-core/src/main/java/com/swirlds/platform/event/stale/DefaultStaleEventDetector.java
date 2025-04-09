@@ -3,7 +3,7 @@ package com.swirlds.platform.event.stale;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.transformers.RoutableData;
-import com.swirlds.platform.sequence.map.StandardSequenceMap;
+import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;

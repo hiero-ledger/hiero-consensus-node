@@ -5,8 +5,8 @@ import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.platform.sequence.map.SequenceMap;
-import com.swirlds.platform.sequence.map.StandardSequenceMap;
+import org.hiero.consensus.model.sequence.map.SequenceMap;
+import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
 import com.swirlds.platform.wiring.NoInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;

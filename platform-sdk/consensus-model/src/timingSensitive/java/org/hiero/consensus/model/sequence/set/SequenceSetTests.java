@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.sequence.set;
+package org.hiero.consensus.model.sequence.set;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTimeout;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
@@ -25,6 +25,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.sequence.set.ConcurrentSequenceSet;
+import org.hiero.consensus.model.sequence.set.SequenceSet;
+import org.hiero.consensus.model.sequence.set.StandardSequenceSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

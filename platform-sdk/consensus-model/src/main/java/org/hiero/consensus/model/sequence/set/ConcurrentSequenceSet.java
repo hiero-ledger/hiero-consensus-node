@@ -1,22 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.sequence.set;
+package org.hiero.consensus.model.sequence.set;
 
-import com.swirlds.platform.sequence.map.SequenceMap;
-import com.swirlds.platform.sequence.map.StandardSequenceMap;
-import com.swirlds.platform.sequence.set.internal.AbstractSequenceSet;
+import org.hiero.consensus.model.sequence.map.ConcurrentSequenceMap;
+import org.hiero.consensus.model.sequence.map.SequenceMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.ToLongFunction;
 
 /**
- * A lock free {@link SequenceSet}.
+ * A thread safe {@link SequenceSet}.
  *
  * @param <T> the type of the element contained within this set
  */
-public class StandardSequenceSet<T> extends AbstractSequenceSet<T> {
+public class ConcurrentSequenceSet<T> extends AbstractSequenceSet<T> {
 
     /**
-     * Create a new lock free {@link SequenceSet} that does not permit expansion.
+     * Create a new thread safe {@link SequenceSet} that does not permit expansion.
      *
      * @param lowestAllowedSequenceNumber the initial lowest permitted sequence in the set
      * @param sequenceNumberCapacity      the number of sequence numbers permitted to exist in this data structure. E.g.
@@ -25,16 +24,16 @@ public class StandardSequenceSet<T> extends AbstractSequenceSet<T> {
      *                                    and any value with a sequence number outside that range will be rejected.
      * @param getSequenceNumberFromEntry  given an entry, extract the sequence number
      */
-    public StandardSequenceSet(
+    public ConcurrentSequenceSet(
             final long lowestAllowedSequenceNumber,
             final int sequenceNumberCapacity,
             @NonNull final ToLongFunction<T> getSequenceNumberFromEntry) {
 
-        super(lowestAllowedSequenceNumber, sequenceNumberCapacity, false, getSequenceNumberFromEntry);
+        this(lowestAllowedSequenceNumber, sequenceNumberCapacity, false, getSequenceNumberFromEntry);
     }
 
     /**
-     * Create a new lock free {@link SequenceSet}.
+     * Create a new thread safe {@link SequenceSet}.
      *
      * @param lowestAllowedSequenceNumber the initial lowest permitted sequence in the set
      * @param sequenceNumberCapacity      the number of sequence numbers permitted to exist in this data structure. E.g.
@@ -47,7 +46,7 @@ public class StandardSequenceSet<T> extends AbstractSequenceSet<T> {
      *                                    current capacity.
      * @param getSequenceNumberFromEntry  given an entry, extract the sequence number
      */
-    public StandardSequenceSet(
+    public ConcurrentSequenceSet(
             final long lowestAllowedSequenceNumber,
             final int sequenceNumberCapacity,
             final boolean allowExpansion,
@@ -69,7 +68,7 @@ public class StandardSequenceSet<T> extends AbstractSequenceSet<T> {
 
         Objects.requireNonNull(getSequenceNumberFromEntry);
 
-        return new StandardSequenceMap<>(
+        return new ConcurrentSequenceMap<>(
                 lowestAllowedSequenceNumber, sequenceNumberCapacity, allowExpansion, getSequenceNumberFromEntry);
     }
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.sequence.map;
+package org.hiero.consensus.model.sequence.map;
 
-import com.swirlds.platform.sequence.Shiftable;
+import org.hiero.consensus.model.sequence.Shiftable;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
-import com.swirlds.platform.sequence.set.SequenceSet;
-import com.swirlds.platform.sequence.set.StandardSequenceSet;
+import org.hiero.consensus.model.sequence.set.SequenceSet;
+import org.hiero.consensus.model.sequence.set.StandardSequenceSet;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Comparator;

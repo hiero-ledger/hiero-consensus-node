@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.sequence.map.internal;
+package org.hiero.consensus.model.sequence.map;
 
-import com.swirlds.platform.sequence.map.SequenceMap;
+import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.AbstractMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
@@ -557,6 +559,65 @@ public abstract class AbstractSequenceMap<K, V> implements SequenceMap<K, V> {
         } finally {
             windowUnlock();
             fullUnlock();
+        }
+    }
+
+    /**
+     * A set of keys with a particular sequence number. This object is designed to be reused as the allowable
+     * window of sequence numbers shifts.
+     *
+     * @param <K>
+     * 		the type of the key
+     */
+    private static class SequenceKeySet<K> {
+
+        private long sequenceNumber;
+        private final Set<K> keys = new HashSet<>();
+
+        /**
+         * Create an object capable of holding keys for a sequence number.
+         *
+         * @param sequenceNumber
+         * 		the initial sequence number to be stored in this object
+         */
+        private SequenceKeySet(final long sequenceNumber) {
+            this.sequenceNumber = sequenceNumber;
+        }
+
+        /**
+         * Get the sequence number currently stored in this object.
+         *
+         * @return the current sequence number
+         */
+        private long getSequenceNumber() {
+            return sequenceNumber;
+        }
+
+        /**
+         * Set the sequence number currently stored in this object.
+         *
+         * @param sequenceNumber
+         * 		the sequence number stored in this object
+         */
+        private void setSequenceNumber(final long sequenceNumber) {
+            this.sequenceNumber = sequenceNumber;
+        }
+
+        /**
+         * Get the set of keys contained by this object.
+         *
+         * @return a set of keys
+         */
+        private Set<K> getKeys() {
+            return keys;
+        }
+
+        @Override
+        public String toString() {
+            return new ToStringBuilder(this)
+                    .append("sequence number", sequenceNumber)
+                    .append("size", keys.size())
+                    .toString();
         }
     }
 }

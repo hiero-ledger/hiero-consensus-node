@@ -35,9 +35,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.network.protocol;
     exports com.swirlds.platform.network.topology;
     exports com.swirlds.platform.recovery;
-    exports com.swirlds.platform.sequence;
-    exports com.swirlds.platform.sequence.map;
-    exports com.swirlds.platform.sequence.set;
     exports com.swirlds.platform.state;
     exports com.swirlds.platform.stats;
     exports com.swirlds.platform.stats.atomic;

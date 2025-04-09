@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.sequence;
+package org.hiero.consensus.model.sequence;
 
 /**
  * A data structure with a shifting window of acceptable values. When a new value is added, if the value
