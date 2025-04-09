@@ -6,7 +6,6 @@ import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.common.metrics.PlatformMetric;
-import com.swirlds.common.threading.atomic.AtomicIntPair;
 import com.swirlds.metrics.api.MetricConfig;
 import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
 import com.swirlds.metrics.impl.AbstractMetric;
@@ -14,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.IntSupplier;
+import org.hiero.base.concurrent.atomic.AtomicIntPair;
 
 /**
  * Platform-implementation of {@link IntegerPairAccumulator}

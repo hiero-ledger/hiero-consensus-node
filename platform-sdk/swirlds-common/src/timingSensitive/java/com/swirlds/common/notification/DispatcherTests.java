@@ -9,7 +9,7 @@ import com.swirlds.common.notification.internal.Dispatcher;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import org.hiero.consensus.model.utility.StandardFuture;
+import org.hiero.base.concurrent.futures.StandardFuture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

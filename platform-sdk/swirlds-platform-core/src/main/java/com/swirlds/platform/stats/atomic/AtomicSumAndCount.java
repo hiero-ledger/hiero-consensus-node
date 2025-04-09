@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.stats.atomic;
 
-import com.swirlds.common.threading.atomic.AtomicIntPair;
+import org.hiero.base.concurrent.atomic.AtomicIntPair;
 
 /**
  * Atomically sums the values provided as well as counting the number of additions
