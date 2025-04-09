@@ -4,6 +4,7 @@ package com.hedera.node.app.service.addressbook.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GRPC_WEB_PROXY_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NODES_CREATED;
@@ -13,6 +14,7 @@ import static com.hedera.node.app.service.addressbook.impl.validators.AddressBoo
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -63,6 +65,7 @@ public class NodeCreateHandler implements TransactionHandler {
         addressBookValidator.validateAccountId(op.accountId());
         validateFalsePreCheck(op.gossipEndpoint().isEmpty(), INVALID_GOSSIP_ENDPOINT);
         validateFalsePreCheck(op.serviceEndpoint().isEmpty(), INVALID_SERVICE_ENDPOINT);
+        validateTruePreCheck(op.grpcProxyEndpoint() != null, INVALID_GRPC_WEB_PROXY_ENDPOINT);
         validateFalsePreCheck(
                 op.gossipCaCertificate().length() == 0
                         || op.gossipCaCertificate().equals(Bytes.EMPTY),
@@ -94,6 +97,8 @@ public class NodeCreateHandler implements TransactionHandler {
         addressBookValidator.validateDescription(op.description(), nodeConfig);
         addressBookValidator.validateGossipEndpoint(op.gossipEndpoint(), nodeConfig);
         addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
+//        validateTrue(op.grpcProxyEndpoint()!=null, INVALID_GRPC_WEB_PROXY_ENDPOINT);
+        addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
         handleContext.attributeValidator().validateKey(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
 
         final var nodeBuilder = new Node.Builder()
@@ -101,6 +106,7 @@ public class NodeCreateHandler implements TransactionHandler {
                 .description(op.description())
                 .gossipEndpoint(op.gossipEndpoint())
                 .serviceEndpoint(op.serviceEndpoint())
+                .grpcProxyEndpoint(op.grpcProxyEndpoint())
                 .gossipCaCertificate(op.gossipCaCertificate())
                 .grpcCertificateHash(op.grpcCertificateHash())
                 .declineReward(op.declineReward())
