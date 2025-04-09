@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof.algorithms;
 
-import static org.hiero.consensus.utility.ByteUtils.intToByteArray;
-import static org.hiero.consensus.utility.ByteUtils.longToByteArray;
+import static org.hiero.base.utility.ByteUtils.intToByteArray;
+import static org.hiero.base.utility.ByteUtils.longToByteArray;
 
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.Signature;

@@ -34,6 +34,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.metrics.NodeMetrics;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
@@ -42,6 +43,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.State;
@@ -109,7 +111,8 @@ class NodeRewardManagerTest {
                 .withValue("staking.periodMins", 1)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        nodeRewardManager = new NodeRewardManager(configProvider, entityIdFactory, exchangeRateManager);
+        nodeRewardManager = new NodeRewardManager(
+                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
     }
 
     @Test
@@ -154,7 +157,8 @@ class NodeRewardManagerTest {
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
 
-        nodeRewardManager = new NodeRewardManager(configProvider, entityIdFactory, exchangeRateManager);
+        nodeRewardManager = new NodeRewardManager(
+                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
 
         nodeRewardManager.maybeRewardActiveNodes(state, Instant.now(), systemTransactions);
         verify(systemTransactions, never())
@@ -164,7 +168,8 @@ class NodeRewardManagerTest {
     @Test
     void testMaybeRewardActiveNodesWhenCurrentPeriod() {
         givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), null);
-        nodeRewardManager = new NodeRewardManager(configProvider, entityIdFactory, exchangeRateManager);
+        nodeRewardManager = new NodeRewardManager(
+                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
         nodeRewardManager.maybeRewardActiveNodes(state, NOW_MINUS_600, systemTransactions);
         verify(systemTransactions, never())
                 .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong(), any());
@@ -180,8 +185,9 @@ class NodeRewardManagerTest {
                 .stakingRewardsActivated(true)
                 .build();
         givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), networkStakingRewards);
-        nodeRewardManager = new NodeRewardManager(configProvider, entityIdFactory, exchangeRateManager);
-        when(exchangeRateManager.getTinybarsFromTinyCents(anyLong(), any())).thenReturn(5000L);
+        nodeRewardManager = new NodeRewardManager(
+                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+        when(exchangeRateManager.getTinybarsFromTinycents(anyLong(), any())).thenReturn(5000L);
 
         nodeRewardManager.maybeRewardActiveNodes(state, NOW, systemTransactions);
 

@@ -15,7 +15,6 @@ import java.time.Duration;
  * @param streamMode Value of RECORDS disables the block stream; BOTH enables it
  * @param writerMode if we are writing to a file or gRPC stream
  * @param blockFileDir directory to store block files
- * @param compressFilesOnCreation whether to compress files on creation
  * @param hashCombineBatchSize the number of items to hash in a batch
  * @param roundsPerBlock the number of rounds per block
  */
@@ -24,10 +23,9 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "BOTH") @NetworkProperty StreamMode streamMode,
         @ConfigProperty(defaultValue = "FILE") @NodeProperty BlockStreamWriterMode writerMode,
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams") @NodeProperty String blockFileDir,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean compressFilesOnCreation,
         @ConfigProperty(defaultValue = "32") @NetworkProperty int hashCombineBatchSize,
         @ConfigProperty(defaultValue = "1") @NetworkProperty int roundsPerBlock,
-        @ConfigProperty(defaultValue = "0") @Min(0) @NetworkProperty Duration blockPeriod) {
+        @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty Duration blockPeriod) {
 
     /**
      * Whether to stream to block nodes.

@@ -53,6 +53,8 @@ public class BlockNodeConnectionManager {
     private final Random random = new Random();
 
     private final Map<BlockNodeConfig, BlockNodeConnection> connectionsInRetry;
+    private final Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection;
+
     private final BlockNodeConfigExtractor blockNodeConfigurations;
     private final BlockStreamStateManager blockStreamStateManager;
 
@@ -76,6 +78,7 @@ public class BlockNodeConnectionManager {
                 requireNonNull(blockStreamStateManager, "blockStreamStateManager must not be null");
 
         this.connectionsInRetry = new ConcurrentHashMap<>();
+        this.lastVerifiedBlockPerConnection = new ConcurrentHashMap<>();
     }
 
     /**
@@ -480,6 +483,26 @@ public class BlockNodeConnectionManager {
         @Override
         public BlockNodeConfig getNodeConfig() {
             return BlockNodeConfig.DEFAULT;
+        }
+    }
+
+    /**
+     * @param blockNodeConfig the configuration for the block node
+     * @param blockNumber the block number of the last verified block
+     */
+    public void updateLastVerifiedBlock(
+            @NonNull final BlockNodeConfig blockNodeConfig, @Nullable final Long blockNumber) {
+        requireNonNull(blockNodeConfig);
+
+        final Long latestBlock = lastVerifiedBlockPerConnection.computeIfAbsent(blockNodeConfig, key -> -1L);
+        if (blockNumber != null && blockNumber > latestBlock) {
+            lastVerifiedBlockPerConnection.put(blockNodeConfig, blockNumber);
+        } else {
+            logger.warn(
+                    "Attempted to update connection {} with invalid block number {} (highest {})",
+                    blockNodeConfig,
+                    blockNumber,
+                    latestBlock);
         }
     }
 }

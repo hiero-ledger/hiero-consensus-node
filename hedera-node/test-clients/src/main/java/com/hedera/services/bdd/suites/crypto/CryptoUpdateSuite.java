@@ -163,7 +163,7 @@ public class CryptoUpdateSuite {
                 recordStreamMustIncludePassFrom(
                         visibleNonSyntheticItems(
                                 keyRotationsValidator(evmAddresses, accountsToHaveKeysRotated), allTxnIds),
-                        Duration.ofSeconds(10)),
+                        Duration.ofSeconds(15)),
                 // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
                 // first couple of creations, so wait for a new record file boundary
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),

@@ -2,7 +2,7 @@
 package com.swirlds.common.utility.throttle;
 
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
-import static com.swirlds.common.utility.CompareTo.isGreaterThanOrEqualTo;
+import static org.hiero.base.utility.CompareTo.isGreaterThanOrEqualTo;
 
 import com.swirlds.base.time.Time;
 import java.time.Duration;
