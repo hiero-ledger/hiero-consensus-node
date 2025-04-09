@@ -2,8 +2,8 @@
 package org.hiero.base.concurrent.locks.internal;
 
 import com.swirlds.base.utility.AutoCloseableNonThrowing;
-import org.hiero.base.concurrent.locks.locked.MaybeLocked;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.concurrent.locks.locked.MaybeLocked;
 
 /**
  * Returned when a lock has been acquired on a try

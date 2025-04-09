@@ -138,6 +138,7 @@ module com.swirlds.platform.core {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
+    requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.event.creator.impl;
     requires transitive org.hiero.consensus.gossip;
@@ -151,7 +152,6 @@ module com.swirlds.platform.core {
     requires com.swirlds.merkle;
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
-    requires org.hiero.base.concurrent;
     requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.dataformat.yaml;

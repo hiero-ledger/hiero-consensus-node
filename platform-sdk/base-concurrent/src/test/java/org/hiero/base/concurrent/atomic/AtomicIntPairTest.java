@@ -4,7 +4,6 @@ package org.hiero.base.concurrent.atomic;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.base.utility.Pair;
-import org.hiero.base.concurrent.atomic.AtomicIntPair;
 import org.junit.jupiter.api.Test;
 
 class AtomicIntPairTest {

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent.locks.internal;
 
-import org.hiero.base.concurrent.locks.locked.MaybeLockedResource;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.base.concurrent.locks.locked.MaybeLockedResource;
 
 /**
  * Return an instance of this when a {@link ResourceLock} has not been acquired

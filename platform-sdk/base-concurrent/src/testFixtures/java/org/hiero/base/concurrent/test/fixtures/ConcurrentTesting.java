@@ -3,7 +3,6 @@ package org.hiero.base.concurrent.test.fixtures;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 
-import org.hiero.base.concurrent.ThrowingRunnable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import org.hiero.base.concurrent.ThrowingRunnable;
 
 /**
  * A utility class for unit testing where multiple threads are executed at the same time

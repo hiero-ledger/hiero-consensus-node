@@ -11,8 +11,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
-import org.hiero.consensus.model.notification.Notification;
 import org.hiero.base.concurrent.futures.StandardFuture;
+import org.hiero.consensus.model.notification.Notification;
 
 public class FakeNotificationEngine implements NotificationEngine {
     public final List<PlatformStatusChangeListener> statusChangeListeners = new CopyOnWriteArrayList<>();

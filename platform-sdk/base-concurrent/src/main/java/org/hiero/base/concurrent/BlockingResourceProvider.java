@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent;
 
-import org.hiero.base.concurrent.locks.internal.AcquiredResource;
-import org.hiero.base.concurrent.locks.locked.LockedResource;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import org.hiero.base.concurrent.locks.internal.AcquiredResource;
+import org.hiero.base.concurrent.locks.locked.LockedResource;
 
 /**
  * A class that ensures thread safety where multiple providers compete to provide a resource to a single consumer

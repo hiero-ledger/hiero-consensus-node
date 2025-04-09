@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent.locks;
 
-import org.hiero.base.concurrent.locks.locked.Locked;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.base.concurrent.locks.locked.Locked;
 
 /**
  * <p>

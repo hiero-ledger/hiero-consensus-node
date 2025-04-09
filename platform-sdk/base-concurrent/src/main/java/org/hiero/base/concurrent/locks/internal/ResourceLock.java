@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent.locks.internal;
 
-import org.hiero.base.concurrent.locks.AutoClosableLock;
-import org.hiero.base.concurrent.locks.AutoClosableResourceLock;
-import org.hiero.base.concurrent.locks.locked.LockedResource;
-import org.hiero.base.concurrent.locks.locked.MaybeLockedResource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
+import org.hiero.base.concurrent.locks.AutoClosableLock;
+import org.hiero.base.concurrent.locks.AutoClosableResourceLock;
+import org.hiero.base.concurrent.locks.locked.LockedResource;
+import org.hiero.base.concurrent.locks.locked.MaybeLockedResource;
 
 /**
  * An implementation of {@link AutoClosableLock} which holds a resource that needs to be locked before it can be used

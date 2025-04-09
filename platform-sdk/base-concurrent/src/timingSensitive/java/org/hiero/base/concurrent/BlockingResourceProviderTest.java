@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent;
 
-import org.hiero.base.concurrent.test.fixtures.ConcurrentTesting;
-import org.hiero.base.concurrent.locks.locked.LockedResource;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.concurrent.locks.locked.LockedResource;
+import org.hiero.base.concurrent.test.fixtures.ConcurrentTesting;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

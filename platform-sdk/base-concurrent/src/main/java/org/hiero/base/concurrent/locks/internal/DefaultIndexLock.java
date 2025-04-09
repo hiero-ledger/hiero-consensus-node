@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent.locks.internal;
 
-import org.hiero.base.concurrent.locks.IndexLock;
-import org.hiero.base.concurrent.locks.locked.Locked;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import org.hiero.base.concurrent.locks.IndexLock;
+import org.hiero.base.concurrent.locks.locked.Locked;
 
 /**
  * Default implementation of {@link IndexLock}

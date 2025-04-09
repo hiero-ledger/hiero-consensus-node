@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent.locks;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.concurrent.locks.ReentrantLock;
 import org.hiero.base.concurrent.locks.internal.AutoLock;
 import org.hiero.base.concurrent.locks.internal.DefaultIndexLock;
 import org.hiero.base.concurrent.locks.internal.ResourceLock;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Factory for all custom Locks. Should be used as a facade for the API.

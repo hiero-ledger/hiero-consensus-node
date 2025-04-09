@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent.internal;
 
-import org.hiero.base.concurrent.ExecutorFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.ArrayList;
@@ -14,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Fail;
+import org.hiero.base.concurrent.ExecutorFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

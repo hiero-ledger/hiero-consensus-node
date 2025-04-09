@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent.locks.internal;
 
-import org.hiero.base.concurrent.locks.AutoClosableLock;
-import org.hiero.base.concurrent.locks.locked.Locked;
-import org.hiero.base.concurrent.locks.locked.MaybeLocked;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import org.hiero.base.concurrent.locks.AutoClosableLock;
+import org.hiero.base.concurrent.locks.locked.Locked;
+import org.hiero.base.concurrent.locks.locked.MaybeLocked;
 
 /**
  * A standard lock that provides the {@link AutoCloseable} semantics. Lock is reentrant.

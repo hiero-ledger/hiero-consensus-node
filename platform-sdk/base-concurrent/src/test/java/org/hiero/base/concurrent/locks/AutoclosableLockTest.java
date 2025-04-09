@@ -12,13 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import org.hiero.base.concurrent.locks.internal.AcquiredOnTry;
-import org.hiero.base.concurrent.locks.internal.AutoNoOpLock;
-import org.hiero.base.concurrent.locks.internal.ResourceLock;
-import org.hiero.base.concurrent.locks.locked.Locked;
-import org.hiero.base.concurrent.locks.locked.LockedResource;
-import org.hiero.base.concurrent.locks.locked.MaybeLocked;
-import org.hiero.base.concurrent.locks.locked.MaybeLockedResource;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -26,6 +19,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.StampedLock;
+import org.hiero.base.concurrent.locks.internal.AcquiredOnTry;
+import org.hiero.base.concurrent.locks.internal.AutoNoOpLock;
+import org.hiero.base.concurrent.locks.internal.ResourceLock;
+import org.hiero.base.concurrent.locks.locked.Locked;
+import org.hiero.base.concurrent.locks.locked.LockedResource;
+import org.hiero.base.concurrent.locks.locked.MaybeLocked;
+import org.hiero.base.concurrent.locks.locked.MaybeLockedResource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

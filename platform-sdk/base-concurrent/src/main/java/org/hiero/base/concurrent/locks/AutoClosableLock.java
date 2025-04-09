@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent.locks;
 
-import org.hiero.base.concurrent.locks.locked.Locked;
-import org.hiero.base.concurrent.locks.locked.MaybeLocked;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
+import org.hiero.base.concurrent.locks.locked.Locked;
+import org.hiero.base.concurrent.locks.locked.MaybeLocked;
 
 /**
  * Similar to {@link java.util.concurrent.locks.Lock} but intended to be used by the try-with-resources statement.

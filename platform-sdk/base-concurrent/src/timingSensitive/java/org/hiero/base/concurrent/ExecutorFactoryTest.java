@@ -2,7 +2,6 @@
 package org.hiero.base.concurrent;
 
 import com.swirlds.base.context.Context;
-import org.hiero.base.concurrent.internal.DefaultExecutorFactory;
 import com.swirlds.logging.api.Logger;
 import com.swirlds.logging.api.Loggers;
 import com.swirlds.logging.test.fixtures.LoggingMirror;
@@ -11,6 +10,7 @@ import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.hiero.base.concurrent.internal.DefaultExecutorFactory;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;

@@ -16,8 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.notification.internal.AsyncNotificationEngine;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import org.hiero.base.concurrent.futures.ConcurrentFuturePool;
-import org.hiero.base.concurrent.futures.FuturePool;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -34,6 +32,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.hiero.base.concurrent.futures.ConcurrentFuturePool;
+import org.hiero.base.concurrent.futures.FuturePool;
 import org.hiero.base.concurrent.futures.StandardFuture;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;

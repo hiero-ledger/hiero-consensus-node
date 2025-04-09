@@ -130,6 +130,7 @@ module com.swirlds.common {
     requires transitive com.swirlds.logging;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.metrics.impl;
+    requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires transitive com.fasterxml.jackson.core;
@@ -137,7 +138,6 @@ module com.swirlds.common {
     requires transitive io.prometheus.simpleclient;
     requires transitive lazysodium.java;
     requires transitive org.apache.logging.log4j;
-    requires org.hiero.base.concurrent;
     requires com.sun.jna;
     requires io.github.classgraph;
     requires io.prometheus.simpleclient.httpserver;

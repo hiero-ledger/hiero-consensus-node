@@ -2,9 +2,9 @@
 package org.hiero.base.concurrent.locks.internal;
 
 import com.swirlds.base.utility.AutoCloseableNonThrowing;
-import org.hiero.base.concurrent.locks.locked.MaybeLockedResource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.base.concurrent.locks.locked.MaybeLockedResource;
 
 /**
  * An instance which is returned by the {@link ResourceLock} when the lock is acquired. Provides access to the locked

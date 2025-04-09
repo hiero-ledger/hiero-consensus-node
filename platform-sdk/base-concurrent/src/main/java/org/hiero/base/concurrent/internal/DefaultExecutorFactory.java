@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent.internal;
 
-import org.hiero.base.concurrent.ExecutorFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.Thread.UncaughtExceptionHandler;
@@ -13,6 +12,7 @@ import java.util.concurrent.ForkJoinPool.ForkJoinWorkerThreadFactory;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Supplier;
+import org.hiero.base.concurrent.ExecutorFactory;
 
 /**
  * A default implementation of {@link ExecutorFactory}.
