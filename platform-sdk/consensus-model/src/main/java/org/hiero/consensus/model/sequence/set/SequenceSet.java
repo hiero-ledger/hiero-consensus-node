@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.sequence.set;
 
-import org.hiero.consensus.model.sequence.Shiftable;
 import java.util.List;
 import java.util.function.Consumer;
 import org.hiero.base.utility.Clearable;
+import org.hiero.consensus.model.sequence.Shiftable;
 
 /**
  * <p>
