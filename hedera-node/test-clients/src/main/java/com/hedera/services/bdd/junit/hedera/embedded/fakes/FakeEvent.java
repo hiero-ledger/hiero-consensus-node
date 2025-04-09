@@ -9,7 +9,6 @@ import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
-import com.swirlds.platform.event.hashing.PbjStreamHasher;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
@@ -35,7 +34,6 @@ public class FakeEvent implements Event {
     private final SemanticVersion version;
     private final EventCore eventCore;
     public final TransactionWrapper transaction;
-    private Hash hash;
 
     public FakeEvent(
             @NonNull final NodeId creatorId,
@@ -51,13 +49,6 @@ public class FakeEvent implements Event {
                 .timeCreated(HapiUtils.asTimestamp(timeCreated))
                 .version(version)
                 .build();
-
-        // Initialize the hash using PbjStreamHasher
-        final var hasher = new PbjStreamHasher();
-        this.hash = hasher.hashEvent(
-                eventCore,
-                Collections.emptyList(), // no parents
-                Collections.singletonList(transaction));
     }
 
     @Override
@@ -101,6 +92,6 @@ public class FakeEvent implements Event {
 
     @NonNull
     public Hash getHash() {
-        return hash;
+        return new Hash();
     }
 }
