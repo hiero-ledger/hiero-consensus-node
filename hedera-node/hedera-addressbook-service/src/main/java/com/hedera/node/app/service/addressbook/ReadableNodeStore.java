@@ -53,8 +53,8 @@ public interface ReadableNodeStore {
     default void warm(final long nodeId) {}
 
     /**
-     * Returns an iterator over the keys in the state.
-     * @return an iterator over the keys in the state
+     * Returns a list of all the keys in the state.
+     * @return a list of all the keys in the state.
      */
     @NonNull
     List<EntityNumber> keys();

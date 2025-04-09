@@ -27,7 +27,9 @@ import java.util.function.Function;
  * <p>This class is not exported from the module. It is an internal implementation detail.
  */
 public class ReadableNodeStoreImpl implements ReadableNodeStore {
-    /** The underlying data storage class that holds the node data. */
+    /**
+     * The underlying data storage class that holds the node data.
+     */
     private final ReadableKVState<EntityNumber, Node> nodesState;
 
     private final ReadableEntityCounters entityCounters;
@@ -63,6 +65,7 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
 
     /**
      * Returns the number of topics in the state.
+     *
      * @return the number of topics in the state
      */
     public long sizeOfState() {
@@ -78,12 +81,11 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
         final var size = sizeOfState();
         final var keys = new ArrayList<EntityNumber>();
         for (int i = 0; i < size; i++) {
-            final var key = EntityNumber.newBuilder().number(i).build();
+            final var key = new EntityNumber(i);
             final var node = nodesState.get(key);
-            if (node == null) {
-                continue;
+            if (node != null) {
+                keys.add(key);
             }
-            keys.add(key);
         }
         return keys;
     }

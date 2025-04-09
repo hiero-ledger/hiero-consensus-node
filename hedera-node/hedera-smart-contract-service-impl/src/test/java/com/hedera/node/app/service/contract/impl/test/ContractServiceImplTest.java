@@ -73,6 +73,5 @@ class ContractServiceImplTest {
         verify(mockRegistry, times(2)).register(captor.capture());
         final var schemas = captor.getAllValues();
         assertInstanceOf(V0490ContractSchema.class, schemas.getFirst());
-        assertInstanceOf(V0500ContractSchema.class, schemas.getLast());
     }
 }

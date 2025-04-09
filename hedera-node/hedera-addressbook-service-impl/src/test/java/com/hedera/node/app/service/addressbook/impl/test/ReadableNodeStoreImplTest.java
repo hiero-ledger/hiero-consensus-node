@@ -7,9 +7,9 @@ import static java.util.stream.Collectors.toSet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -91,8 +91,7 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
         given(readableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(readableNodeState);
         subject = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
         final var keys = subject.keys();
-
-        assertTrue(keys.hasNext());
+        assertFalse(keys.isEmpty());
         final var keySet = Streams.stream(keys).collect(toSet());
         assertEquals(
                 keySet, Set.of(new EntityNumber(1), new EntityNumber(2), new EntityNumber(4), new EntityNumber(5)));

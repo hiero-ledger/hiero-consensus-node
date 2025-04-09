@@ -889,8 +889,6 @@ public class HandleWorkflow {
                                 isActive));
             }
             if (tssConfig.historyEnabled()) {
-                //                final var entityCounters = new
-                // WritableEntityIdStore(state.getWritableStates(EntityIdService.NAME));
                 final Bytes currentMetadata = tssConfig.hintsEnabled()
                         ? new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME), entityCounters)
                                 .getActiveVerificationKey()

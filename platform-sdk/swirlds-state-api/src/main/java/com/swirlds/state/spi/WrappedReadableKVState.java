@@ -37,7 +37,6 @@ public class WrappedReadableKVState<K extends Comparable<K>, V> extends Readable
     /** {@inheritDoc} */
     @NonNull
     @Override
-    @Deprecated
     protected Iterator<K> iterateFromDataSource() {
         return delegate.keys();
     }

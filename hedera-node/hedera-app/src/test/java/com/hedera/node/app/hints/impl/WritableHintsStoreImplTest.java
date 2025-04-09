@@ -7,6 +7,8 @@ import static com.hedera.node.app.hints.HintsService.partySizeForRoster;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.TRANSITION;
@@ -37,9 +39,11 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
@@ -53,6 +57,7 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.MapWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -106,12 +111,18 @@ class WritableHintsStoreImplTest {
     private WritableStates writableStates;
 
     private State state;
+    private WritableEntityCounters entityCounters;
 
     private WritableHintsStoreImpl subject;
 
     @BeforeEach
     void setUp() {
         state = emptyState();
+        entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
+                ENTITY_ID_STATE_KEY,
+                new WritableSingletonStateBase<>(ENTITY_ID_STATE_KEY, () -> null, c -> {}),
+                ENTITY_COUNTS_KEY,
+                new WritableSingletonStateBase<>(ENTITY_COUNTS_KEY, () -> null, c -> {}))));
         subject = new WritableHintsStoreImpl(state.getWritableStates(HintsService.NAME), entityCounters);
     }
 

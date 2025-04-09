@@ -60,7 +60,6 @@ public interface WritableKVState<K, V> extends ReadableKVState<K, V> {
      */
     @Override
     @NonNull
-    @Deprecated
     Iterator<K> keys();
 
     /**

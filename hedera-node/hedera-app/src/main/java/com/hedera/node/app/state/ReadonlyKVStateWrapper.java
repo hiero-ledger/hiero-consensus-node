@@ -52,7 +52,6 @@ public class ReadonlyKVStateWrapper<K, V> implements ReadableKVState<K, V> {
      */
     @NonNull
     @Override
-    @Deprecated
     public Iterator<K> keys() {
         return delegate.keys();
     }

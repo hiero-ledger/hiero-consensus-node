@@ -88,7 +88,6 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
     /** {@inheritDoc} */
     @NonNull
     @Override
-    @Deprecated
     public Iterator<K> keys() {
         return iterateFromDataSource();
     }

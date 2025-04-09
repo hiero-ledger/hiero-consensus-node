@@ -101,6 +101,8 @@ public class PlatformStateUpdates {
                         final var nodeStore = new ReadableNodeStoreImpl(
                                 state.getReadableStates(AddressBookService.NAME), entityIdStore);
                         final var rosterStore = new WritableRosterStore(state.getWritableStates(RosterService.NAME));
+                        final var entityCounters =
+                                new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
                         final var stakingInfoStore = new ReadableStakingInfoStoreImpl(
                                 state.getReadableStates(TokenService.NAME), entityCounters);
 

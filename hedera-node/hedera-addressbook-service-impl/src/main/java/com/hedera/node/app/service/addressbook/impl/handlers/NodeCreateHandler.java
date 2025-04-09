@@ -45,6 +45,7 @@ public class NodeCreateHandler implements TransactionHandler {
 
     /**
      * Constructs a {@link NodeCreateHandler} with the given {@link AddressBookValidator}.
+     *
      * @param addressBookValidator the validator for the crypto create transaction
      */
     @Inject
@@ -104,6 +105,8 @@ public class NodeCreateHandler implements TransactionHandler {
                 .grpcCertificateHash(op.grpcCertificateHash())
                 .declineReward(op.declineReward())
                 .adminKey(op.adminKey());
+        // Since nodes won't be removed from state, we can set the nodeId to the next available id
+        // in the state based on the size of the state.
         final var node = nodeBuilder.nodeId(nodeStore.sizeOfState()).build();
 
         nodeStore.putAndIncrementCount(node);

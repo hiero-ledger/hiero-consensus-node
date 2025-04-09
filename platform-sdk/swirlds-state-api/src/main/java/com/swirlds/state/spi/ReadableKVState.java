@@ -63,7 +63,6 @@ public interface ReadableKVState<K, V> {
      * @return an iterator over all keys in the state
      */
     @NonNull
-    @Deprecated
     Iterator<K> keys();
 
     /**

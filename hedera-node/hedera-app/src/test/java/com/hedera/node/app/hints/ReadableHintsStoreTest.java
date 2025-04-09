@@ -8,6 +8,8 @@ import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINT_CONSTR
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_KEY;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_KEY;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -23,12 +25,18 @@ import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
+import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
+import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -41,6 +49,17 @@ class ReadableHintsStoreTest {
 
     @Mock
     private ReadableStates readableStates;
+
+    private ReadableEntityCounters entityCounters;
+
+    @BeforeEach
+    void setUp() {
+        entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
+                ENTITY_ID_STATE_KEY,
+                new WritableSingletonStateBase<>(ENTITY_ID_STATE_KEY, () -> null, c -> {}),
+                ENTITY_COUNTS_KEY,
+                new WritableSingletonStateBase<>(ENTITY_COUNTS_KEY, () -> null, c -> {}))));
+    }
 
     @Test
     void onlyReadyToAdoptIfNextConstructionIsCompleteAndMatching() {
