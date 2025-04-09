@@ -826,7 +826,13 @@ class BlockNodeConnectionTest {
         connectionSpy.onNext(response);
 
         // Assert connection restarts after the last verified block number
-        verify(connectionSpy).endStreamAndRestartAtBlock(endOfStream.blockNumber() + 1L);
+        verify(connectionSpy, times(1)).endStreamAndRestartAtBlock(endOfStream.blockNumber() + 1L);
+        verify(connectionSpy, times(1)).close();
+        verify(connectionSpy, times(1)).setCurrentBlockNumber(endOfStream.blockNumber() + 1L);
+        verify(connectionSpy, times(1)).establishStream();
+
+        assertEquals(endOfStream.blockNumber() + 1L, connection.getCurrentBlockNumber());
+        assertEquals(0, connection.getCurrentRequestIndex());
 
         // Verify log messages for end of stream
         final String expectedLog =
@@ -856,7 +862,13 @@ class BlockNodeConnectionTest {
         connectionSpy.onNext(response);
 
         // Assert connection restarts after the last verified block number
-        // verify(connectionSpy).endStreamAndRestartAtBlock(resendBlock.blockNumber() + 1L);
+        verify(connectionSpy, times(1)).endStreamAndRestartAtBlock(resendBlock.blockNumber());
+        verify(connectionSpy, times(1)).close();
+        verify(connectionSpy, times(1)).setCurrentBlockNumber(resendBlock.blockNumber());
+        verify(connectionSpy, times(1)).establishStream();
+
+        assertEquals(resendBlock.blockNumber(), connection.getCurrentBlockNumber());
+        assertEquals(0, connection.getCurrentRequestIndex());
 
         // Verify log messages for resend block
         final String expectedLog = "Received ResendBlock from block node " + TEST_CONNECTION_DESCRIPTOR + " for block "
@@ -888,11 +900,9 @@ class BlockNodeConnectionTest {
                 PublishStreamResponse.newBuilder().resendBlock(resendBlock).build();
 
         when(connectionManager.getLastVerifiedBlock(blockNodeConfig)).thenReturn(lastVerifiedBlockNumber);
+
         // Act
         connectionSpy.onNext(response);
-
-        // Assert connection restarts after the last verified block number
-        // verify(connectionSpy).endStreamAndRestartAtBlock(resendBlock.blockNumber() + 1L);
 
         // Verify log messages for resend block
         final String expectedLog = "Received ResendBlock from block node " + TEST_CONNECTION_DESCRIPTOR + " for block "
@@ -922,11 +932,9 @@ class BlockNodeConnectionTest {
                 PublishStreamResponse.newBuilder().resendBlock(resendBlock).build();
 
         when(connectionManager.isBlockAlreadyAcknowledged(TEST_BLOCK_NUMBER)).thenReturn(true);
+
         // Act
         connectionSpy.onNext(response);
-
-        // Assert connection restarts after the last verified block number
-        // verify(connectionSpy).endStreamAndRestartAtBlock(resendBlock.blockNumber() + 1L);
 
         // Verify log messages for resend block
         final String expectedLog = "Received ResendBlock from block node " + TEST_CONNECTION_DESCRIPTOR + " for block "
