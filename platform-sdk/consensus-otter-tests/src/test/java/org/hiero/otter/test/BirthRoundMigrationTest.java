@@ -14,6 +14,9 @@ import org.hiero.otter.fixtures.TransactionGenerator.Rate;
 
 class BirthRoundMigrationTest {
 
+    private static final Duration THIRTY_SECONDS = Duration.ofSeconds(30L);
+    private static final Duration ONE_MINUTE = Duration.ofMinutes(1L);
+
     @OtterTest
     void testBirthRoundMigration(TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
@@ -21,15 +24,15 @@ class BirthRoundMigrationTest {
 
         // Setup simulation
         network.addNodes(4);
-        network.start(Duration.ofMinutes(1L));
+        network.start(ONE_MINUTE);
         env.generator().generateTransactions(INFINITE, Rate.fixedRateWithTps(1000), Distribution.UNIFORM);
 
         // Wait for 30 seconds
-        timeManager.waitFor(Duration.ofSeconds(30L));
+        timeManager.waitFor(THIRTY_SECONDS);
 
         // Initiate the migration
         env.generator().pause();
-        network.prepareUpgrade(Duration.ofMinutes(1L));
+        network.prepareUpgrade(ONE_MINUTE);
 
         // update the configuration
         for (final Node node : network.getNodes()) {
@@ -37,11 +40,11 @@ class BirthRoundMigrationTest {
         }
 
         // restart the network
-        network.resume(Duration.ofMinutes(1L));
+        network.resume(ONE_MINUTE);
         env.generator().resume();
 
         // Wait for 30 seconds
-        timeManager.waitFor(Duration.ofSeconds(30L));
+        timeManager.waitFor(THIRTY_SECONDS);
 
         // Validations
         env.validator()
