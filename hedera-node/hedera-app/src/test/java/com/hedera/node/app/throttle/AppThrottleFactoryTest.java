@@ -91,20 +91,13 @@ class AppThrottleFactoryTest {
     void setUp() {
         softwareVersionFactory = SemanticVersion.DEFAULT;
         subject = new AppThrottleFactory(
-                config,
-                () -> state,
-                () -> ThrottleDefinitions.DEFAULT,
-                throttleAccumulatorFactory,
-                softwareVersionFactory);
+                config, () -> state, () -> ThrottleDefinitions.DEFAULT, throttleAccumulatorFactory);
     }
 
     @Test
     void initializesAccumulatorFromCurrentConfigAndGivenDefinitions() {
         given(throttleAccumulatorFactory.newThrottleAccumulator(
-                        eq(config),
-                        argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR),
-                        eq(BACKEND_THROTTLE),
-                        eq(softwareVersionFactory)))
+                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
                 .willReturn(throttleAccumulator);
         given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
         given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);
