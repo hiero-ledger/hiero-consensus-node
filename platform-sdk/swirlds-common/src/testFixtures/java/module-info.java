@@ -21,6 +21,7 @@ open module com.swirlds.common.test.fixtures {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.virtualmap;
+    requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.config.extensions.test.fixtures;

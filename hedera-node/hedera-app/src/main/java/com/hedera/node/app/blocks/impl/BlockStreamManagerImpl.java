@@ -46,7 +46,6 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.DiskNetworkExport;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -81,6 +80,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.consensus.model.hashgraph.Round;
 
 @Singleton
@@ -471,7 +471,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
             requireNonNull(fatalShutdownFuture).complete(null);
         }
-        return closesBlock || lastRoundOfPrevBlock == 0;
+        return closesBlock;
     }
 
     @Override
@@ -596,7 +596,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
 
         // During freeze round, we should close the block regardless of other conditions
-        if (roundNumber == freezeRoundNumber) {
+        if (roundNumber == freezeRoundNumber || roundNumber == 1) {
             return true;
         }
 

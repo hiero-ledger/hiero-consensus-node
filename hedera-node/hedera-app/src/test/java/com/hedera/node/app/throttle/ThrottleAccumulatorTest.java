@@ -76,12 +76,10 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.AutoCreationConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
-import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -162,12 +160,6 @@ class ThrottleAccumulatorTest {
 
     @Mock
     private ContractsConfig contractsConfig;
-
-    @Mock
-    private AutoCreationConfig autoCreationConfig;
-
-    @Mock
-    private LazyCreationConfig lazyCreationConfig;
 
     @Mock
     private JumboTransactionsConfig jumboTransactionsConfig;
@@ -645,13 +637,8 @@ class ThrottleAccumulatorTest {
                 .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
                 .build();
         given(transactionInfo.txBody()).willReturn(txn);
-
         given(state.getReadableStates(any())).willReturn(readableStates);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
@@ -696,10 +683,6 @@ class ThrottleAccumulatorTest {
 
         given(state.getReadableStates(any())).willReturn(readableStates);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(false);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(true);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
@@ -743,10 +726,6 @@ class ThrottleAccumulatorTest {
 
         given(state.getReadableStates(any())).willReturn(readableStates);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(false);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
@@ -789,10 +768,6 @@ class ThrottleAccumulatorTest {
         givenTransferWithImplicitCreations(numImplicitCreations);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
@@ -835,10 +810,6 @@ class ThrottleAccumulatorTest {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(tokenRels);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
@@ -879,10 +850,6 @@ class ThrottleAccumulatorTest {
         givenTransferWithImplicitCreations(10);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
@@ -924,10 +891,6 @@ class ThrottleAccumulatorTest {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(tokenRels);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
@@ -969,10 +932,6 @@ class ThrottleAccumulatorTest {
         givenTransferWithImplicitCreations(1);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
@@ -1020,11 +979,6 @@ class ThrottleAccumulatorTest {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(false);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
-
         // when
         subject.rebuildFor(defs);
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
@@ -1068,11 +1022,6 @@ class ThrottleAccumulatorTest {
 
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
 
         // when
         subject.rebuildFor(defs);
@@ -1120,11 +1069,6 @@ class ThrottleAccumulatorTest {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
 
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(true);
-
         // when
         subject.rebuildFor(defs);
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
@@ -1170,11 +1114,6 @@ class ThrottleAccumulatorTest {
 
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
@@ -1735,10 +1674,6 @@ class ThrottleAccumulatorTest {
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
         given(configuration.getConfigData(SchedulingConfig.class)).willReturn(schedulingConfig);
         given(schedulingConfig.longTermEnabled()).willReturn(longTermEnabled);
-        given(configuration.getConfigData(AutoCreationConfig.class)).willReturn(autoCreationConfig);
-        given(autoCreationConfig.enabled()).willReturn(true);
-        given(configuration.getConfigData(LazyCreationConfig.class)).willReturn(lazyCreationConfig);
-        given(lazyCreationConfig.enabled()).willReturn(false);
         given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);

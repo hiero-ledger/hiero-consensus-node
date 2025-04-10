@@ -55,12 +55,10 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.AutoCreationConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
-import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
@@ -441,8 +439,7 @@ public class ThrottleAccumulator {
             }
             case ETHEREUM_TRANSACTION -> {
                 final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
-                final var implicitCreations = getImplicitCreationsCount(txnInfo.txBody(), accountStore);
-                yield shouldThrottleEthTxn(manager, now, configuration, implicitCreations);
+                yield shouldThrottleEthTxn(manager, now, getImplicitCreationsCount(txnInfo.txBody(), accountStore));
             }
             default -> !manager.allReqsMetAt(now);
         };
@@ -471,14 +468,7 @@ public class ThrottleAccumulator {
         final var config = configSupplier.get();
         final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
         if (!schedulingConfig.longTermEnabled()) {
-            final boolean isAutoCreationEnabled =
-                    config.getConfigData(AutoCreationConfig.class).enabled();
-            final boolean isLazyCreationEnabled =
-                    config.getConfigData(LazyCreationConfig.class).enabled();
-
-            // we check for CryptoTransfer because implicit creations (i.e. auto- or lazy-creation) may happen in it,
-            // and we need to throttle those separately
-            if ((isAutoCreationEnabled || isLazyCreationEnabled) && scheduledFunction == CRYPTO_TRANSFER) {
+            if (scheduledFunction == CRYPTO_TRANSFER) {
                 final var transfer = scheduled.cryptoTransfer();
                 if (usesAliases(transfer)) {
                     final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
@@ -599,13 +589,9 @@ public class ThrottleAccumulator {
             @NonNull final Configuration configuration,
             final int implicitCreationsCount,
             final int autoAssociationsCount) {
-        final boolean isAutoCreationEnabled =
-                configuration.getConfigData(AutoCreationConfig.class).enabled();
-        final boolean isLazyCreationEnabled =
-                configuration.getConfigData(LazyCreationConfig.class).enabled();
         final boolean unlimitedAutoAssociations =
                 configuration.getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
-        if ((isAutoCreationEnabled || isLazyCreationEnabled) && implicitCreationsCount > 0) {
+        if (implicitCreationsCount > 0) {
             return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now);
         } else if (unlimitedAutoAssociations && autoAssociationsCount > 0) {
             return shouldThrottleBasedOnAutoAssociations(manager, autoAssociationsCount, now);
@@ -615,19 +601,8 @@ public class ThrottleAccumulator {
     }
 
     private boolean shouldThrottleEthTxn(
-            @NonNull final ThrottleReqsManager manager,
-            @NonNull final Instant now,
-            @NonNull final Configuration configuration,
-            final int implicitCreationsCount) {
-        final boolean isAutoCreationEnabled =
-                configuration.getConfigData(AutoCreationConfig.class).enabled();
-        final boolean isLazyCreationEnabled =
-                configuration.getConfigData(LazyCreationConfig.class).enabled();
-        if (isAutoCreationEnabled && isLazyCreationEnabled) {
-            return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now);
-        } else {
-            return !manager.allReqsMetAt(now);
-        }
+            @NonNull final ThrottleReqsManager manager, @NonNull final Instant now, final int implicitCreationsCount) {
+        return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now);
     }
 
     public int getImplicitCreationsCount(

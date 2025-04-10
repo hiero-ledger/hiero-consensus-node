@@ -20,9 +20,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
+import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
+import org.hiero.base.concurrent.interrupt.InterruptableSupplier;
 import org.hiero.base.utility.CompareTo;
-import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
-import org.hiero.consensus.model.utility.interrupt.InterruptableSupplier;
 
 /**
  * Contains various useful assertions.

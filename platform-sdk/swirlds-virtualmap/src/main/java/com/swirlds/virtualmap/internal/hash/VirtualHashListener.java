@@ -10,14 +10,20 @@ import org.hiero.consensus.model.crypto.Hash;
  * Listens to various events that occur during the hashing process.
  */
 public interface VirtualHashListener<K extends VirtualKey, V extends VirtualValue> {
+
     /**
      * Called when starting a new fresh hash operation.
+     *
+     * @param firstLeafPath
+     *      The first leaf path in the virtual tree
+     * @param lastLeafPath
+     *      The last leaf path in the virtual tree
      */
-    default void onHashingStarted() {}
+    default void onHashingStarted(final long firstLeafPath, final long lastLeafPath) {}
 
     /**
      * Called after each node is hashed, internal or leaf. This is called between
-     * {@link #onHashingStarted()} and {@link #onHashingCompleted()}.
+     * {@link #onHashingStarted(long, long)} and {@link #onHashingCompleted()}.
      *
      * @param path
      * 		Node path
@@ -28,7 +34,7 @@ public interface VirtualHashListener<K extends VirtualKey, V extends VirtualValu
 
     /**
      * Called after each leaf node on a rank is hashed. This is called between
-     * {@link #onHashingStarted()} and {@link #onHashingCompleted()}.
+     * {@link #onHashingStarted(long, long)} and {@link #onHashingCompleted()}.
      *
      * @param leaf
      * 		A non-null leaf record representing the hashed leaf.

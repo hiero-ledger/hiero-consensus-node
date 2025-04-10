@@ -516,7 +516,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         subject.handle(context);
 
-        verify(expiryValidator, times(1)).resolveUpdateAttempt(any(), any(), anyBoolean());
+        verify(expiryValidator, times(1)).resolveUpdateAttempt(any(), any());
         verify(tokenServiceApi, times(1))
                 .assertValidStakingElectionForUpdate(anyBoolean(), anyBoolean(), any(), any(), any(), any(), any());
         verify(tokenServiceApi, times(1)).updateContract(any());
@@ -747,7 +747,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         subject.handle(context);
 
-        verify(expiryValidator, times(1)).resolveUpdateAttempt(any(), any(), anyBoolean());
+        verify(expiryValidator, times(1)).resolveUpdateAttempt(any(), any());
         verify(tokenServiceApi, times(1))
                 .assertValidStakingElectionForUpdate(anyBoolean(), anyBoolean(), any(), any(), any(), any(), any());
         verify(tokenServiceApi, times(1)).updateContract(any());
