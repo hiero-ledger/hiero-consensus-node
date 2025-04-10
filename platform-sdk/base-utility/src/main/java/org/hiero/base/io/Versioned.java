@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.io;
+package org.hiero.base.io;
 
 /**
  * A Versioned is an object that must track material changes to various implementation details using a version number.

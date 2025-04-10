@@ -5,7 +5,7 @@ import static com.swirlds.common.constructable.constructables.scannable.StringCo
 
 import com.swirlds.common.constructable.ConstructableClass;
 import com.swirlds.common.constructable.constructors.StringConstructor;
-import org.hiero.consensus.model.constructable.RuntimeConstructable;
+import org.hiero.base.constructable.RuntimeConstructable;
 
 @ConstructableClass(value = CLASS_ID, constructorType = StringConstructor.class)
 public class StringConstructable implements RuntimeConstructable {

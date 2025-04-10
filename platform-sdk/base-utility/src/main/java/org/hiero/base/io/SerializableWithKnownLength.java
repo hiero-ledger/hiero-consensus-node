@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.io;
+package org.hiero.base.io;
 
 /**
  * An object implementing this interface can return its length even before serialization.

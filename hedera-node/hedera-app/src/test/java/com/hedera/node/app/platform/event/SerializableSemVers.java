@@ -10,8 +10,8 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.regex.Pattern;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class SerializableSemVers implements SoftwareVersion {
     private static final String IS_INCOMPARABLE_MSG = " cannot be compared to ";

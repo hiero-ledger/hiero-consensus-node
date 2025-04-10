@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io;
+package org.hiero.base.io;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.common.io.exceptions.InvalidVersionException;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
-import com.swirlds.common.test.fixtures.io.SelfSerializableExample;
 import java.io.IOException;
+import org.hiero.base.utility.test.fixtures.io.SelfSerializableExample;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

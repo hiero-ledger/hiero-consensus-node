@@ -54,8 +54,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * This is a standalone utility tool to generate signature files for event/record stream, and

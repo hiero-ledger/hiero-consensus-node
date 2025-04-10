@@ -31,8 +31,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 
 /**
  * An implementation of {@link LearnerTreeView} for the virtual merkle. The learner during reconnect
@@ -167,7 +168,7 @@ public final class LearnerPullVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * Reads a virtual node identified by a given path from the output stream. The node was previously
      * written by reconnect teacher. This method should match {@link
-     * TeacherPullVirtualTreeView#writeNode(org.hiero.consensus.model.io.streams.SerializableDataOutputStream, long, boolean)}.
+     * TeacherPullVirtualTreeView#writeNode(SerializableDataOutputStream, long, boolean)}.
      *
      * <p>For a root node, reconnect state information is read: the first and the last leaf paths. Nothing
      * is read for other internal nodes.

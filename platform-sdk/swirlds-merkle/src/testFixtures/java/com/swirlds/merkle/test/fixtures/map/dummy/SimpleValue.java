@@ -6,8 +6,8 @@ import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Objects;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class SimpleValue extends PartialMerkleLeaf implements MerkleLeaf {
 

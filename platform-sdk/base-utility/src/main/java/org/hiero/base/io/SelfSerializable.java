@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.io;
+package org.hiero.base.io;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A SerializableDet that knows how to serialize and deserialize itself.

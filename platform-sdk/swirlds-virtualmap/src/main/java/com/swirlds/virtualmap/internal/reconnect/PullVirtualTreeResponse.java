@@ -2,10 +2,10 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import java.io.IOException;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * Used during the synchronization protocol to send data needed to reconstruct a single virtual node.

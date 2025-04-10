@@ -30,8 +30,8 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.SerializableDet;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.SerializableDet;
 
 /**
  * A drop-in replacement for {@link DataInputStream}, which handles SerializableDet classes specially. It is designed

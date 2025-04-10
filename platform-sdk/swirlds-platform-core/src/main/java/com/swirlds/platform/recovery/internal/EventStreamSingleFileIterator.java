@@ -6,9 +6,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.NoSuchElementException;
+import org.hiero.base.io.SelfSerializable;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.model.io.SelfSerializable;
 
 /**
  * An iterator that walks over events in a single event stream file.

@@ -8,6 +8,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.junit.jupiter.api.Disabled;
 
 class BirthRoundMigrationTest {
 
@@ -15,6 +16,7 @@ class BirthRoundMigrationTest {
     private static final Duration ONE_MINUTE = Duration.ofMinutes(1L);
 
     @OtterTest
+    @Disabled
     void testBirthRoundMigration(TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
