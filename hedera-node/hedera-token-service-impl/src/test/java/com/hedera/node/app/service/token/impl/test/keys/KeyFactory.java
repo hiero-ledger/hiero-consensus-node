@@ -3,10 +3,10 @@ package com.hedera.node.app.service.token.impl.test.keys;
 
 import static com.hedera.node.app.service.token.impl.test.keys.KeyFactory.DefaultKeyGen.DEFAULT_KEY_GEN;
 
-import com.google.protobuf.ByteString;
-import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.KeyList;
-import com.hederahashgraph.api.proto.java.ThresholdKey;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
@@ -68,16 +68,14 @@ public class KeyFactory {
     }
 
     public Key newList(List<Key> children) {
-        return Key.newBuilder()
-                .setKeyList(KeyList.newBuilder().addAllKeys(children))
-                .build();
+        return Key.newBuilder().keyList(KeyList.newBuilder().keys(children)).build();
     }
 
     public Key newThreshold(List<Key> children, int M) {
         ThresholdKey.Builder thresholdKey = ThresholdKey.newBuilder()
-                .setKeys(KeyList.newBuilder().addAllKeys(children).build())
-                .setThreshold(M);
-        return Key.newBuilder().setThresholdKey(thresholdKey).build();
+                .keys(KeyList.newBuilder().keys(children).build())
+                .threshold(M);
+        return Key.newBuilder().thresholdKey(thresholdKey).build();
     }
 
     public PrivateKey lookupPrivateKey(Key key) {
@@ -90,14 +88,14 @@ public class KeyFactory {
 
     public static String asPubKeyHex(Key key) {
         assert (!key.hasKeyList() && !key.hasThresholdKey());
-        if (key.getRSA3072() != ByteString.EMPTY) {
-            return CommonUtils.hex(key.getRSA3072().toByteArray());
-        } else if (key.getECDSA384() != ByteString.EMPTY) {
-            return CommonUtils.hex(key.getECDSA384().toByteArray());
-        } else if (key.getECDSASecp256K1() != ByteString.EMPTY) {
-            return CommonUtils.hex(key.getECDSASecp256K1().toByteArray());
+        if (key.rsa3072() != Bytes.EMPTY) {
+            return CommonUtils.hex(key.rsa3072().toByteArray());
+        } else if (key.ecdsa384() != Bytes.EMPTY) {
+            return CommonUtils.hex(key.ecdsa384().toByteArray());
+        } else if (key.ecdsaSecp256k1() != Bytes.EMPTY) {
+            return CommonUtils.hex(key.ecdsaSecp256k1().toByteArray());
         } else {
-            return CommonUtils.hex(key.getEd25519().toByteArray());
+            return CommonUtils.hex(key.ed25519().toByteArray());
         }
     }
 
@@ -112,7 +110,7 @@ public class KeyFactory {
         final var pubKey = ((EdDSAPublicKey) kp.getPublic()).getAbyte();
         publicToPrivateKey.put(CommonUtils.hex(pubKey), kp.getPrivate());
 
-        return Key.newBuilder().setEd25519(ByteString.copyFrom(pubKey)).build();
+        return Key.newBuilder().ed25519(Bytes.wrap(pubKey)).build();
     }
 
     /**
@@ -133,7 +131,7 @@ public class KeyFactory {
             throw new IllegalStateException(fatal);
         }
 
-        return Key.newBuilder().setECDSASecp256K1(ByteString.copyFrom(pubKey)).build();
+        return Key.newBuilder().ecdsaSecp256k1(Bytes.wrap(pubKey)).build();
     }
 
     private static final ECNamedCurveParameterSpec curveParams = ECNamedCurveTable.getParameterSpec("secp256k1");

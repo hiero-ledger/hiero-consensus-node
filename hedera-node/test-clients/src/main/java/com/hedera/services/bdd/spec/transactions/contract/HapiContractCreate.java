@@ -10,6 +10,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.equivAccount;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.solidityIdFrom;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiContractCall.doGasLookup;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.encodeParametersForConstructor;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -388,7 +390,10 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
     protected long feeFor(HapiSpec spec, Transaction txn, int numPayerSigs) throws Throwable {
         return spec.fees()
                 .forActivityBasedOp(
-                        HederaFunctionality.ContractCreate, scFees::getContractCreateTxFeeMatrices, txn, numPayerSigs);
+                        HederaFunctionality.ContractCreate,
+                        (txBody, sigValObj) -> fromPbj(scFees.getContractCreateTxFeeMatrices(toPbj(txBody), sigValObj)),
+                        txn,
+                        numPayerSigs);
     }
 
     @Override

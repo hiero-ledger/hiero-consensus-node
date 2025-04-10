@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.node;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asPosNodeId;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusUpdateTopic;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
@@ -15,13 +16,13 @@ import com.google.protobuf.BytesValue;
 import com.google.protobuf.StringValue;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
+import com.hedera.services.bdd.utils.CommonPbjConverters;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -139,7 +140,7 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
             }
         });
         try {
-            final TransactionBody txn = CommonUtils.extractTransactionBody(txnSubmitted);
+            final TransactionBody txn = fromPbj(CommonUtils.extractTransactionBody(toPbj(txnSubmitted)));
             final var op = txn.getNodeUpdate();
             if (op.hasAccountId() && spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
                 subProcessNetwork.updateNodeAccount(op.getNodeId(), toPbj(op.getAccountId()));

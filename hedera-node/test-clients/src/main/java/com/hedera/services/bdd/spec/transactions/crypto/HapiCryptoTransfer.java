@@ -6,6 +6,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdForKeyLookUp;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdWithAlias;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.HBAR_SENTINEL_TOKEN_ID;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
@@ -483,7 +485,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
         final MoreObjects.ToStringHelper helper = super.toStringHelper();
         if (txnSubmitted != null) {
             try {
-                final TransactionBody txn = CommonUtils.extractTransactionBody(txnSubmitted);
+                final TransactionBody txn = fromPbj(CommonUtils.extractTransactionBody(toPbj(txnSubmitted)));
                 helper.add(
                         "transfers",
                         TxnUtils.readableTransferList(txn.getCryptoTransfer().getTransfers()));

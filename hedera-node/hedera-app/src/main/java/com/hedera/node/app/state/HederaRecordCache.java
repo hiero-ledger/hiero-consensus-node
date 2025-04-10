@@ -5,7 +5,6 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.config.data.HederaConfig;
-import com.hederahashgraph.api.proto.java.TransactionReceiptEntries;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -78,7 +77,8 @@ public interface HederaRecordCache extends RecordCache {
      * Purging receipts works as follows:
      * <ol>
      *     <li>Find the latest {@link TransactionID#transactionValidStart()} of the all the receipts in the
-     *     {@link TransactionReceiptEntries} object at the head of the round receipt queue.</li>
+     *     {@link com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries} object at the head of the
+     *     round receipt queue.</li>
      *     <li>If even the latest valid start is more than {@link HederaConfig#transactionMaxValidDuration()}
      *     seconds before consensus time now, purge the history of all receipts from that round, and remove it
      *     from the queue.</li>

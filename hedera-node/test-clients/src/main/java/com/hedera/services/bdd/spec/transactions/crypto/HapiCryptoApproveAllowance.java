@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTokenId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -95,7 +96,7 @@ public class HapiCryptoApproveAllowance extends HapiTxnOp<HapiCryptoApproveAllow
                         .setCurrentNumTokenRels(info.getTokenRelationshipsCount())
                         .setCurrentExpiry(info.getExpirationTime().getSeconds())
                         .setCurrentMemo(info.getMemo())
-                        .setCurrentKey(info.getKey())
+                        .setCurrentKey(toPbj(info.getKey()))
                         .setCurrentlyHasProxy(info.hasProxyAccountID())
                         .setCurrentMaxAutomaticAssociations(info.getMaxAutomaticTokenAssociations())
                         .setCurrentCryptoAllowances(Collections.emptyMap())
@@ -104,7 +105,7 @@ public class HapiCryptoApproveAllowance extends HapiTxnOp<HapiCryptoApproveAllow
                         .build();
                 var baseMeta = new BaseTransactionMeta(_txn.getMemoBytes().size(), 0);
                 var opMeta = new CryptoApproveAllowanceMeta(
-                        _txn.getCryptoApproveAllowance(),
+                        toPbj(_txn.getCryptoApproveAllowance()),
                         _txn.getTransactionID().getTransactionValidStart().getSeconds());
                 var accumulator = new UsageAccumulator();
                 cryptoOpsUsage.cryptoApproveAllowanceUsage(suFrom(svo), baseMeta, opMeta, ctx, accumulator);

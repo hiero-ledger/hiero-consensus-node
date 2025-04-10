@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
@@ -26,11 +27,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
@@ -45,7 +46,6 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
-import com.hederahashgraph.api.proto.java.AccountAmount;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -443,11 +443,11 @@ public class RepeatableHip1064Tests {
             assertNotNull(items, "No reward payments found");
             assertEquals(1, items.size());
             final var payment = items.getFirst();
-            assertEquals(CryptoTransfer, payment.function());
-            final var op = payment.body().getCryptoTransfer();
+            assertEquals(CRYPTO_TRANSFER, payment.function());
+            final var op = payment.body().cryptoTransfer();
             final long expectedPerNode = expectedPerNodeReward.getAsLong();
-            final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
-                    .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
+            final Map<Long, Long> bodyAdjustments = op.transfers().accountAmounts().stream()
+                    .collect(toMap(aa -> aa.accountID().accountNum(), AccountAmount::amount));
             assertEquals(3, bodyAdjustments.size());
             // node2 and node3 only expected to receive (node0 is system, node1 was inactive)
             final long expectedDebit = -2 * expectedPerNode;
@@ -470,8 +470,8 @@ public class RepeatableHip1064Tests {
             final var firstRecord = items.getFirst();
             final var secondRecord = items.entries().get(1);
 
-            assertEquals(CryptoTransfer, firstRecord.function());
-            assertEquals(CryptoTransfer, secondRecord.function());
+            assertEquals(CRYPTO_TRANSFER, firstRecord.function());
+            assertEquals(CRYPTO_TRANSFER, secondRecord.function());
 
             validateFirstRecord(spec, firstRecord, expectedMinNodeReward);
             validateSecondRecord(spec, secondRecord, expectedPerNodeReward, expectedMinNodeReward);
@@ -483,9 +483,9 @@ public class RepeatableHip1064Tests {
             final RecordStreamEntry secondRecord,
             final LongSupplier expectedPerNodeReward,
             final LongSupplier expectedMinNodeReward) {
-        final var op = secondRecord.body().getCryptoTransfer();
-        final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
-                .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
+        final var op = secondRecord.body().cryptoTransfer();
+        final Map<Long, Long> bodyAdjustments = op.transfers().accountAmounts().stream()
+                .collect(toMap(aa -> aa.accountID().accountNum(), AccountAmount::amount));
         assertEquals(4, bodyAdjustments.size());
         // node2 and node3 and node1 (inactive) will receive rewards
         final long expectedDebit = -2 * expectedPerNodeReward.getAsLong() - expectedMinNodeReward.getAsLong();
@@ -501,9 +501,9 @@ public class RepeatableHip1064Tests {
 
     private static void validateFirstRecord(
             final HapiSpec spec, final RecordStreamEntry firstRecord, final LongSupplier expectedMinNodeReward) {
-        final var op = firstRecord.body().getCryptoTransfer();
-        final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
-                .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
+        final var op = firstRecord.body().cryptoTransfer();
+        final Map<Long, Long> bodyAdjustments = op.transfers().accountAmounts().stream()
+                .collect(toMap(aa -> aa.accountID().accountNum(), AccountAmount::amount));
         assertEquals(4, bodyAdjustments.size());
         // node2 and node3 and node1 (inactive) will receive rewards
         final long expectedDebit = -3 * expectedMinNodeReward.getAsLong();

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.sysfiles.domain.throttling;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BUCKET_CAPACITY_OVERFLOW;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BUCKET_HAS_NO_THROTTLE_GROUPS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_CAPACITY_NOT_SUFFICIENT_FOR_OPERATION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OPERATION_REPEATED_IN_BUCKET_GROUPS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLE_GROUP_HAS_ZERO_OPS_PER_SEC;
 import static com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.HapiThrottleUtils.lcm;
 import static com.hedera.node.app.hapi.utils.sysfiles.validation.ErrorCodeUtils.exceptionMsgFor;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUCKET_CAPACITY_OVERFLOW;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUCKET_HAS_NO_THROTTLE_GROUPS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NODE_CAPACITY_NOT_SUFFICIENT_FOR_OPERATION;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OPERATION_REPEATED_IN_BUCKET_GROUPS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.THROTTLE_GROUP_HAS_ZERO_OPS_PER_SEC;
 import static java.util.Collections.disjoint;
 
 import com.hedera.node.app.hapi.utils.throttles.BucketThrottle;

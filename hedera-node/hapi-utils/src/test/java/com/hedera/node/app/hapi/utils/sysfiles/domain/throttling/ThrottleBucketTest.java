@@ -3,17 +3,15 @@ package com.hedera.node.app.hapi.utils.sysfiles.domain.throttling;
 
 import static com.hedera.node.app.hapi.utils.throttles.BucketThrottle.CAPACITY_UNITS_PER_NANO_TXN;
 import static com.hedera.node.app.hapi.utils.throttles.BucketThrottle.NTPS_PER_MTPS;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCall;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.node.app.hapi.utils.TestUtils;
 import com.hedera.node.app.hapi.utils.throttles.BucketThrottle;
 import com.hedera.node.app.hapi.utils.throttles.ConcurrentThrottleTestHelper;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
@@ -107,10 +105,10 @@ class ThrottleBucketTest {
         and 30_000 / 10_000 = 3. */
         final var expectedThrottle = DeterministicThrottle.withTpsAndBurstPeriod(30_000 / networkSize, 2);
         final var expectedReqs = List.of(
-                Pair.of(HederaFunctionality.CryptoTransfer, 3),
-                Pair.of(HederaFunctionality.CryptoCreate, 3),
-                Pair.of(ContractCall, 2500),
-                Pair.of(HederaFunctionality.TokenMint, 10));
+                Pair.of(HederaFunctionality.CRYPTO_TRANSFER, 3),
+                Pair.of(HederaFunctionality.CRYPTO_CREATE, 3),
+                Pair.of(HederaFunctionality.CONTRACT_CALL, 2500),
+                Pair.of(HederaFunctionality.TOKEN_MINT, 10));
 
         final var mapping = subject.asThrottleMapping(networkSize);
         final var actualThrottle = mapping.getLeft();
@@ -128,7 +126,7 @@ class ThrottleBucketTest {
                 (1.0 * subject.getThrottleGroups().getFirst().getOpsPerSec()) / n;
         final var mapping = subject.asThrottleMapping(n);
         final var throttle = mapping.getLeft();
-        final var opsForXfer = opsForFunction(mapping.getRight(), CryptoTransfer);
+        final var opsForXfer = opsForFunction(mapping.getRight(), HederaFunctionality.CRYPTO_TRANSFER);
         throttle.resetUsageTo(new ThrottleUsageSnapshot(
                 throttle.capacity() - DeterministicThrottle.capacityRequiredFor(opsForXfer), null));
 

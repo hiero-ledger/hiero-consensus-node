@@ -41,6 +41,7 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.file;
     requires com.hedera.node.app.service.network.admin;
     requires com.hedera.node.app.service.util;
+    requires com.hedera.protobuf.java.api; // TODO only for BlockStreamServiceGrpc!
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkle;

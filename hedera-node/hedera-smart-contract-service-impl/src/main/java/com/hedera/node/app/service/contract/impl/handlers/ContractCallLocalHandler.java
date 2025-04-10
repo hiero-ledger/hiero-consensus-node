@@ -19,9 +19,9 @@ import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.contract.ContractCallLocalQuery;
 import com.hedera.hapi.node.contract.ContractCallLocalResponse;
+import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent.Factory;
@@ -33,7 +33,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
@@ -152,18 +151,16 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
         final var contractsConfig = context.configuration().getConfigData(ContractsConfig.class);
         return context.feeCalculator().legacyCalculate(sigValueObj -> {
             final var contractFnResult = ContractFunctionResult.newBuilder()
-                    .setContractID(CommonPbjConverters.fromPbj(op.contractIDOrElse(ContractID.DEFAULT)))
-                    .setContractCallResult(
-                            CommonPbjConverters.fromPbj(Bytes.wrap(new byte[contractsConfig.localCallEstRetBytes()])))
+                    .contractID(op.contractIDOrElse(ContractID.DEFAULT))
+                    .contractCallResult(Bytes.wrap(new byte[contractsConfig.localCallEstRetBytes()]))
                     .build();
             final var builder = new SmartContractFeeBuilder();
             final var feeData = builder.getContractCallLocalFeeMatrices(
                     (int) op.functionParameters().length(),
                     contractFnResult,
-                    CommonPbjConverters.fromPbjResponseType(
-                            op.headerOrElse(QueryHeader.DEFAULT).responseType()));
-            return feeData.toBuilder()
-                    .setNodedata(feeData.getNodedata().toBuilder().setGas(op.gas()))
+                    op.headerOrElse(QueryHeader.DEFAULT).responseType());
+            return feeData.copyBuilder()
+                    .nodedata(feeData.nodedata().copyBuilder().gas(op.gas()))
                     .build();
         });
     }

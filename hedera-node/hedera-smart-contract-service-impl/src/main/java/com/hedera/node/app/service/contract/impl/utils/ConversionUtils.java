@@ -177,20 +177,6 @@ public class ConversionUtils {
     }
 
     /**
-     * Given a {@link ScheduleID}, returns its address as a headlong address.
-     *
-     * @param scheduleID the schedule id
-     * @return the headlong address
-     */
-    public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(
-            @NonNull final com.hederahashgraph.api.proto.java.ScheduleID scheduleID) {
-        requireNonNull(scheduleID);
-        final var integralAddress =
-                asEvmAddress(scheduleID.getShardNum(), scheduleID.getRealmNum(), scheduleID.getScheduleNum());
-        return asHeadlongAddress(integralAddress);
-    }
-
-    /**
      * Given a {@link TokenID}, returns its address as a headlong address.
      *
      * @param tokenId the Token Id

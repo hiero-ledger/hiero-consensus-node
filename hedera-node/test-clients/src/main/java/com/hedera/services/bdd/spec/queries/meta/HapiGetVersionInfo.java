@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.queries.meta;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.pbjToProto;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiSpec;

@@ -9,6 +9,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.netOf;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -256,7 +257,7 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
 
     private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo) {
         final var baseMeta = new BaseTransactionMeta(txn.getMemoBytes().size(), 0);
-        final var opMeta = new CryptoCreateMeta(txn.getCryptoCreateAccount());
+        final var opMeta = new CryptoCreateMeta(toPbj(txn.getCryptoCreateAccount()));
         final var accumulator = new UsageAccumulator();
         cryptoOpsUsage.cryptoCreateUsage(suFrom(svo), baseMeta, opMeta, accumulator);
         return AdapterUtils.feeDataFrom(accumulator);

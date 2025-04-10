@@ -117,10 +117,7 @@ public class FileTestBase {
     protected final FileID fileIdNotExist = FileID.newBuilder().fileNum(6_789L).build();
     protected final FileID fileSystemFileId = WELL_KNOWN_SYSTEM_FILE_ID;
     protected final FileID fileUpgradeFileId = WELL_KNOWN_UPGRADE_FILE_ID;
-    protected final com.hederahashgraph.api.proto.java.FileID monoFileID =
-            com.hederahashgraph.api.proto.java.FileID.newBuilder()
-                    .setFileNum(1_234L)
-                    .build();
+    protected final FileID monoFileID = FileID.newBuilder().fileNum(1_234L).build();
     protected final Bytes ledgerId = Bytes.wrap(new byte[] {0});
     protected final String memo = "test memo";
     protected final long expirationTime = 1_234_567L;

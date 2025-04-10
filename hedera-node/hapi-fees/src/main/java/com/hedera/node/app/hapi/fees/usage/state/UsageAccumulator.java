@@ -11,11 +11,11 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.RECEIPT_STORAGE_TIME_SEC;
 
 import com.google.common.base.MoreObjects;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.node.app.hapi.fees.pricing.ResourceProvider;
 import com.hedera.node.app.hapi.fees.pricing.UsableResource;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
-import com.hederahashgraph.api.proto.java.FeeData;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
@@ -73,21 +73,21 @@ public class UsageAccumulator {
         final var into = new UsageAccumulator();
 
         /* Network */
-        final var networkUsage = usage.getNetworkdata();
-        into.setUniversalBpt(networkUsage.getBpt());
-        into.setVpt(networkUsage.getVpt());
-        into.setNetworkRbs(networkUsage.getRbh() * HRS_DIVISOR);
+        final var networkUsage = usage.networkdata();
+        into.setUniversalBpt(networkUsage.bpt());
+        into.setVpt(networkUsage.vpt());
+        into.setNetworkRbs(networkUsage.rbh() * HRS_DIVISOR);
 
         /* Node */
-        final var nodeUsage = usage.getNodedata();
-        into.setNumPayerKeys(nodeUsage.getVpt());
-        into.setBpr(nodeUsage.getBpr());
-        into.setSbpr(nodeUsage.getSbpr());
+        final var nodeUsage = usage.nodedata();
+        into.setNumPayerKeys(nodeUsage.vpt());
+        into.setBpr(nodeUsage.bpr());
+        into.setSbpr(nodeUsage.sbpr());
 
         /* Service */
-        final var serviceUsage = usage.getServicedata();
-        into.setRbs(serviceUsage.getRbh() * HRS_DIVISOR);
-        into.setSbs(serviceUsage.getSbh() * HRS_DIVISOR);
+        final var serviceUsage = usage.servicedata();
+        into.setRbs(serviceUsage.rbh() * HRS_DIVISOR);
+        into.setSbs(serviceUsage.sbh() * HRS_DIVISOR);
 
         return into;
     }

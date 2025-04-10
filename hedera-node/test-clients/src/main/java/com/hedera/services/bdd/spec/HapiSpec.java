@@ -56,6 +56,7 @@ import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
 import com.hedera.node.app.service.token.TokenService;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
@@ -701,7 +702,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                         Thread.currentThread().interrupt();
                     }
                 }
-            } catch (IllegalStateException | ReflectiveOperationException | GeneralSecurityException e) {
+            } catch (IllegalStateException
+                    | ReflectiveOperationException
+                    | GeneralSecurityException
+                    | ParseException e) {
                 // These are unrecoverable; save a lot of time and just fail the test.
                 failure = new Failure(e, "Irrecoverable error in test nodes or client JVM. Unable to continue.");
                 return false;

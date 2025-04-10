@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams.assertions;
 
-import com.google.protobuf.InvalidProtocolBufferException;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
+
 import com.hedera.node.app.hapi.utils.CommonUtils;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.TransactionBody;
@@ -37,10 +40,10 @@ public class TransactionBodyAssertion extends BaseIdScreenedAssertion {
     @Override
     public boolean test(@NonNull final RecordStreamItem item) throws AssertionError {
         try {
-            final var txn = CommonUtils.extractTransactionBody(item.getTransaction());
+            final var txn = fromPbj(CommonUtils.extractTransactionBody(toPbj(item.getTransaction())));
             bodyAssertion.accept(spec, txn);
             return true;
-        } catch (InvalidProtocolBufferException e) {
+        } catch (ParseException e) {
             throw new AssertionFailedError("Transaction body could not be parsed from item " + item);
         }
     }

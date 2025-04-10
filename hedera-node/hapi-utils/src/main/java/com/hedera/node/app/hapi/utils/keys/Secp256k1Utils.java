@@ -4,8 +4,8 @@ package com.hedera.node.app.hapi.utils.keys;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.BC_PROVIDER;
 
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.Key;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.math.BigInteger;
@@ -42,7 +42,7 @@ public class Secp256k1Utils {
     }
 
     public static byte[] extractEcdsaPublicKey(final Key key) {
-        return key.getECDSASecp256K1().toByteArray();
+        return key.ecdsaSecp256k1().toByteArray();
     }
 
     public static ECPrivateKey readECKeyFrom(final File pem, final String passphrase) {

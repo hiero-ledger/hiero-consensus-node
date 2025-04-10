@@ -6,6 +6,8 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ScheduleCreate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
@@ -277,7 +279,7 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
         final var defaultExpiry =
                 spec.targetNetworkOrThrow().startupProperties().getInteger("ledger.schedule.txExpiryTimeSecs");
         FeeCalculator.ActivityMetrics metricsCalc =
-                (_txn, svo) -> scheduleOpsUsage.scheduleCreateUsage(_txn, suFrom(svo), defaultExpiry);
+                (_txn, svo) -> fromPbj(scheduleOpsUsage.scheduleCreateUsage(toPbj(_txn), suFrom(svo), defaultExpiry));
 
         return spec.fees().forActivityBasedOp(HederaFunctionality.ScheduleCreate, metricsCalc, txn, numPayerKeys);
     }

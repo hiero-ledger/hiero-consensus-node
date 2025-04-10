@@ -7,8 +7,10 @@ import static com.hedera.hapi.node.base.ResponseType.COST_ANSWER;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.utility.CommonUtils.hex;
 
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.base.Timestamp;
@@ -20,7 +22,6 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.fees.usage.file.ExtantFileContext;
 import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.file.FileMetadata;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
@@ -31,7 +32,6 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.FeeData;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -90,9 +90,7 @@ public class FileGetInfoHandler extends FileQueryBase {
         final var fileId = op.fileIDOrElse(FileID.DEFAULT);
         final File file = fileStore.getFileLeaf(fileId);
 
-        return queryContext
-                .feeCalculator()
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(query), file));
+        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> usageGiven(query, file));
     }
 
     @Override
@@ -187,18 +185,16 @@ public class FileGetInfoHandler extends FileQueryBase {
         }
     }
 
-    private FeeData usageGiven(
-            @NonNull final com.hederahashgraph.api.proto.java.Query query, @Nullable final File file) {
+    private FeeData usageGiven(@NonNull final Query query, @Nullable final File file) {
         requireNonNull(query);
         if (file == null) {
-            return FeeData.getDefaultInstance();
+            return FeeData.DEFAULT;
         }
-        final com.hederahashgraph.api.proto.java.File details = CommonPbjConverters.fromPbj(file);
         final var ctx = ExtantFileContext.newBuilder()
-                .setCurrentSize(details.getContents().toByteArray().length)
-                .setCurrentWacl(details.getKeys())
-                .setCurrentMemo(details.getMemo())
-                .setCurrentExpiry(details.getExpirationSecond())
+                .setCurrentSize(file.contents().toByteArray().length)
+                .setCurrentWacl(file.keysOrElse(KeyList.DEFAULT))
+                .setCurrentMemo(file.memo())
+                .setCurrentExpiry(file.expirationSecond())
                 .build();
         return fileOpsUsage.fileInfoUsage(query, ctx);
     }

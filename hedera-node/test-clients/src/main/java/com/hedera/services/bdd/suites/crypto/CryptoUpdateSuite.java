@@ -48,6 +48,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoUpdate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
@@ -188,10 +189,10 @@ public class CryptoUpdateSuite {
             for (final var txnId : rotationTxnIds) {
                 final var successItems = requireNonNull(records.get(txnId), txnId + " not found");
                 final var updateEntry = successItems.entries().stream()
-                        .filter(entry -> entry.function() == CryptoUpdate)
+                        .filter(entry -> fromPbj(entry.function()) == CryptoUpdate)
                         .findFirst()
                         .orElseThrow();
-                assertEquals(0, updateEntry.txnRecord().getEvmAddress().size(), "for txnId " + txnId);
+                assertEquals(0, fromPbj(updateEntry.txnRecord()).getEvmAddress().size(), "for txnId " + txnId);
             }
         };
     }

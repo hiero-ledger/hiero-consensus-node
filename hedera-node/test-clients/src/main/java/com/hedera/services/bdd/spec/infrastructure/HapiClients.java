@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.infrastructure;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.pbjToProto;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.base.MoreObjects;

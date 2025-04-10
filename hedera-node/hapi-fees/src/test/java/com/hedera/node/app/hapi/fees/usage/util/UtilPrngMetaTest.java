@@ -3,8 +3,8 @@ package com.hedera.node.app.hapi.fees.usage.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.UtilPrngTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.util.UtilPrngTransactionBody;
 import org.junit.jupiter.api.Test;
 
 class UtilPrngMetaTest {
@@ -32,18 +32,18 @@ class UtilPrngMetaTest {
     @Test
     void calculatesSizesAsExpected() {
         var canonicalTxn = TransactionBody.newBuilder()
-                .setUtilPrng(UtilPrngTransactionBody.newBuilder().setRange(10))
+                .utilPrng(UtilPrngTransactionBody.newBuilder().range(10))
                 .build();
 
-        var subject = new UtilPrngMeta(canonicalTxn.getUtilPrng());
+        var subject = new UtilPrngMeta(canonicalTxn.utilPrng());
         assertEquals(4, subject.getMsgBytesUsed());
 
         // without range
         canonicalTxn = TransactionBody.newBuilder()
-                .setUtilPrng(UtilPrngTransactionBody.newBuilder())
+                .utilPrng(UtilPrngTransactionBody.newBuilder())
                 .build();
 
-        subject = new UtilPrngMeta(canonicalTxn.getUtilPrng());
+        subject = new UtilPrngMeta(canonicalTxn.utilPrng());
         assertEquals(0, subject.getMsgBytesUsed());
     }
 }

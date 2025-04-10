@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils;
 
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import org.apache.tuweni.bytes.Bytes;
 
 /**

@@ -13,7 +13,6 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.consensus.Topic;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.ReadableTopicStoreImpl;
@@ -45,7 +44,7 @@ class ReadableTopicStoreImplTest extends ConsensusTestBase {
         assertEquals(autoRenewId, topic.autoRenewAccountId());
         assertEquals(memo, topic.memo());
         assertFalse(topic.deleted());
-        assertArrayEquals(runningHash, CommonPbjConverters.asBytes(topic.runningHash()));
+        assertArrayEquals(runningHash, topic.runningHash().toByteArray());
     }
 
     @Test
@@ -69,7 +68,7 @@ class ReadableTopicStoreImplTest extends ConsensusTestBase {
         assertEquals(accountId, topic.autoRenewAccountId());
         assertEquals(memo, topic.memo());
         assertFalse(topic.deleted());
-        assertArrayEquals(runningHash, CommonPbjConverters.asBytes(topic.runningHash()));
+        assertArrayEquals(runningHash, topic.runningHash().toByteArray());
     }
 
     @Test

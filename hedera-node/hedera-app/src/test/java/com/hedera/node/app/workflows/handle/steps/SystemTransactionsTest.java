@@ -260,7 +260,7 @@ class SystemTransactionsTest {
       "throttleGroups": [
         {
           "opsPerSec": 1,
-          "operations": [ "TokenMint" ]
+          "operations": [ "TOKEN_MINT" ]
         }
       ]
     }
@@ -330,7 +330,7 @@ class SystemTransactionsTest {
       "throttleGroups": [
         {
           "opsPerSec": 1,
-          "operations": [ "TokenMint" ]
+          "operations": [ "TOKEN_MINT" ]
         }
       ]
     }

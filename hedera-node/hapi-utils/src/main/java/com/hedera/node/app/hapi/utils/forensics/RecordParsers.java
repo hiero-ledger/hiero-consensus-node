@@ -5,8 +5,8 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.timestampToInstant;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.readMaybeCompressedRecordStreamFile;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.readSidecarFile;
 
+import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils;
-import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -58,14 +58,13 @@ public class RecordParsers {
         final var recordFiles = RecordStreamingUtils.orderedRecordFilesFrom(streamDir, inclusionTest);
         final List<RecordStreamEntry> entries = new ArrayList<>();
         for (final var recordFile : recordFiles) {
-            readMaybeCompressedRecordStreamFile(recordFile)
-                    .getValue()
-                    .ifPresent(records -> records.getRecordStreamItemsList().forEach(item -> {
-                        final var itemRecord = item.getRecord();
+            readMaybeCompressedRecordStreamFile(recordFile).getValue().ifPresent(records -> records.recordStreamItems()
+                    .forEach(item -> {
+                        final var itemRecord = item.record();
                         entries.add(new RecordStreamEntry(
-                                TransactionParts.from(item.getTransaction()),
+                                TransactionParts.from(item.transaction()),
                                 itemRecord,
-                                timestampToInstant(itemRecord.getConsensusTimestamp())));
+                                timestampToInstant(itemRecord.consensusTimestamp())));
                     }));
         }
         return entries;
@@ -89,9 +88,9 @@ public class RecordParsers {
         final Map<Instant, List<TransactionSidecarRecord>> sidecarRecords = new HashMap<>();
         for (final var sidecarFile : sidecarFiles) {
             final var data = readSidecarFile(sidecarFile);
-            data.getSidecarRecordsList().forEach(sidecarRecord -> sidecarRecords
+            data.sidecarRecords().forEach(sidecarRecord -> sidecarRecords
                     .computeIfAbsent(
-                            timestampToInstant(sidecarRecord.getConsensusTimestamp()), ignore -> new ArrayList<>())
+                            timestampToInstant(sidecarRecord.consensusTimestamp()), ignore -> new ArrayList<>())
                     .add(sidecarRecord));
         }
         return sidecarRecords;

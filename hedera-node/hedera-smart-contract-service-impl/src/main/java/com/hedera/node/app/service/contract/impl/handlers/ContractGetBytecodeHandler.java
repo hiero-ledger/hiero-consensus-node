@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbjResponseType;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -117,8 +116,8 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
         }
         final var op = getOperation(context);
         final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
-        final var usage = feeBuilder.getContractByteCodeQueryFeeMatrices(
-                (int) effectiveBytecode.length(), fromPbjResponseType(responseType));
+        final var usage =
+                feeBuilder.getContractByteCodeQueryFeeMatrices((int) effectiveBytecode.length(), responseType);
         return context.feeCalculator().legacyCalculate(sigValueObj -> usage);
     }
 

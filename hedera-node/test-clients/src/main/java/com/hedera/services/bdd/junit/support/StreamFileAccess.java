@@ -8,6 +8,7 @@ import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStrea
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.readMaybeCompressedRecordStreamFile;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.TEST_CLIENTS_PREFIX;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentWithCurrentPathPrefix;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.fromPbj;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
@@ -182,7 +183,7 @@ public enum StreamFileAccess {
             if (contents.getRight().isEmpty()) {
                 throw new IllegalArgumentException("No record found in " + f);
             }
-            return contents.getRight().get();
+            return fromPbj(contents.getRight().get());
         } catch (IOException e) {
             throw new UncheckedIOException("Could not read record stream file " + f, e);
         }
@@ -190,7 +191,7 @@ public enum StreamFileAccess {
 
     public static SidecarFile ensurePresentSidecarFile(final String f) {
         try {
-            return RecordStreamingUtils.readMaybeCompressedSidecarFile(f);
+            return fromPbj(RecordStreamingUtils.readMaybeCompressedSidecarFile(f));
         } catch (IOException e) {
             throw new UncheckedIOException("Could not read record stream file " + f, e);
         }

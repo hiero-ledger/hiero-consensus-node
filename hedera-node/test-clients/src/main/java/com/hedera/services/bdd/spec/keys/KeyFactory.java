@@ -4,6 +4,7 @@ package com.hedera.services.bdd.spec.keys;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.UNIQUE_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asContractId;
+import static com.hedera.services.bdd.utils.CommonPbjConverters.toPbj;
 import static java.util.Map.Entry;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
@@ -615,7 +616,7 @@ public class KeyFactory {
             @NonNull final SigMapGenerator sigMapGen,
             @NonNull final List<Entry<Key, SigControl>> authors)
             throws Throwable {
-        final var signing = new PrimitiveSigning(CommonUtils.extractTransactionBodyBytes(txn), authors);
+        final var signing = new PrimitiveSigning(CommonUtils.extractTransactionBodyBytes(toPbj(txn.build())), authors);
         final var primitiveSigs = signing.completed();
         final var sigMap = sigMapGen.forPrimitiveSigs(spec, primitiveSigs);
         txn.setSigMap(sigMap);

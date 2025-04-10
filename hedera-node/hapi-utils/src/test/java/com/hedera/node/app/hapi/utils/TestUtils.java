@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils;
 
+import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.node.app.hapi.utils.sysfiles.serdes.ThrottlesJsonToProtoSerde;
-import com.hederahashgraph.api.proto.java.ThrottleDefinitions;
 import java.io.IOException;
 
 public class TestUtils {
