@@ -29,6 +29,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
@@ -75,6 +76,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_ALLOWANC
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALLOWANCE_SPENDER_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_DELEGATING_SPENDER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
@@ -86,6 +88,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_ACCOUN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -1594,5 +1597,104 @@ public class CryptoApproveAllowanceSuite {
                 getAccountBalance(SPENDER).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
                 getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
                 getAccountBalance(SPENDER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> approveAllowanceForDeletedToken() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .supplyKey(SUPPLY_KEY)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .initialSupply(0),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a"))),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
+                cryptoTransfer(
+                        moving(500L, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER),
+                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
+                tokenDelete(FUNGIBLE_TOKEN),
+                tokenDelete(NON_FUNGIBLE_TOKEN),
+                // try to approve allowance for deleted fungible token
+                cryptoApproveAllowance()
+                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .hasKnownStatus(TOKEN_WAS_DELETED),
+
+                // try to approve allowance for deleted nft token
+                cryptoApproveAllowance()
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of())
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .hasKnownStatus(TOKEN_WAS_DELETED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> approveAllowanceToOwner() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .supplyKey(SUPPLY_KEY)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a"))),
+                tokenCreate(FUNGIBLE_TOKEN).supplyKey(SUPPLY_KEY).treasury(TOKEN_TREASURY),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
+                cryptoTransfer(
+                        moving(500L, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER),
+                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
+
+                // try to approve allowance to the owner
+                cryptoApproveAllowance()
+                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, OWNER, 100L)
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .hasKnownStatus(SUCCESS),
+
+                // try to approve allowance to the owner
+                cryptoApproveAllowance()
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, OWNER, true, List.of())
+                        .signedBy(DEFAULT_PAYER, OWNER)
+                        .hasKnownStatus(SPENDER_ACCOUNT_SAME_AS_OWNER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> delegateAllowanceFromDeletedSpender() {
+        final var SECOND_SPENDER = "secondSpender";
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SECOND_SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .supplyKey(SUPPLY_KEY)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a"))),
+                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                tokenAssociate(SPENDER, NON_FUNGIBLE_TOKEN),
+                tokenAssociate(SECOND_SPENDER, NON_FUNGIBLE_TOKEN),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
+                cryptoApproveAllowance()
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, true, List.of())
+                        .signedByPayerAnd(OWNER),
+                cryptoDelete(SPENDER),
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addDelegatedNftAllowance(
+                                OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, SPENDER, false, List.of(1L))
+                        .signedByPayerAnd(SPENDER)
+                        .hasKnownStatus(INVALID_DELEGATING_SPENDER));
     }
 }
