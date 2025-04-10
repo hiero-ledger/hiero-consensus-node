@@ -5,16 +5,25 @@ import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.input.EventHeader;
+import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.platform.event.EventCore;
+import com.hedera.hapi.platform.event.EventDescriptor;
+import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
@@ -25,10 +34,10 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
+import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
@@ -39,22 +48,26 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
-import java.util.function.Function;
+import java.util.Optional;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.junit.jupiter.api.BeforeEach;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -65,6 +78,9 @@ class HandleWorkflowTest {
 
     @Mock
     private HintsService hintsService;
+
+    @Mock
+    private BlockHashSigner blockHashSigner;
 
     @Mock
     private HistoryService historyService;
@@ -144,14 +160,10 @@ class HandleWorkflowTest {
     @Mock
     private CongestionMetrics congestionMetrics;
 
+    @Mock
+    private NodeRewardManager nodeRewardManager;
+
     private HandleWorkflow subject;
-
-    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
-
-    @BeforeEach
-    void setUp() {
-        softwareVersionFactory = ServicesSoftwareVersion::new;
-    }
 
     @Test
     void onlySkipsEventWithMissingCreator() {
@@ -183,7 +195,7 @@ class HandleWorkflowTest {
     void writesEachMigrationStateChangeWithBlockTimestamp() {
         given(round.iterator()).willReturn(List.of(event).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
-        given(systemTransactions.startupWorkConsTimeFor(any())).willReturn(NOW);
+        given(systemTransactions.restartSystemChangesTimeAt(any())).willReturn(NOW);
         final var firstBuilder = StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT));
         final var secondBuilder =
                 StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT, StateChange.DEFAULT));
@@ -198,6 +210,233 @@ class HandleWorkflowTest {
                         .build()));
     }
 
+    @Test
+    void writeEventHeaderWithNoParentEvents() {
+        // Setup event with no parents
+        given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(event.allParentsIterator())
+                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
+
+        // Set up the round
+        given(round.iterator()).willReturn(List.of(event).iterator());
+
+        // Setup node info for event creator
+        NodeId creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(event.consensusTransactionIterator())
+                .willReturn(List.<ConsensusTransaction>of().iterator());
+
+        // Create subject with BLOCKS mode
+        givenSubjectWith(StreamMode.BLOCKS, List.of());
+
+        // WHEN
+        subject.handleRound(state, round, txns -> {});
+
+        // THEN
+        verify(blockStreamManager).trackEventHash(event.getHash());
+
+        ArgumentCaptor<BlockItem> blockItemCaptor = ArgumentCaptor.forClass(BlockItem.class);
+        verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
+
+        // Find the BlockItem that has an event header
+        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+                .filter(BlockItem::hasEventHeader)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
+
+        EventHeader header = eventHeaderItem.eventHeaderOrThrow();
+        assertEquals(EventCore.DEFAULT, header.eventCore());
+        assertTrue(header.parents().isEmpty());
+    }
+
+    @Test
+    void writeEventHeaderWithParentEventsInCurrentBlock() {
+        // Create event hash and parent hash
+        Hash eventHash = CryptoRandomUtils.randomHash();
+        Hash parentHash = CryptoRandomUtils.randomHash();
+
+        // Setup parent in current block
+        given(blockStreamManager.getEventIndex(parentHash)).willReturn(Optional.of(5)); // Parent is at index 5
+
+        // Setup event with one parent
+        EventDescriptorWrapper parent = mock(EventDescriptorWrapper.class);
+        given(parent.hash()).willReturn(parentHash);
+
+        given(event.getHash()).willReturn(eventHash);
+        given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
+
+        // Setup node info for event creator
+        NodeId creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(event.consensusTransactionIterator())
+                .willReturn(List.<ConsensusTransaction>of().iterator());
+
+        // Set up the round
+        given(round.iterator()).willReturn(List.of(event).iterator());
+
+        // Create subject with BLOCKS mode
+        givenSubjectWith(StreamMode.BLOCKS, List.of());
+
+        // WHEN
+        subject.handleRound(state, round, txns -> {});
+
+        // THEN
+        verify(blockStreamManager).trackEventHash(eventHash);
+
+        ArgumentCaptor<BlockItem> blockItemCaptor = ArgumentCaptor.forClass(BlockItem.class);
+        verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
+
+        // Find the BlockItem that has an event header
+        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+                .filter(BlockItem::hasEventHeader)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
+
+        EventHeader header = eventHeaderItem.eventHeaderOrThrow();
+
+        // Verify parent reference uses index
+        assertEquals(1, header.parents().size());
+        ParentEventReference parentRef = header.parents().get(0);
+        assertTrue(parentRef.hasIndex());
+        assertEquals(5, parentRef.indexOrThrow());
+        assertFalse(parentRef.hasEventDescriptor());
+    }
+
+    @Test
+    void writeEventHeaderWithParentEventsNotInCurrentBlock() {
+        // Create event hash and parent hash
+        Hash eventHash = CryptoRandomUtils.randomHash();
+        Hash parentHash = CryptoRandomUtils.randomHash();
+
+        // Setup parent not in current block
+        given(blockStreamManager.getEventIndex(parentHash)).willReturn(Optional.empty());
+
+        // Setup event with one parent
+        EventDescriptor parentDescriptor = EventDescriptor.newBuilder().build();
+        EventDescriptorWrapper parent = mock(EventDescriptorWrapper.class);
+        given(parent.hash()).willReturn(parentHash);
+        given(parent.eventDescriptor()).willReturn(parentDescriptor);
+
+        given(event.getHash()).willReturn(eventHash);
+        given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
+
+        // Setup node info for event creator
+        NodeId creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+
+        // Set up the round
+        given(round.iterator()).willReturn(List.of(event).iterator());
+
+        // Create subject with BLOCKS mode
+        givenSubjectWith(StreamMode.BLOCKS, List.of());
+
+        // WHEN
+        subject.handleRound(state, round, txns -> {});
+
+        // THEN
+        verify(blockStreamManager).trackEventHash(eventHash);
+
+        ArgumentCaptor<BlockItem> blockItemCaptor = ArgumentCaptor.forClass(BlockItem.class);
+        verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
+
+        // Find the BlockItem that has an event header
+        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+                .filter(BlockItem::hasEventHeader)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
+
+        EventHeader header = eventHeaderItem.eventHeaderOrThrow();
+
+        // Verify parent reference uses full descriptor
+        assertEquals(1, header.parents().size());
+        ParentEventReference parentRef = header.parents().get(0);
+        assertFalse(parentRef.hasIndex());
+        assertTrue(parentRef.hasEventDescriptor());
+        assertEquals(parentDescriptor, parentRef.eventDescriptorOrThrow());
+    }
+
+    @Test
+    void writeEventHeaderWithMixedParentEvents() {
+        // Create event hash and parent hashes
+        Hash eventHash = CryptoRandomUtils.randomHash();
+        Hash parentInBlockHash = CryptoRandomUtils.randomHash();
+        Hash parentNotInBlockHash = CryptoRandomUtils.randomHash();
+
+        // Setup parents - one in block, one not in block
+        given(blockStreamManager.getEventIndex(parentInBlockHash)).willReturn(Optional.of(3));
+        given(blockStreamManager.getEventIndex(parentNotInBlockHash)).willReturn(Optional.empty());
+
+        // Setup descriptors for parents
+        EventDescriptor notInBlockDescriptor = EventDescriptor.newBuilder().build();
+
+        // Setup parent wrappers
+        EventDescriptorWrapper parentInBlock = mock(EventDescriptorWrapper.class);
+        given(parentInBlock.hash()).willReturn(parentInBlockHash);
+
+        EventDescriptorWrapper parentNotInBlock = mock(EventDescriptorWrapper.class);
+        given(parentNotInBlock.hash()).willReturn(parentNotInBlockHash);
+        given(parentNotInBlock.eventDescriptor()).willReturn(notInBlockDescriptor);
+
+        // Setup event with two parents
+        given(event.getHash()).willReturn(eventHash);
+        given(event.allParentsIterator())
+                .willReturn(List.of(parentInBlock, parentNotInBlock).iterator());
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
+
+        // Setup node info for event creator
+        NodeId creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+
+        // Set up the round
+        given(round.iterator()).willReturn(List.of(event).iterator());
+
+        // Create subject with BLOCKS mode
+        givenSubjectWith(StreamMode.BLOCKS, List.of());
+
+        // WHEN
+        subject.handleRound(state, round, txns -> {});
+
+        // THEN
+        verify(blockStreamManager).trackEventHash(eventHash);
+
+        ArgumentCaptor<BlockItem> blockItemCaptor = ArgumentCaptor.forClass(BlockItem.class);
+        verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
+
+        // Find the BlockItem that has an event header
+        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+                .filter(BlockItem::hasEventHeader)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
+
+        EventHeader header = eventHeaderItem.eventHeaderOrThrow();
+
+        // Verify parent references - one index, one descriptor
+        assertEquals(2, header.parents().size());
+
+        ParentEventReference inBlockRef = header.parents().get(0);
+        assertTrue(inBlockRef.hasIndex());
+        assertEquals(3, inBlockRef.indexOrThrow());
+        assertFalse(inBlockRef.hasEventDescriptor());
+
+        ParentEventReference notInBlockRef = header.parents().get(1);
+        assertFalse(notInBlockRef.hasIndex());
+        assertTrue(notInBlockRef.hasEventDescriptor());
+        assertEquals(notInBlockDescriptor, notInBlockRef.eventDescriptorOrThrow());
+    }
+
     private void givenSubjectWith(
             @NonNull final StreamMode mode, @NonNull final List<StateChanges.Builder> migrationStateChanges) {
         final var config = HederaTestConfigBuilder.create()
@@ -206,6 +445,7 @@ class HandleWorkflowTest {
                 .withValue("tss.historyEnabled", "false")
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        given(round.getConsensusTimestamp()).willReturn(NOW);
         subject = new HandleWorkflow(
                 networkInfo,
                 stakePeriodChanges,
@@ -232,8 +472,9 @@ class HandleWorkflowTest {
                 hintsService,
                 historyService,
                 congestionMetrics,
-                softwareVersionFactory,
                 () -> PlatformStatus.ACTIVE,
-                null);
+                blockHashSigner,
+                null,
+                nodeRewardManager);
     }
 }

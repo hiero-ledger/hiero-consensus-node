@@ -73,7 +73,6 @@ import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -158,10 +157,9 @@ public class TransactionExecutorsTest {
     private static final String EXPECTED_TRACE_START =
             "{\"pc\":0,\"op\":96,\"gas\":\"0x13458\",\"gasCost\":\"0x3\",\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
     private static final NodeInfo DEFAULT_NODE_INFO =
-            new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of());
+            new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), true);
 
     public static final Metrics NO_OP_METRICS = new NoOpMetrics();
-    public static final NetworkInfo FAKE_NETWORK_INFO = fakeNetworkInfo();
 
     @Mock
     private SignatureVerifier signatureVerifier;
@@ -397,11 +395,7 @@ public class TransactionExecutorsTest {
                 () -> DEFAULT_NODE_INFO,
                 () -> NO_OP_METRICS,
                 new AppThrottleFactory(
-                        () -> config,
-                        () -> state,
-                        () -> ThrottleDefinitions.DEFAULT,
-                        ThrottleAccumulator::new,
-                        v -> new ServicesSoftwareVersion()),
+                        () -> config, () -> state, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
                 () -> NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(config));
         registerServices(appContext, servicesRegistry);
@@ -411,8 +405,7 @@ public class TransactionExecutorsTest {
                 state,
                 servicesRegistry,
                 null,
-                new ServicesSoftwareVersion(
-                        bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion()),
+                bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion(),
                 new ConfigProviderImpl().getConfiguration(),
                 config,
                 NO_OP_METRICS,
@@ -533,7 +526,8 @@ public class TransactionExecutorsTest {
                         0,
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
                         getCertBytes(randomX509Certificate()),
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT));
+                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
+                        true);
             }
 
             @NonNull
@@ -545,7 +539,8 @@ public class TransactionExecutorsTest {
                         0,
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
                         getCertBytes(randomX509Certificate()),
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT)));
+                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
+                        false));
             }
 
             @Override
@@ -556,7 +551,8 @@ public class TransactionExecutorsTest {
                         0,
                         List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
                         Bytes.EMPTY,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT));
+                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
+                        false);
             }
 
             @Override

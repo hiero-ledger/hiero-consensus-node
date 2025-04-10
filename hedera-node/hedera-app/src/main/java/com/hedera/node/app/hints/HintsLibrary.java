@@ -14,7 +14,7 @@ import java.util.SortedMap;
  * <ul>
  *   <li><b>CRS creation</b> ({@code Setup}) - Implemented by using {@link HintsLibrary#newCrs(int)},
  *   {@link HintsLibrary#updateCrs(Bytes, Bytes)}, and {@link HintsLibrary#verifyCrsUpdate(Bytes, Bytes, Bytes)}.</li>
- *   <li><b>Key generation</b> ({@code KGen}) - Implemented by {@link HintsLibrary#newBlsKeyPair()}.</li>
+ *   <li><b>Key generation</b> ({@code KGen}) - Implemented by {@link HintsLibrary#newBlsPrivateKey()}.</li>
  *   <li><b>Hint generation</b> ({@code HintGen}) - Implemented by {@link HintsLibrary#computeHints(Bytes, Bytes, int, int)}.</li>
  *   <li><b>Preprocessing</b> ({@code Preprocess}) - Implemented by using {@link HintsLibrary#preprocess(Bytes, SortedMap, SortedMap, int)}
  *   to select the hinTS keys to use as input to {@link HintsLibrary#preprocess(Bytes, SortedMap, SortedMap, int)}.</li>
@@ -57,7 +57,7 @@ public interface HintsLibrary {
      * Generates a new BLS key pair.
      * @return the key pair
      */
-    Bytes newBlsKeyPair();
+    Bytes newBlsPrivateKey();
 
     /**
      * Computes the hints for the given public key and number of parties.
@@ -147,7 +147,7 @@ public interface HintsLibrary {
     /**
      * Checks an aggregate signature on a message verifies under a hinTS verification key, where
      * this is only true if the aggregate signature has weight exceeding the specified threshold
-     * or total weight stipulated in the verification key.
+     * of total weight stipulated in the verification key.
      *
      * @param signature            the aggregate signature
      * @param message              the message

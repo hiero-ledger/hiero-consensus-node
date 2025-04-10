@@ -1,17 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.stale;
 
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.transformers.RoutableData;
-import com.swirlds.platform.eventhandling.EventConfig;
-import com.swirlds.platform.sequence.map.StandardSequenceMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.ToLongFunction;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -19,6 +15,7 @@ import org.hiero.consensus.model.event.StaleEventDetectorOutput;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
 
 /**
  * Detects when a self event becomes stale. Note that this detection may not observe a self event go stale if the node
@@ -61,13 +58,7 @@ public class DefaultStaleEventDetector implements StaleEventDetector {
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
 
-        final ToLongFunction<EventDescriptorWrapper> getAncientIdentifier;
-        if (ancientMode == BIRTH_ROUND_THRESHOLD) {
-            getAncientIdentifier = ed -> ed.eventDescriptor().birthRound();
-        } else {
-            getAncientIdentifier = ed -> ed.eventDescriptor().generation();
-        }
-        selfEvents = new StandardSequenceMap<>(0, 1024, true, getAncientIdentifier);
+        selfEvents = new StandardSequenceMap<>(0, 1024, true, ancientMode::selectIndicator);
 
         metrics = new StaleEventDetectorMetrics(platformContext);
     }

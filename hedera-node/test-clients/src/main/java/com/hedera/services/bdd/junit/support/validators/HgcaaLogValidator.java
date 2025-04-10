@@ -79,7 +79,13 @@ public class HgcaaLogValidator {
                 List.of("Candidate roster was rejected"),
                 List.of("Throttle multiplier for CryptoTransfer throughput congestion has no throttle buckets"),
                 // Although we do want a little more visibility for these messages, they shouldn't fail a CI run
-                List.of("Proof future for construction", "must wait until previous finished"));
+                List.of("Proof future for construction", "must wait until previous finished"),
+                List.of("Ignoring forced handoff to incomplete construction"),
+                List.of("Completing signing attempt without obtaining a signature"),
+                List.of("No pending blocks found"),
+                List.of("Forcing handoff to construction", "with different target roster"),
+                List.of("HintsSubmissions", "Failed to submit", "(PLATFORM_NOT_ACTIVE)"),
+                List.of("Ignoring invalid partial signature"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

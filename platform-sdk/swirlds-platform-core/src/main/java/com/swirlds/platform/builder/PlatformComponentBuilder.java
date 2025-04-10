@@ -17,13 +17,12 @@ import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.PlatformSigner;
+import com.swirlds.platform.event.DefaultFutureEventBuffer;
+import com.swirlds.platform.event.FutureEventBuffer;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
 import com.swirlds.platform.event.branching.DefaultBranchReporter;
-import com.swirlds.platform.event.creation.DefaultEventCreationManager;
-import com.swirlds.platform.event.creation.EventCreationManager;
-import com.swirlds.platform.event.creation.EventCreator;
 import com.swirlds.platform.event.creation.tipset.TipsetEventCreator;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
 import com.swirlds.platform.event.deduplication.StandardEventDeduplicator;
@@ -51,11 +50,7 @@ import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.gossip.SyncGossip;
-import com.swirlds.platform.gossip.config.GossipConfig;
-import com.swirlds.platform.gossip.modular.SyncGossipModular;
-import com.swirlds.platform.pool.DefaultTransactionPool;
-import com.swirlds.platform.pool.TransactionPool;
+import com.swirlds.platform.gossip.SyncGossipModular;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.DefaultHashLogger;
@@ -84,6 +79,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
+import org.hiero.consensus.event.creator.impl.EventCreationManager;
+import org.hiero.consensus.event.creator.impl.EventCreator;
+import org.hiero.consensus.event.creator.impl.pool.DefaultTransactionPool;
+import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.model.event.CesEvent;
 
 /**
@@ -136,6 +136,7 @@ public class PlatformComponentBuilder {
     private StateSigner stateSigner;
     private TransactionHandler transactionHandler;
     private LatestCompleteStateNotifier latestCompleteStateNotifier;
+    private FutureEventBuffer futureEventBuffer;
 
     private SwirldsPlatform swirldsPlatform;
 
@@ -344,7 +345,7 @@ public class PlatformComponentBuilder {
             eventSignatureValidator = new DefaultEventSignatureValidator(
                     blocks.platformContext(),
                     CryptoStatic::verifySignature,
-                    blocks.appVersion().getPbjSemanticVersion(),
+                    blocks.appVersion(),
                     blocks.rosterHistory().getPreviousRoster(),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.intakeEventCounter());
@@ -482,7 +483,7 @@ public class PlatformComponentBuilder {
                     data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
-                    blocks.appVersion().getPbjSemanticVersion(),
+                    blocks.appVersion(),
                     blocks.transactionPoolNexus());
 
             eventCreationManager = new DefaultEventCreationManager(
@@ -768,7 +769,7 @@ public class PlatformComponentBuilder {
             issDetector = new DefaultIssDetector(
                     blocks.platformContext(),
                     blocks.rosterHistory().getCurrentRoster(),
-                    blocks.appVersion().getPbjSemanticVersion(),
+                    blocks.appVersion(),
                     ignorePreconsensusSignatures,
                     roundToIgnore);
         }
@@ -936,47 +937,20 @@ public class PlatformComponentBuilder {
     @NonNull
     public Gossip buildGossip() {
         if (gossip == null) {
-
-            var useModularizedGossip = blocks.platformContext()
-                    .getConfiguration()
-                    .getConfigData(GossipConfig.class)
-                    .useModularizedGossip();
-
-            if (useModularizedGossip) {
-                gossip = new SyncGossipModular(
-                        blocks.platformContext(),
-                        AdHocThreadManager.getStaticThreadManager(),
-                        blocks.keysAndCerts(),
-                        blocks.rosterHistory().getCurrentRoster(),
-                        blocks.selfId(),
-                        blocks.appVersion(),
-                        blocks.swirldStateManager(),
-                        () -> blocks.getLatestCompleteStateReference().get().get(),
-                        x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
-                        state -> blocks.loadReconnectStateReference().get().accept(state),
-                        () -> blocks.clearAllPipelinesForReconnectReference()
-                                .get()
-                                .run(),
-                        blocks.intakeEventCounter(),
-                        blocks.platformStateFacade());
-            } else {
-                gossip = new SyncGossip(
-                        blocks.platformContext(),
-                        AdHocThreadManager.getStaticThreadManager(),
-                        blocks.keysAndCerts(),
-                        blocks.rosterHistory().getCurrentRoster(),
-                        blocks.selfId(),
-                        blocks.appVersion(),
-                        blocks.swirldStateManager(),
-                        () -> blocks.getLatestCompleteStateReference().get().get(),
-                        x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
-                        state -> blocks.loadReconnectStateReference().get().accept(state),
-                        () -> blocks.clearAllPipelinesForReconnectReference()
-                                .get()
-                                .run(),
-                        blocks.intakeEventCounter(),
-                        blocks.platformStateFacade());
-            }
+            gossip = new SyncGossipModular(
+                    blocks.platformContext(),
+                    AdHocThreadManager.getStaticThreadManager(),
+                    blocks.keysAndCerts(),
+                    blocks.rosterHistory().getCurrentRoster(),
+                    blocks.selfId(),
+                    blocks.appVersion(),
+                    blocks.swirldStateManager(),
+                    () -> blocks.getLatestCompleteStateReference().get().get(),
+                    x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
+                    state -> blocks.loadReconnectStateReference().get().accept(state),
+                    () -> blocks.clearAllPipelinesForReconnectReference().get().run(),
+                    blocks.intakeEventCounter(),
+                    blocks.platformStateFacade());
         }
         return gossip;
     }
@@ -1210,7 +1184,7 @@ public class PlatformComponentBuilder {
                     blocks.platformContext(),
                     blocks.swirldStateManager(),
                     blocks.statusActionSubmitterReference().get(),
-                    blocks.appVersion().getPbjSemanticVersion(),
+                    blocks.appVersion(),
                     blocks.platformStateFacade());
         }
         return transactionHandler;
@@ -1247,5 +1221,34 @@ public class PlatformComponentBuilder {
             latestCompleteStateNotifier = new DefaultLatestCompleteStateNotifier();
         }
         return latestCompleteStateNotifier;
+    }
+
+    /**
+     * Builds the {@link FutureEventBuffer} if it has not yet been built and returns it.
+     *
+     * @return the future event buffer
+     */
+    @NonNull
+    public FutureEventBuffer buildFutureEventBuffer() {
+        if (futureEventBuffer == null) {
+            futureEventBuffer = new DefaultFutureEventBuffer(blocks.platformContext());
+        }
+        return futureEventBuffer;
+    }
+
+    /**
+     * Provide a future event buffer in place of the platform's default future event buffer.
+     *
+     * @param futureEventBuffer the future event buffer to use
+     * @return this builder
+     */
+    @NonNull
+    public PlatformComponentBuilder withFutureEventBuffer(@NonNull final FutureEventBuffer futureEventBuffer) {
+        throwIfAlreadyUsed();
+        if (this.futureEventBuffer != null) {
+            throw new IllegalStateException("Future event buffer has already been set");
+        }
+        this.futureEventBuffer = Objects.requireNonNull(futureEventBuffer);
+        return this;
     }
 }

@@ -58,7 +58,6 @@ import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
@@ -74,7 +73,6 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -147,7 +145,7 @@ class QueryWorkflowImplTest extends AppTestBase {
     private TransactionInfo transactionInfo;
 
     private QueryWorkflowImpl workflow;
-    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory = v -> new ServicesSoftwareVersion();
+    private SemanticVersion softwareVersionFactory = SemanticVersion.DEFAULT;
 
     @BeforeEach
     void setup(@Mock FeeCalculator feeCalculator) throws ParseException, PreCheckException {

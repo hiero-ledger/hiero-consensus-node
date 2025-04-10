@@ -4,7 +4,6 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.concurrent.ExecutorFactory;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.crypto.config.CryptoConfig;
@@ -19,10 +18,11 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.BasicConfig;
-import com.swirlds.platform.config.TransactionConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ScheduledExecutorService;
+import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.consensus.config.TransactionConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 public class FakePlatformContext implements PlatformContext {

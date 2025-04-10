@@ -7,6 +7,7 @@ module com.hedera.node.app.spi {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
+    requires transitive org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 
     exports com.hedera.node.app.spi;

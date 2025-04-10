@@ -29,6 +29,7 @@ import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
+import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.ids.EntityIdService;
@@ -67,17 +68,19 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     private static final int ENTITY_COUNTS_STATE_ID =
             BlockImplUtils.stateIdFor(EntityIdService.NAME, ENTITY_COUNTS_KEY);
 
+    @NonNull
+    private final StoreMetricsService storeMetricsService;
+
+    @NonNull
+    private final Supplier<Configuration> configurationSupplier;
+
     @Nullable
     private Instant lastConsensusTime;
 
     @Nullable
     private Timestamp boundaryTimestamp;
 
-    @NonNull
-    private final StoreMetricsService storeMetricsService;
-
-    @NonNull
-    private final Supplier<Configuration> configurationSupplier;
+    private long nodeFeesCollected;
 
     /**
      * Constructor for the {@link BoundaryStateChangeListener} class.
@@ -89,6 +92,28 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             @NonNull final Supplier<Configuration> configurationSupplier) {
         this.storeMetricsService = requireNonNull(storeMetricsService);
         this.configurationSupplier = requireNonNull(configurationSupplier);
+    }
+
+    /**
+     * Resets the node fees collected in this block.
+     */
+    public void resetCollectedNodeFees() {
+        nodeFeesCollected = 0;
+    }
+
+    /**
+     * Returns the node fees collected in this block.
+     */
+    public long nodeFeesCollected() {
+        return nodeFeesCollected;
+    }
+
+    /**
+     * Tracks the collected node fees.
+     * @param nodeFeesCollected the node fees collected
+     */
+    public void trackCollectedNodeFees(final long nodeFeesCollected) {
+        this.nodeFeesCollected += nodeFeesCollected;
     }
 
     /**
@@ -105,6 +130,13 @@ public class BoundaryStateChangeListener implements StateChangeListener {
      */
     public @NonNull Instant lastConsensusTimeOrThrow() {
         return requireNonNull(lastConsensusTime);
+    }
+
+    /**
+     * Returns the last consensus time used for a transaction.
+     */
+    public @Nullable Instant lastConsensusTime() {
+        return lastConsensusTime;
     }
 
     /**
@@ -291,6 +323,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
                 return new OneOf<>(
                         SingletonUpdateChange.NewValueOneOfType.NETWORK_STAKING_REWARDS_VALUE, networkStakingRewards);
             }
+            case NodeRewards nodeRewards -> {
+                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.NODE_REWARDS_VALUE, nodeRewards);
+            }
             case ProtoBytes protoBytes -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.BYTES_VALUE, protoBytes.value());
             }
@@ -330,9 +365,5 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             default -> throw new IllegalArgumentException(
                     "Unknown value type " + value.getClass().getName());
         }
-    }
-
-    private static BlockItem itemWith(@NonNull final StateChanges stateChanges) {
-        return BlockItem.newBuilder().stateChanges(stateChanges).build();
     }
 }
