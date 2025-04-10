@@ -88,7 +88,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.components;
     exports com.hedera.node.app.workflows.handle;
     exports com.hedera.node.app.workflows.prehandle;
-    exports com.hedera.node.app.version;
     exports com.hedera.node.app.validation;
     exports com.hedera.node.app.state.listeners;
     exports com.hedera.node.app.services;
