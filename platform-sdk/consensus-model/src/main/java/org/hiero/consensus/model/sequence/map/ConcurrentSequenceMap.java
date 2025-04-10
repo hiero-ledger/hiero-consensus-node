@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.sequence.map;
+package org.hiero.consensus.model.sequence.map;
 
-import com.swirlds.platform.sequence.map.internal.AbstractSequenceMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

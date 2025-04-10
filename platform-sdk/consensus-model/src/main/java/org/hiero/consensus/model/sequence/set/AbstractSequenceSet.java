@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.sequence.set.internal;
+package org.hiero.consensus.model.sequence.set;
 
-import com.swirlds.platform.sequence.map.SequenceMap;
-import com.swirlds.platform.sequence.set.SequenceSet;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.ToLongFunction;
+import org.hiero.consensus.model.sequence.map.SequenceMap;
 
 /**
  * Boilerplate implementation for {@link SequenceSet}.

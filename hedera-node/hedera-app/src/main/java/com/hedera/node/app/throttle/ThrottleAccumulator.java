@@ -28,7 +28,6 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftTransfer;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
@@ -65,7 +64,6 @@ import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -79,7 +77,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import org.apache.commons.lang3.tuple.Pair;
@@ -108,8 +105,6 @@ public class ThrottleAccumulator {
     @Nullable
     private final ThrottleMetrics throttleMetrics;
 
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
-
     private final Supplier<Configuration> configSupplier;
     private final IntSupplier capacitySplitSource;
     private final ThrottleType throttleType;
@@ -126,9 +121,8 @@ public class ThrottleAccumulator {
     public ThrottleAccumulator(
             @NonNull final Supplier<Configuration> configSupplier,
             @NonNull final IntSupplier capacitySplitSource,
-            @NonNull final ThrottleType throttleType,
-            @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
-        this(capacitySplitSource, configSupplier, throttleType, null, Verbose.NO, softwareVersionFactory);
+            @NonNull final ThrottleType throttleType) {
+        this(capacitySplitSource, configSupplier, throttleType, null, Verbose.NO);
     }
 
     public ThrottleAccumulator(
@@ -136,14 +130,12 @@ public class ThrottleAccumulator {
             @NonNull final Supplier<Configuration> configSupplier,
             @NonNull final ThrottleType throttleType,
             @Nullable final ThrottleMetrics throttleMetrics,
-            @NonNull final Verbose verbose,
-            @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final Verbose verbose) {
         this.configSupplier = requireNonNull(configSupplier, "configProvider must not be null");
         this.capacitySplitSource = requireNonNull(capacitySplitSource, "capacitySplitSource must not be null");
         this.throttleType = requireNonNull(throttleType, "throttleType must not be null");
         this.verbose = requireNonNull(verbose);
         this.throttleMetrics = throttleMetrics;
-        this.softwareVersionFactory = softwareVersionFactory;
     }
 
     // For testing purposes, in practice the gas throttle is
@@ -156,14 +148,12 @@ public class ThrottleAccumulator {
             @NonNull final ThrottleType throttleType,
             @NonNull final ThrottleMetrics throttleMetrics,
             @NonNull final LeakyBucketDeterministicThrottle gasThrottle,
-            @NonNull final LeakyBucketDeterministicThrottle bytesThrottle,
-            @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final LeakyBucketDeterministicThrottle bytesThrottle) {
         this.configSupplier = requireNonNull(configSupplier, "configProvider must not be null");
         this.capacitySplitSource = requireNonNull(capacitySplitSource, "capacitySplitSource must not be null");
         this.throttleType = requireNonNull(throttleType, "throttleType must not be null");
         this.gasThrottle = requireNonNull(gasThrottle, "gasThrottle must not be null");
         this.bytesThrottle = requireNonNull(bytesThrottle, "bytesThrottle must not be null");
-        this.softwareVersionFactory = softwareVersionFactory;
 
         this.throttleMetrics = throttleMetrics;
         this.throttleMetrics.setupGasThrottleMetric(gasThrottle, configSupplier.get());

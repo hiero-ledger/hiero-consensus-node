@@ -277,7 +277,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
                 : ForkJoinPool.commonPool();
 
         // Let the listener know we have started hashing.
-        listener.onHashingStarted();
+        listener.onHashingStarted(firstLeafPath, lastLeafPath);
 
         if (!sortedDirtyLeaves.hasNext()) {
             // Nothing to hash.

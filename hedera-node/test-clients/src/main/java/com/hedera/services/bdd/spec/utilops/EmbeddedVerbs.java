@@ -22,7 +22,6 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
@@ -260,8 +259,7 @@ public final class EmbeddedVerbs {
             final var throttleAccumulator = new ThrottleAccumulator(
                     hedera.configProvider()::getConfiguration,
                     capacityUtilization::asApproxCapacitySplit,
-                    ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE,
-                    v -> new ServicesSoftwareVersion());
+                    ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE);
             throttleAccumulator.applyGasConfig();
             throttleAccumulator.applyBytesConfig();
             throttleAccumulator.rebuildFor(hedera.activeThrottleDefinitions());

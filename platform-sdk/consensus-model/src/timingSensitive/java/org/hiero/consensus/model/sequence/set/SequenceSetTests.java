@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.sequence.set;
+package org.hiero.consensus.model.sequence.set;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTimeout;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;

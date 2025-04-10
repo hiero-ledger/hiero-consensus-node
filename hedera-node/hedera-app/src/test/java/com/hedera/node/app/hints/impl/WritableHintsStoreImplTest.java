@@ -46,7 +46,6 @@ import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
@@ -462,8 +461,7 @@ class WritableHintsStoreImplTest {
                 state,
                 servicesRegistry,
                 null,
-                new ServicesSoftwareVersion(
-                        bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion()),
+                bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion(),
                 new ConfigProviderImpl().getConfiguration(),
                 DEFAULT_CONFIG,
                 NO_OP_METRICS,
