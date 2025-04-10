@@ -108,7 +108,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.gossip.sync.protocol;
     exports com.swirlds.platform.gossip;
     exports com.swirlds.platform.reconnect;
-    exports com.swirlds.platform.gossip.modular;
     exports com.swirlds.platform.gossip.shadowgraph;
     exports com.swirlds.platform.recovery.emergencyfile;
     exports com.swirlds.platform.event;
@@ -139,6 +138,7 @@ module com.swirlds.platform.core {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
+    requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.event.creator.impl;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
@@ -146,7 +146,6 @@ module com.swirlds.platform.core {
     requires transitive com.fasterxml.jackson.databind;
     requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;
-    requires com.hedera.node.config;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkle;

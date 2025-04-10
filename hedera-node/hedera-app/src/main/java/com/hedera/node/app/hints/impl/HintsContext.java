@@ -3,6 +3,7 @@ package com.hedera.node.app.hints.impl;
 
 import static com.hedera.node.app.roster.RosterTransitionWeights.atLeastOneThirdOfTotal;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
@@ -14,6 +15,7 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -25,14 +27,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The hinTS context that can be used to request hinTS signatures using the latest
- * complete construction, if there is one. See {@link #setConstruction(HintsConstruction)}
+ * complete construction, if there is one. See {@link #setConstructions(HintsConstruction)}
  * for the ways the context can have a construction set.
  */
 @Singleton
 public class HintsContext {
+    private static final Logger log = LogManager.getLogger(HintsContext.class);
+
+    private static final Duration SIGNING_ATTEMPT_TIMEOUT = Duration.ofSeconds(10);
+
+    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+
     private final HintsLibrary library;
 
     @Nullable
@@ -41,7 +51,7 @@ public class HintsContext {
     @Nullable
     private Map<Long, Integer> nodePartyIds;
 
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+    private long schemeId;
 
     @Inject
     public HintsContext(@NonNull final HintsLibrary library) {
@@ -51,22 +61,26 @@ public class HintsContext {
     /**
      * Sets the active hinTS construction as the signing context. Called in three places,
      * <ol>
-     *     <li>In the startup phase, when initializing from a state whose active hinTS
-     *     construction had already finished its preprocessing work.</li>
+     *     <li>In the startup phase, when restarting from a state whose active hinTS
+     *     construction (and possibly next construction) had complete schemes.</li>
      *     <li>In the bootstrap runtime phase, on finishing the preprocessing work for
      *     the genesis hinTS construction.</li>
-     *     <li>In the normal runtime phase, in the first round after an upgrade, when
-     *     swapping in a newly adopted roster's hinTS construction and purging votes for
-     *     the previous construction.</li>
+     *     <li>In the restart runtime phase, when swapping in a newly adopted roster's
+     *     hinTS construction and purging votes for the previous construction.</li>
      * </ol>
-     * @param construction the construction
+     *
+     * @param activeConstruction the active construction
+     * @throws IllegalArgumentException if either construction does not have a hinTS scheme
      */
-    public void setConstruction(@NonNull final HintsConstruction construction) {
-        this.construction = requireNonNull(construction);
-        if (!construction.hasHintsScheme()) {
-            throw new IllegalArgumentException("Construction has no hints scheme");
+    public void setConstructions(@NonNull final HintsConstruction activeConstruction) {
+        requireNonNull(activeConstruction);
+        if (!activeConstruction.hasHintsScheme()) {
+            throw new IllegalArgumentException(
+                    "Active construction #" + activeConstruction.constructionId() + " has no hinTS scheme");
         }
-        this.nodePartyIds = asNodePartyIds(construction.hintsSchemeOrThrow().nodePartyIds());
+        construction = requireNonNull(activeConstruction);
+        nodePartyIds = asNodePartyIds(activeConstruction.hintsSchemeOrThrow().nodePartyIds());
+        schemeId = construction.constructionId();
     }
 
     /**
@@ -75,6 +89,18 @@ public class HintsContext {
      */
     public boolean isReady() {
         return construction != null && construction.hasHintsScheme();
+    }
+
+    /**
+     * Returns the current scheme ids, or throws if they are unset.
+     * @return the active scheme id
+     * @throws IllegalStateException if the scheme id is unset
+     */
+    public long activeSchemeIdOrThrow() {
+        if (schemeId == 0) {
+            throw new IllegalStateException("No scheme id set");
+        }
+        return schemeId;
     }
 
     /**
@@ -136,6 +162,7 @@ public class HintsContext {
                 .mapToLong(RosterEntry::weight)
                 .sum();
         return new Signing(
+                blockHash,
                 atLeastOneThirdOfTotal(totalWeight),
                 preprocessedKeys.aggregationKey(),
                 requireNonNull(nodePartyIds),
@@ -167,6 +194,7 @@ public class HintsContext {
      */
     public class Signing {
         private final long thresholdWeight;
+        private final Bytes blockHash;
         private final Bytes aggregationKey;
         private final Bytes verificationKey;
         private final Map<Long, Integer> partyIds;
@@ -177,18 +205,35 @@ public class HintsContext {
         private final AtomicBoolean completed = new AtomicBoolean();
 
         public Signing(
+                @NonNull final Bytes blockHash,
                 final long thresholdWeight,
                 @NonNull final Bytes aggregationKey,
                 @NonNull final Map<Long, Integer> partyIds,
                 @NonNull final Bytes verificationKey,
-                final Roster currentRoster,
-                final Runnable onCompletion) {
+                @NonNull final Roster currentRoster,
+                @NonNull final Runnable onCompletion) {
             this.thresholdWeight = thresholdWeight;
+            requireNonNull(onCompletion);
+            this.blockHash = requireNonNull(blockHash);
             this.aggregationKey = requireNonNull(aggregationKey);
             this.partyIds = requireNonNull(partyIds);
             this.verificationKey = requireNonNull(verificationKey);
             this.currentRoster = requireNonNull(currentRoster);
-            executor.schedule(onCompletion, 10, java.util.concurrent.TimeUnit.SECONDS);
+            executor.schedule(
+                    () -> {
+                        if (!future.isDone()) {
+                            log.warn(
+                                    "Completing signing attempt on '{}' without obtaining a signature (had {} from parties {} for total weight {}/{} required)",
+                                    blockHash,
+                                    signatures.size(),
+                                    signatures.keySet(),
+                                    weightOfSignatures.get(),
+                                    thresholdWeight);
+                        }
+                        onCompletion.run();
+                    },
+                    SIGNING_ATTEMPT_TIMEOUT.getSeconds(),
+                    SECONDS);
         }
 
         /**

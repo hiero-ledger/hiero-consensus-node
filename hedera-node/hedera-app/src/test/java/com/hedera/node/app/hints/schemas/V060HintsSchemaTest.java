@@ -84,10 +84,11 @@ class V060HintsSchemaTest {
                 .build();
         given(activeConstructionState.get()).willReturn(construction);
         given(crsState.get()).willReturn(CRSState.DEFAULT);
+        given(nextConstructionState.get()).willReturn(HintsConstruction.DEFAULT);
 
         subject.restart(migrationContext);
 
-        verify(signingContext).setConstruction(construction);
+        verify(signingContext).setConstructions(construction);
     }
 
     @Test

@@ -19,7 +19,6 @@ import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.throttle.ThrottleServiceModule;
-import com.hedera.node.app.version.SemanticVersionModule;
 import com.hedera.node.app.workflows.FacilityInitModule;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
@@ -50,7 +49,6 @@ import javax.inject.Singleton;
             HederaStateInjectionModule.class,
             ThrottleServiceModule.class,
             FacilityInitModule.class,
-            SemanticVersionModule.class,
         })
 public interface ExecutorComponent {
     @Component.Builder

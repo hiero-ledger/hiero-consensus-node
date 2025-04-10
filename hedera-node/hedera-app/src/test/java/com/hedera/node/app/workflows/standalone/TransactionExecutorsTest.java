@@ -23,7 +23,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.RealmID;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.ShardID;
 import com.hedera.hapi.node.base.Timestamp;
@@ -396,11 +395,7 @@ public class TransactionExecutorsTest {
                 () -> DEFAULT_NODE_INFO,
                 () -> NO_OP_METRICS,
                 new AppThrottleFactory(
-                        () -> config,
-                        () -> state,
-                        () -> ThrottleDefinitions.DEFAULT,
-                        ThrottleAccumulator::new,
-                        SemanticVersion.DEFAULT),
+                        () -> config, () -> state, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
                 () -> NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(config));
         registerServices(appContext, servicesRegistry);

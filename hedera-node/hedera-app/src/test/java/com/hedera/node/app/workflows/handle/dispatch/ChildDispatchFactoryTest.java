@@ -18,7 +18,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
@@ -146,8 +145,7 @@ class ChildDispatchFactoryTest {
                 serviceScopeLookup,
                 exchangeRateManager,
                 transactionChecker,
-                deduplicationCache,
-                SemanticVersion.DEFAULT);
+                deduplicationCache);
     }
 
     @Test

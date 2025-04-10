@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
@@ -33,38 +32,30 @@ public class AppThrottleFactory implements Throttle.Factory {
     private final Supplier<ThrottleDefinitions> definitionsSupplier;
     private final ThrottleAccumulatorFactory throttleAccumulatorFactory;
 
-    @NonNull
-    private final SemanticVersion softwareVersionFactory;
-
     public interface ThrottleAccumulatorFactory {
         ThrottleAccumulator newThrottleAccumulator(
                 @NonNull Supplier<Configuration> config,
                 @NonNull IntSupplier capacitySplitSource,
-                @NonNull ThrottleAccumulator.ThrottleType throttleType,
-                @NonNull final SemanticVersion softwareVersionFactory);
+                @NonNull ThrottleAccumulator.ThrottleType throttleType);
     }
 
     public AppThrottleFactory(
             @NonNull final Supplier<Configuration> configSupplier,
             @NonNull final Supplier<State> stateSupplier,
             @NonNull final Supplier<ThrottleDefinitions> definitionsSupplier,
-            @NonNull final ThrottleAccumulatorFactory throttleAccumulatorFactory,
-            @NonNull final SemanticVersion softwareVersionFactory) {
+            @NonNull final ThrottleAccumulatorFactory throttleAccumulatorFactory) {
         this.configSupplier = requireNonNull(configSupplier);
         this.stateSupplier = requireNonNull(stateSupplier);
         this.definitionsSupplier = requireNonNull(definitionsSupplier);
         this.throttleAccumulatorFactory = requireNonNull(throttleAccumulatorFactory);
-        this.softwareVersionFactory = softwareVersionFactory;
     }
 
     @Override
     public Throttle newThrottle(final int capacitySplit, @Nullable final ThrottleUsageSnapshots initialUsageSnapshots) {
         final var throttleAccumulator = throttleAccumulatorFactory.newThrottleAccumulator(
-                configSupplier,
-                () -> capacitySplit,
-                ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE,
-                softwareVersionFactory);
+                configSupplier, () -> capacitySplit, ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE);
         throttleAccumulator.applyGasConfig();
+        throttleAccumulator.applyBytesConfig();
         throttleAccumulator.rebuildFor(definitionsSupplier.get());
         if (initialUsageSnapshots != null) {
             final var tpsThrottles = throttleAccumulator.allActiveThrottles();

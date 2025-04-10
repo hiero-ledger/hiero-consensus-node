@@ -269,12 +269,9 @@ public enum TransactionExecutors {
                         configProvider::getConfiguration,
                         () -> state,
                         () -> componentRef.get().throttleServiceManager().activeThrottleDefinitionsOrThrow(),
-                        (configSupplier, capacitySplitSource, throttleType, versionFactory) -> disableThrottles
-                                ? new ThrottleAccumulator(
-                                        configSupplier, capacitySplitSource, NOOP_THROTTLE, versionFactory)
-                                : new ThrottleAccumulator(
-                                        configSupplier, capacitySplitSource, throttleType, versionFactory),
-                        softwareVersionFactory),
+                        (configSupplier, capacitySplitSource, throttleType) -> disableThrottles
+                                ? new ThrottleAccumulator(configSupplier, capacitySplitSource, NOOP_THROTTLE)
+                                : new ThrottleAccumulator(configSupplier, capacitySplitSource, throttleType)),
                 () -> componentRef.get().appFeeCharging(),
                 entityIdFactory);
         final var contractService = new ContractServiceImpl(

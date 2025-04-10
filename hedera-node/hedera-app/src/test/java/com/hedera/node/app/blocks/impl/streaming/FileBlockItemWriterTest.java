@@ -4,18 +4,30 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.MerkleSiblingHash;
+import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.internal.network.PendingProof;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.state.lifecycle.info.NodeInfo;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -31,6 +43,8 @@ class FileBlockItemWriterTest {
 
     private static final String MF = "000000000000000000000000000000000001.mf";
     private static final String BLK_GZ = "000000000000000000000000000000000001.blk.gz";
+    private static final String PENDING_BLK_GZ = "000000000000000000000000000000000001.pnd.gz";
+    private static final String PENDING_PROOF_JSON = "000000000000000000000000000000000001.pnd.json";
 
     @TempDir
     Path tempDir;
@@ -126,7 +140,7 @@ class FileBlockItemWriterTest {
         fileBlockItemWriter.writeItem(bytes);
 
         // Close the block
-        fileBlockItemWriter.closeBlock();
+        fileBlockItemWriter.closeCompleteBlock();
 
         Path expectedDirectory = tempDir.resolve("block-0.0.3");
         final Path expectedBlockFile = expectedDirectory.resolve("000000000000000000000000000000000001.blk.gz");
@@ -167,7 +181,7 @@ class FileBlockItemWriterTest {
     }
 
     @Test
-    protected void testCloseBlock() throws IOException {
+    protected void testCloseCompleteBlock() throws IOException {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
@@ -180,7 +194,7 @@ class FileBlockItemWriterTest {
         fileBlockItemWriter.openBlock(1);
 
         // Close the block
-        fileBlockItemWriter.closeBlock();
+        fileBlockItemWriter.closeCompleteBlock();
 
         Path expectedDirectory = tempDir.resolve("block-0.0.3");
         Path expectedBlockFile = expectedDirectory.resolve("000000000000000000000000000000000001.blk.gz");
@@ -195,7 +209,7 @@ class FileBlockItemWriterTest {
     }
 
     @Test
-    protected void testCloseBlockNotOpen() {
+    protected void testCloseCompleteBlockNotOpen() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
@@ -204,12 +218,13 @@ class FileBlockItemWriterTest {
 
         FileBlockItemWriter fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
 
-        assertThatThrownBy(fileBlockItemWriter::closeBlock, "Cannot close a FileBlockItemWriter that is not open")
+        assertThatThrownBy(
+                        fileBlockItemWriter::closeCompleteBlock, "Cannot close a FileBlockItemWriter that is not open")
                 .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    protected void testCloseBlockAlreadyClosed() {
+    protected void testCloseCompleteBlockAlreadyClosed() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
@@ -222,14 +237,72 @@ class FileBlockItemWriterTest {
         fileBlockItemWriter.openBlock(1);
 
         // Close the block
-        fileBlockItemWriter.closeBlock();
+        fileBlockItemWriter.closeCompleteBlock();
 
         // Verify marker file exists before attempting second close
         Path expectedDirectory = tempDir.resolve("block-0.0.3");
         Path expectedMarkerFile = expectedDirectory.resolve(MF);
         assertThat(Files.exists(expectedMarkerFile)).isTrue();
 
-        assertThatThrownBy(fileBlockItemWriter::closeBlock, "Cannot close a FileBlockItemWriter that is already closed")
+        assertThatThrownBy(
+                        fileBlockItemWriter::closeCompleteBlock,
+                        "Cannot close a FileBlockItemWriter that is already closed")
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void flushingPendingRenamesZippedItemsToPndAndIncludesProofContext() throws IOException, ParseException {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
+        when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
+
+        final var subject = new FileBlockItemWriter(configProvider, selfNodeInfo, FileSystems.getDefault());
+
+        subject.openBlock(1);
+
+        final var emptyFile =
+                new File(tempDir.resolve("block-0.0.3").resolve(BLK_GZ).toString());
+        assertTrue(emptyFile.exists(), "Open block should create an empty file");
+        assertEquals(0, emptyFile.length(), "Empty file should have zero length");
+
+        subject.writeItem(BlockItem.PROTOBUF
+                .toBytes(BlockItem.newBuilder()
+                        .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
+                        .build())
+                .toByteArray());
+        subject.writeItem(BlockItem.PROTOBUF
+                .toBytes(BlockItem.newBuilder()
+                        .roundHeader(RoundHeader.newBuilder().roundNumber(2L).build())
+                        .build())
+                .toByteArray());
+        subject.writeItem(BlockItem.PROTOBUF
+                .toBytes(BlockItem.newBuilder()
+                        .roundHeader(RoundHeader.newBuilder().roundNumber(3L).build())
+                        .build())
+                .toByteArray());
+
+        final var pendingProof = PendingProof.newBuilder()
+                .block(1)
+                .blockHash(Bytes.fromHex("abcd"))
+                .previousBlockHash(Bytes.fromHex("ef01"))
+                .startOfBlockStateRootHash(Bytes.fromHex("2345"))
+                .siblingHashesFromPrevBlockRoot(List.of(new MerkleSiblingHash(true, Bytes.fromHex("6789"))))
+                .build();
+        subject.flushPendingBlock(pendingProof);
+
+        assertFalse(new File(tempDir.resolve("block-0.0.3").resolve(BLK_GZ).toString()).exists());
+        assertFalse(new File(tempDir.resolve("block-0.0.3").resolve(MF).toString()).exists());
+
+        final var pendingBlock =
+                new File(tempDir.resolve("block-0.0.3").resolve(PENDING_BLK_GZ).toString());
+        assertTrue(pendingBlock.exists(), "Pending block should exist after flush");
+        final var proofContext = new File(
+                tempDir.resolve("block-0.0.3").resolve(PENDING_PROOF_JSON).toString());
+        assertTrue(proofContext.exists(), "Proof context should exist after flush");
+        final var recoveredProof = PendingProof.JSON.parse(new ReadableStreamingData(proofContext.toPath()));
+        assertEquals(pendingProof, recoveredProof, "Recovered proof should match the original");
+
+        assertDoesNotThrow(() -> subject.flushPendingBlock(PendingProof.DEFAULT));
     }
 }

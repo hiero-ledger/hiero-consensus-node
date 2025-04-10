@@ -6,7 +6,7 @@ import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchem
 import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.nextLong;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextLong;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -23,7 +23,7 @@ import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.EmptyReadableStates;
 import java.time.Instant;
-import org.hiero.consensus.utility.test.fixtures.RandomUtils;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;

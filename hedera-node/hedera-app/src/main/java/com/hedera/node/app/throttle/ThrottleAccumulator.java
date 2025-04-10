@@ -10,6 +10,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor.ONE_TO_ONE;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.childAsOrdinary;
@@ -27,7 +28,6 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftTransfer;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
@@ -44,7 +44,7 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ThrottleBucket;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ThrottleGroup;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
-import com.hedera.node.app.hapi.utils.throttles.GasLimitDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
@@ -59,6 +59,7 @@ import com.hedera.node.config.data.AutoCreationConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -99,13 +100,12 @@ public class ThrottleAccumulator {
 
     private EnumMap<HederaFunctionality, ThrottleReqsManager> functionReqs = new EnumMap<>(HederaFunctionality.class);
     private boolean lastTxnWasGasThrottled;
-    private GasLimitDeterministicThrottle gasThrottle;
+    private LeakyBucketDeterministicThrottle bytesThrottle;
+    private LeakyBucketDeterministicThrottle gasThrottle;
     private List<DeterministicThrottle> activeThrottles = emptyList();
 
     @Nullable
     private final ThrottleMetrics throttleMetrics;
-
-    private final SemanticVersion softwareVersionFactory;
 
     private final Supplier<Configuration> configSupplier;
     private final IntSupplier capacitySplitSource;
@@ -123,9 +123,8 @@ public class ThrottleAccumulator {
     public ThrottleAccumulator(
             @NonNull final Supplier<Configuration> configSupplier,
             @NonNull final IntSupplier capacitySplitSource,
-            @NonNull final ThrottleType throttleType,
-            @NonNull SemanticVersion softwareVersionFactory) {
-        this(capacitySplitSource, configSupplier, throttleType, null, Verbose.NO, softwareVersionFactory);
+            @NonNull final ThrottleType throttleType) {
+        this(capacitySplitSource, configSupplier, throttleType, null, Verbose.NO);
     }
 
     public ThrottleAccumulator(
@@ -133,14 +132,12 @@ public class ThrottleAccumulator {
             @NonNull final Supplier<Configuration> configSupplier,
             @NonNull final ThrottleType throttleType,
             @Nullable final ThrottleMetrics throttleMetrics,
-            @NonNull final Verbose verbose,
-            @NonNull SemanticVersion softwareVersionFactory) {
+            @NonNull final Verbose verbose) {
         this.configSupplier = requireNonNull(configSupplier, "configProvider must not be null");
         this.capacitySplitSource = requireNonNull(capacitySplitSource, "capacitySplitSource must not be null");
         this.throttleType = requireNonNull(throttleType, "throttleType must not be null");
         this.verbose = requireNonNull(verbose);
         this.throttleMetrics = throttleMetrics;
-        this.softwareVersionFactory = softwareVersionFactory;
     }
 
     // For testing purposes, in practice the gas throttle is
@@ -152,13 +149,13 @@ public class ThrottleAccumulator {
             @NonNull final Supplier<Configuration> configSupplier,
             @NonNull final ThrottleType throttleType,
             @NonNull final ThrottleMetrics throttleMetrics,
-            @NonNull final GasLimitDeterministicThrottle gasThrottle,
-            @NonNull SemanticVersion softwareVersionFactory) {
+            @NonNull final LeakyBucketDeterministicThrottle gasThrottle,
+            @NonNull final LeakyBucketDeterministicThrottle bytesThrottle) {
         this.configSupplier = requireNonNull(configSupplier, "configProvider must not be null");
         this.capacitySplitSource = requireNonNull(capacitySplitSource, "capacitySplitSource must not be null");
         this.throttleType = requireNonNull(throttleType, "throttleType must not be null");
         this.gasThrottle = requireNonNull(gasThrottle, "gasThrottle must not be null");
-        this.softwareVersionFactory = softwareVersionFactory;
+        this.bytesThrottle = requireNonNull(bytesThrottle, "bytesThrottle must not be null");
 
         this.throttleMetrics = throttleMetrics;
         this.throttleMetrics.setupGasThrottleMetric(gasThrottle, configSupplier.get());
@@ -384,6 +381,8 @@ public class ThrottleAccumulator {
             @NonNull final State state) {
         final var function = txnInfo.functionality();
         final var configuration = configSupplier.get();
+        final boolean isJumboTransactionsEnabled =
+                configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
 
         // Note that by payer exempt from throttling we mean just that those transactions will not be throttled,
         // such payer accounts neither impact the throttles nor are they impacted by them
@@ -400,6 +399,21 @@ public class ThrottleAccumulator {
         if (isGasExhausted(txnInfo, now, configuration)) {
             lastTxnWasGasThrottled = true;
             return true;
+        }
+
+        if (isJumboTransactionsEnabled) {
+            final var allowedHederaFunctionalities =
+                    configuration.getConfigData(JumboTransactionsConfig.class).allowedHederaFunctionalities();
+            if (allowedHederaFunctionalities.contains(fromPbj(txnInfo.functionality()))) {
+                final var bytesUsage = txnInfo.transaction().protobufSize();
+                final var maxRegularTxnSize =
+                        configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
+
+                final var excessBytes = bytesUsage > maxRegularTxnSize ? bytesUsage - maxRegularTxnSize : 0;
+                if (shouldThrottleBasedExcessBytes(excessBytes, now)) {
+                    return true;
+                }
+            }
         }
 
         final var manager = functionReqs.get(function);
@@ -427,8 +441,8 @@ public class ThrottleAccumulator {
             }
             case ETHEREUM_TRANSACTION -> {
                 final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
-                yield shouldThrottleEthTxn(
-                        manager, now, configuration, getImplicitCreationsCount(txnInfo.txBody(), accountStore));
+                final var implicitCreations = getImplicitCreationsCount(txnInfo.txBody(), accountStore);
+                yield shouldThrottleEthTxn(manager, now, configuration, implicitCreations);
             }
             default -> !manager.allReqsMetAt(now);
         };
@@ -782,6 +796,11 @@ public class ThrottleAccumulator {
                 : shouldThrottleImplicitCreations(implicitCreationsCount, now);
     }
 
+    private boolean shouldThrottleBasedExcessBytes(final long bytesUsed, @NonNull final Instant now) {
+        // If the bucket doesn't allow the txn enforce the throttle
+        return bytesThrottle != null && !bytesThrottle.allow(now, bytesUsed);
+    }
+
     private boolean shouldThrottleBasedOnAutoAssociations(
             @NonNull final ThrottleReqsManager manager, final int autoAssociations, @NonNull final Instant now) {
         return (autoAssociations == 0)
@@ -852,7 +871,7 @@ public class ThrottleAccumulator {
         if (contractsConfig.throttleThrottleByGas() && contractsConfig.maxGasPerSec() == 0) {
             log.warn("{} gas throttling enabled, but limited to 0 gas/sec", throttleType.name());
         }
-        gasThrottle = new GasLimitDeterministicThrottle(contractsConfig.maxGasPerSec());
+        gasThrottle = new LeakyBucketDeterministicThrottle(contractsConfig.maxGasPerSec(), "Gas");
         if (throttleMetrics != null) {
             throttleMetrics.setupGasThrottleMetric(gasThrottle, configuration);
         }
@@ -862,6 +881,26 @@ public class ThrottleAccumulator {
                     throttleType.name(),
                     gasThrottle.capacity(),
                     (contractsConfig.throttleThrottleByGas() ? "ON" : "OFF"));
+        }
+    }
+
+    public void applyBytesConfig() {
+        final var configuration = configSupplier.get();
+        final var jumboConfig = configuration.getConfigData(JumboTransactionsConfig.class);
+        final var bytesPerSec = jumboConfig.maxBytesPerSec();
+        if (jumboConfig.isEnabled() && bytesPerSec == 0) {
+            log.warn("{} jumbo transactions are enabled, but limited to 0 bytes/sec", throttleType.name());
+        }
+        bytesThrottle = new LeakyBucketDeterministicThrottle(bytesPerSec, "Bytes");
+        if (throttleMetrics != null) {
+            throttleMetrics.setupBytesThrottleMetric(bytesThrottle, configuration);
+        }
+        if (verbose == Verbose.YES) {
+            log.info(
+                    "Resolved {} bytes throttle -\n {} bytes/sec (throttling {})",
+                    throttleType.name(),
+                    bytesThrottle.capacity(),
+                    (jumboConfig.isEnabled() ? "ON" : "OFF"));
         }
     }
 
@@ -898,8 +937,15 @@ public class ThrottleAccumulator {
     /**
      * Gets the gas throttle.
      */
-    public @NonNull GasLimitDeterministicThrottle gasLimitThrottle() {
+    public @NonNull LeakyBucketDeterministicThrottle gasLimitThrottle() {
         return requireNonNull(gasThrottle, "");
+    }
+
+    /**
+     * Gets the bytes throttle.
+     */
+    public @NonNull LeakyBucketDeterministicThrottle bytesLimitThrottle() {
+        return requireNonNull(bytesThrottle, "");
     }
 
     public enum ThrottleType {

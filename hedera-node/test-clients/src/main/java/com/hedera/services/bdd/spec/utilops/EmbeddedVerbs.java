@@ -7,7 +7,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.base.Transaction;
@@ -260,9 +259,9 @@ public final class EmbeddedVerbs {
             final var throttleAccumulator = new ThrottleAccumulator(
                     hedera.configProvider()::getConfiguration,
                     capacityUtilization::asApproxCapacitySplit,
-                    ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE,
-                    SemanticVersion.DEFAULT);
+                    ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE);
             throttleAccumulator.applyGasConfig();
+            throttleAccumulator.applyBytesConfig();
             throttleAccumulator.rebuildFor(hedera.activeThrottleDefinitions());
             final var now = spec.consensusTime();
             final var state = spec.embeddedStateOrThrow();

@@ -5,7 +5,6 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACK
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
@@ -54,16 +53,14 @@ public interface StandaloneModule {
     static ThrottleAccumulator provideBackendThrottleAccumulator(
             @NonNull final ConfigProvider configProvider,
             final boolean disableThrottling,
-            @NonNull final Metrics metrics,
-            @NonNull final SemanticVersion softwareVersionFactory) {
+            @NonNull final Metrics metrics) {
         final var throttleMetrics = new ThrottleMetrics(metrics, BACKEND_THROTTLE);
         return new ThrottleAccumulator(
                 () -> 1,
                 configProvider::getConfiguration,
                 disableThrottling ? NOOP_THROTTLE : BACKEND_THROTTLE,
                 throttleMetrics,
-                ThrottleAccumulator.Verbose.YES,
-                softwareVersionFactory);
+                ThrottleAccumulator.Verbose.YES);
     }
 
     @Provides

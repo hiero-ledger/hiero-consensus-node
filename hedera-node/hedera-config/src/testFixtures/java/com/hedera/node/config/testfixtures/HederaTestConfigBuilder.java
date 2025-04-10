@@ -81,13 +81,13 @@ import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.config.TransactionConfig;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.config.TransactionConfig;
 
 /**
  * A builder for creating {@link TestConfigBuilder} instances, or {@link Configuration} instances for testing. The

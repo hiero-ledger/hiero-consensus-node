@@ -22,7 +22,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
-import com.hedera.node.app.hapi.utils.throttles.GasLimitDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -76,7 +76,10 @@ class AppThrottleFactoryTest {
     private DeterministicThrottle lastThrottle;
 
     @Mock
-    private GasLimitDeterministicThrottle gasThrottle;
+    private LeakyBucketDeterministicThrottle gasThrottle;
+
+    @Mock
+    private LeakyBucketDeterministicThrottle bytesThrottle;
 
     @Mock
     private AppThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;
@@ -88,20 +91,13 @@ class AppThrottleFactoryTest {
     void setUp() {
         softwareVersionFactory = SemanticVersion.DEFAULT;
         subject = new AppThrottleFactory(
-                config,
-                () -> state,
-                () -> ThrottleDefinitions.DEFAULT,
-                throttleAccumulatorFactory,
-                softwareVersionFactory);
+                config, () -> state, () -> ThrottleDefinitions.DEFAULT, throttleAccumulatorFactory);
     }
 
     @Test
     void initializesAccumulatorFromCurrentConfigAndGivenDefinitions() {
         given(throttleAccumulatorFactory.newThrottleAccumulator(
-                        eq(config),
-                        argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR),
-                        eq(BACKEND_THROTTLE),
-                        eq(softwareVersionFactory)))
+                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
                 .willReturn(throttleAccumulator);
         given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
         given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);

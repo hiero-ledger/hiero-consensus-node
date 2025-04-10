@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures;
 
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.initRandom;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.initRandom;
 
 import java.util.ArrayList;
 import java.util.Collections;

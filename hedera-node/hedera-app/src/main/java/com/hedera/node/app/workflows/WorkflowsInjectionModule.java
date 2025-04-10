@@ -3,7 +3,6 @@ package com.hedera.node.app.workflows;
 
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleMetrics;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
@@ -43,16 +42,13 @@ public interface WorkflowsInjectionModule {
     @Singleton
     @BackendThrottle
     static ThrottleAccumulator provideBackendThrottleAccumulator(
-            @NonNull final ConfigProvider configProvider,
-            @NonNull final Metrics metrics,
-            @NonNull SemanticVersion softwareVersionFactory) {
+            @NonNull final ConfigProvider configProvider, @NonNull final Metrics metrics) {
         final var throttleMetrics = new ThrottleMetrics(metrics, BACKEND_THROTTLE);
         return new ThrottleAccumulator(
                 () -> 1,
                 configProvider::getConfiguration,
                 BACKEND_THROTTLE,
                 throttleMetrics,
-                ThrottleAccumulator.Verbose.YES,
-                softwareVersionFactory);
+                ThrottleAccumulator.Verbose.YES);
     }
 }

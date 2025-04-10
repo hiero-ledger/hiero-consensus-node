@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.sync.protocol;
 
-import static com.swirlds.common.utility.CompareTo.isGreaterThanOrEqualTo;
+import static org.hiero.base.utility.CompareTo.isGreaterThanOrEqualTo;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
