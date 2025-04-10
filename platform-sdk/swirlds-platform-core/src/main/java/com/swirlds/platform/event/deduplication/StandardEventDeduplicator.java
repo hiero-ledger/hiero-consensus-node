@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.deduplication;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_2;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
@@ -10,6 +11,7 @@ import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.sequence.map.SequenceMap;
 import com.swirlds.platform.sequence.map.StandardSequenceMap;
@@ -20,6 +22,8 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
@@ -30,6 +34,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
  * A standard implementation of an {@link EventDeduplicator}.
  */
 public class StandardEventDeduplicator implements EventDeduplicator {
+    private static final Logger logger = LogManager.getLogger(StandardEventDeduplicator.class);
     /**
      * Avoid the creation of lambdas for Map.computeIfAbsent() by reusing this lambda.
      */
@@ -56,7 +61,7 @@ public class StandardEventDeduplicator implements EventDeduplicator {
     private final SequenceMap<EventDescriptorWrapper, Set<Bytes>> observedEvents;
 
     private static final LongAccumulator.Config DISPARATE_SIGNATURE_CONFIG = new LongAccumulator.Config(
-                    PLATFORM_CATEGORY, "eventsWithDisparateSignature")
+            PLATFORM_CATEGORY, "eventsWithDisparateSignature")
             .withDescription(
                     "Events received that match a descriptor of a previous event, but with a different signature")
             .withUnit("events");
@@ -65,7 +70,7 @@ public class StandardEventDeduplicator implements EventDeduplicator {
     private final CountPerSecond duplicateEventsPerSecond;
 
     private static final RunningAverageMetric.Config AVG_DUPLICATE_PERCENT_CONFIG = new RunningAverageMetric.Config(
-                    PLATFORM_CATEGORY, "dupEvPercent")
+            PLATFORM_CATEGORY, "dupEvPercent")
             .withDescription("percentage of events received that are already known")
             .withFormat(FORMAT_10_2);
     private final RunningAverageMetric avgDuplicatePercent;
@@ -105,7 +110,9 @@ public class StandardEventDeduplicator implements EventDeduplicator {
     @Override
     @Nullable
     public PlatformEvent handleEvent(@NonNull final PlatformEvent event) {
+        logIfCreatedByNode4(event, "received");
         if (eventWindow.isAncient(event)) {
+            logIfCreatedByNode4(event, "discarded as ancient (threshold = ) " + eventWindow.getAncientThreshold());
             // Ancient events can be safely ignored.
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
             return null;
@@ -128,8 +135,16 @@ public class StandardEventDeduplicator implements EventDeduplicator {
             // move toward 100%
             avgDuplicatePercent.update(100);
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
+            logIfCreatedByNode4(event, "discarded as duplicate");
 
             return null;
+        }
+    }
+
+    private void logIfCreatedByNode4(final PlatformEvent event, final String action) {
+        if (event.getCreatorId().id() == 4) {
+            logger.info(STARTUP.getMarker(),
+                    "EVENT_DEDUPLICATOR " + action + " event " + event.getDescriptor().shortString());
         }
     }
 

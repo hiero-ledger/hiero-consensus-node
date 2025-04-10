@@ -2,6 +2,7 @@
 package com.swirlds.platform.event.validation;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
@@ -164,6 +165,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
 
     /**
      * Checks whether the transaction is null.
+     *
      * @param transaction the transaction to check
      * @return true if the transaction is null, otherwise false
      */
@@ -341,7 +343,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             invalidBirthRoundLogger.error(
                     EXCEPTION.getMarker(),
                     ("Event %s has an invalid birth round that is less than the max of its parents. Event birth round: "
-                                    + "%s, the max of all parent birth rounds is: %s")
+                            + "%s, the max of all parent birth rounds is: %s")
                             .formatted(event, eventBirthRound, maxParentBirthRound));
             invalidBirthRoundAccumulator.update(1);
             return false;
@@ -365,6 +367,9 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             return event;
         } else {
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
+
+            logger.info(STARTUP.getMarker(),
+                    "INTERNAL_EVENT_VALIDATOR discarding as invalid " + event.getDescriptor().shortString());
 
             return null;
         }

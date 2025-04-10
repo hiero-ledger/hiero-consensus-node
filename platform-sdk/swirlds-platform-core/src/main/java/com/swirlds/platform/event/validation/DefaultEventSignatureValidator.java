@@ -2,6 +2,7 @@
 package com.swirlds.platform.event.validation;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -75,7 +76,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     private final RateLimitedLogger rateLimitedLogger;
 
     private static final LongAccumulator.Config VALIDATION_FAILED_CONFIG = new LongAccumulator.Config(
-                    PLATFORM_CATEGORY, "eventsFailedSignatureValidation")
+            PLATFORM_CATEGORY, "eventsFailedSignatureValidation")
             .withDescription("Events for which signature validation failed")
             .withUnit("events");
     private final LongAccumulator validationFailedAccumulator;
@@ -86,8 +87,8 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      * @param platformContext        the platform context
      * @param signatureVerifier      a verifier for checking event signatures
      * @param currentSoftwareVersion the current software version
-     * @param previousRoster    the previous address book
-     * @param currentRoster     the current address book
+     * @param previousRoster         the previous address book
+     * @param currentRoster          the current address book
      * @param intakeEventCounter     keeps track of the number of events in the intake pipeline from each peer
      */
     public DefaultEventSignatureValidator(
@@ -115,8 +116,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     }
 
     /**
-     * Determine whether the previous roster or the current roster should be used to verify an event's
-     * signature.
+     * Determine whether the previous roster or the current roster should be used to verify an event's signature.
      * <p>
      * Logs an error and returns null if an applicable roster cannot be selected
      *
@@ -210,6 +210,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
         if (eventWindow.isAncient(event)) {
             // ancient events can be safely ignored
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
+            logIfCreatedByNode4(event, "discarded as ancient (threshold = ) " + eventWindow.getAncientThreshold());
             return null;
         }
 
@@ -218,8 +219,15 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
         } else {
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
             validationFailedAccumulator.update(1);
-
+            logIfCreatedByNode4(event, "discarded because signature is invalid");
             return null;
+        }
+    }
+
+    private void logIfCreatedByNode4(final PlatformEvent event, final String action) {
+        if (event.getCreatorId().id() == 4) {
+            logger.info(STARTUP.getMarker(),
+                    "SIGNATURE_VALIDATOR " + action + " event " + event.getDescriptor().shortString());
         }
     }
 

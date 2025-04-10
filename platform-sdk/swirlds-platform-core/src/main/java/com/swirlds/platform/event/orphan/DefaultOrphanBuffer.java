@@ -154,6 +154,8 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     @Override
     @NonNull
     public List<PlatformEvent> setEventWindow(@NonNull final EventWindow eventWindow) {
+        logger.info(STARTUP.getMarker(),
+                "ORPHAN_BUFFER Shifting event window, non-ancient gen is now " + eventWindow.getAncientThreshold());
         this.eventWindow = Objects.requireNonNull(eventWindow);
 
         eventsWithParents.shiftWindow(eventWindow.getAncientThreshold());
