@@ -17,5 +17,5 @@ public interface TimeManager {
      *
      * @param waitTime the duration to wait
      */
-    void waitFor(@NonNull final Duration waitTime) throws InterruptedException;
+    void waitFor(@NonNull Duration waitTime) throws InterruptedException;
 }
