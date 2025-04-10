@@ -297,7 +297,8 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     public void logContents() {
         final StringBuffer sb = new StringBuffer();
         sb.append("ORPHAN_BUFFER:");
-
+        sb.append(intakeEventCounter.toString());
+        sb.append('\n');
         for (long gen = missingParentMap.getFirstSequenceNumberInWindow();
                 gen <= missingParentMap.getLastSequenceNumberInWindow(); gen++) {
             for (final Map.Entry<EventDescriptorWrapper, List<OrphanedEvent>> entry : missingParentMap.getEntriesWithSequenceNumber(

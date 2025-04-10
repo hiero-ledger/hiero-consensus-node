@@ -81,6 +81,20 @@ public class DefaultIntakeEventCounter implements IntakeEventCounter {
         unprocessedEventCounts.get(peer).getAndUpdate(EXIT_INTAKE);
     }
 
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder();
+        if (!unprocessedEventCounts.isEmpty()) {
+            sb.append("Intake Event Counter: ");
+            unprocessedEventCounts.forEach((key, value) -> sb.append("\tNode Id ")
+                    .append(key)
+                    .append(": ")
+                    .append(value.get())
+                    .append(" events"));
+        }
+        return sb.toString();
+    }
+
     /**
      * {@inheritDoc}
      */
