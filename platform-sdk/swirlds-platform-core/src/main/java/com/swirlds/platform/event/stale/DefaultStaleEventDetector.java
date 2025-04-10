@@ -3,7 +3,6 @@ package com.swirlds.platform.event.stale;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.transformers.RoutableData;
-import com.swirlds.platform.sequence.map.StandardSequenceMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +15,7 @@ import org.hiero.consensus.model.event.StaleEventDetectorOutput;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
 
 /**
  * Detects when a self event becomes stale. Note that this detection may not observe a self event go stale if the node

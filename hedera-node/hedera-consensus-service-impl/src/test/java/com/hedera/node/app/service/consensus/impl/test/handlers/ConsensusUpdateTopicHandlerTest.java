@@ -287,7 +287,7 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
         final var impliedMeta = new ExpiryMeta(123L, NA, null);
         willThrow(new HandleException(ResponseCodeEnum.INVALID_EXPIRATION_TIME))
                 .given(expiryValidator)
-                .resolveUpdateAttempt(currentExpiryMeta, impliedMeta, false);
+                .resolveUpdateAttempt(currentExpiryMeta, impliedMeta);
 
         // expect:
         assertFailsWith(ResponseCodeEnum.INVALID_EXPIRATION_TIME, () -> subject.handle(handleContext));
@@ -305,7 +305,7 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
         given(handleContext.attributeValidator()).willReturn(attributeValidator);
         final var impliedMeta = new ExpiryMeta(123L, NA, null);
-        given(expiryValidator.resolveUpdateAttempt(currentExpiryMeta, impliedMeta, false))
+        given(expiryValidator.resolveUpdateAttempt(currentExpiryMeta, impliedMeta))
                 .willReturn(new ExpiryMeta(
                         123L, currentExpiryMeta.autoRenewPeriod(), currentExpiryMeta.autoRenewAccountId()));
 
@@ -330,7 +330,7 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
         final var impliedMeta = new ExpiryMeta(NA, 123L, null);
         willThrow(new HandleException(ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE))
                 .given(expiryValidator)
-                .resolveUpdateAttempt(currentExpiryMeta, impliedMeta, false);
+                .resolveUpdateAttempt(currentExpiryMeta, impliedMeta);
 
         // expect:
         assertFailsWith(ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE, () -> subject.handle(handleContext));
@@ -348,7 +348,7 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
         given(handleContext.attributeValidator()).willReturn(attributeValidator);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
         final var impliedMeta = new ExpiryMeta(NA, 123L, null);
-        given(expiryValidator.resolveUpdateAttempt(currentExpiryMeta, impliedMeta, false))
+        given(expiryValidator.resolveUpdateAttempt(currentExpiryMeta, impliedMeta))
                 .willReturn(new ExpiryMeta(currentExpiryMeta.expiry(), 123L, null));
 
         subject.handle(handleContext);
@@ -370,7 +370,7 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
         final var impliedMeta = new ExpiryMeta(NA, NA, autoRenewId);
         willThrow(new HandleException(INVALID_AUTORENEW_ACCOUNT))
                 .given(expiryValidator)
-                .resolveUpdateAttempt(currentExpiryMeta, impliedMeta, false);
+                .resolveUpdateAttempt(currentExpiryMeta, impliedMeta);
 
         // expect:
         assertFailsWith(INVALID_AUTORENEW_ACCOUNT, () -> subject.handle(handleContext));
@@ -392,7 +392,7 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
                 NA,
                 NA,
                 AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(666).build());
-        given(expiryValidator.resolveUpdateAttempt(currentExpiryMeta, impliedMeta, false))
+        given(expiryValidator.resolveUpdateAttempt(currentExpiryMeta, impliedMeta))
                 .willReturn(new ExpiryMeta(
                         currentExpiryMeta.expiry(),
                         currentExpiryMeta.autoRenewPeriod(),

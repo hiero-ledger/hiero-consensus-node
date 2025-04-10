@@ -9,7 +9,6 @@ import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.UNK
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.SignedTransaction;
@@ -54,14 +53,12 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
-import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
@@ -85,7 +82,6 @@ public class StandaloneDispatchFactory {
     private final ChildDispatchFactory childDispatchFactory;
     private final TransactionDispatcher transactionDispatcher;
     private final NetworkUtilizationManager networkUtilizationManager;
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
     private final TransactionChecker transactionChecker;
 
     @Inject
@@ -102,7 +98,6 @@ public class StandaloneDispatchFactory {
             @NonNull final ChildDispatchFactory childDispatchFactory,
             @NonNull final TransactionDispatcher transactionDispatcher,
             @NonNull final NetworkUtilizationManager networkUtilizationManager,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
             @NonNull final TransactionChecker transactionChecker) {
         this.feeManager = requireNonNull(feeManager);
         this.authorizer = requireNonNull(authorizer);
@@ -116,7 +111,6 @@ public class StandaloneDispatchFactory {
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.storeMetricsService = requireNonNull(storeMetricsService);
         this.networkUtilizationManager = requireNonNull(networkUtilizationManager);
-        this.softwareVersionFactory = softwareVersionFactory;
         this.transactionChecker = requireNonNull(transactionChecker);
     }
 

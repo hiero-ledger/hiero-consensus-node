@@ -5,6 +5,7 @@ module com.swirlds.platform.core.test.fixtures {
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common.test.fixtures;
     requires transitive com.swirlds.common;
+    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.config.extensions.test.fixtures;
     requires transitive com.swirlds.merkle;
@@ -18,7 +19,6 @@ module com.swirlds.platform.core.test.fixtures {
     requires transitive org.hiero.consensus.model;
     requires transitive org.junit.jupiter.api;
     requires com.swirlds.base.test.fixtures;
-    requires com.swirlds.component.framework;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
     requires com.swirlds.state.api.test.fixtures;
@@ -39,4 +39,7 @@ module com.swirlds.platform.core.test.fixtures {
     exports com.swirlds.platform.test.fixtures.addressbook;
     exports com.swirlds.platform.test.fixtures.crypto;
     exports com.swirlds.platform.test.fixtures.gui;
+    exports com.swirlds.platform.test.fixtures.turtle.consensus;
+    exports com.swirlds.platform.test.fixtures.turtle.gossip;
+    exports com.swirlds.platform.test.fixtures.turtle.runner;
 }
