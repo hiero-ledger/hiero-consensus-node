@@ -39,7 +39,7 @@ public class TurtleTransactionGenerator implements TransactionGenerator, TimeTic
      */
     @Override
     public void start() {
-        if (! running) {
+        if (!running) {
             startTime = null;
             lastTimestamp = null;
             running = true;
@@ -59,12 +59,13 @@ public class TurtleTransactionGenerator implements TransactionGenerator, TimeTic
      */
     @Override
     public void tick(@NonNull Instant now) {
-        if (! running) {
+        if (!running) {
             return;
         }
 
         if (lastTimestamp != null) {
-            final long previousCount = Duration.between(startTime, lastTimestamp).dividedBy(CYCLE_DURATION);
+            final long previousCount =
+                    Duration.between(startTime, lastTimestamp).dividedBy(CYCLE_DURATION);
             final long currentCount = Duration.between(startTime, now).dividedBy(CYCLE_DURATION);
             for (long i = previousCount; i < currentCount; i++) {
                 for (final Node node : network.getNodes()) {
