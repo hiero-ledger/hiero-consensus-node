@@ -50,7 +50,7 @@ public class VirtualReconnectUtils {
         } else if (leafValueLen == 0) {
             leafValue = Bytes.EMPTY;
         } else {
-            leafValue = null;
+            leafValue = Bytes.EMPTY;
         }
         return new VirtualLeafBytes(leafPath, leafKey, leafValue);
     }

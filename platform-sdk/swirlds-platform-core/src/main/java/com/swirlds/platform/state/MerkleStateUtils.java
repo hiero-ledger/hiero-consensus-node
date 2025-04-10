@@ -18,9 +18,9 @@ public class MerkleStateUtils {
     /**
      * Generate a string that describes this state.
      *
-     * @param hashDepth the depth of the tree to visit and print
+     * @param hashDepth     the depth of the tree to visit and print
      * @param platformState current platform state
-     * @param state current root node state
+     * @param state         current root node state
      *
      */
     @NonNull

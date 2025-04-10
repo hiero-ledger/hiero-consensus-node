@@ -32,10 +32,12 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.Random;
+import java.util.function.Function;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -197,6 +199,12 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
         final CryptocurrencyDemoState state = new CryptocurrencyDemoState();
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
         return state;
+    }
+
+    // TODO: GitHub issue TBD
+    @Override
+    public Function<VirtualMap, CryptocurrencyDemoState> stateRootFromVirtualMap() {
+        throw new UnsupportedOperationException();
     }
 
     /**

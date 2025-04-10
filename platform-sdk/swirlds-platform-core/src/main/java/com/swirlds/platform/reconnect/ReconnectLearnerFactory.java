@@ -8,9 +8,11 @@ import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Creates instances of {@link ReconnectLearner}
@@ -22,6 +24,7 @@ public class ReconnectLearnerFactory {
     private final ThreadManager threadManager;
     private final PlatformContext platformContext;
     private final PlatformStateFacade platformStateFacade;
+    private final Function<VirtualMap, MerkleNodeState> stateRootFunction;
 
     /**
      * @param platformContext the platform context
@@ -37,13 +40,16 @@ public class ReconnectLearnerFactory {
             @NonNull final Roster roster,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            // TODO: add javadoc
+            @NonNull Function<VirtualMap, MerkleNodeState> stateRootFunction) {
         this.platformContext = Objects.requireNonNull(platformContext);
         this.threadManager = Objects.requireNonNull(threadManager);
         this.roster = Objects.requireNonNull(roster);
         this.reconnectSocketTimeout = Objects.requireNonNull(reconnectSocketTimeout);
         this.statistics = Objects.requireNonNull(statistics);
-        this.platformStateFacade = platformStateFacade;
+        this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
+        this.stateRootFunction = Objects.requireNonNull(stateRootFunction);
     }
 
     /**
@@ -62,6 +68,7 @@ public class ReconnectLearnerFactory {
                 workingState,
                 reconnectSocketTimeout,
                 statistics,
-                platformStateFacade);
+                platformStateFacade,
+                stateRootFunction);
     }
 }

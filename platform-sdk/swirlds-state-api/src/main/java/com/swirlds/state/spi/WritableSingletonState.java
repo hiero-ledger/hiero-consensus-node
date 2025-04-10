@@ -9,6 +9,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * @param <T> The type of the state
  */
 public interface WritableSingletonState<T> extends ReadableSingletonState<T> {
+
     /**
      * Sets the given value on this state.
      *

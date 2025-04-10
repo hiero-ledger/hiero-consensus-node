@@ -46,6 +46,7 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -184,7 +185,8 @@ class NodeRewardManagerTest {
             NodeRewards nodeRewards,
             final PlatformState platformState,
             final NetworkStakingRewards networkStakingRewards) {
-        nodeRewardsState = new WritableSingletonStateBase<>(NODE_REWARDS_KEY, nodeRewardsRef::get, nodeRewardsRef::set);
+        nodeRewardsState = new FunctionWritableSingletonState<>(
+                TokenService.NAME, NODE_REWARDS_KEY, nodeRewardsRef::get, nodeRewardsRef::set);
         nodeRewardsRef.set(nodeRewards);
         rosterStateRef.set(RosterState.newBuilder()
                 .roundRosterPairs(RoundRosterPair.newBuilder()
@@ -192,11 +194,11 @@ class NodeRewardManagerTest {
                         .activeRosterHash(Bytes.wrap("ACTIVE"))
                         .build())
                 .build());
-        final WritableSingletonStateBase<RosterState> rosterSingletonState =
-                new WritableSingletonStateBase<>(ROSTER_STATES_KEY, rosterStateRef::get, rosterStateRef::set);
+        final WritableSingletonStateBase<RosterState> rosterSingletonState = new FunctionWritableSingletonState<>(
+                RosterService.NAME, ROSTER_STATES_KEY, rosterStateRef::get, rosterStateRef::set);
         stateRef.set(platformState);
-        final WritableSingletonStateBase<PlatformState> platformSingletonState =
-                new WritableSingletonStateBase<>(PLATFORM_STATE_KEY, stateRef::get, stateRef::set);
+        final WritableSingletonStateBase<PlatformState> platformSingletonState = new FunctionWritableSingletonState<>(
+                PlatformStateService.NAME, PLATFORM_STATE_KEY, stateRef::get, stateRef::set);
         if (networkStakingRewards == null) {
             networkStakingRewardsRef.set(NetworkStakingRewards.newBuilder()
                     .totalStakedStart(0)
@@ -216,12 +218,15 @@ class NodeRewardManagerTest {
         lenient().when(state.getWritableStates(PlatformStateService.NAME)).thenReturn(writableStates);
 
         given(writableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY)).willReturn(nodeRewardsState);
-        final var networkRewardState = new WritableSingletonStateBase<>(
-                STAKING_NETWORK_REWARDS_KEY, networkStakingRewardsRef::get, networkStakingRewardsRef::set);
+        final var networkRewardState = new FunctionWritableSingletonState<>(
+                TokenService.NAME,
+                STAKING_NETWORK_REWARDS_KEY,
+                networkStakingRewardsRef::get,
+                networkStakingRewardsRef::set);
         given(writableStates.<NetworkStakingRewards>getSingleton(STAKING_NETWORK_REWARDS_KEY))
                 .willReturn(networkRewardState);
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
-                        WritableRosterStore.ROSTER_KEY)
+                        RosterService.NAME, WritableRosterStore.ROSTER_KEY)
                 .build();
         rosters.put(
                 ProtoBytes.newBuilder().value(Bytes.wrap("ACTIVE")).build(),
@@ -232,7 +237,7 @@ class NodeRewardManagerTest {
                         .build());
         given(writableStates.<ProtoBytes, Roster>get(ROSTER_KEY)).willReturn(rosters);
         given(writableStates.<RosterState>getSingleton(ROSTER_STATES_KEY)).willReturn(rosterSingletonState);
-        final var readableAccounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_KEY)
+        final var readableAccounts = MapWritableKVState.<AccountID, Account>builder(TokenService.NAME, ACCOUNTS_KEY)
                 .value(asAccount(0, 0, 801), Account.DEFAULT)
                 .build();
         given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);

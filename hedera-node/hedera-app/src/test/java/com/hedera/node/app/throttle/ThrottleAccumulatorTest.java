@@ -89,8 +89,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -269,8 +269,8 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(2).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>("ACCOUNTS", Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>("ALIASES", Map.of()))
+                .state(new MapReadableKVState<>(TokenService.NAME, "ACCOUNTS", Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(TokenService.NAME, "ALIASES", Map.of()))
                 .build();
         lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(states);
 
@@ -313,15 +313,17 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(2).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>("ACCOUNTS", Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>("ALIASES", Map.of()))
+                .state(new MapReadableKVState<>(TokenService.NAME, "ACCOUNTS", Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(TokenService.NAME, "ALIASES", Map.of()))
                 .build();
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
-                .state(new ReadableSingletonStateBase<>(
-                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build()))
-                .state(new ReadableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build()))
+                .state(new FunctionReadableSingletonState<>(
+                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder()
+                                .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
 
@@ -360,15 +362,17 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(0).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>("ACCOUNTS", Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>("ALIASES", Map.of()))
+                .state(new MapReadableKVState<>(TokenService.NAME, "ACCOUNTS", Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(TokenService.NAME, "ALIASES", Map.of()))
                 .build();
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
-                .state(new ReadableSingletonStateBase<>(
-                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build()))
-                .state(new ReadableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityCounts.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityNumber.newBuilder()
+                                .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
 

@@ -9,6 +9,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -27,12 +28,26 @@ public interface MerkleNodeState extends State {
         return (MerkleNode) this;
     }
 
+    default Map<String, Map<String, StateMetadata<?, ?>>> getServices() {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * {@inheritDoc}
      */
     @NonNull
     @Override
     MerkleNodeState copy();
+
+    /**
+     * Initializes the defined service state.
+     *
+     * @param md The metadata associated with the state.
+     * @throws IllegalArgumentException if md doesn't have a label, or if the label isn't right.
+     */
+    default void initializeState(@NonNull final StateMetadata<?, ?> md) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Puts the defined service state and its associated node into the merkle tree. The precondition
@@ -62,10 +77,12 @@ public interface MerkleNodeState extends State {
      * @throws IllegalArgumentException if the node is neither a merkle map nor virtual map, or if
      *                                  it doesn't have a label, or if the label isn't right.
      */
-    <T extends MerkleNode> void putServiceStateIfAbsent(
+    default <T extends MerkleNode> void putServiceStateIfAbsent(
             @NonNull final StateMetadata<?, ?> md,
             @NonNull final Supplier<T> nodeSupplier,
-            @NonNull final Consumer<T> nodeInitializer);
+            @NonNull final Consumer<T> nodeInitializer) {
+        initializeState(md);
+    }
 
     /**
      * Unregister a service without removing its nodes from the state.

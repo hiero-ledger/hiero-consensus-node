@@ -395,7 +395,6 @@ public class TransactionExecutorsTest {
                         bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion()),
                 new ConfigProviderImpl().getConfiguration(),
                 config,
-                AppTestBase.NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,
                 configProvider,
