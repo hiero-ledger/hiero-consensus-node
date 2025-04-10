@@ -70,7 +70,7 @@ class ContractServiceImplTest {
         final var captor = ArgumentCaptor.forClass(Schema.class);
         final var mockRegistry = mock(SchemaRegistry.class);
         subject.registerSchemas(mockRegistry);
-        verify(mockRegistry, times(2)).register(captor.capture());
+        verify(mockRegistry, times(1)).register(captor.capture());
         final var schemas = captor.getAllValues();
         assertInstanceOf(V0490ContractSchema.class, schemas.getFirst());
     }
