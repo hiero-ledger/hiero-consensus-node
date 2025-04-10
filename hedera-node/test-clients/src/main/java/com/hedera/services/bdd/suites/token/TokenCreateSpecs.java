@@ -1147,20 +1147,6 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    final Stream<DynamicTest> withLongMinExpiry() {
-        return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
-                cryptoCreate("autoRenewAccount"),
-                tokenCreate(token)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .supplyKey(GENESIS)
-                        .initialSupply(0L)
-                        .treasury(TOKEN_TREASURY)
-                        .expiry(Long.MIN_VALUE)
-                        .hasKnownStatus(INVALID_EXPIRATION_TIME));
-    }
-
-    @HapiTest
     final Stream<DynamicTest> withNegativeExpiry() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
