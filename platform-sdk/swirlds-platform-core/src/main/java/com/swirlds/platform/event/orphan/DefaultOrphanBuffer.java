@@ -1,20 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.orphan;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
+import com.swirlds.platform.event.validation.DefaultEventSignatureValidator;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.sequence.map.SequenceMap;
 import com.swirlds.platform.sequence.map.StandardSequenceMap;
+import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.function.Function;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
@@ -27,6 +34,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
  * topological order.
  */
 public class DefaultOrphanBuffer implements OrphanBuffer {
+    private static final Logger logger = LogManager.getLogger(DefaultOrphanBuffer.class);
     /**
      * Initial capacity of {@link #eventsWithParents} and {@link #missingParentMap}.
      */
@@ -80,7 +88,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
         platformContext
                 .getMetrics()
                 .getOrCreate(new FunctionGauge.Config<>(
-                                PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
+                        PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
                         .withDescription("number of orphaned events currently in the orphan buffer")
                         .withUnit("events"));
 
@@ -285,6 +293,35 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
 
     @Override
     public void logContents() {
+        final StringBuffer sb = new StringBuffer();
+        sb.append("ORPHAN_BUFFER:");
 
+        for (long gen = missingParentMap.getFirstSequenceNumberInWindow();
+                gen <= missingParentMap.getLastSequenceNumberInWindow(); gen++) {
+            for (final Map.Entry<EventDescriptorWrapper, List<OrphanedEvent>> entry : missingParentMap.getEntriesWithSequenceNumber(
+                    gen)) {
+                sb.append("\n\t");
+                sb.append("\n\tMissing Parent ");
+                sb.append(entry.getKey().shortString());
+                sb.append(" is blocking orphans:");
+                for (OrphanedEvent orphan : entry.getValue()) {
+                    sb.append("\n\t\t");
+                    sb.append(orphan.orphan().getDescriptor().shortString());
+                }
+            }
+        }
+
+        for (long gen = eventsWithParents.getFirstSequenceNumberInWindow();
+                gen <= eventsWithParents.getLastSequenceNumberInWindow(); gen++) {
+            if (!eventsWithParents.getKeysWithSequenceNumber(gen).isEmpty()) {
+                sb.append("\n\tEvents with Parents:");
+                for (final EventDescriptorWrapper ed : eventsWithParents.getKeysWithSequenceNumber(
+                        gen)) {
+                    sb.append("\n\t\t");
+                    sb.append(ed.shortString());
+                }
+            }
+        }
+        logger.info(STARTUP.getMarker(), sb.toString());
     }
 }
