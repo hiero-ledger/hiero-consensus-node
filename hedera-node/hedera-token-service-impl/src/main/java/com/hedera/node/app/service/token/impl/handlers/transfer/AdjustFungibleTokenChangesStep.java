@@ -72,7 +72,7 @@ public class AdjustFungibleTokenChangesStep extends BaseTokenHandler implements 
             final var tokenId = transfers.tokenOrThrow();
             final var token = TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
 
-            if (transfers.hasExpectedDecimals()) {
+            if (token.tokenType() == TokenType.FUNGIBLE_COMMON && transfers.hasExpectedDecimals()) {
                 validateTrue(token.decimals() == transfers.expectedDecimalsOrThrow(), UNEXPECTED_TOKEN_DECIMALS);
             }
 
