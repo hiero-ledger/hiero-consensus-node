@@ -5,7 +5,7 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import org.hiero.otter.fixtures.junit.OtherTestExtension;
+import org.hiero.otter.fixtures.junit.OtterLogTestExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -18,5 +18,5 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 @Test
-@ExtendWith({OtherTestExtension.class})
+@ExtendWith({OtterLogTestExtension.class})
 public @interface OtterTest {}

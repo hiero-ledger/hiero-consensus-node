@@ -17,12 +17,12 @@ import org.junit.jupiter.api.extension.ParameterResolutionException;
 import org.junit.jupiter.api.extension.ParameterResolver;
 import org.junit.jupiter.api.extension.TestWatcher;
 
-public class OtherTestExtension implements InvocationInterceptor, ParameterResolver, TestWatcher {
+public class OtterLogTestExtension implements InvocationInterceptor, ParameterResolver, TestWatcher {
 
     /**
      * The namespace of the extension.
      */
-    private static final Namespace EXTENSION_NAMESPACE = Namespace.create(OtherTestExtension.class);
+    private static final Namespace EXTENSION_NAMESPACE = Namespace.create(OtterLogTestExtension.class);
 
     /**
      * The key to store the environment in the extension context.
@@ -48,7 +48,7 @@ public class OtherTestExtension implements InvocationInterceptor, ParameterResol
         return Optional.of(parameterContext)
                 .map(ParameterContext::getParameter)
                 .map(Parameter::getType)
-                .filter(TestEnvironment.class::isAssignableFrom)
+                .filter(TestEnvironment.class::equals)
                 .isPresent();
     }
 

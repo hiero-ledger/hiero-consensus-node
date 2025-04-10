@@ -60,7 +60,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
             rootLoggerConfig.addAppender(inMemoryAppender, null, null);
             rootLoggerConfig.setLevel(org.apache.logging.log4j.Level.ALL);
 
-            loggerContext.updateLoggers(); // Apply the changes
+            loggerContext.updateLoggers();
         }
 
         final Randotron randotron = Randotron.create();
