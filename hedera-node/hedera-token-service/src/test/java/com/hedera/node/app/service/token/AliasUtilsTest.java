@@ -23,21 +23,21 @@ class AliasUtilsTest {
 
     private static final String SAMPLE_EVM_ADDRESS = "0x1234567890123456789012345678901234567890";
     private static final String SAMPLE_ECDSA_PUBLIC_KEY =
-        "3a2103af80b90d25145da28c583359beb47b21796b2fe1a23c1511e443e7a64dfdb27d";
+            "3a2103af80b90d25145da28c583359beb47b21796b2fe1a23c1511e443e7a64dfdb27d";
     private static final String SAMPLE_ED25519_KEY =
-        "0a220a20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+            "0a220a20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
     // Invalid key formats
     private static final String INVALID_ECDSA_KEY =
-        "3a2103af80b90d25145da28c583359beb47b21796b2fe1a23c1511e443e7a64dfdb27d00"; // Too long
+            "3a2103af80b90d25145da28c583359beb47b21796b2fe1a23c1511e443e7a64dfdb27d00"; // Too long
 
     private static final long TEST_SHARD = 0L;
     private static final long TEST_REALM = 0L;
     private static final String TEST_ENTITY_NUM_ALIAS = "00000000000000000000000000000000000004d2"; // 1234 in hex
     private static final String TEST_NON_ZERO_SHARD_ALIAS =
-        "00000001000000000000000000000000000004d2"; // shard=1, realm=0, num=1234
+            "00000001000000000000000000000000000004d2"; // shard=1, realm=0, num=1234
     private static final String TEST_NON_ZERO_REALM_ALIAS =
-        "00000000000000010000000000000000000004d2"; // shard=0, realm=1, num=1234
+            "00000000000000010000000000000000000004d2"; // shard=0, realm=1, num=1234
 
     @Test
     void constructorThrowsUnsupportedOperationException() {
@@ -105,7 +105,7 @@ class AliasUtilsTest {
         var result = AliasUtils.extractEvmAddress((Key) null);
         assertNull(result);
     }
-    
+
     @Test
     void isEntityNumAliasReturnsTrueForZeroShardRealm() {
         var entityNumAlias = Bytes.wrap(HexFormat.of().parseHex(TEST_ENTITY_NUM_ALIAS));
@@ -252,7 +252,7 @@ class AliasUtilsTest {
     void asKeyFromAliasPreCheckThrowsPreCheckExceptionForInvalidEcdsaKey() {
         var invalidEcdsaKeyAlias = Bytes.wrap(HexFormat.of().parseHex(INVALID_ECDSA_KEY));
         var exception =
-            assertThrows(PreCheckException.class, () -> AliasUtils.asKeyFromAliasPreCheck(invalidEcdsaKeyAlias));
+                assertThrows(PreCheckException.class, () -> AliasUtils.asKeyFromAliasPreCheck(invalidEcdsaKeyAlias));
         assertEquals(ResponseCodeEnum.INVALID_ALIAS_KEY, exception.responseCode());
     }
 
