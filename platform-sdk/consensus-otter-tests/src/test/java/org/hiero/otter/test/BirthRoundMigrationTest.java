@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static org.hiero.otter.fixtures.TransactionGenerator.INFINITE;
-
 import java.time.Duration;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.otter.fixtures.Network;
@@ -10,8 +8,6 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.TransactionGenerator.Distribution;
-import org.hiero.otter.fixtures.TransactionGenerator.Rate;
 
 class BirthRoundMigrationTest {
 
@@ -26,13 +22,13 @@ class BirthRoundMigrationTest {
         // Setup simulation
         network.addNodes(4);
         network.start(ONE_MINUTE);
-        env.generator().generateTransactions(INFINITE, Rate.fixedRateWithTps(1000), Distribution.UNIFORM);
+        env.generator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Initiate the migration
-        env.generator().pause();
+        env.generator().stop();
         network.prepareUpgrade(ONE_MINUTE);
 
         // update the configuration
@@ -42,7 +38,7 @@ class BirthRoundMigrationTest {
 
         // restart the network
         network.resume(ONE_MINUTE);
-        env.generator().resume();
+        env.generator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);

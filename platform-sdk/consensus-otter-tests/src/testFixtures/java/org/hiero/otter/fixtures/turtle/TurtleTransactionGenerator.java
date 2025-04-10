@@ -2,26 +2,26 @@
 package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.ByteUtils.intToByteArray;
 
 import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.time.Instant;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TransactionGenerator;
-import org.hiero.otter.fixtures.internal.Distributor;
-import org.hiero.otter.fixtures.internal.UniformDistributor;
 import org.hiero.otter.fixtures.turtle.TurtleTimeManager.TimeTickReceiver;
 
 public class TurtleTransactionGenerator implements TransactionGenerator, TimeTickReceiver {
 
+    private static final Duration CYCLE_DURATION = Duration.ofSeconds(1).dividedBy(TransactionGenerator.TPS);
+
     private final TurtleNetwork network;
     private final Randotron randotron;
 
-    private int count;
-    private Rate rate;
-    private Distributor distributor;
     private Instant startTime;
     private Instant lastTimestamp;
-    private boolean paused;
+    private boolean running;
 
     /**
      * Constructor for the {@link TurtleTransactionGenerator} class.
@@ -38,15 +38,12 @@ public class TurtleTransactionGenerator implements TransactionGenerator, TimeTic
      * {@inheritDoc}
      */
     @Override
-    public void generateTransactions(
-            final int count, @NonNull final Rate rate, @NonNull final Distribution distribution) {
-        stop();
-        if (distribution != Distribution.UNIFORM) {
-            throw new IllegalArgumentException("Only UNIFORM distribution is supported");
+    public void start() {
+        if (! running) {
+            startTime = null;
+            lastTimestamp = null;
+            running = true;
         }
-        this.count = count;
-        this.rate = requireNonNull(rate);
-        this.distributor = new UniformDistributor(network, randotron);
     }
 
     /**
@@ -54,58 +51,33 @@ public class TurtleTransactionGenerator implements TransactionGenerator, TimeTic
      */
     @Override
     public void stop() {
-        rate = null;
-        count = 0;
-        startTime = null;
-        lastTimestamp = null;
+        running = false;
     }
 
     /**
      * {@inheritDoc}
      */
-    @Override
-    public void pause() {
-        paused = true;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void resume() {
-        if (paused) {
-            paused = false;
-            lastTimestamp = null;
-        }
-    }
-
     @Override
     public void tick(@NonNull Instant now) {
-        if (rate == null && paused) {
+        if (! running) {
             return;
         }
+
         if (lastTimestamp != null) {
-            Instant currentTime = nextPointInTime(lastTimestamp);
-            while (currentTime.isBefore(now)) {
-                distributor.submitTransaction();
-
-                // reduce counter (if not infinite) and remove generator if count is 0
-                if (count != INFINITE && --count == 0) {
-                    stop();
-                    return;
+            final long previousCount = Duration.between(startTime, lastTimestamp).dividedBy(CYCLE_DURATION);
+            final long currentCount = Duration.between(startTime, now).dividedBy(CYCLE_DURATION);
+            for (long i = previousCount; i < currentCount; i++) {
+                for (final Node node : network.getNodes()) {
+                    // Generate a random transaction and submit it to the node.
+                    final byte[] transaction = intToByteArray(randotron.nextInt());
+                    node.submitTransaction(transaction);
                 }
-
-                currentTime = nextPointInTime(currentTime);
             }
         }
+
         if (startTime == null) {
             startTime = now;
         }
         lastTimestamp = now;
-    }
-
-    private Instant nextPointInTime(@NonNull final Instant currentTime) {
-        long delay = rate.nextDelayNS(startTime, currentTime);
-        return currentTime.plusNanos(delay);
     }
 }

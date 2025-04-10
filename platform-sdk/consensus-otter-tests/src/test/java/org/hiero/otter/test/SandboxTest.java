@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static org.hiero.otter.fixtures.TransactionGenerator.INFINITE;
 import static org.hiero.otter.fixtures.Validator.EventStreamConfig.ignoreNode;
 import static org.hiero.otter.fixtures.Validator.LogErrorConfig.ignoreMarkers;
 import static org.hiero.otter.fixtures.Validator.RatioConfig.within;
@@ -15,8 +14,6 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.TransactionGenerator.Distribution;
-import org.hiero.otter.fixtures.TransactionGenerator.Rate;
 import org.hiero.otter.fixtures.Validator.Profile;
 
 public class SandboxTest {
@@ -33,7 +30,7 @@ public class SandboxTest {
         // Setup simulation
         final List<Node> nodes = network.addNodes(4);
         network.start(ONE_MINUTE);
-        env.generator().generateTransactions(INFINITE, Rate.fixedRateWithTps(1000), Distribution.UNIFORM);
+        env.generator().start();
 
         // Wait for two minutes
         timeManager.waitFor(TWO_MINUTES);
@@ -70,7 +67,7 @@ public class SandboxTest {
         network.addNodes(3);
         final InstrumentedNode nodeX = network.addInstrumentedNode();
         network.start(ONE_MINUTE);
-        env.generator().generateTransactions(INFINITE, Rate.fixedRateWithTps(1000), Distribution.UNIFORM);
+        env.generator().start();
 
         // Wait for one minute
         timeManager.waitFor(TEN_SECONDS);

@@ -163,6 +163,10 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      */
     @Override
     public void tick(@NonNull final Instant now) {
+        if (state != State.RUNNING) {
+            return;
+        }
+
         simulatedNetwork.tick(now);
 
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with
