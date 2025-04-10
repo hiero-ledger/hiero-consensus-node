@@ -9,6 +9,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.token.impl.ReadableStakingInfoStoreImpl;
@@ -47,9 +48,11 @@ class ReadableStakingInfoStoreImplTest {
                 .build();
         entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_KEY,
-                new WritableSingletonStateBase<>(ENTITY_ID_STATE_KEY, () -> null, c -> {}),
+                new WritableSingletonStateBase<>(
+                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build(), c -> {}),
                 ENTITY_COUNTS_KEY,
-                new WritableSingletonStateBase<>(ENTITY_COUNTS_KEY, () -> null, c -> {}))));
+                new WritableSingletonStateBase<>(
+                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build(), c -> {}))));
 
         given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
 
@@ -81,6 +84,19 @@ class ReadableStakingInfoStoreImplTest {
                 .value(NODE_ID_20, mock(StakingNodeInfo.class))
                 .build();
         given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
+        entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
+                ENTITY_ID_STATE_KEY,
+                new WritableSingletonStateBase<>(
+                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build(), c -> {}),
+                ENTITY_COUNTS_KEY,
+                new WritableSingletonStateBase<>(
+                        ENTITY_COUNTS_KEY,
+                        () -> EntityCounts.newBuilder()
+                                .numNodes(21)
+                                .numStakingInfos(21)
+                                .build(),
+                        c -> {}))));
+
         subject = new ReadableStakingInfoStoreImpl(states, entityCounters);
 
         final var result = subject.getAll();
