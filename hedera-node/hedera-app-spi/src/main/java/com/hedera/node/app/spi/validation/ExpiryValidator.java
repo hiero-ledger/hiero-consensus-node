@@ -38,13 +38,11 @@ public interface ExpiryValidator {
      *
      * @param currentMetadata the current expiry metadata for the entity
      * @param updateMetadata the expiry metadata for the attempted update
-     * @param isForTokenUpdate if the expiry metadata is for token update
      * @return the expiry metadata that will result from the update
      * @throws HandleException if the metadata is invalid
      */
     @NonNull
-    ExpiryMeta resolveUpdateAttempt(
-            @NonNull ExpiryMeta currentMetadata, @NonNull ExpiryMeta updateMetadata, boolean isForTokenUpdate);
+    ExpiryMeta resolveUpdateAttempt(@NonNull ExpiryMeta currentMetadata, @NonNull ExpiryMeta updateMetadata);
 
     /**
      * Gets the expiration status of an entity based on the {@link EntityType}.

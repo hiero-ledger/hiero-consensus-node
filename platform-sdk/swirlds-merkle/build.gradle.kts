@@ -9,6 +9,7 @@ plugins {
 testModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.common.test.fixtures")
+    requires("org.hiero.base.concurrent")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
 }

@@ -658,7 +658,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     void rejectsInvalidExpiryIfExpiryValidatorFails() {
         final var txn = new CryptoUpdateBuilder().withExpiration(1234567).build();
         givenTxnWith(txn);
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willThrow(new HandleException(INVALID_EXPIRATION_TIME));
 
         assertThatThrownBy(() -> subject.handle(handleContext))
@@ -691,7 +691,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         final var txn = new CryptoUpdateBuilder().withExpiration(10L).build();
         givenTxnWith(txn);
         assertEquals(1234567L, writableStore.get(updateAccountId).expirationSecond());
-        given(expiryValidator.resolveUpdateAttempt(any(), any(), anyBoolean()))
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
                 .willThrow(new HandleException(EXPIRATION_REDUCTION_NOT_ALLOWED));
 
         assertThatThrownBy(() -> subject.handle(handleContext))

@@ -76,7 +76,7 @@ public class CustomCallOperation extends CallOperation {
 
     private boolean mustBePresent(@NonNull final MessageFrame frame, @NonNull final Address toAddress) {
         // This call will create the "to" address, so it doesn't need to be present
-        if (impliesLazyCreation(frame, toAddress) && featureFlags.isImplicitCreationEnabled(frame)) {
+        if (impliesLazyCreation(frame, toAddress) && featureFlags.isImplicitCreationEnabled()) {
             return false;
         }
         // Let system accounts calls or if configured to allow calls to non-existing contract address calls

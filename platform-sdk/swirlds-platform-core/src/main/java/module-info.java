@@ -35,9 +35,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.network.protocol;
     exports com.swirlds.platform.network.topology;
     exports com.swirlds.platform.recovery;
-    exports com.swirlds.platform.sequence;
-    exports com.swirlds.platform.sequence.map;
-    exports com.swirlds.platform.sequence.set;
     exports com.swirlds.platform.state;
     exports com.swirlds.platform.stats;
     exports com.swirlds.platform.stats.atomic;
@@ -103,7 +100,6 @@ module com.swirlds.platform.core {
     opens com.swirlds.platform.cli to
             info.picocli;
 
-    exports com.swirlds.platform.components.transaction;
     exports com.swirlds.platform.event.preconsensus;
     exports com.swirlds.platform.gossip.sync.protocol;
     exports com.swirlds.platform.gossip;
@@ -121,7 +117,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.event.orphan;
     exports com.swirlds.platform.publisher;
     exports com.swirlds.platform.components.consensus;
-    exports com.swirlds.platform.pool;
     exports com.swirlds.platform.state.snapshot;
     exports com.swirlds.platform.state.service.schemas;
     exports com.swirlds.platform.state.service;
@@ -138,6 +133,7 @@ module com.swirlds.platform.core {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
+    requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.event.creator.impl;
     requires transitive org.hiero.consensus.gossip;

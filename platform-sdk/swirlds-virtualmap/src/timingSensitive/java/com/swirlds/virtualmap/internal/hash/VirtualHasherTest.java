@@ -412,7 +412,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         }
 
         @Override
-        public synchronized void onHashingStarted() {
+        public synchronized void onHashingStarted(final long firstLeafPath, final long lastLeafPath) {
             onHashingStartedCallCount++;
             callHistory.append(ON_HASHING_STARTED_SYMBOL);
             internals.clear();
