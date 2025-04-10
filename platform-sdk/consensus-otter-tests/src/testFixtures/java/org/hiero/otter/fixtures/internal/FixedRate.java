@@ -18,7 +18,7 @@ public class FixedRate implements Rate {
     }
 
     @Override
-    public long nextDelayNS(@NonNull Instant start, @NonNull Instant now) {
+    public long nextDelayNS(@NonNull final Instant start, @NonNull final Instant now) {
         if (start.isAfter(now)) {
             throw new IllegalArgumentException("Start time must be before now");
         }
