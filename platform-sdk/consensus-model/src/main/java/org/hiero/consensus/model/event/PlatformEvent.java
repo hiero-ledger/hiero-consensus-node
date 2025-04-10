@@ -17,6 +17,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import org.hiero.base.iterator.TypedIterator;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.crypto.Hashable;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -24,7 +25,6 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
-import org.hiero.consensus.model.utility.TypedIterator;
 
 /**
  * A class used to hold information about an event throughout its lifecycle.

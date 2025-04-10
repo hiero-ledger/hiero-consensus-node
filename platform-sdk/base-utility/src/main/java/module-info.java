@@ -2,6 +2,7 @@
 module org.hiero.base.utility {
     exports org.hiero.base.utility;
     exports org.hiero.base.utility.exceptions;
+    exports org.hiero.base.iterator;
 
     requires transitive com.swirlds.logging;
     requires com.swirlds.base;
