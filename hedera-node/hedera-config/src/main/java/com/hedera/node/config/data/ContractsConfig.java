@@ -39,7 +39,7 @@ public record ContractsConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean sidecarValidationEnabled,
         @ConfigProperty(value = "throttle.throttleByGas", defaultValue = "true") @NetworkProperty
                 boolean throttleThrottleByGas,
-        @ConfigProperty(defaultValue = "20") @NetworkProperty int maxRefundPercentOfGasLimit,
+        @ConfigProperty(defaultValue = "100") @NetworkProperty int maxRefundPercentOfGasLimit,
         @ConfigProperty(defaultValue = "5000000") @NetworkProperty long scheduleThrottleMaxGasLimit,
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean redirectTokenCalls,
         @ConfigProperty(value = "precompile.exchangeRateGasCost", defaultValue = "100") @NetworkProperty
