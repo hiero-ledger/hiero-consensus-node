@@ -19,7 +19,7 @@ public interface Network {
      * @return a list of the added nodes
      */
     @NonNull
-    List<Node> addNodes(final int count);
+    List<Node> addNodes(int count);
 
     /**
      * Start the network with the currently configured setup.
