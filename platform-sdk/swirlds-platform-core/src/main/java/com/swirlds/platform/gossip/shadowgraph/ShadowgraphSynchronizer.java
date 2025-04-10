@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.filterLikelyDuplicates;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.getMyTipsTheyKnow;
@@ -250,12 +251,24 @@ public class ShadowgraphSynchronizer {
             // create a send list based on the known set
             sendList = createSendList(
                     connection.getSelfId(), eventsTheyHave, myWindow, theirTipsAndEventWindow.eventWindow());
+            logSendList(sendList, connection.getSelfId(), connection.getOtherId());
         }
 
         final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
 
         return sendAndReceiveEvents(
                 connection, timing, sendList, syncConfig.syncKeepalivePeriod(), syncConfig.maxSyncTime());
+    }
+
+    private void logSendList(final List<PlatformEvent> sendList, final NodeId selfId, final NodeId peerId) {
+        final StringBuilder sb = new StringBuilder();
+        for (final PlatformEvent event : sendList) {
+            if (event.getCreatorId().id() == 4) {
+                sb.append(event.getDescriptor().shortString()).append("\n");
+            }
+        }
+        logger.info(STARTUP.getMarker(), "Node 4 Send List from node {} to {}: \n{}", selfId.id(), peerId.id(),
+                sb.toString());
     }
 
     @NonNull
@@ -461,6 +474,7 @@ public class ShadowgraphSynchronizer {
 
     /**
      * Events sent here should be gossiped to the network
+     *
      * @param platformEvent event to be sent outside
      */
     public void addEvent(@NonNull final PlatformEvent platformEvent) {
@@ -469,6 +483,7 @@ public class ShadowgraphSynchronizer {
 
     /**
      * Updates the current event window (mostly ancient thresholds)
+     *
      * @param eventWindow new event window to apply
      */
     public void updateEventWindow(@NonNull final EventWindow eventWindow) {
