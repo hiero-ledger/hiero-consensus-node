@@ -40,4 +40,6 @@ public interface OrphanBuffer {
      * Clears the orphan buffer.
      */
     void clear();
+
+    void logContents();
 }

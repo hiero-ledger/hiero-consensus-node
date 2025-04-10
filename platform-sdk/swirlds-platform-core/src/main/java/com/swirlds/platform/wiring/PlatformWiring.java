@@ -5,6 +5,7 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerC
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.NO_OP_CONFIGURATION;
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static com.swirlds.component.framework.wires.SolderType.OFFER;
+import java.time.Duration;
 import static org.hiero.consensus.model.event.StaleEventDetectorOutput.SELF_EVENT;
 import static org.hiero.consensus.model.event.StaleEventDetectorOutput.STALE_SELF_EVENT;
 
@@ -437,7 +438,8 @@ public class PlatformWiring {
                         .getConfigData(PlatformStatusConfig.class)
                         .statusStateMachineHeartbeatPeriod())
                 .solderTo(statusStateMachineWiring.getInputWire(StatusStateMachine::heartbeat), OFFER);
-
+        model.buildHeartbeatWire(Duration.ofSeconds(30))
+                        .solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::logContents));
         eventCreationManagerWiring
                 .getOutputWire()
                 .solderTo(selfEventSignerWiring.getInputWire(SelfEventSigner::signEvent));

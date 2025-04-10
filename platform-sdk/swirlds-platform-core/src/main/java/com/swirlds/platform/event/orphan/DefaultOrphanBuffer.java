@@ -282,4 +282,9 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
         missingParentMap.clear();
         currentOrphanCount = 0;
     }
+
+    @Override
+    public void logContents() {
+
+    }
 }
