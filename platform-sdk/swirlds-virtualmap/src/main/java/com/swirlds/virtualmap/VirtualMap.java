@@ -14,7 +14,6 @@ import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
 import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.utility.Labeled;
@@ -27,9 +26,9 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.constructable.constructors.VirtualMapConstructor;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
+import com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapState;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
-import com.swirlds.virtualmap.internal.merkle.VirtualStateAccessorImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedInputStream;
@@ -122,26 +121,29 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         public static final int ORIGINAL = 1;
         public static final int MERKLE_SERIALIZATION_CLEANUP = 2;
         public static final int REHASH_LEAVES = 3;
+        public static final int MIGRATE_VM_STATE = 4;
     }
 
     private static final class ChildIndices {
         /**
-         * The index of the first child, which is used for storing in-state map {@link VirtualMapState}.
-         */
-        private static final int MAP_STATE_CHILD_INDEX = 0;
-
-        /**
          * The index of the second child which is the {@link VirtualRootNode}.
          */
-        private static final int VIRTUAL_ROOT_CHILD_INDEX = 1;
+        private static final int VIRTUAL_ROOT_CHILD_INDEX = 0;
     }
 
     /**
-     * A reference to the first child, the {@link VirtualMapState}. Ideally this would be final
+     * A reference to the map metadata, the {@link VirtualMapState}. Ideally this would be final
      * and never null, but serialization requires partially constructed objects, so it must not be
      * final and may be null until deserialization is complete.
      */
     private VirtualMapState state;
+
+    public static final int MAX_LABEL_CHARS = 512;
+
+    /**
+     *  The label for the virtual map.  Needed to differentiate between different VirtualMaps (stats, filesystem)
+     */
+    private String label;
 
     /**
      * A reference to the second child, the {@link VirtualRootNode}. We hold this reference
@@ -184,12 +186,15 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             final VirtualDataSourceBuilder dataSourceBuilder,
             final @NonNull Configuration configuration) {
         this(configuration);
-        setChild(ChildIndices.MAP_STATE_CHILD_INDEX, new VirtualMapState(requireNonNull(label)));
-        setChild(
-                ChildIndices.VIRTUAL_ROOT_CHILD_INDEX,
-                new VirtualRootNode(
-                        requireNonNull(dataSourceBuilder),
-                        requireNonNull(configuration.getConfigData(VirtualMapConfig.class))));
+        if (label.length() > MAX_LABEL_CHARS) {
+            throw new IllegalArgumentException("Label cannot be greater than 512 characters");
+        }
+        this.label = label;
+        root = new VirtualRootNode(
+                requireNonNull(dataSourceBuilder), requireNonNull(configuration.getConfigData(VirtualMapConfig.class)));
+        state = new VirtualMapState();
+        setChild(ChildIndices.VIRTUAL_ROOT_CHILD_INDEX, root);
+        root.postInit(label, state);
     }
 
     /**
@@ -200,8 +205,11 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     private VirtualMap(final VirtualMap source) {
         this(source.configuration);
-        setChild(ChildIndices.MAP_STATE_CHILD_INDEX, source.getState().copy());
-        setChild(ChildIndices.VIRTUAL_ROOT_CHILD_INDEX, source.getRoot().copy());
+        label = source.label;
+        state = source.state.copy();
+        root = source.getRoot().copy();
+        setChild(ChildIndices.VIRTUAL_ROOT_CHILD_INDEX, root);
+        root.postInit(label, state);
     }
 
     /**
@@ -258,7 +266,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     @Override
     public int getVersion() {
-        return ClassVersion.REHASH_LEAVES;
+        return ClassVersion.MIGRATE_VM_STATE;
     }
 
     /**
@@ -266,7 +274,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     @Override
     public String getLabel() {
-        return state.getLabel();
+        return label;
     }
 
     /**
@@ -277,6 +285,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         throwIfImmutable();
         throwIfDestroyed();
 
+        putBytes(VirtualMapState.VM_STATE_KEY, state.toBytes());
         final VirtualMap copy = new VirtualMap(this);
         setImmutable(true);
         return copy;
@@ -286,38 +295,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * {@inheritDoc}
      */
     @Override
-    public void setChild(final int index, final MerkleNode child) {
-        // The children of this node are *ONLY* updated during initialization, where initialization includes:
-        //   - Normal construction
-        //   - Copy construction
-        //   - Reconnect construction
-        //   - Restart (from saved state) construction.
-        //
-        // All four of these uses end up creating a new VirtualMapState instance and a new VirtualRootNode instance
-        // and need to supply the virtual root node with a StateAccessor that can interface with the new VirtualMapState
-        // instance. This would be trivial except for reconnect and restart (serialization) use cases because
-        // the serialization engine will create an incomplete VirtualMap structure and then add the children to it
-        // dynamically.
-        //
-        // For this reason we must construct an incomplete VirtualRootNode and then finish initialization on it.
-        if (index == ChildIndices.MAP_STATE_CHILD_INDEX) {
-            state = child.cast();
-        } else if (index == ChildIndices.VIRTUAL_ROOT_CHILD_INDEX) {
-            root = child.cast();
-            root.postInit(new VirtualStateAccessorImpl(state));
-        }
-
-        super.setChild(index, child);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void serialize(final SerializableDataOutputStream out, final Path outputDirectory) throws IOException {
 
         // Create and write to state the name of the file we will expect later on deserialization
-        final String outputFileName = state.getLabel() + ".vmap";
+        final String outputFileName = label + ".vmap";
         final byte[] outputFileNameBytes = getNormalisedStringBytes(outputFileName);
         out.writeInt(outputFileNameBytes.length);
         out.writeNormalisedString(outputFileName);
@@ -326,7 +307,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         final Path outputFile = outputDirectory.resolve(outputFileName);
         try (SerializableDataOutputStream serout = new SerializableDataOutputStreamImpl(
                 new BufferedOutputStream(new FileOutputStream(outputFile.toFile())))) {
-            serout.writeSerializable(state, true);
+            serout.writeNormalisedString(label);
             serout.writeInt(root.getVersion());
             root.serialize(serout, outputDirectory);
         }
@@ -344,10 +325,11 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             in.readSerializable();
         }
 
+        boolean vmStateExternal = version < ClassVersion.MIGRATE_VM_STATE;
         final int fileNameLengthInBytes = in.readInt();
         final String inputFileName = in.readNormalisedString(fileNameLengthInBytes);
         final Path inputFile = inputDirectory.resolve(inputFileName);
-        loadFromFile(inputFile);
+        loadFromFile(inputFile, vmStateExternal);
         if (version < ClassVersion.REHASH_LEAVES) {
             root.fullLeafRehashIfNecessary();
         }
@@ -357,28 +339,44 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * Deserializes the given serialized VirtualMap file into this map instance. This is not intended for
      * public use, it is for testing and tools only.
      *
-     * @param inputFile
-     * 		The input .vmap file. Cannot be null.
-     * @throws IOException
-     * 		For problems.
+     * @param inputFile           The input .vmap file. Cannot be null.
+     * @param vmStateExternal true for versions prior to version 4, the state is not a leaf for the VM
+     * @throws IOException For problems.
      */
-    public void loadFromFile(final Path inputFile) throws IOException {
-        final ValueReference<VirtualMapState> virtualMapState = new ValueReference<>();
-        final ValueReference<VirtualRootNode> virtualRootNode = new ValueReference<>();
+    public void loadFromFile(final Path inputFile, boolean vmStateExternal) throws IOException {
+        final ValueReference<VirtualMapState> virtualMapStateRef = new ValueReference<>();
+        final ValueReference<VirtualRootNode> virtualRootNodeRef = new ValueReference<>();
 
         deserializeAndDebugOnFailure(
                 () -> new SerializableDataInputStreamImpl(
                         new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
                 (final MerkleDataInputStream stream) -> {
-                    virtualMapState.setValue(stream.readSerializable());
-                    virtualRootNode.setValue(new VirtualRootNode(configuration.getConfigData(VirtualMapConfig.class)));
-                    virtualRootNode.getValue().deserialize(stream, inputFile.getParent(), stream.readInt());
+                    if (vmStateExternal) {
+                        final ExternalVirtualMapState value = stream.readSerializable();
+                        virtualMapStateRef.setValue(new VirtualMapState(value));
+                        label = value.getLabel();
+                    } else {
+                        label = stream.readNormalisedString(MAX_LABEL_CHARS);
+                    }
+                    virtualRootNodeRef.setValue(
+                            new VirtualRootNode(configuration.getConfigData(VirtualMapConfig.class)));
+                    virtualRootNodeRef.getValue().deserialize(stream, inputFile.getParent(), stream.readInt());
                     return null;
                 });
 
-        state = virtualMapState.getValue();
-        root = virtualRootNode.getValue();
-        addDeserializedChildren(List.of(state, root), getVersion());
+        root = virtualRootNodeRef.getValue();
+        root.postInit(label, null);
+        if (vmStateExternal) {
+            state = new VirtualMapState();
+        }
+
+        addDeserializedChildren(List.of(root), getVersion());
+
+        if (!vmStateExternal) {
+            Bytes stateBytes = root.getBytes(VirtualMapState.VM_STATE_KEY);
+            assert stateBytes != null;
+            state = new VirtualMapState(stateBytes);
+        }
     }
 
     /**
@@ -395,20 +393,13 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
 
     /*
      * Gets the number of elements in this map.
+     * Note that even freshly created instance of {@code VirtualMap} contains
+     * at least one element - an instance of {@link VirtualMapState}
      *
      * @return The number of key/value pairs in the map.
      */
     public long size() {
         return state.getSize();
-    }
-
-    /*
-     * Gets whether this map is empty.
-     *
-     * @return True if the map is empty
-     */
-    public boolean isEmpty() {
-        return root.isEmpty();
     }
 
     /*

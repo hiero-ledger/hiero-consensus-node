@@ -45,6 +45,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
@@ -106,7 +107,7 @@ class VirtualMapTests extends VirtualTestBase {
     void freshMapIsMutable() {
         final VirtualMap fcm = createMap();
         fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
-        assertEquals(1, fcm.size(), "VirtualMap size is wrong");
+        assertEquals(2, fcm.size(), "VirtualMap size is wrong");
         fcm.release();
     }
 
@@ -117,7 +118,7 @@ class VirtualMapTests extends VirtualTestBase {
         final VirtualMap fcm = createMap();
         assertEquals(2, fcm.getNumberOfChildren(), "VirtualMap size is wrong");
         assertNotNull(fcm.getChild(0), "Unexpected null at index 0");
-        assertNotNull(fcm.getChild(1), "Unexpected null at index 1");
+        assertNull(fcm.getChild(1), "Unexpected non-null at index 1");
         fcm.release();
     }
 
@@ -133,11 +134,15 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("Fresh")})
     @DisplayName("The root node of an empty tree has no children")
-    void emptyTreeRootHasNoChildren() {
+    void emptyTreeRootHasOnlyStateAsChild() {
         final VirtualMap fcm = createMap();
-        final MerkleInternal root = fcm.getChild(1).asInternal();
+        final MerkleInternal root = fcm.getChild(0).asInternal();
         assertEquals(2, root.getNumberOfChildren(), "Unexpected number of children");
-        assertNull(root.getChild(0), "Unexpected child of empty root");
+        VirtualLeafNode child = root.getChild(0);
+        VirtualMapState virtualMapState = new VirtualMapState(child.getValue());
+        assertEquals(-1, virtualMapState.getFirstLeafPath());
+        assertEquals(-1, virtualMapState.getLastLeafPath());
+
         assertNull(root.getChild(1), "Unexpected child of empty root");
         fcm.release();
     }
@@ -198,13 +203,13 @@ class VirtualMapTests extends VirtualTestBase {
         assertEquals(APPLE, fcm.get(A_KEY, TestValueCodec.INSTANCE), "Unexpected value");
         assertEquals(BANANA, fcm.get(B_KEY, TestValueCodec.INSTANCE), "Unexpected value");
         assertEquals(CHERRY, fcm.get(C_KEY, TestValueCodec.INSTANCE), "Unexpected value");
-        assertEquals(3, fcm.size(), "Unexpected size");
+        assertEquals(4, fcm.size(), "Unexpected size");
 
         assertEquals(AARDVARK, copy.get(A_KEY, TestValueCodec.INSTANCE), "Unexpected value");
         assertEquals(BANANA, copy.get(B_KEY, TestValueCodec.INSTANCE), "Unexpected value");
         assertEquals(DOG, copy.get(D_KEY, TestValueCodec.INSTANCE), "Unexpected value");
         assertEquals(EMU, copy.get(E_KEY, TestValueCodec.INSTANCE), "Unexpected value");
-        assertEquals(4, copy.size(), "Unexpected size");
+        assertEquals(5, copy.size(), "Unexpected size");
         fcm.release();
         copy.release();
     }
@@ -217,47 +222,32 @@ class VirtualMapTests extends VirtualTestBase {
     @DisplayName("Size matches number of items input")
     void sizeMatchesNumberOfItemsInput() {
         final VirtualMap fcm = createMap();
-        assertEquals(0, fcm.size(), "Unexpected size");
+        // initial size of the map is one because of `VirtualMapState`
+        assertEquals(1, fcm.size(), "Unexpected size");
 
         // Add an element
         fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
-        assertEquals(1, fcm.size(), "Unexpected size");
+        assertEquals(2, fcm.size(), "Unexpected size");
 
         // Add a couple more elements
         fcm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
-        assertEquals(2, fcm.size(), "Unexpected size");
-        fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
         assertEquals(3, fcm.size(), "Unexpected size");
+        fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+        assertEquals(4, fcm.size(), "Unexpected size");
 
         // replace a couple elements (out of order even!)
         assertNotNull(fcm.get(B_KEY, TestValueCodec.INSTANCE), "Entry for B_KEY not found");
         fcm.put(B_KEY, BEAR, TestValueCodec.INSTANCE);
         assertNotNull(fcm.get(A_KEY, TestValueCodec.INSTANCE), "Entry for A_KEY not found");
         fcm.put(A_KEY, AARDVARK, TestValueCodec.INSTANCE);
-        assertEquals(3, fcm.size(), "Unexpected size");
+        assertEquals(4, fcm.size(), "Unexpected size");
 
         // Loop and add a million items and make sure the size is matching
         for (int i = 1000; i < 1_001_000; i++) {
             fcm.put(TestKey.longToKey(i), new TestValue("value" + i), TestValueCodec.INSTANCE);
         }
 
-        assertEquals(1_000_003, fcm.size(), "Unexpected size");
-        fcm.release();
-    }
-
-    @Test
-    @DisplayName("Is empty when size == 0")
-    void isEmptyWhenSizeIsZero() {
-        final VirtualMap fcm = createMap();
-        assertTrue(fcm.isEmpty(), "Expected a fresh map to be empty");
-
-        // Add an element
-        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
-        assertFalse(fcm.isEmpty(), "Expected a non-empty map");
-
-        // Remove the elements and test that it is back to being empty
-        fcm.remove(A_KEY);
-        assertTrue(fcm.isEmpty(), "Expected an empty map on deleting the last leaf");
+        assertEquals(1_000_004, fcm.size(), "Unexpected size");
         fcm.release();
     }
 
@@ -331,7 +321,7 @@ class VirtualMapTests extends VirtualTestBase {
         assertNull(fcm.get(B_KEY, TestValueCodec.INSTANCE), "Expected null");
         assertEquals(CUTTLEFISH, fcm.get(C_KEY, TestValueCodec.INSTANCE), "Wrong value");
         assertEquals(CUTTLEFISH, fcm.get(D_KEY, TestValueCodec.INSTANCE), "Wrong value");
-        assertEquals(4, fcm.size(), "Wrong size");
+        assertEquals(5, fcm.size(), "Wrong size");
         fcm.release();
     }
 
@@ -738,10 +728,10 @@ class VirtualMapTests extends VirtualTestBase {
      * <pre>
      *                      VirtualMap
      *                         []
-     *                     /       \
-     *                    /         \
-     *         VirtualMapState      Root
-     *                 [0]           [1]
+     *                           \
+     *                            \
+     *                               Root
+     *                            [1]
      *                             /     \
      *                            /       \
      *                        Internal     B
@@ -764,13 +754,14 @@ class VirtualMapTests extends VirtualTestBase {
             nodes.add(node);
         });
 
-        assertEquals(MerkleRouteFactory.buildRoute(0), nodes.get(0).getRoute(), "VirtualMapState");
-        assertEquals(MerkleRouteFactory.buildRoute(1, 0, 0), nodes.get(1).getRoute(), "VirtualLeafNode A");
-        assertEquals(MerkleRouteFactory.buildRoute(1, 0, 1), nodes.get(2).getRoute(), "VirtualLeafNode C");
-        assertEquals(MerkleRouteFactory.buildRoute(1, 0), nodes.get(3).getRoute(), "VirtualInternalNode");
-        assertEquals(MerkleRouteFactory.buildRoute(1, 1), nodes.get(4).getRoute(), "VirtualLeafNode B");
-        assertEquals(MerkleRouteFactory.buildRoute(1), nodes.get(5).getRoute(), "VirtualInternalNode Root");
-        assertEquals(MerkleRouteFactory.buildRoute(), nodes.get(6).getRoute(), "VirtualMap");
+        assertEquals(MerkleRouteFactory.buildRoute(0, 0, 0), nodes.get(0).getRoute(), "VirtualMapState");
+        assertEquals(MerkleRouteFactory.buildRoute(0, 0, 1), nodes.get(1).getRoute(), "VirtualLeafNode A");
+        assertEquals(MerkleRouteFactory.buildRoute(0, 0), nodes.get(2).getRoute(), "VirtualInternalNode");
+        assertEquals(MerkleRouteFactory.buildRoute(0, 1, 0), nodes.get(3).getRoute(), "VirtualLeafNode C");
+        assertEquals(MerkleRouteFactory.buildRoute(0, 1, 1), nodes.get(4).getRoute(), "VirtualLeafNode B");
+        assertEquals(MerkleRouteFactory.buildRoute(0, 1), nodes.get(5).getRoute(), "VirtualInternalNode");
+        assertEquals(MerkleRouteFactory.buildRoute(0), nodes.get(6).getRoute(), "VirtualInternalNode Root");
+        assertEquals(MerkleRouteFactory.buildRoute(), nodes.get(7).getRoute(), "VirtualMap");
     }
 
     @Test
@@ -895,7 +886,7 @@ class VirtualMapTests extends VirtualTestBase {
 
         final long value = metricValue;
 
-        final VirtualRootNode lastRoot = map0.getRight();
+        final VirtualRootNode lastRoot = map0.getLeft();
         lastRoot.enableFlush();
         VirtualMap map1 = map0.copy();
         map0.release();
@@ -935,13 +926,13 @@ class VirtualMapTests extends VirtualTestBase {
             VirtualMap map1 = map0.copy();
             map0.release();
             // shouldBeFlushed() can only be called on a released instance
-            VirtualRootNode root0 = map0.getRight();
+            VirtualRootNode root0 = map0.getLeft();
             if (root0.shouldBeFlushed()) {
                 flushCount++;
             }
             map0 = map1;
 
-            VirtualRootNode root1 = map1.getRight();
+            VirtualRootNode root1 = map1.getLeft();
             // Make sure at least some maps need to be flushed, including the last one
             if ((i % 57 == 0) || (i == totalCount - 1)) {
                 root1.enableFlush();
@@ -950,7 +941,7 @@ class VirtualMapTests extends VirtualTestBase {
 
         // Don't release the last map yet, as it would terminate the pipeline. Make a copy first,
         // release the map, then wait for the root to be flushed, then release the copy
-        VirtualRootNode lastRoot = map0.getRight();
+        VirtualRootNode lastRoot = map0.getLeft();
         VirtualMap map1 = map0.copy();
         map0.release();
         // shouldBeFlushed() can only be called on a released instance
@@ -983,9 +974,9 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle")})
     @DisplayName("A copied map is serializable and then deserializable")
     void testExternalSerializationAndDeserialization() throws IOException {
-        final VirtualMap map0 = createMap();
-        map0.getState().setLabel("serializationTest");
-        assertEquals("serializationTest", map0.getLabel());
+        String label = "serializationTest";
+        final VirtualMap map0 = createMap(label);
+        assertEquals(label, map0.getLabel());
         map0.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
         map0.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
         map0.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
@@ -995,7 +986,7 @@ class VirtualMapTests extends VirtualTestBase {
         map0.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
         final VirtualMap map1 = map0.copy(); // this should make map0 immutable
-        assertEquals("serializationTest", map1.getLabel());
+        assertEquals(label, map1.getLabel());
         assertNotNull(map0.getRoot().getHash(), "Hash should have been produced for map0");
         assertTrue(map0.isImmutable(), "Copied VirtualMap should have been immutable");
         assertVirtualMapsEqual(map0, map1);
@@ -1009,12 +1000,8 @@ class VirtualMapTests extends VirtualTestBase {
                 new SerializableDataInputStreamImpl(new ByteArrayInputStream(byteOut.toByteArray()));
 
         final VirtualMap map2 = createMap();
-        // read the serialized map back into map2
-        // Note to Jasper/Richard: The call to deserializeException below fails - but somewhat unexpectedly!
-        // Did I not set up the serialization/deserialization correctly?
-        // currently throws IOException here.
-        map2.deserialize(in, testDirectory, VirtualMap.ClassVersion.MERKLE_SERIALIZATION_CLEANUP);
-        assertEquals("serializationTest", map2.getLabel());
+        map2.deserialize(in, testDirectory, map0.getVersion());
+        assertEquals(label, map2.getLabel());
         assertVirtualMapsEqual(map0, map2);
 
         // release the maps and clean up the temporary directory
@@ -1060,7 +1047,7 @@ class VirtualMapTests extends VirtualTestBase {
                 map.remove(TestKey.longToKey(i));
             }
 
-            assertTrue(map.isEmpty(), "Map should be empty");
+            assertTrue(map.size() == 1, "Map should contain only VirtualMapState");
 
             for (int i = 0; i < max; i++) {
                 if (i > 0 && i % changesPerBatch == 0) {
@@ -1096,16 +1083,16 @@ class VirtualMapTests extends VirtualTestBase {
             map.put(TestObjectKey.longToKey(i), new TestValue(i), TestValueCodec.INSTANCE);
         }
 
-        VirtualRootNode rootNode = map.getRight();
+        VirtualRootNode rootNode = map.getLeft();
         rootNode.enableFlush();
 
         RecordAccessor records = rootNode.getRecords();
         // Check that key/value 0 is at path 7
-        VirtualLeafBytes leaf = records.findLeafRecord(7);
+        VirtualLeafBytes leaf = records.findLeafRecord(8);
         assertNotNull(leaf);
-        assertEquals(TestObjectKey.longToKey(0), leaf.keyBytes());
-        assertEquals(new TestValue(0).toBytes(), leaf.valueBytes());
-        assertEquals(new TestValue(0), leaf.value(TestValueCodec.INSTANCE));
+        assertEquals(TestObjectKey.longToKey(3), leaf.keyBytes());
+        assertEquals(new TestValue(3).toBytes(), leaf.valueBytes());
+        assertEquals(new TestValue(3), leaf.value(TestValueCodec.INSTANCE));
 
         VirtualMap copy = map.copy();
         map.release();
@@ -1119,7 +1106,7 @@ class VirtualMapTests extends VirtualTestBase {
         map.put(TestObjectKey.longToKey(0), new TestValue(0), TestValueCodec.INSTANCE);
         map.remove(TestObjectKey.longToKey(0));
 
-        rootNode = map.getRight();
+        rootNode = map.getLeft();
         rootNode.enableFlush();
 
         copy = map.copy();

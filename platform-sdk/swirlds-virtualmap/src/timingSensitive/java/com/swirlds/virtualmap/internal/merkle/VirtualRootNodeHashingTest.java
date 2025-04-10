@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VM_LABEL;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createRoot;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -9,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
-import com.swirlds.virtualmap.test.fixtures.DummyVirtualStateAccessor;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
@@ -70,7 +70,7 @@ class VirtualRootNodeHashingTest {
         }
 
         final VirtualRootNode root1 = root0.copy();
-        root1.postInit(new DummyVirtualStateAccessor());
+        root1.postInit(VM_LABEL, new VirtualMapState());
         final Hash hash0 = root0.getHash();
         assertNotNull(hash0, "hash should not be null");
 
@@ -79,7 +79,7 @@ class VirtualRootNodeHashingTest {
         }
 
         final VirtualRootNode root2 = root1.copy();
-        root2.postInit(new DummyVirtualStateAccessor());
+        root2.postInit(VM_LABEL, new VirtualMapState());
         final Hash hash1 = root1.getHash();
         assertNotNull(hash1, "hash should not be null");
 

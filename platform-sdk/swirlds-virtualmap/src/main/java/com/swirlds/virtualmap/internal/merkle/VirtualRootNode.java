@@ -19,8 +19,9 @@ import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 import static com.swirlds.virtualmap.internal.Path.getSiblingPath;
 import static com.swirlds.virtualmap.internal.Path.isFarRight;
 import static com.swirlds.virtualmap.internal.Path.isLeft;
-import static com.swirlds.virtualmap.internal.merkle.VirtualMapState.CLASS_ID;
-import static com.swirlds.virtualmap.internal.merkle.VirtualMapState.MAX_LABEL_LENGTH;
+import static com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapState.CLASS_ID;
+import static com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapState.MAX_LABEL_LENGTH;
+import static com.swirlds.virtualmap.internal.merkle.VirtualMapState.VM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -53,7 +54,6 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.VirtualStateAccessor;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
@@ -65,7 +65,6 @@ import com.swirlds.virtualmap.internal.reconnect.LearnerPushVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashListener;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectNodeRemover;
-import com.swirlds.virtualmap.internal.reconnect.ReconnectState;
 import com.swirlds.virtualmap.internal.reconnect.TeacherPullVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.TeacherPushVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.TopToBottomTraversalOrder;
@@ -210,11 +209,13 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
 
     /**
      * An interface through which the {@link VirtualRootNode} can access persistent virtual map state, such
-     * as the first leaf path, last leaf path, name, and other state. We do not access the {@link VirtualMapState}
-     * directly because the {@link VirtualMapState} instance may change over time, so we use this interface
+     * as the first leaf path, last leaf path, name, and other state. We do not access the {@link ExternalVirtualMapState}
+     * directly because the {@link ExternalVirtualMapState} instance may change over time, so we use this interface
      * instead and allow the {@link VirtualMap} to provide indirection onto the current state data.
      */
-    private VirtualStateAccessor state;
+    private VirtualMapState state;
+
+    private String label;
 
     /**
      * An interface through which the {@link VirtualRootNode} can access record data from the cache and the
@@ -295,13 +296,13 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
      */
     private AtomicBoolean reconnectHashingStarted;
 
-    private VirtualStateAccessor reconnectState;
+    private VirtualMapState reconnectState;
     /**
      * The {@link RecordAccessor} for the state, cache, and data source needed during reconnect.
      */
     private RecordAccessor reconnectRecords;
 
-    private VirtualStateAccessor fullyReconnectedState;
+    private VirtualMapState fullyReconnectedState;
 
     /**
      * During reconnect as a learner, this is the root node in the old learner merkle tree.
@@ -364,6 +365,7 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
     @SuppressWarnings("CopyConstructorMissesField")
     private VirtualRootNode(VirtualRootNode source) {
         super(source);
+        this.label = source.label;
         this.fastCopyVersion = source.fastCopyVersion + 1;
         this.dataSourceBuilder = source.dataSourceBuilder;
         this.dataSource = source.dataSource;
@@ -388,43 +390,63 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
     }
 
     /**
-     * Sets the {@link VirtualStateAccessor}. This method is called when this root node
+     * Sets the {@link VirtualMapState}. This method is called when this root node
      * is added as a child to its virtual map. It happens when virtual maps are created
      * from scratch, or during deserialization. It's also called after learner reconnects.
      *
      * @param state
      * 		The accessor. Cannot be null.
      */
-    public void postInit(final VirtualStateAccessor state) {
+    public VirtualMapState postInit(@NonNull String label, @Nullable final VirtualMapState state) {
+        this.label = requireNonNull(label);
+
         // We're reconnecting, state doesn't match cache or dataSource, gotta bail.
         if (originalMap != null) {
             fullyReconnectedState = state;
-            return;
+            return state;
         }
         if (cache == null) {
             cache = new VirtualNodeCache(virtualMapConfig);
         }
-        this.state = requireNonNull(state);
+        if (dataSource == null) {
+            dataSource = dataSourceBuilder.build(label, true);
+        }
+
+        if (state == null) {
+            try {
+                VirtualLeafBytes<?> virtualLeafBytes = dataSource.loadLeafRecord(VM_STATE_KEY);
+                this.state = virtualLeafBytes == null
+                        ? new VirtualMapState()
+                        : new VirtualMapState(virtualLeafBytes.valueBytes());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        } else {
+            this.state = state;
+        }
         updateShouldBeFlushed();
         requireNonNull(dataSourceBuilder);
-        if (dataSource == null) {
-            dataSource = dataSourceBuilder.build(state.getLabel(), true);
-        }
+
         this.records = new RecordAccessorImpl(this.state, cache, dataSource);
         if (statistics == null) {
             // Only create statistics instance if we don't yet have statistics. During a reconnect operation.
             // it is necessary to use the statistics object from the previous instance of the state.
-            statistics = new VirtualMapStatistics(state.getLabel());
+            statistics = new VirtualMapStatistics(label);
         }
+
+        putBytes(VM_STATE_KEY, this.state.toBytes());
+
         // VM size metric value is updated in add() and remove(). However, if no elements are added or
         // removed, the metric may have a stale value for a long time. Update it explicitly here
         statistics.setSize(size());
         // At this point in time the copy knows if it should be flushed or merged, and so it is safe
         // to register with the pipeline.
         if (pipeline == null) {
-            pipeline = new VirtualPipeline(virtualMapConfig, state.getLabel());
+            pipeline = new VirtualPipeline(virtualMapConfig, label);
         }
         pipeline.registerCopy(this);
+
+        return this.state;
     }
 
     /**
@@ -576,12 +598,12 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
     }
 
     /**
-     * Gets the {@link VirtualStateAccessor} containing state for this copy of {@link VirtualRootNode}.
+     * Gets the {@link VirtualMapState} containing state for this copy of {@link VirtualRootNode}.
      *
-     * @return The {@link VirtualStateAccessor}. Will not be null unless called during serialization before
+     * @return The {@link VirtualMapState}. Will not be null unless called during serialization before
      * 		serialization completes.
      */
-    public VirtualStateAccessor getState() {
+    public VirtualMapState getState() {
         return state;
     }
 
@@ -645,6 +667,7 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
         if (isDestroyed()
                 || dataSource == null
                 || originalMap != null
+                || state == null
                 || state.getFirstLeafPath() == INVALID_PATH
                 || index > 1) {
             return null;
@@ -768,17 +791,7 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
      * @return The number of key/value pairs in the map.
      */
     public long size() {
-        return state.size();
-    }
-
-    /*
-     * Gets whether this map is empty.
-     *
-     * @return True if the map is empty
-     */
-    public boolean isEmpty() {
-        final long lastLeafPath = state.getLastLeafPath();
-        return lastLeafPath == INVALID_PATH;
+        return state.getSize();
     }
 
     /**
@@ -847,7 +860,7 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
                 // The key is not stored. So add a new entry and return.
                 add(key, value, valueCodec, valueBytes);
                 statistics.countAddedEntities();
-                statistics.setSize(state.size());
+                statistics.setSize(state.getSize());
                 return;
             }
 
@@ -875,6 +888,8 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
         throwIfImmutable();
         requireNonNull(key);
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
+        // don't allow deletion of VirtualStateMap instance
+        assert !key.equals(VM_STATE_KEY);
         try {
             // Verify whether the current leaf exists. If not, we can just return null.
             VirtualLeafBytes<V> leafToDelete = records.findLeafRecord(key);
@@ -934,7 +949,7 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
                 state.setLastLeafPath(lastLeafSibling - 1); // One left of the last leaf sibling
             }
             if (statistics != null) {
-                statistics.setSize(state.size());
+                statistics.setSize(state.getSize());
             }
 
             // Get the value and return it, if requested
@@ -1123,12 +1138,12 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
         logger.debug(
                 VIRTUAL_MERKLE_STATS.getMarker(),
                 "Flushed {} v{} in {} ms",
-                state.getLabel(),
+                label,
                 cache.getFastCopyVersion(),
                 end - start);
     }
 
-    private void flush(VirtualNodeCache cacheToFlush, VirtualStateAccessor stateToUse, VirtualDataSource ds) {
+    private void flush(VirtualNodeCache cacheToFlush, VirtualMapState stateToUse, VirtualDataSource ds) {
         try {
             // Get the leaves that were changed and sort them by path so that lower paths come first
             final Stream<VirtualLeafBytes> dirtyLeaves =
@@ -1171,7 +1186,7 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
             snapshot(outputDirectory);
             return null;
         });
-        out.writeNormalisedString(state.getLabel());
+        out.writeNormalisedString(label);
         out.writeSerializable(dataSourceBuilder, true);
         out.writeLong(cache.getFastCopyVersion());
     }
@@ -1282,7 +1297,7 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
                 virtualMapConfig);
 
         if (virtualHash == null) {
-            final Hash rootHash = (state.size() == 0) ? null : records.findHash(0);
+            final Hash rootHash = (state.getSize() == 0) ? null : records.findHash(0);
             virtualHash = (rootHash != null) ? rootHash : hasher.emptyRootHash();
         }
 
@@ -1404,7 +1419,7 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
         // helpful and will just burn resources.
         originalMap.dataSource.stopAndDisableBackgroundCompaction();
 
-        reconnectState = new ReconnectState(-1, -1);
+        reconnectState = new VirtualMapState();
         reconnectRecords = originalMap.pipeline.pausePipelineAndRun("copy", () -> {
             // shutdown background compaction on original data source as it is no longer needed to be running as all
             // data
@@ -1452,7 +1467,7 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
             final ReconnectConfig reconnectConfig, @NonNull final ReconnectMapStats mapStats) {
         assert originalMap != null;
         // During reconnect we want to look up state from the original records
-        final VirtualStateAccessor originalState = originalMap.getState();
+        final VirtualMapState originalState = originalMap.getState();
         nodeRemover = new ReconnectNodeRemover(
                 originalMap.getRecords(), originalState.getFirstLeafPath(), originalState.getLastLeafPath());
         return switch (virtualMapConfig.reconnectMode()) {
@@ -1567,10 +1582,10 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
             } else {
                 logger.warn(RECONNECT.getMarker(), "virtual map hashing thread was never started");
             }
+            logger.info(RECONNECT.getMarker(), "call postInit()");
+            postInit(originalMap.label, fullyReconnectedState);
             nodeRemover = null;
             originalMap = null;
-            logger.info(RECONNECT.getMarker(), "call postInit()");
-            postInit(fullyReconnectedState);
         } catch (ExecutionException e) {
             final var message = "VirtualMap@" + getRoute() + " failed to get hash during learner reconnect";
             throw new MerkleSynchronizationException(message, e);
@@ -1678,7 +1693,7 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
             state.setLastLeafPath(leafPath);
             state.setFirstLeafPath(nextFirstLeafPath);
         }
-        statistics.setSize(state.size());
+        statistics.setSize(state.getSize());
 
         // FUTURE WORK: make VirtualLeafBytes.<init>(path, key, value, codec, bytes) public?
         final VirtualLeafBytes<V> newLeaf = valueCodec != null

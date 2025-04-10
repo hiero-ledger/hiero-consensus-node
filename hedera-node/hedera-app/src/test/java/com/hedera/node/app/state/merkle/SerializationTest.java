@@ -148,8 +148,8 @@ class SerializationTest extends MerkleTestBase {
                 vmField.setAccessible(true);
                 VirtualMap vm = (VirtualMap) vmField.get(state);
 
-                final VirtualRootNode root = vm.getRight();
-                if (!vm.isEmpty()) {
+                final VirtualRootNode root = vm.getLeft();
+                if (vm.size() > 1) {
                     root.enableFlush();
                     vm.release();
                     root.waitUntilFlushed();

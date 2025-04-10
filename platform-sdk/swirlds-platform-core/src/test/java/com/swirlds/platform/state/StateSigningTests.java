@@ -76,6 +76,7 @@ class StateSigningTests {
                 .withSize(nodeCount)
                 .build();
         final SignedState signedState = new RandomSignedStateGenerator(random)
+                .setCalculateHash(true)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
                 .build();
@@ -177,6 +178,7 @@ class StateSigningTests {
                 .build();
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
+                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
                 .build();
 
@@ -272,6 +274,7 @@ class StateSigningTests {
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
+                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
                 .build();
 
@@ -357,6 +360,7 @@ class StateSigningTests {
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
+                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
                 .build();
 
@@ -400,6 +404,7 @@ class StateSigningTests {
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
+                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
                 .build();
 
@@ -470,6 +475,7 @@ class StateSigningTests {
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
+                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
                 .build();
 
@@ -520,6 +526,7 @@ class StateSigningTests {
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
+                .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
                 .build();
 

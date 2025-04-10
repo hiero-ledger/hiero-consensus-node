@@ -80,7 +80,7 @@ class ReconnectHashListenerTest {
     }
 
     // Future: We should also check for first/last leaf path being equal when not 1. That really should never happen.
-    // That check should be laced through everything, including VirtualMapState.
+    // That check should be laced through everything, including ExternalVirtualMapState.
     @ParameterizedTest
     @CsvSource({
         "-2,  1", // Invalid negative first, good last

@@ -120,7 +120,7 @@ class VirtualMapLifecycleTests {
                     return;
                 }
                 do {
-                    if (map.isEmpty()) {
+                    if (map.size() == 1) {
                         break;
                     }
 

@@ -5,6 +5,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import org.hiero.consensus.model.crypto.Hash;
@@ -95,7 +96,7 @@ public interface RecordAccessor {
      *
      * @return The state. This will never be null.
      */
-    VirtualStateAccessor getState();
+    VirtualMapState getState();
 
     /**
      * Gets the cache.

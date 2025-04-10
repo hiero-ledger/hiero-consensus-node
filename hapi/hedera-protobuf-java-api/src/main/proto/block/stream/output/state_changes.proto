@@ -460,6 +460,11 @@ enum StateIdentifier {
     STATE_ID_NODE_REWARDS = 50;
 
     /**
+     * A state identifier for the VirtualMap state.
+     */
+    reserved 51;
+
+    /**
      * A state identifier for the round receipts queue.
      */
     STATE_ID_TRANSACTION_RECEIPTS_QUEUE = 126;

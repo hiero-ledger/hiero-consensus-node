@@ -80,6 +80,7 @@ public class RandomSignedStateGenerator {
     private boolean deleteOnBackgroundThread;
     private boolean pcesRound;
     private boolean useBlockingState = false;
+    private boolean calculateHash = false;
 
     /**
      * Create a new signed state generator with a random seed.
@@ -238,7 +239,10 @@ public class RandomSignedStateGenerator {
                 platformStateFacade);
         signedState.init(PlatformContext.create(configuration));
 
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(stateInstance.getRoot());
+        if (calculateHash) {
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(stateInstance.getRoot());
+        }
+
         if (stateHash != null) {
             stateInstance.setHash(stateHash);
         }
@@ -468,6 +472,15 @@ public class RandomSignedStateGenerator {
      */
     public RandomSignedStateGenerator setUseBlockingState(boolean useBlockingState) {
         this.useBlockingState = useBlockingState;
+        return this;
+    }
+
+    /**
+     * @param calculateHash  Set true if the state needs root hash calculated
+     * @return this object
+     */
+    public RandomSignedStateGenerator setCalculateHash(final boolean calculateHash) {
+        this.calculateHash = calculateHash;
         return this;
     }
 

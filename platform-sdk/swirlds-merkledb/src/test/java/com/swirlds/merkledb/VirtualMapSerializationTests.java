@@ -268,7 +268,7 @@ class VirtualMapSerializationTests {
 
         testMapSerialization(map);
 
-        final VirtualRootNode root = map.getChild(1).cast();
+        final VirtualRootNode root = map.getChild(0).cast();
 
         assertFalse(root.isFlushed(), "for this test, the root is expected not to be flushed");
 
@@ -286,7 +286,7 @@ class VirtualMapSerializationTests {
         System.out.println("seed = " + seed);
 
         final VirtualMap map = generateRandomMap(seed, count, "test");
-        final VirtualRootNode root = map.getChild(1);
+        final VirtualRootNode root = map.getChild(0);
         root.enableFlush();
 
         final VirtualMap serializedCopy = map.copy();
@@ -312,7 +312,7 @@ class VirtualMapSerializationTests {
         System.out.println("seed = " + seed);
 
         final VirtualMap map = generateRandomMap(seed, count, "test");
-        final VirtualRootNode root = map.getChild(1).cast();
+        final VirtualRootNode root = map.getChild(0).cast();
         root.enableFlush();
 
         final VirtualMap copy0 = map.copy();
@@ -323,7 +323,7 @@ class VirtualMapSerializationTests {
         System.out.println("map size: " + map.size() + ", copy0 size: " + copy0.size());
         testMapSerialization(copy0);
 
-        final VirtualRootNode root0 = copy0.getChild(1).cast();
+        final VirtualRootNode root0 = copy0.getChild(0).cast();
 
         assertTrue(root.isFlushed(), "for this test, the root is expected to be flushed");
         assertFalse(root0.isFlushed(), "for this test, the root0 is expected to not be flushed");
