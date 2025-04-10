@@ -2,7 +2,7 @@
 package org.hiero.consensus.event.creator.impl.pool;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static org.hiero.base.utility.CompareTo.isLessThan;
+import static org.hiero.base.CompareTo.isLessThan;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;

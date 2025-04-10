@@ -12,7 +12,7 @@ import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import org.hiero.base.utility.StackTrace;
+import org.hiero.base.StackTrace;
 
 /**
  * Tracks the usage of a signed state over time, storing stack traces that can be used at a later time for debugging.
