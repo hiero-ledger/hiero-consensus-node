@@ -70,6 +70,7 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
+import com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType;
 import com.hedera.node.app.throttle.ThrottleAccumulator.Verbose;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.ConfigProvider;
@@ -1136,7 +1137,7 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(false);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(0L);
+        setMaxGasAndBurst(throttleType, 0L);
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
@@ -1166,7 +1167,7 @@ class ThrottleAccumulatorTest {
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(1L);
+        setMaxGasAndBurst(throttleType, 1L);
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(true);
 
@@ -1200,7 +1201,7 @@ class ThrottleAccumulatorTest {
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(0L);
+        setMaxGasAndBurst(throttleType, 0L);
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(true);
         given(jumboTransactionsConfig.allowedHederaFunctionalities()).willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));
@@ -1233,7 +1234,7 @@ class ThrottleAccumulatorTest {
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(1L);
+        setMaxGasAndBurst(throttleType, 1L);
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
@@ -1272,7 +1273,7 @@ class ThrottleAccumulatorTest {
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(0L);
+        setMaxGasAndBurst(throttleType, 0L);
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
@@ -1304,7 +1305,7 @@ class ThrottleAccumulatorTest {
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(1L);
+        setMaxGasAndBurst(throttleType, 1L);
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
@@ -1343,7 +1344,7 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
         var capacity = 10L;
-        given(contractsConfig.maxGasPerSec()).willReturn(capacity);
+        setMaxGasAndBurst(throttleType, capacity);
 
         // when
         subject.applyGasConfig();
@@ -1437,7 +1438,7 @@ class ThrottleAccumulatorTest {
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.throttleThrottleByGas()).willReturn(true);
-        given(contractsConfig.maxGasPerSec()).willReturn(150L);
+        setMaxGasAndBurst(throttleType, 150L);
 
         // payer is not exempt
         given(transactionInfo.payerID())
@@ -1461,6 +1462,15 @@ class ThrottleAccumulatorTest {
 
         assertFalse(subject.gasLimitThrottle().allow(TIME_INSTANT, 100));
         assertFalse(subject.gasLimitThrottle().allow(TIME_INSTANT, 100));
+    }
+
+    private void setMaxGasAndBurst(ThrottleType throttleType, long t) {
+        if (throttleType.equals(FRONTEND_THROTTLE)) {
+            given(contractsConfig.maxGasPerSec()).willReturn(t);
+        } else {
+            given(contractsConfig.maxGasPerSecBackend()).willReturn(t);
+            given(contractsConfig.gasThrottleBurstSeconds()).willReturn(1);
+        }
     }
 
     @Test

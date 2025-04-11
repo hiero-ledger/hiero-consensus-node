@@ -26,10 +26,10 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
      *
      * @param capacity - the total amount of gas allowed per sec.
      */
-    public LeakyBucketDeterministicThrottle(long capacity, String name) {
+    public LeakyBucketDeterministicThrottle(final long capacity, final String name, final int burstSeconds) {
         this.throttleName = name;
         this.capacity = capacity;
-        this.delegate = new LeakyBucketThrottle(capacity);
+        this.delegate = new LeakyBucketThrottle(capacity, burstSeconds);
     }
 
     /**
