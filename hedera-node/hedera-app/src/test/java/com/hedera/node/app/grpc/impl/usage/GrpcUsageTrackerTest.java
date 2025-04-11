@@ -81,7 +81,8 @@ class GrpcUsageTrackerTest {
 
         final GrpcUsageTracker usageTracker = new GrpcUsageTracker(configProvider, clock);
 
-        assertThatCode(() -> usageTracker.interceptCall(serverCall, metadata, handler)).doesNotThrowAnyException();
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, metadata, handler))
+                .doesNotThrowAnyException();
 
         // get the usage bucket... there should be no data captured in it since usage tracking is disabled
         final AtomicReference<UsageBucket> bucketRef =
@@ -110,8 +111,10 @@ class GrpcUsageTrackerTest {
         final GrpcUsageTracker usageTracker = new GrpcUsageTracker(configProvider, clock);
 
         // make two calls
-        assertThatCode(() -> usageTracker.interceptCall(serverCall, metadata, handler)).doesNotThrowAnyException();
-        assertThatCode(() -> usageTracker.interceptCall(serverCall, metadata, handler)).doesNotThrowAnyException();
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, metadata, handler))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, metadata, handler))
+                .doesNotThrowAnyException();
 
         // get the usage bucket... there should be some usage data captured
         final AtomicReference<UsageBucket> bucketRef =
@@ -153,13 +156,17 @@ class GrpcUsageTrackerTest {
         final GrpcUsageTracker usageTracker = new GrpcUsageTracker(configProvider, clock);
 
         // MyService:Commit
-        assertThatCode(() -> usageTracker.interceptCall(serverCall, javaMetadata, handler)).doesNotThrowAnyException();
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, javaMetadata, handler))
+                .doesNotThrowAnyException();
         // MyService:Get
-        assertThatCode(() -> usageTracker.interceptCall(serverCall, goMetadata, handler)).doesNotThrowAnyException();
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, goMetadata, handler))
+                .doesNotThrowAnyException();
         // MyService:Commit
-        assertThatCode(() -> usageTracker.interceptCall(serverCall, luaMetadata, handler)).doesNotThrowAnyException();
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, luaMetadata, handler))
+                .doesNotThrowAnyException();
         // MyService:Commit
-        assertThatCode(() -> usageTracker.interceptCall(serverCall, javaMetadata, handler)).doesNotThrowAnyException();
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, javaMetadata, handler))
+                .doesNotThrowAnyException();
 
         // log the usage data out
         assertThatCode(usageTracker::logAndResetUsageData).doesNotThrowAnyException();
@@ -167,7 +174,8 @@ class GrpcUsageTrackerTest {
         final List<String> logs = accessLogCaptor.infoLogs();
         assertThat(logs).hasSize(3);
         assertThat(logs)
-                .contains("|time=2025-04-03T15:30:00Z|service=MyService|method=Commit|sdkType=HieroSdkJava|sdkVersion=2.3.1|count=2|",
+                .contains(
+                        "|time=2025-04-03T15:30:00Z|service=MyService|method=Commit|sdkType=HieroSdkJava|sdkVersion=2.3.1|count=2|",
                         "|time=2025-04-03T15:30:00Z|service=MyService|method=Commit|sdkType=Unknown|sdkVersion=Unknown|count=1|",
                         "|time=2025-04-03T15:30:00Z|service=MyService|method=Get|sdkType=HieroSdkGo|sdkVersion=1.5.6|count=1|");
 
