@@ -128,6 +128,8 @@ public class TokenCreateSpecs {
     private static final String FIRST_USER = "Client1";
     private static final String SENTINEL_VALUE = "0.0.0";
 
+    private static final long ONE_MONTH_IN_SECONDS = 2592000;
+
     @HapiTest
     final Stream<DynamicTest> getInfoIdVariantsTreatedAsExpected() {
         return defaultHapiSpec("getInfoIdVariantsTreatedAsExpected")
@@ -1034,6 +1036,16 @@ public class TokenCreateSpecs {
                         .initialSupply(1000L)
                         .withCustom(fixedHbarFee(1, account))
                         .hasKnownStatus(INVALID_CUSTOM_FEE_COLLECTOR));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> autoRenewLessThenAMonth() {
+        return hapiTest(
+                cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
+                tokenCreate("token")
+                        .autoRenewAccount(AUTO_RENEW_ACCOUNT)
+                        .autoRenewPeriod(ONE_MONTH_IN_SECONDS - 1)
+                        .hasKnownStatus(INVALID_RENEWAL_PERIOD));
     }
 
     private final long hbarAmount = 1_234L;

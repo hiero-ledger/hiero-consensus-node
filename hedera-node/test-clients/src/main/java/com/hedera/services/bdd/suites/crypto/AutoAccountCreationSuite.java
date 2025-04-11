@@ -85,6 +85,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Key;
@@ -1548,6 +1549,35 @@ public class AutoAccountCreationSuite {
                             .hasChildRecordCount(1)
                             .hasChildRecords(
                                     recordWith().status(SUCCESS).memo(LAZY_MEMO).alias(evmAddress.get()));
+                }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hollowAccountCompletionWithSimultaneousPropertiesUpdate() {
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(LAZY_CREATE_SPONSOR).balance(INITIAL_BALANCE * ONE_HBAR),
+                cryptoCreate(CRYPTO_TRANSFER_RECEIVER).balance(INITIAL_BALANCE * ONE_HBAR),
+                withOpContext((spec, opLog) -> {
+                    final var ecdsaKey = spec.registry()
+                            .getKey(SECP_256K1_SOURCE_KEY)
+                            .getECDSASecp256K1()
+                            .toByteArray();
+                    final var evmAddress = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
+                    final var op = cryptoTransfer(tinyBarsFromTo(LAZY_CREATE_SPONSOR, evmAddress, ONE_HUNDRED_HBARS))
+                            .hasKnownStatus(SUCCESS)
+                            .via(TRANSFER_TXN);
+
+                    final HapiGetTxnRecord hapiGetTxnRecord =
+                            getTxnRecord(TRANSFER_TXN).andAllChildRecords().logged();
+
+                    allRunFor(spec, op, hapiGetTxnRecord);
+
+                    final AccountID newAccountID = hapiGetTxnRecord
+                            .getFirstNonStakingChildRecord()
+                            .getReceipt()
+                            .getAccountID();
+                    spec.registry().saveAccountId(SECP_256K1_SOURCE_KEY, newAccountID);
                 }));
     }
 }

@@ -4,7 +4,6 @@ package com.hedera.node.app.service.token.impl.validators;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_ALLOWANCES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -60,9 +59,6 @@ public class DeleteAllowanceValidator extends AllowanceValidator {
         final var tokenRelStore = storeFactory.readableStore(ReadableTokenRelationStore.class);
         final var nftStore = storeFactory.readableStore(ReadableNftStore.class);
         final var hederaConfig = handleContext.configuration().getConfigData(HederaConfig.class);
-
-        // feature flag for allowances. Will probably be moved to some other place in app in the future.
-        validateTrue(hederaConfig.allowancesIsEnabled(), NOT_SUPPORTED);
 
         validateAllowancesCount(nftAllowances, hederaConfig);
 

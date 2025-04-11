@@ -10,7 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.utility.StackTrace;
+import org.hiero.base.StackTrace;
 
 /**
  *  Utility methods for shutting down the JVM.
