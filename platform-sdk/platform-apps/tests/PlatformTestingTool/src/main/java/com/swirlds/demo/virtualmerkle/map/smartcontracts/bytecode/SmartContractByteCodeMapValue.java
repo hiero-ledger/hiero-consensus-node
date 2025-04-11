@@ -7,8 +7,8 @@ import com.swirlds.demo.virtualmerkle.random.PTTRandom;
 import com.swirlds.virtualmap.VirtualValue;
 import java.io.IOException;
 import java.util.Arrays;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * This class holds the bytecode for a smart contract.

@@ -14,9 +14,9 @@ import java.security.Security;
 import java.util.List;
 import java.util.Objects;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.hiero.base.io.SelfSerializable;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.crypto.SerializableHashable;
-import org.hiero.consensus.model.io.SelfSerializable;
 
 public class CryptoEngine implements Cryptography {
 

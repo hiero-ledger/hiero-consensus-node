@@ -14,7 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.utility.CompareTo;
+import org.hiero.base.CompareTo;
 
 /**
  * This object is responsible for observing the lifespans of signed states, and taking action if a state suspected of a

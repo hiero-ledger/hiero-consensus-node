@@ -30,8 +30,8 @@ class TurtleTests {
      *         deadlocks a real possibility, and so it would be good to make the framework handle deadlocks.</li>
      * </ul>
      */
-    @Disabled
     @Test
+    @Disabled
     void turtleTest() {
         final Randotron randotron = Randotron.create();
 

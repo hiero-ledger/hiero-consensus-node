@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import org.hiero.base.utility.Clearable;
+import org.hiero.base.Clearable;
 import org.hiero.consensus.model.sequence.Shiftable;
 
 /**

@@ -74,7 +74,8 @@ module com.swirlds.platform.core {
             com.hedera.node.test.clients,
             com.swirlds.platform.core.test.fixtures,
             com.hedera.node.app.test.fixtures,
-            com.hedera.node.app;
+            com.hedera.node.app,
+            org.hiero.otter.fixtures;
     exports com.swirlds.platform.event.linking to
             com.swirlds.common,
             com.swirlds.platform.test,
