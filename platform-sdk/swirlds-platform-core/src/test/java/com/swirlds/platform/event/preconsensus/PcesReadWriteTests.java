@@ -33,9 +33,9 @@ import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.junit.extensions.CombinatorialParameterExtension;
 import org.hiero.junit.extensions.ParamName;
 import org.hiero.junit.extensions.ParamSource;
+import org.hiero.junit.extensions.ParameterCombinationExtension;
 import org.hiero.junit.extensions.UseParameterSources;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,12 +66,12 @@ class PcesReadWriteTests {
         FileUtils.deleteDirectory(testDirectory);
     }
 
-    protected static Stream<AncientMode> ancientModeArguments() {
-        return Stream.of(GENERATION_THRESHOLD, BIRTH_ROUND_THRESHOLD);
+    protected static List<AncientMode> ancientModeArguments() {
+        return List.of(GENERATION_THRESHOLD, BIRTH_ROUND_THRESHOLD);
     }
 
-    protected static Stream<PcesFileWriterType> pcesFileWriterTypeArguments() {
-        return Arrays.stream(PcesFileWriterType.values());
+    protected static Iterable<PcesFileWriterType> pcesFileWriterTypeArguments() {
+        return Arrays.stream(PcesFileWriterType.values()).toList().stream().toList();
     }
 
     protected static Stream<Boolean> booleanArguments() {
@@ -79,7 +79,7 @@ class PcesReadWriteTests {
     }
 
     @TestTemplate
-    @ExtendWith(CombinatorialParameterExtension.class)
+    @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
         @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
         @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
@@ -220,7 +220,7 @@ class PcesReadWriteTests {
     }
 
     @TestTemplate
-    @ExtendWith(CombinatorialParameterExtension.class)
+    @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
         @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments")

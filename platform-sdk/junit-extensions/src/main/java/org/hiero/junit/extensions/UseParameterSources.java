@@ -11,7 +11,7 @@ import java.lang.annotation.Target;
  * <p><b>Example:</b>
  * <pre><code>
  * {@literal @}TestTemplate
- * {@literal @}ExtendWith(CombinatorialParameterExtension.class)
+ * {@literal @}ExtendWith(ParameterCombinationExtension.class)
  * {@literal @}UseParameterSources({
  *     {@literal @}ParamSource(param = "username", method = "usernameSource"),
  *     {@literal @}ParamSource(param = "age", method = "ageSource")
