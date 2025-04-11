@@ -80,7 +80,7 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
         verify(worldUpdater, never()).setupInternalAliasedCreate(RECIEVER_ADDRESS, EIP_1014_ADDRESS);
         verify(frame).popStackItems(4);
         verify(frame).pushStackItem(UInt256.ZERO);
-        verify(featureFlags).isImplicitCreationEnabled(frame);
+        verify(featureFlags).isImplicitCreationEnabled();
     }
 
     @Test
@@ -94,7 +94,7 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
         given(frame.readMutableMemory(anyLong(), anyLong())).willReturn(MUTABLE_INITCODE);
         given(featureFlags.isCreate2Enabled(frame)).willReturn(true);
         given(worldUpdater.isHollowAccount(EIP_1014_ADDRESS)).willReturn(true);
-        given(featureFlags.isImplicitCreationEnabled(frame)).willReturn(true);
+        given(featureFlags.isImplicitCreationEnabled()).willReturn(true);
 
         given(txValues.transientStorage()).willReturn(undoTable);
         given(txValues.messageFrameStack()).willReturn(messageFrameStack);

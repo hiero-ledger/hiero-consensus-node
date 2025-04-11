@@ -10,8 +10,6 @@ import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.sequence.set.SequenceSet;
-import com.swirlds.platform.sequence.set.StandardSequenceSet;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -29,6 +27,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.sequence.set.SequenceSet;
+import org.hiero.consensus.model.sequence.set.StandardSequenceSet;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
