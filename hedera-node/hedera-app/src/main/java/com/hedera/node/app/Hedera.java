@@ -129,7 +129,6 @@ import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadableRosterStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
@@ -545,22 +544,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             logger.error("Failed to register " + HederaStateRoot.class + " factory with ConstructableRegistry", e);
             throw new IllegalStateException(e);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     * It is not used. But deletion will cause more changes because of SwirldMain interface.
-     * It will be deleted in PR 18648
-     *
-     * <p>Called immediately after the constructor to get the version of this software. In an upgrade scenario, this
-     * version will be greater than the one in the saved state.
-     *
-     * @return The software version.
-     */
-    @Override
-    @NonNull
-    public SoftwareVersion getSoftwareVersion() {
-        return SoftwareVersion.NO_VERSION;
     }
 
     /**
