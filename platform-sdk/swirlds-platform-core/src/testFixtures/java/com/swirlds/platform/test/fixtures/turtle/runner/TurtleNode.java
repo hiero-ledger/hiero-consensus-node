@@ -174,6 +174,15 @@ public class TurtleNode {
     }
 
     /**
+     * Returns the {@link Configuration} of this node.
+     *
+     * @return the {@link Configuration} of this node
+     */
+    public Configuration getConfiguration() {
+        return platform.getContext().getConfiguration();
+    }
+
+    /**
      * Start this node.
      */
     public void start() {
@@ -199,5 +208,14 @@ public class TurtleNode {
     @NonNull
     public ConsensusRoundsHolder getConsensusRoundsHolder() {
         return consensusRoundsHolder;
+    }
+
+    /**
+     * Shut down the node immediately. No attempt is made to finish ongoing tasks or to save
+     * the current state. All resources are released. This method is idempotent and can be
+     * called multiple times without any side effects after the first call.
+     */
+    public void destroy() {
+        // Not implemented yet
     }
 }

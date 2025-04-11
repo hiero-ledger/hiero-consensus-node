@@ -130,4 +130,13 @@ public class TurtleTestEnvironment implements TestEnvironment {
         log.warn("Validator is not implemented yet");
         return new ValidatorImpl();
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void destroy() {
+        generator.stop();
+        network.destroy();
+    }
 }

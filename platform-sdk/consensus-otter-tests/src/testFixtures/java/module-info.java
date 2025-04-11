@@ -5,6 +5,7 @@ module org.hiero.otter.fixtures {
     requires transitive org.junit.jupiter.api;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.common.test.fixtures;
+    requires com.swirlds.config.api;
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires org.hiero.base.utility;

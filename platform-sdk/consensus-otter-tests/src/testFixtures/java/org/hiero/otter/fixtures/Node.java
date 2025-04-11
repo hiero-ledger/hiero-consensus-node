@@ -12,11 +12,26 @@ import java.time.Duration;
 public interface Node {
 
     /**
-     * Kill the node.
+     * Kill the node without prior cleanup.
+     *
+     * <p>This method simulates a sudden failure of the node. No attempt to finish ongoing work,
+     * preserve the current state, or any other similar operation is made. To simulate a graceful
+     * shutdown, use {@link #shutdownGracefully(Duration)} instead.
+     *
      *
      * @param timeout the duration to wait before considering the kill operation as failed
      */
-    void kill(@NonNull Duration timeout) throws InterruptedException;
+    void failUnexpectedly(@NonNull Duration timeout) throws InterruptedException;
+
+    /**
+     * Shutdown the node gracefully.
+     *
+     * <p>This method simulates a graceful shutdown of the node. It allows the node to finish any
+     * ongoing work, preserve the current state, and perform any other necessary cleanup operations
+     * before shutting down. If the simulation of a sudden failure is desired, use
+     * {@link #failUnexpectedly(Duration)} instead.
+     */
+    void shutdownGracefully(@NonNull Duration timeout) throws InterruptedException;
 
     /**
      * Revive the node.

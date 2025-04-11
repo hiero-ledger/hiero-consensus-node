@@ -30,6 +30,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
     private final NodeId nodeId;
     private final com.swirlds.platform.test.fixtures.turtle.runner.TurtleNode turtleNode;
+    private final TurtleNodeConfiguration configuration;
 
     public TurtleNode(
             @NonNull final Randotron randotron,
@@ -49,15 +50,23 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
                 privateKey,
                 network,
                 rootOutputDirectory.resolve("node-" + nodeId.id()));
+        this.configuration = new TurtleNodeConfiguration(turtleNode.getConfiguration());
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void kill(@NonNull final Duration timeout) {
-        ThreadContext.clearAll();
-        log.warn("Killing a node has not been implemented yet.");
+    public void failUnexpectedly(@NonNull final Duration timeout) {
+        destroy();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void shutdownGracefully(@NonNull final Duration timeout) throws InterruptedException {
+        log.warn("Simulating a graceful shutdown of a node has not been implemented yet.");
     }
 
     /**
@@ -82,7 +91,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     @Override
     @NonNull
     public NodeConfiguration getConfiguration() {
-        return null;
+        return configuration;
     }
 
     /**
@@ -105,5 +114,14 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
                 "Dump of node {}: {}",
                 nodeId,
                 turtleNode.getConsensusRoundsHolder().getCollectedRounds());
+    }
+
+    /**
+     * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started
+     * again. This method is idempotent and can be called multiple times without any side effects.
+     */
+    public void destroy() {
+        ThreadContext.clearAll();
+        turtleNode.destroy();
     }
 }
