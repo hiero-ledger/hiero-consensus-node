@@ -2,7 +2,7 @@
 package com.swirlds.platform.gossip.shadowgraph;
 
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
-import static org.hiero.base.utility.CompareTo.isGreaterThan;
+import static org.hiero.base.CompareTo.isGreaterThan;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.platform.gossip.IntakeEventCounter;

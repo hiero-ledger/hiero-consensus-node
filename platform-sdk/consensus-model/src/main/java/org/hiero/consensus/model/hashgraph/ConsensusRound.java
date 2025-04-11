@@ -12,12 +12,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.hiero.base.iterator.TypedIterator;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.utility.CommonUtils;
-import org.hiero.consensus.model.utility.TypedIterator;
 
 /** A consensus round with events and all other relevant data. */
 public class ConsensusRound implements Round {

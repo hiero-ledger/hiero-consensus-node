@@ -39,6 +39,7 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.merkledb.test.fixtures")
     requires("com.swirlds.metrics.api")
     requires("com.swirlds.virtualmap")
+    requires("org.hiero.base.concurrent")
     requires("org.hiero.base.utility")
     requires("org.hiero.consensus.model")
     requires("org.apache.commons.lang3")

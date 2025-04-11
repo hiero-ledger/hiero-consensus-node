@@ -145,6 +145,8 @@ public abstract class VirtualMapReconnectTestBase {
                     if (i == attempts - 1) {
                         fail("We did not expect an exception on this reconnect attempt!", e);
                     }
+                    teacherBuilder.nextAttempt();
+                    learnerBuilder.nextAttempt();
                 }
             }
         } finally {
@@ -227,6 +229,10 @@ public abstract class VirtualMapReconnectTestBase {
         public void setNumTimesToBreak(int num) {
             this.numTimesToBreak = num;
         }
+
+        public void nextAttempt() {
+            this.numCalls = 0;
+        }
     }
 
     protected static final class BreakableDataSource implements VirtualDataSource {
@@ -251,17 +257,23 @@ public abstract class VirtualMapReconnectTestBase {
             final List<VirtualLeafBytes> leaves = leafRecordsToAddOrUpdate.collect(Collectors.toList());
 
             if (builder.numTimesBroken < builder.numTimesToBreak) {
-                builder.numCalls += leaves.size();
-                if (builder.numCalls > builder.numCallsBeforeThrow) {
-                    builder.numCalls = 0;
-                    builder.numTimesBroken++;
-                    delegate.close();
-                    throw new IOException("Something bad on the DB!");
+                if (builder.numCalls <= builder.numCallsBeforeThrow) {
+                    builder.numCalls += leaves.size();
+                    if (builder.numCalls > builder.numCallsBeforeThrow) {
+                        builder.numTimesBroken++;
+                        delegate.close();
+                        throw new IOException("Something bad on the DB!");
+                    }
                 }
             }
 
             delegate.saveRecords(
-                    firstLeafPath, lastLeafPath, pathHashRecordsToUpdate, leaves.stream(), leafRecordsToDelete);
+                    firstLeafPath,
+                    lastLeafPath,
+                    pathHashRecordsToUpdate,
+                    leaves.stream(),
+                    leafRecordsToDelete,
+                    isReconnectContext);
         }
 
         @Override

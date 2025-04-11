@@ -11,7 +11,7 @@ import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
-import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
+import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 
 /**
  * Continuously runs protocol negotiation and protocols over connections supplied by the connection manager

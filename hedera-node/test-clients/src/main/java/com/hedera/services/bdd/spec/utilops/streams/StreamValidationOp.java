@@ -164,7 +164,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         return false;
     }
 
-    private static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
+    static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
         List<Block> blocks = null;
         final var blockPaths = spec.getNetworkNodes().stream()
                 .map(node -> node.getExternalPath(BLOCK_STREAMS_DIR))
