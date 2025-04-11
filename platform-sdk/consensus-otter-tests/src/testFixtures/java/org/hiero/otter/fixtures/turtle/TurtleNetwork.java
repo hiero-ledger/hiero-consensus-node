@@ -7,6 +7,7 @@ import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEV
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
@@ -22,6 +23,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -93,20 +95,21 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         simulatedNetwork =
                 new SimulatedNetwork(randotron, addressBook, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
 
-        nodes.addAll(addressBook.getNodeIdSet().stream()
+        final List<TurtleNode> nodeList = addressBook.getNodeIdSet().stream()
                 .sorted()
-                .map(nodeId -> new TurtleNode(
-                        randotron,
-                        time,
-                        nodeId,
-                        addressBook,
-                        addressBookBuilder.getPrivateKeys(nodeId),
-                        simulatedNetwork,
-                        rootOutputDirectory))
-                .toList());
+                .map(nodeId -> createTurtleNode(nodeId, addressBook, addressBookBuilder.getPrivateKeys(nodeId)))
+                .toList();
+        nodes.addAll(nodeList);
 
         publicNodes = nodes.stream().map(Node.class::cast).toList();
         return publicNodes;
+    }
+
+    private TurtleNode createTurtleNode(
+            @NonNull final NodeId nodeId,
+            @NonNull final AddressBook addressBook,
+            @NonNull final KeysAndCerts privateKeys) {
+        return new TurtleNode(randotron, time, nodeId, addressBook, privateKeys, simulatedNetwork, rootOutputDirectory);
     }
 
     /**
@@ -146,16 +149,21 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void prepareUpgrade(@NonNull Duration timeout) throws InterruptedException {
-        log.warn("Preparing upgrade is not implemented yet.");
+    public void prepareUpgrade(@NonNull Duration timeout) {
+        for (final TurtleNode node : nodes) {
+            node.shutdownGracefully(timeout);
+        }
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void resume(@NonNull Duration duration) throws InterruptedException {
+    public void resume(@NonNull Duration duration) {
         log.warn("Resuming the network is not implemented yet.");
+        for (final TurtleNode node : nodes) {
+            node.revive(duration);
+        }
     }
 
     /**

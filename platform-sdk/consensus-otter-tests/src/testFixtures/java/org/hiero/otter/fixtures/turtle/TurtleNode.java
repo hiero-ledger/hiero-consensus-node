@@ -28,9 +28,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger(TurtleNode.class);
 
+    private final Randotron randotron;
+    private final Time time;
     private final NodeId nodeId;
-    private final com.swirlds.platform.test.fixtures.turtle.runner.TurtleNode turtleNode;
+    private final AddressBook addressBook;
+    private final KeysAndCerts privateKey;
+    private final SimulatedNetwork network;
     private final TurtleNodeConfiguration configuration;
+
+    private com.swirlds.platform.test.fixtures.turtle.runner.TurtleNode turtleNode;
 
     public TurtleNode(
             @NonNull final Randotron randotron,
@@ -39,18 +45,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             @NonNull final AddressBook addressBook,
             @NonNull final KeysAndCerts privateKey,
             @NonNull final SimulatedNetwork network,
-            @NonNull final Path rootOutputDirectory) {
+            @NonNull final Path outputDirectory) {
         ThreadContext.put("nodeId", nodeId.toString());
+        this.randotron = requireNonNull(randotron);
+        this.time = requireNonNull(time);
         this.nodeId = requireNonNull(nodeId);
-        turtleNode = new com.swirlds.platform.test.fixtures.turtle.runner.TurtleNode(
-                randotron,
-                time,
-                nodeId,
-                addressBook,
-                privateKey,
-                network,
-                rootOutputDirectory.resolve("node-" + nodeId.id()));
-        this.configuration = new TurtleNodeConfiguration(turtleNode.getConfiguration());
+        this.addressBook = requireNonNull(addressBook);
+        this.privateKey = requireNonNull(privateKey);
+        this.network = requireNonNull(network);
+        this.configuration = new TurtleNodeConfiguration(outputDirectory);
     }
 
     /**
@@ -65,8 +68,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * {@inheritDoc}
      */
     @Override
-    public void shutdownGracefully(@NonNull final Duration timeout) throws InterruptedException {
+    public void shutdownGracefully(@NonNull final Duration timeout) {
         log.warn("Simulating a graceful shutdown of a node has not been implemented yet.");
+        destroy();
     }
 
     /**
@@ -75,6 +79,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     @Override
     public void revive(@NonNull final Duration timeout) {
         log.warn("Reviving a node has not been implemented yet.");
+        turtleNode = new com.swirlds.platform.test.fixtures.turtle.runner.TurtleNode(
+                randotron,
+                time,
+                nodeId,
+                addressBook,
+                privateKey,
+                network,
+                configuration.createConfiguration());
+        turtleNode.start();
     }
 
     /**
@@ -82,6 +95,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     public void submitTransaction(@NonNull final byte[] transaction) {
+        if (turtleNode == null) {
+            throw new IllegalStateException("Node has not been started yet.");
+        }
         turtleNode.submitTransaction(transaction);
     }
 
@@ -99,21 +115,28 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     public void tick(@NonNull Instant now) {
-        turtleNode.tick();
+        if (turtleNode != null) {
+            turtleNode.tick();
+        }
     }
 
     /**
      * Start the node
      */
     public void start() {
-        turtleNode.start();
-    }
-
-    public void dump() {
-        log.info(
-                "Dump of node {}: {}",
+        if (turtleNode != null) {
+            throw new IllegalStateException("Node has already been started.");
+        }
+        // TODO: Wipe the output directory if it exists
+        turtleNode = new com.swirlds.platform.test.fixtures.turtle.runner.TurtleNode(
+                randotron,
+                time,
                 nodeId,
-                turtleNode.getConsensusRoundsHolder().getCollectedRounds());
+                addressBook,
+                privateKey,
+                network,
+                configuration.createConfiguration());
+        turtleNode.start();
     }
 
     /**
@@ -122,6 +145,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     public void destroy() {
         ThreadContext.clearAll();
-        turtleNode.destroy();
+        if (turtleNode != null) {
+            turtleNode.destroy();
+        }
+        turtleNode = null;
     }
 }
