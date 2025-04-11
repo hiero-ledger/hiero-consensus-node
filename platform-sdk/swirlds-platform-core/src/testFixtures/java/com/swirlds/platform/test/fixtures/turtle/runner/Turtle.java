@@ -9,6 +9,7 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusStateValidator;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -79,6 +80,7 @@ public class Turtle {
     private Instant previousRealTime;
     private Instant previousSimulatedTime;
     private final ConsensusRoundValidator consensusRoundValidator;
+    private final ConsensusStateValidator consensusStateValidator;
 
     /**
      * Constructor.
@@ -90,6 +92,7 @@ public class Turtle {
         simulationGranularity = builder.getSimulationGranularity();
         timeReportingEnabled = builder.isTimeReportingEnabled();
         consensusRoundValidator = builder.getConsensusRoundValidator();
+        consensusStateValidator = builder.getConsensusStateValidator();
 
         try {
             ConstructableRegistry.getInstance()
