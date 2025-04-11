@@ -47,6 +47,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.HapiSuite.salted;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXPIRATION_REDUCTION_NOT_ALLOWED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM_FEE_SCHEDULE_KEY;
@@ -189,7 +191,7 @@ public class TokenUpdateSpecs {
                 .given(tokenCreate(immutable).expiry(then))
                 .when(
                         tokenUpdate(immutable).treasury(ADDRESS_BOOK_CONTROL).hasKnownStatus(TOKEN_IS_IMMUTABLE),
-                        tokenUpdate(immutable).expiry(then - 1).hasKnownStatus(INVALID_EXPIRATION_TIME),
+                        tokenUpdate(immutable).expiry(then - 1).hasKnownStatus(EXPIRATION_REDUCTION_NOT_ALLOWED),
                         tokenUpdate(immutable).expiry(then + 1))
                 .then(getTokenInfo(immutable).logged());
     }
@@ -490,7 +492,7 @@ public class TokenUpdateSpecs {
                         tokenUpdate("withAutoRenewAcc")
                                 .autoRenewPeriod(100000000000L)
                                 .signedByPayerAnd("adminKey")
-                                .hasKnownStatus(INVALID_RENEWAL_PERIOD));
+                                .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE));
     }
 
     @HapiTest
@@ -1028,5 +1030,21 @@ public class TokenUpdateSpecs {
                         .treasury(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER, adminKey)
                         .hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> tokenUpdateReduceExpiry() {
+        return hapiTest(
+                cryptoCreate("adminKey"),
+                cryptoCreate("supplyKey"),
+                tokenCreate("token")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .adminKey("adminKey")
+                        .supplyKey("supplyKey")
+                        .expiry(Instant.now().getEpochSecond() + 1000),
+                tokenUpdate("token")
+                        .expiry(Instant.now().getEpochSecond() + 500)
+                        .hasKnownStatus(EXPIRATION_REDUCTION_NOT_ALLOWED));
     }
 }

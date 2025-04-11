@@ -9,7 +9,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.platform.state.PlatformStateAccessor;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
@@ -27,8 +26,8 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
     private final ReadableSingletonState<PlatformState> state;
 
     /**
-     * Constructor that supports getting full {@link SoftwareVersion} information from the platform state. Must
-     * be used from within {@link State}.
+     * Constructor
+     * Must be used from within {@link State}.
      * @param readableStates the readable states
      */
     public ReadablePlatformStateStore(@NonNull final ReadableStates readableStates) {
