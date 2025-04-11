@@ -38,6 +38,7 @@ import com.hedera.node.config.data.ExpiryConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.GrpcConfig;
+import com.hedera.node.config.data.GrpcUsageTrackerConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -109,7 +110,8 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 AtomicBatchConfig.class,
                 VersionConfig.class,
                 TssConfig.class,
-                JumboTransactionsConfig.class);
+                JumboTransactionsConfig.class,
+                GrpcUsageTrackerConfig.class);
     }
 
     @NonNull
