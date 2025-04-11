@@ -145,4 +145,9 @@ message Node {
      * distributed at the end of the staking period.
      */
     bool decline_reward = 11;
+
+    /**
+     * A web proxy for gRPC from non-gRPC clients.
+     */
+    proto.ServiceEndpoint grpc_proxy_endpoint = 12;
 }

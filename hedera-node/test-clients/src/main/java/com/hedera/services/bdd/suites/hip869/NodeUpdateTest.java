@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.hip869;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
+import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
@@ -157,6 +158,7 @@ public class NodeUpdateTest {
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> updateMultipleFieldsWork() throws CertificateEncodingException {
+        final var proxyWebEndpoint = toPbj(endpointFor("127.0.0.3", 123));
         final var updateOp = nodeUpdate("testNode")
                 .adminKey("adminKey2")
                 .signedBy(DEFAULT_PAYER, "adminKey", "adminKey2")
@@ -165,6 +167,7 @@ public class NodeUpdateTest {
                         asServiceEndpoint("127.0.0.1:60"),
                         asServiceEndpoint("127.0.0.2:60"),
                         asServiceEndpoint("127.0.0.3:60")))
+                .grpcProxyEndpoint(proxyWebEndpoint)
                 .serviceEndpoint(List.of(asServiceEndpoint("127.0.1.1:60"), asServiceEndpoint("127.0.1.2:60")))
                 .gossipCaCertificate(gossipCertificates.getLast().getEncoded())
                 .grpcCertificateHash("grpcCert".getBytes());
@@ -189,6 +192,7 @@ public class NodeUpdateTest {
                             List.of(asServiceEndpoint("127.0.1.1:60"), asServiceEndpoint("127.0.1.2:60")),
                             node.serviceEndpoint(),
                             "Node serviceEndpoint should be updated");
+                    assertEquals(proxyWebEndpoint, node.grpcProxyEndpoint());
                     try {
                         assertEquals(
                                 Bytes.wrap(gossipCertificates.getLast().getEncoded()),
