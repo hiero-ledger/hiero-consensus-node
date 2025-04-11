@@ -60,6 +60,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKING_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_REQUIRED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -1017,5 +1018,23 @@ public class CryptoCreateSuite {
                     .hasPrecheck(INVALID_ALIAS_KEY);
             allRunFor(spec, op);
         }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> accountsWith() {
+        final String key = "key";
+        return hapiTest(
+                newKeyNamed(key),
+                cryptoCreate("control").key(key).balance(1L).hasKnownStatus(SUCCESS),
+                cryptoCreate("differentShard")
+                        .key(key)
+                        .balance(1L)
+                        .shardId(ShardID.newBuilder().setShardNum(1).build())
+                        .hasKnownStatus(INVALID_ACCOUNT_ID),
+                cryptoCreate("differentRealm")
+                        .key(key)
+                        .balance(1L)
+                        .realmId(RealmID.newBuilder().setRealmNum(1).build())
+                        .hasKnownStatus(INVALID_ACCOUNT_ID));
     }
 }
