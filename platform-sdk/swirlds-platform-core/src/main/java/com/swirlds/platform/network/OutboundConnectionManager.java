@@ -8,9 +8,6 @@ import static com.swirlds.logging.legacy.LogMarker.TCP_CONNECT_EXCEPTIONS;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.threading.locks.AutoClosableResourceLock;
-import com.swirlds.common.threading.locks.Locks;
-import com.swirlds.common.threading.locks.locked.LockedResource;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
@@ -29,6 +26,9 @@ import java.util.Collections;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.locks.AutoClosableResourceLock;
+import org.hiero.base.concurrent.locks.Locks;
+import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.consensus.model.node.NodeId;
 
 public class OutboundConnectionManager implements ConnectionManager {
