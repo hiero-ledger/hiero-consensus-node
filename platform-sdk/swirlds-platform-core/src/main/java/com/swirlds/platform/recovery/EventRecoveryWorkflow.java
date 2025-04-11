@@ -25,6 +25,7 @@ import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.hashing.DefaultEventHasher;
+import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFile;
 import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import com.swirlds.platform.event.preconsensus.PcesMutableFile;
@@ -196,7 +197,11 @@ public final class EventRecoveryWorkflow {
                     recoveredState.judge().getGeneration(),
                     recoveredState.state().get().getRound(),
                     resultingStateDirectory);
-            final PcesMutableFile mutableFile = preconsensusEventFile.getMutableFile(PcesFileWriterType.OUTPUT_STREAM);
+            final PcesFileWriterType type = platformContext
+                    .getConfiguration()
+                    .getConfigData(PcesConfig.class)
+                    .pcesFileWriterType();
+            final PcesMutableFile mutableFile = preconsensusEventFile.getMutableFile(type);
             mutableFile.writeEvent(recoveredState.judge());
             mutableFile.close();
 
