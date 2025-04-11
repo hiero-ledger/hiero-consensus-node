@@ -11,7 +11,6 @@ import com.swirlds.config.api.validation.annotation.Min;
 /**
  * Configuration for record streams.
  *
- * @param enabled if we should write record streams
  * @param logDir directory for writing record files
  * @param sidecarDir directory for writing sidecar files, it is specified relative to logDir; blank==same dir
  * @param logPeriod the number of seconds in consensus time between writing record files
@@ -19,13 +18,11 @@ import com.swirlds.config.api.validation.annotation.Min;
  * @param sidecarMaxSizeMb the maximum size of a sidecar file in MB before rolling over to a new file
  * @param recordFileVersion the format version number for record files
  * @param signatureFileVersion the format version number for signature files
- * @param compressFilesOnCreation when true record and sidecar files are compressed with GZip when created
  * @param numOfBlockHashesInState the number of block hashes to keep in state for block history
  * @param streamFileProducer the type of stream file producer to use. Currently only "concurrent" is supported
  */
 @ConfigData("hedera.recordStream")
 public record BlockRecordStreamConfig(
-        @ConfigProperty(defaultValue = "true") @NodeProperty boolean enabled,
         @ConfigProperty(defaultValue = "/opt/hgcapp/recordStreams") @NodeProperty String logDir,
         @ConfigProperty(defaultValue = "sidecar") @NodeProperty String sidecarDir,
         @ConfigProperty(defaultValue = "2") @Min(1) @NodeProperty int logPeriod,
@@ -33,7 +30,5 @@ public record BlockRecordStreamConfig(
         @ConfigProperty(defaultValue = "256") @Min(1) @Max(1024) @NetworkProperty int sidecarMaxSizeMb,
         @ConfigProperty(defaultValue = "6") @Min(1) @NetworkProperty int recordFileVersion,
         @ConfigProperty(defaultValue = "6") @Min(1) @NetworkProperty int signatureFileVersion,
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean logEveryTransaction,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean compressFilesOnCreation, // NOT SURE
         @ConfigProperty(defaultValue = "256") @Min(1) @Max(4096) @NetworkProperty int numOfBlockHashesInState,
         @ConfigProperty(defaultValue = "concurrent") @NetworkProperty String streamFileProducer) {}

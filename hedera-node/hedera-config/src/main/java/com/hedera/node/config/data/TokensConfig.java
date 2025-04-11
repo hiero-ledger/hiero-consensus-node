@@ -40,8 +40,6 @@ public record TokensConfig(
                 int maxAllowedPendingAirdropsToCancel,
         @ConfigProperty(value = "maxAllowedAirdropTransfersPerTx", defaultValue = "10") @NetworkProperty
                 int maxAllowedAirdropTransfersPerTx,
-        @ConfigProperty(value = "autoCreations.isEnabled", defaultValue = "true") @NetworkProperty
-                boolean autoCreationsIsEnabled,
         @ConfigProperty(value = "maxMetadataBytes", defaultValue = "100") @NetworkProperty int tokensMaxMetadataBytes,
         @ConfigProperty(value = "balancesInQueries.enabled", defaultValue = "true") @NetworkProperty
                 boolean balancesInQueriesEnabled,

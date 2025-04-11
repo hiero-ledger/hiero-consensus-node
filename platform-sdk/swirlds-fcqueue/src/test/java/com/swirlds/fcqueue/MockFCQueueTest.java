@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.fcqueue;
 
-import static com.swirlds.common.test.fixtures.junit.tags.TestComponentTags.FCQUEUE;
+import static org.hiero.base.utility.test.fixtures.tags.TestComponentTags.FCQUEUE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
