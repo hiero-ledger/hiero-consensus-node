@@ -263,12 +263,14 @@ public class ShadowgraphSynchronizer {
     private void logSendList(final List<PlatformEvent> sendList, final NodeId selfId, final NodeId peerId) {
         final StringBuilder sb = new StringBuilder();
         for (final PlatformEvent event : sendList) {
-            if (event.getCreatorId().id() == 4) {
+            if (event.getCreatorId().id() == 4L) {
                 sb.append(event.getDescriptor().shortString()).append("\n");
             }
         }
-        logger.info(STARTUP.getMarker(), "Node 4 Send List from node {} to {}: \n{}", selfId.id(), peerId.id(),
-                sb.toString());
+        if (!sendList.isEmpty()) {
+            logger.info(STARTUP.getMarker(), "Node 4 Send List from node {} to {}: \n{}", selfId.id(), peerId.id(),
+                    sb.toString());
+        }
     }
 
     @NonNull

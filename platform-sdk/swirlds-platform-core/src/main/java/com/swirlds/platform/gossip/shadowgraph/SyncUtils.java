@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static org.hiero.base.utility.CompareTo.isGreaterThan;
 
@@ -93,8 +94,7 @@ public final class SyncUtils {
 
     /**
      * Read the tips and event window from the peer. This is the first data exchanged during a sync (after protocol
-     * negotiation). The complementary function to
-     * {@link #writeMyTipsAndEventWindow(Connection, EventWindow, List)}.
+     * negotiation). The complementary function to {@link #writeMyTipsAndEventWindow(Connection, EventWindow, List)}.
      *
      * @param connection    the connection to read from
      * @param numberOfNodes the number of nodes in the network
@@ -312,9 +312,9 @@ public final class SyncUtils {
                             // we are done reading event, tell the writer thread to send a COMM_SYNC_DONE
                             eventReadingDone.countDown();
                         }
-                            // while we are waiting for the peer to tell us they are done, they might send
-                            // COMM_SYNC_ONGOING
-                            // if they are still busy reading events
+                        // while we are waiting for the peer to tell us they are done, they might send
+                        // COMM_SYNC_ONGOING
+                        // if they are still busy reading events
                         case ByteConstants.COMM_SYNC_ONGOING -> {
                             // peer is still reading events, waiting for them to finish
                             if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
@@ -394,27 +394,56 @@ public final class SyncUtils {
         // find all ancestors of events we plan on sending, and to send those as well. Events are added to the
         // filtered list in reverse order, resulting in a list that is in topological order.
 
+        final StringBuilder sb = new StringBuilder();
+        if (!eventsTheyNeed.isEmpty()) {
+            sb.append("\nFILTER_LIKELY_DUPLICATES:");
+        }
+
         for (int index = eventsTheyNeed.size() - 1; index >= 0; index--) {
             final PlatformEvent event = eventsTheyNeed.get(index);
+            boolean sendEvent = false;
+            if (event.getCreatorId().equals(selfId)) {
+                sendEvent = true;
+                sb.append(String.format("\nAdding %s to send list because this node created it",
+                        event.getDescriptor().shortString()));
+            } else if (parentHashesOfEventsToSend.contains(event.getHash())) {
+                sendEvent = true;
+                sb.append(String.format("\nAdding %s to send list because it is a parent of an event to send",
+                        event.getDescriptor().shortString()));
+            } else if (haveWeKnownAboutEventForALongTime(event, nonAncestorThreshold, now)) {
+                sendEvent = true;
+                sb.append(String.format("\nAdding %s to send list because this node has known about it for a long time",
+                        event.getDescriptor().shortString()));
+            }
 
-            final boolean sendEvent =
-                    // Always send self events
-                    event.getCreatorId().equals(selfId)
-                            ||
-                            // Always send parents of other events we plan to send
-                            parentHashesOfEventsToSend.contains(event.getHash())
-                            ||
-                            // Send all other events if we've known about it for long enough
-                            haveWeKnownAboutEventForALongTime(event, nonAncestorThreshold, now);
+//            final boolean sendEvent =
+//                    // Always send self events
+//                    event.getCreatorId().equals(selfId)
+//                            ||
+//                            // Always send parents of other events we plan to send
+//                            parentHashesOfEventsToSend.contains(event.getHash())
+//                            ||
+//                            // Send all other events if we've known about it for long enough
+//                            haveWeKnownAboutEventForALongTime(event, nonAncestorThreshold, now);
 
             if (sendEvent) {
                 // If we've decided to send an event, we also want to send its parents if those parents are needed
                 // by the peer.
                 filteredList.addFirst(event);
                 for (final EventDescriptorWrapper otherParent : event.getAllParents()) {
+                    if (otherParent.creator().id() == 4) {
+                        sb.append(String.format(
+                                "\nAdding %s to send list because it is a parent of an event we decided to send above.",
+                                event.getDescriptor().shortString()));
+                    }
                     parentHashesOfEventsToSend.add(otherParent.hash());
                 }
+            } else {
+                sb.append(String.format("Not sending %s", event.getDescriptor().shortString()));
             }
+        }
+        if (selfId.id() != 4) {
+            logger.info(STARTUP.getMarker(), sb.toString());
         }
 
         return filteredList;
