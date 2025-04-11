@@ -492,7 +492,9 @@ public class Utils {
     public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
             @NonNull final com.esaulpaugh.headlong.abi.Address address) {
         var addressHex = toChecksumAddress(address.value());
-        addressHex = addressHex.substring(2); // remove 0x
+        if (addressHex.startsWith("0x")) {
+            addressHex = addressHex.substring(2);
+        }
         var shard = addressHex.substring(0, 8);
         var realm = addressHex.substring(8, 24);
         var scheduleNum = addressHex.substring(24, 40);
