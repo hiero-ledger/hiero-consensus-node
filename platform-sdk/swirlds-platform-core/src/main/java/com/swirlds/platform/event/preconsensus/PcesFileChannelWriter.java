@@ -8,8 +8,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Writes preconsensus events to a file using a {@link FileChannel}.
@@ -30,18 +33,27 @@ public class PcesFileChannelWriter implements PcesFileWriter {
      * Create a new writer that writes events to a file using a {@link FileChannel}.
      *
      * @param filePath       the path to the file to write to
-     * @param syncEveryEvent if true, the file will be synced after every event is written
      * @throws IOException if an error occurs while opening the file
      */
-    public PcesFileChannelWriter(@NonNull final Path filePath, final boolean syncEveryEvent) throws IOException {
-        if (syncEveryEvent) {
-            channel = FileChannel.open(
-                    filePath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE, StandardOpenOption.DSYNC);
-        } else {
-            channel = FileChannel.open(filePath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-        }
-        buffer = ByteBuffer.allocateDirect(BUFFER_CAPACITY);
-        writableSequentialData = BufferedData.wrap(buffer);
+    public PcesFileChannelWriter(@NonNull final Path filePath) throws IOException {
+        this(filePath, List.of());
+    }
+
+    /**
+     * Create a new writer that writes events to a file using a {@link FileChannel}.
+     *
+     * @param filePath       the path to the file to write to
+     * @param extraOpenOptions extra flags to indicate how to open the file
+     * @throws IOException if an error occurs while opening the file
+     */
+    public PcesFileChannelWriter(@NonNull final Path filePath, @NonNull final List<OpenOption> extraOpenOptions)
+            throws IOException {
+        final List<OpenOption> allOpenOptions =
+                new ArrayList<>(List.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE));
+        allOpenOptions.addAll(extraOpenOptions);
+        this.channel = FileChannel.open(filePath, allOpenOptions.toArray(OpenOption[]::new));
+        this.buffer = ByteBuffer.allocateDirect(BUFFER_CAPACITY);
+        this.writableSequentialData = BufferedData.wrap(buffer);
     }
 
     @Override
@@ -80,7 +92,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
 
     @Override
     public void sync() throws IOException {
-        // benchmarks show that this has horrible performance for the channel writer
+        // benchmarks show that this has horrible performance for the channel writer (in mac-os)
         channel.force(false);
     }
 
