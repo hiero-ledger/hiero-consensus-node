@@ -35,9 +35,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.network.protocol;
     exports com.swirlds.platform.network.topology;
     exports com.swirlds.platform.recovery;
-    exports com.swirlds.platform.sequence;
-    exports com.swirlds.platform.sequence.map;
-    exports com.swirlds.platform.sequence.set;
     exports com.swirlds.platform.state;
     exports com.swirlds.platform.stats;
     exports com.swirlds.platform.stats.atomic;
@@ -77,7 +74,8 @@ module com.swirlds.platform.core {
             com.hedera.node.test.clients,
             com.swirlds.platform.core.test.fixtures,
             com.hedera.node.app.test.fixtures,
-            com.hedera.node.app;
+            com.hedera.node.app,
+            org.hiero.otter.fixtures;
     exports com.swirlds.platform.event.linking to
             com.swirlds.common,
             com.swirlds.platform.test,

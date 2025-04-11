@@ -53,6 +53,7 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
@@ -68,6 +69,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -801,6 +803,99 @@ class BlockStreamManagerImplTest {
         subject.startRound(round, state);
         subject.endRound(state, 4L);
         verify(aWriter).closeCompleteBlock();
+    }
+
+    @Test
+    void trackEventHashAddsEventHashAndGetEventIndexReturnsTheirPositions() {
+        // Given a manager with a single round per block
+        givenSubjectWith(
+                1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+
+        // Initialize hash and start a round
+        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        // When tracking multiple event hashes
+        Hash eventHash1 = CryptoRandomUtils.randomHash();
+        Hash eventHash2 = CryptoRandomUtils.randomHash();
+        Hash eventHash3 = CryptoRandomUtils.randomHash();
+
+        subject.trackEventHash(eventHash1);
+        subject.trackEventHash(eventHash2);
+        subject.trackEventHash(eventHash3);
+
+        // Then they should be retrievable by index
+        assertEquals(Optional.of(0), subject.getEventIndex(eventHash1));
+        assertEquals(Optional.of(1), subject.getEventIndex(eventHash2));
+        assertEquals(Optional.of(2), subject.getEventIndex(eventHash3));
+
+        // And non-existent hash should return empty
+        Hash unknownHash = CryptoRandomUtils.randomHash();
+        assertEquals(Optional.empty(), subject.getEventIndex(unknownHash));
+    }
+
+    @Test
+    void eventHashMapIsClearedBetweenBlocks() {
+        // Given a manager with a single round per block
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter,
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
+
+        // Set up the signature future to complete immediately
+        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return null;
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        // Initialize hash and start a round
+        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        // Track event hashes in the first block
+        Hash eventHash1 = CryptoRandomUtils.randomHash();
+        Hash eventHash2 = CryptoRandomUtils.randomHash();
+
+        subject.trackEventHash(eventHash1);
+        subject.trackEventHash(eventHash2);
+
+        // Verify hashes are tracked in the first block
+        assertEquals(Optional.of(0), subject.getEventIndex(eventHash1));
+        assertEquals(Optional.of(1), subject.getEventIndex(eventHash2));
+
+        // End the first block
+        subject.endRound(state, ROUND_NO);
+
+        // Start a new round/block
+        given(round.getRoundNum()).willReturn(ROUND_NO + 1);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW.plusSeconds(1));
+        subject.startRound(round, state);
+
+        // The previous block's event hashes should no longer be available
+        assertEquals(Optional.empty(), subject.getEventIndex(eventHash1));
+        assertEquals(Optional.empty(), subject.getEventIndex(eventHash2));
+
+        // Track a new event hash in the second block
+        Hash eventHash3 = CryptoRandomUtils.randomHash();
+        subject.trackEventHash(eventHash3);
+
+        // Verify the index starts from 0 again in the new block
+        assertEquals(Optional.of(0), subject.getEventIndex(eventHash3));
     }
 
     private void givenSubjectWith(

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.model.internal.deterministic;
 
-import static org.hiero.base.utility.CompareTo.isGreaterThanOrEqualTo;
+import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.TraceableWiringModel;
