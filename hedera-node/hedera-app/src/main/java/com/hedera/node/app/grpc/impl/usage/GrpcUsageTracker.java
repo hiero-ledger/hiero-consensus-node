@@ -34,7 +34,9 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * Interceptor that captures gRPC usage data based on the invoked RPC endpoint and user-agent information from the
- * {@code X-User-Agent} header.
+ * {@code X-User-Agent} header. This works by aggregating gRPC usage data into a time bucket which is a period of time
+ * based on the {@link GrpcUsageTrackerConfig#logIntervalMinutes() logging interval}. For example, if the logging
+ * interval is 15 minutes, then the bucket will contain 15 minutes worth of usage data.
  */
 public class GrpcUsageTracker implements ServerInterceptor {
 
@@ -56,7 +58,7 @@ public class GrpcUsageTracker implements ServerInterceptor {
     private final Cache<String, UserAgent> userAgentCache;
 
     /**
-     * Reference to the active usage tracking bucket.
+     * Reference to the active bucket that contains usage data.
      */
     private final AtomicReference<UsageBucket> bucketRef;
 
@@ -66,8 +68,8 @@ public class GrpcUsageTracker implements ServerInterceptor {
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     /**
-     * Flag used to indicate if usage tracking is enabled or not. This is updated with each iteration to allow for
-     * dynamic enabling/disabling at runtime.
+     * Flag used to indicate if usage tracking is enabled or not. This is refreshed at every
+     * {@link GrpcUsageTrackerConfig#logIntervalMinutes() logging interval} to permit dynamic enabling/disabling.
      */
     private final AtomicBoolean isEnabled = new AtomicBoolean(true);
 

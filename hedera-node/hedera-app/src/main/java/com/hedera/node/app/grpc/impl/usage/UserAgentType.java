@@ -73,25 +73,25 @@ public enum UserAgentType {
     /**
      * Parses the specified user-agent string into one of the known user-agent IDs. If the specified user-agent is
      * missing, then {@link UserAgentType#UNSPECIFIED} is returned. If a user-agent was provided, but it doesn't match
-     * any of the known user-agents, then {@link UserAgentType#UNKNOWN} is returned.
+     * any of the known user-agents (or their variants), then {@link UserAgentType#UNKNOWN} is returned.
      *
      * @param userAgentType the user-agent string to parse
      * @return the user-agent type
      */
-    static @NonNull UserAgentType fromString(@Nullable String userAgentType) {
+    static @NonNull UserAgentType fromString(@Nullable final String userAgentType) {
         if (userAgentType == null || userAgentType.isBlank()) {
             // No user-agent was specified
             return UNSPECIFIED;
         }
 
-        userAgentType = userAgentType.trim();
+        final String trimmedAgentType = userAgentType.trim();
 
-        UserAgentType type = values.get(userAgentType);
+        UserAgentType type = values.get(trimmedAgentType);
         if (type != null) {
             return type;
         }
 
-        type = values.get(userAgentType.toLowerCase());
+        type = values.get(trimmedAgentType.toLowerCase());
         if (type != null) {
             return type;
         }

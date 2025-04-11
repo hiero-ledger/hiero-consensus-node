@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl.usage;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import io.grpc.MethodDescriptor;
@@ -20,10 +18,9 @@ class RpcEndpointNameTest {
     @MethodSource("testRpcNameArgs")
     void testRpcName(final String fullMethodName, final String expectedService, final String expectedMethod) {
         final MethodDescriptor<?, ?> descriptor = newDescriptor(fullMethodName);
-        final RpcEndpointName rpcEndpointName = assertDoesNotThrow(() -> RpcEndpointName.from(descriptor));
-        assertNotNull(rpcEndpointName);
-        assertEquals(expectedService, rpcEndpointName.serviceName());
-        assertEquals(expectedMethod, rpcEndpointName.methodName());
+        final RpcEndpointName rpcEndpointName = RpcEndpointName.from(descriptor);
+        assertThat(rpcEndpointName.serviceName()).isEqualTo(expectedService);
+        assertThat(rpcEndpointName.methodName()).isEqualTo(expectedMethod);
     }
 
     static List<Arguments> testRpcNameArgs() {

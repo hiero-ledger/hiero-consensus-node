@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl.usage;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 import com.hedera.node.app.grpc.impl.GrpcTestBase;
 import com.hedera.node.app.grpc.impl.netty.NettyGrpcServerManager;
@@ -67,13 +66,11 @@ public class GrpcInterceptorTest extends GrpcTestBase {
         usageTracker.logAndResetUsageData();
 
         final List<String> accessLogs = accessLogCaptor.infoLogs();
-        assertEquals(1, accessLogs.size());
+        assertThat(accessLogs).hasSize(1);
         final String expectedLog = "|service=TestService|method=TestMethod|sdkType=" + expectedAgentType.id()
                 + "|sdkVersion=" + expectedVersion + "|count=1|";
         final String actualLog = accessLogs.getFirst();
-        assertTrue(
-                actualLog.contains(expectedLog),
-                "Expected log to contain '" + expectedLog + "' but it did not: '" + actualLog + "'");
+        assertThat(actualLog).contains(expectedLog);
     }
 
     static List<Arguments> testUserAgentArgs() {

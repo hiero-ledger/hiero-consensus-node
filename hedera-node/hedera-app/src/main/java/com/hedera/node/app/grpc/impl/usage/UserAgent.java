@@ -27,7 +27,7 @@ public record UserAgent(@NonNull UserAgentType agentType, @NonNull String versio
 
     /**
      * Parses the specified user-agent string into a known user-agent object. If the agent type is not a known type
-     * (i.e. not a standard SDK) then an unknown or unspecified agent type will be returned.
+     * (i.e. not a recognized user-agent) then an {@code UNKNOWN} or {@code UNSPECIFIED} agent type will be returned.
      *
      * @param userAgentStr the user-agent string to parse
      * @return a user-agent object representing the parsed user-agent string provided
@@ -40,7 +40,6 @@ public record UserAgent(@NonNull UserAgentType agentType, @NonNull String versio
         UserAgent userAgent = null;
 
         /*
-        The user-agent is not in the cache, so now we need to parse it.
         If we are following the HTTP standard for user-agent header, then there could be multiple components in the
         header, separated by spaces like "hiero-sdk-java/1.2.3 foo-bar/34 Hashgraph". We only care about the piece
         that relates to known user-agents, so we have to parse each piece and check if it is valid

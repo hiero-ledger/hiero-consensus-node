@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl.usage;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -83,16 +81,14 @@ class GrpcUsageTrackerTest {
 
         final GrpcUsageTracker usageTracker = new GrpcUsageTracker(configProvider, clock);
 
-        assertDoesNotThrow(() -> usageTracker.interceptCall(serverCall, metadata, handler));
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, metadata, handler)).doesNotThrowAnyException();
 
         // get the usage bucket... there should be no data captured in it since usage tracking is disabled
         final AtomicReference<UsageBucket> bucketRef =
                 (AtomicReference<UsageBucket>) usageBucketRefHandle.get(usageTracker);
-        assertNotNull(bucketRef);
         final UsageBucket usageBucket = bucketRef.get();
-        assertNotNull(usageBucket);
-        assertTrue(usageBucket.usageData().isEmpty());
-        assertEquals(usageBucket.time(), Instant.parse("2025-04-03T15:30:00.000Z"));
+        assertThat(usageBucket.usageData()).isEmpty();
+        assertThat(usageBucket.time()).isEqualTo("2025-04-03T15:30:00.000Z");
     }
 
     @Test
@@ -114,26 +110,21 @@ class GrpcUsageTrackerTest {
         final GrpcUsageTracker usageTracker = new GrpcUsageTracker(configProvider, clock);
 
         // make two calls
-        assertDoesNotThrow(() -> usageTracker.interceptCall(serverCall, metadata, handler));
-        assertDoesNotThrow(() -> usageTracker.interceptCall(serverCall, metadata, handler));
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, metadata, handler)).doesNotThrowAnyException();
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, metadata, handler)).doesNotThrowAnyException();
 
-        // get the usage bucket... there should be no data captured in it since usage tracking is disabled
+        // get the usage bucket... there should be some usage data captured
         final AtomicReference<UsageBucket> bucketRef =
                 (AtomicReference<UsageBucket>) usageBucketRefHandle.get(usageTracker);
-        assertNotNull(bucketRef);
         final UsageBucket usageBucket = bucketRef.get();
-        assertNotNull(usageBucket);
 
         final ConcurrentMap<RpcEndpointName, ConcurrentMap<UserAgent, LongAdder>> usageData = usageBucket.usageData();
-        assertEquals(1, usageData.size());
+        assertThat(usageData).hasSize(1);
         final ConcurrentMap<UserAgent, LongAdder> agentData = usageData.get(new RpcEndpointName("MyService", "Commit"));
-        assertNotNull(agentData);
-        assertEquals(1, agentData.size());
+        assertThat(agentData).hasSize(1);
         final LongAdder counter = agentData.get(new UserAgent(UserAgentType.HIERO_SDK_JAVA, "2.3.1"));
-        assertNotNull(counter);
-        assertEquals(2, counter.sum());
-
-        assertEquals(usageBucket.time(), Instant.parse("2025-04-03T15:30:00.000Z"));
+        assertThat(counter.sum()).isEqualTo(2);
+        assertThat(usageBucket.time()).isEqualTo("2025-04-03T15:30:00.000Z");
     }
 
     @Test
@@ -161,34 +152,30 @@ class GrpcUsageTrackerTest {
 
         final GrpcUsageTracker usageTracker = new GrpcUsageTracker(configProvider, clock);
 
-        // make two calls
-        assertDoesNotThrow(() -> usageTracker.interceptCall(serverCall, javaMetadata, handler)); // MyService:Commit
-        assertDoesNotThrow(() -> usageTracker.interceptCall(serverCall, goMetadata, handler)); // MyService:Get
-        assertDoesNotThrow(() -> usageTracker.interceptCall(serverCall, luaMetadata, handler)); // MyService:Commit
-        assertDoesNotThrow(() -> usageTracker.interceptCall(serverCall, javaMetadata, handler)); // MyService:Commit
+        // MyService:Commit
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, javaMetadata, handler)).doesNotThrowAnyException();
+        // MyService:Get
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, goMetadata, handler)).doesNotThrowAnyException();
+        // MyService:Commit
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, luaMetadata, handler)).doesNotThrowAnyException();
+        // MyService:Commit
+        assertThatCode(() -> usageTracker.interceptCall(serverCall, javaMetadata, handler)).doesNotThrowAnyException();
 
-        assertDoesNotThrow(usageTracker::logAndResetUsageData); // log the usage data out
+        // log the usage data out
+        assertThatCode(usageTracker::logAndResetUsageData).doesNotThrowAnyException();
 
-        List<String> logs = accessLogCaptor.infoLogs();
-        assertEquals(3, logs.size());
-        final String log1 =
-                "|time=2025-04-03T15:30:00Z|service=MyService|method=Commit|sdkType=HieroSdkJava|sdkVersion=2.3.1|count=2|";
-        final String log2 =
-                "|time=2025-04-03T15:30:00Z|service=MyService|method=Commit|sdkType=Unknown|sdkVersion=Unknown|count=1|";
-        final String log3 =
-                "|time=2025-04-03T15:30:00Z|service=MyService|method=Get|sdkType=HieroSdkGo|sdkVersion=1.5.6|count=1|";
-
-        assertTrue(logs.contains(log1));
-        assertTrue(logs.contains(log2));
-        assertTrue(logs.contains(log3));
+        final List<String> logs = accessLogCaptor.infoLogs();
+        assertThat(logs).hasSize(3);
+        assertThat(logs)
+                .contains("|time=2025-04-03T15:30:00Z|service=MyService|method=Commit|sdkType=HieroSdkJava|sdkVersion=2.3.1|count=2|",
+                        "|time=2025-04-03T15:30:00Z|service=MyService|method=Commit|sdkType=Unknown|sdkVersion=Unknown|count=1|",
+                        "|time=2025-04-03T15:30:00Z|service=MyService|method=Get|sdkType=HieroSdkGo|sdkVersion=1.5.6|count=1|");
 
         // validate that the bucket has been reset
         final AtomicReference<UsageBucket> bucketRef =
                 (AtomicReference<UsageBucket>) usageBucketRefHandle.get(usageTracker);
-        assertNotNull(bucketRef);
         final UsageBucket usageBucket = bucketRef.get();
-        assertNotNull(usageBucket);
-        assertTrue(usageBucket.usageData().isEmpty());
+        assertThat(usageBucket.usageData()).isEmpty();
     }
 
     @ParameterizedTest
@@ -203,8 +190,8 @@ class GrpcUsageTrackerTest {
 
         final GrpcUsageTracker usageTracker = new GrpcUsageTracker(configProvider);
 
-        final Instant actualTime = assertDoesNotThrow(() -> usageTracker.toBucketTime(time));
-        assertEquals(expectedTime, actualTime);
+        final Instant actualTime = usageTracker.toBucketTime(time);
+        assertThat(actualTime).isEqualTo(expectedTime);
     }
 
     static List<Arguments> testTimeCalculationArgs() {

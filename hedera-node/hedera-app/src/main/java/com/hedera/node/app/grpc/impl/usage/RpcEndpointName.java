@@ -9,12 +9,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * Record that represents and RPC endpoint.
+ * Record that represents an RPC endpoint.
  *
  * @param serviceName the service name associated with the endpoint
  * @param methodName the method name associated with the endpoint
  */
 public record RpcEndpointName(@NonNull String serviceName, @NonNull String methodName) {
+    private static final String UNKNOWN = "Unknown";
 
     /**
      * Cache used to hold mappings between long-form RPC names to formatted service and method names.
@@ -50,14 +51,14 @@ public record RpcEndpointName(@NonNull String serviceName, @NonNull String metho
         String methodName = descriptor.getBareMethodName();
 
         if (svcName == null || svcName.isBlank()) {
-            svcName = "Unknown";
+            svcName = UNKNOWN;
         } else if (svcName.startsWith("proto.")) {
             // remove "proto." from service name
             svcName = svcName.substring(6);
         }
 
         if (methodName == null || methodName.isBlank()) {
-            methodName = "Unknown";
+            methodName = UNKNOWN;
         } else {
             // capitalize first letter of method
             methodName = Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1);
