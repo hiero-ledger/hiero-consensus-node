@@ -52,6 +52,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     /** check to display the latest events available */
     private final Checkbox displayLatestEvents;
 
+    private final Checkbox displayBranches;
+
     private final Component[] comps;
     /** only draw this many generations, at most */
     private final JSpinner numGenerations;
@@ -73,6 +75,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         labelBirthroundCheckbox = new Checkbox("Labels: Birth round");
         displayLatestEvents = new Checkbox("Display latest events");
         displayLatestEvents.setState(true);
+        displayBranches = new Checkbox("Display branches");
 
         // boxing so that the JSpinner will use an int internally
         numGenerations = new JSpinner(new SpinnerNumberModel(
@@ -109,7 +112,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
             labelConsTimestampCheckbox,
             labelGenerationCheckbox,
             labelBirthroundCheckbox,
-            displayLatestEvents
+            displayLatestEvents,
+            displayBranches
         };
     }
 
@@ -280,6 +284,11 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     @Override
     public boolean displayLatestEvents() {
         return displayLatestEvents.getState();
+    }
+
+    @Override
+    public boolean showBranches() {
+        return displayBranches.getState();
     }
 
     @Override

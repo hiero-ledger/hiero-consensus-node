@@ -60,6 +60,8 @@ public interface HashgraphPictureOptions {
      */
     boolean simpleColors();
 
+    boolean showBranches();
+
     /**
      * @return the number of generations to display
      */
