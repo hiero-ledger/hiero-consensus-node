@@ -210,7 +210,11 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     void validateNonZeroShardAndRealm() {
         final long shard = 5;
         final long realm = 10;
-        txn = new CryptoCreateBuilder().withStakedAccountId(3).build();
+        txn = new CryptoCreateBuilder()
+                .withStakedAccountId(3)
+                .withShardId(shard)
+                .withRealmId(realm)
+                .build();
         given(handleContext.body()).willReturn(txn);
         given(pureChecksContext.body()).willReturn(txn);
 
