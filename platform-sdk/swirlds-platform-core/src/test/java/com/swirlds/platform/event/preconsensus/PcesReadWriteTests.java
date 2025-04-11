@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,12 +33,17 @@ import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.junit.extensions.ParamName;
+import org.hiero.junit.extensions.ParamSource;
+import org.hiero.junit.extensions.ParameterCombinationExtension;
+import org.hiero.junit.extensions.UseParameterSources;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 @DisplayName("PCES Read Write Tests")
@@ -60,22 +66,28 @@ class PcesReadWriteTests {
         FileUtils.deleteDirectory(testDirectory);
     }
 
-    protected static Stream<Arguments> ancientModeArguments() {
-        return Stream.of(Arguments.of(GENERATION_THRESHOLD), Arguments.of(BIRTH_ROUND_THRESHOLD));
+    protected static List<AncientMode> ancientModeArguments() {
+        return List.of(GENERATION_THRESHOLD, BIRTH_ROUND_THRESHOLD);
     }
 
-    protected static Stream<Arguments> ancientAndBoolanArguments() {
-        return Stream.of(
-                Arguments.of(GENERATION_THRESHOLD, false),
-                Arguments.of(BIRTH_ROUND_THRESHOLD, false),
-                Arguments.of(GENERATION_THRESHOLD, true),
-                Arguments.of(BIRTH_ROUND_THRESHOLD, true));
+    protected static Iterable<PcesFileWriterType> pcesFileWriterTypeArguments() {
+        return Arrays.stream(PcesFileWriterType.values()).toList().stream().toList();
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientAndBoolanArguments")
+    protected static Stream<Boolean> booleanArguments() {
+        return Stream.of(Boolean.TRUE, Boolean.FALSE);
+    }
+
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+    })
     @DisplayName("Write Then Read Test")
-    void writeThenReadTest(@NonNull final AncientMode ancientMode, final boolean useFileChannelWriter)
+    void writeThenReadTest(
+            @NonNull @ParamName("ancientMode") final AncientMode ancientMode,
+            @ParamName("pcesFileWriterType") final PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
@@ -110,7 +122,7 @@ class PcesReadWriteTests {
                 0,
                 testDirectory);
 
-        final PcesMutableFile mutableFile = file.getMutableFile(useFileChannelWriter, false);
+        final PcesMutableFile mutableFile = file.getMutableFile(pcesFileWriterType);
         for (final PlatformEvent event : events) {
             mutableFile.writeEvent(event);
         }
@@ -165,7 +177,7 @@ class PcesReadWriteTests {
                 upperBound,
                 testDirectory);
 
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(PcesFileWriterType.OUTPUT_STREAM);
         for (final PlatformEvent event : events) {
             mutableFile.writeEvent(event);
         }
@@ -200,17 +212,23 @@ class PcesReadWriteTests {
                 0,
                 testDirectory);
 
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(PcesFileWriterType.OUTPUT_STREAM);
         mutableFile.close();
 
         final IOIterator<PlatformEvent> iterator = file.iterator(Long.MIN_VALUE);
         assertFalse(iterator.hasNext());
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientAndBoolanArguments")
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(param = "truncateOnBoundary", method = "booleanArguments")
+    })
     @DisplayName("Truncated Event Test")
-    void truncatedEventTest(@NonNull final AncientMode ancientMode, final boolean truncateOnBoundary)
+    void truncatedEventTest(
+            @NonNull @ParamName("ancientMode") final AncientMode ancientMode,
+            final @ParamName("truncateOnBoundary") boolean truncateOnBoundary)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
@@ -247,7 +265,7 @@ class PcesReadWriteTests {
 
         final Map<Integer /* event index */, Integer /* last byte position */> byteBoundaries = new HashMap<>();
 
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(PcesFileWriterType.OUTPUT_STREAM);
         for (int i = 0; i < events.size(); i++) {
             final PlatformEvent event = events.get(i);
             mutableFile.writeEvent(event);
@@ -316,7 +334,7 @@ class PcesReadWriteTests {
 
         final Map<Integer /* event index */, Integer /* last byte position */> byteBoundaries = new HashMap<>();
 
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(PcesFileWriterType.OUTPUT_STREAM);
         for (int i = 0; i < events.size(); i++) {
             final PlatformEvent event = events.get(i);
             mutableFile.writeEvent(event);
@@ -381,7 +399,7 @@ class PcesReadWriteTests {
                 restrictedUpperBound,
                 0,
                 testDirectory);
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(PcesFileWriterType.OUTPUT_STREAM);
 
         final List<PlatformEvent> validEvents = new ArrayList<>();
         for (final PlatformEvent event : events) {
@@ -443,7 +461,7 @@ class PcesReadWriteTests {
                 0,
                 testDirectory);
 
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(PcesFileWriterType.OUTPUT_STREAM);
         for (final PlatformEvent event : events) {
             mutableFile.writeEvent(event);
         }
@@ -510,7 +528,7 @@ class PcesReadWriteTests {
                 0,
                 testDirectory);
 
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(PcesFileWriterType.OUTPUT_STREAM);
         for (final PlatformEvent event : events) {
             mutableFile.writeEvent(event);
         }
