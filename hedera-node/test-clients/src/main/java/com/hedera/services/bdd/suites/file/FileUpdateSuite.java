@@ -301,7 +301,7 @@ public class FileUpdateSuite {
         return hapiTest(
                 overriding("contracts.maxRefundPercentOfGasLimit", "100"),
                 uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).gas(100_000L),
+                contractCreate(CONTRACT).gas(600_000L),
                 contractCall(CONTRACT, CREATE_TXN).gas(1_000_000L),
                 contractCallLocal(CONTRACT, INDIRECT_GET_ABI)
                         .gas(300_000L)
