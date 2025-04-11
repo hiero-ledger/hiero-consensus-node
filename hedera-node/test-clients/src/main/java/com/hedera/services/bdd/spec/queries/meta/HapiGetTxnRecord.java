@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCre
 import static com.hedera.services.bdd.suites.HapiSuite.HBAR_TOKEN_SENTINEL;
 import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseType.COST_ANSWER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -169,11 +170,25 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
     private final Map<Integer, ExpectedChildInfo> childExpectations = new HashMap<>();
 
     public HapiGetTxnRecord(final String txn) {
+        setDefaultRetryValues();
         this.txn = txn;
     }
 
     public HapiGetTxnRecord(final TransactionID txnId) {
+        setDefaultRetryValues();
         this.explicitTxnId = Optional.of(txnId);
+    }
+
+    /**
+     * In the CI environment, some flaky tests have been observed failing with RECORD_NOT_FOUND.
+     * This method implements a retry mechanism with a 2-second timeout to allow sufficient time
+     * for the record to be prepared on the node before the operation is retried.
+     * @see <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/18768">GitHub Issue #18768</a>
+     * @see <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/18783">GitHub Issue #18783</a>
+     */
+    private void setDefaultRetryValues() {
+        setRetryLimit(200); // 200 attempts * 10ms = 2s
+        hasRetryAnswerOnlyPrecheck(RECORD_NOT_FOUND);
     }
 
     @Override
