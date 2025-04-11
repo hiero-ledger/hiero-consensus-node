@@ -116,9 +116,9 @@ public class TokenInfoHTSTest {
                 newKeyNamed(PAUSE_KEY),
                 newKeyNamed(TokenKeyType.METADATA_KEY.name()),
                 uploadInitCode(Optional.empty(), VARIANT_16C, TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(6_000_000L),
                 uploadInitCode("TokenInfo"),
-                contractCreate("TokenInfo").gas(1_000_000L),
+                contractCreate("TokenInfo").gas(6_000_000L),
                 tokenCreate(FUNGIBLE_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(MEMO)
@@ -217,9 +217,9 @@ public class TokenInfoHTSTest {
                 newKeyNamed(PAUSE_KEY),
                 newKeyNamed(TokenKeyType.METADATA_KEY.name()),
                 uploadInitCode(Optional.empty(), VARIANT_16C, TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(6_000_000L),
                 uploadInitCode("TokenInfo"),
-                contractCreate("TokenInfo").gas(1_000_000L),
+                contractCreate("TokenInfo").gas(6_000_000L),
                 tokenCreate(FEE_DENOM).treasury(HTS_COLLECTOR),
                 tokenCreate(NON_FUNGIBLE_TOKEN_NAME)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)

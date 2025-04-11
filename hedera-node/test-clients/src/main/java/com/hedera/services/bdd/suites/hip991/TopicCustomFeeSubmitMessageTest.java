@@ -105,7 +105,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         // TOPIC_FEE_105
         final Stream<DynamicTest> messageSubmitToPublicTopicWithFee1token(
                 @FungibleToken(name = "fungibleToken", initialSupply = 123456) SpecFungibleToken ft,
-                @Contract(contract = "TokenTransferContract", creationGas = 1_000_000L) SpecContract contract) {
+                @Contract(contract = "TokenTransferContract", creationGas = 4_000_000L) SpecContract contract) {
             final var collector = "collector";
             final var fee = fixedConsensusHtsFee(1, BASE_TOKEN, collector);
             return hapiTest(

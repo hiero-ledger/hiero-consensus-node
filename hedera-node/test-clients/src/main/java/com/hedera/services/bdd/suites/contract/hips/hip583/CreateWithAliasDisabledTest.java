@@ -87,7 +87,7 @@ public class CreateWithAliasDisabledTest {
                 newKeyNamed(ECDSA_KEY).shape(SECP256K1),
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS).key(ECDSA_KEY),
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
-                contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER),
+                contractCreate(TOKEN_CREATE_CONTRACT).gas(4_000_000L),
                 tokenCreate(EXISTING_TOKEN),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,

@@ -154,8 +154,8 @@ public class NaturalDispatchOrderingTest {
     final Stream<DynamicTest> reversibleChildAndRemovablePrecedingItemsAsExpected(
             @NonFungibleToken(numPreMints = 2) SpecNonFungibleToken nonFungibleToken,
             @Account(maxAutoAssociations = 1) SpecAccount beneficiary,
-            @Contract(contract = "PrecompileAliasXfer", creationGas = 2_000_000) SpecContract transferContract,
-            @Contract(contract = "LowLevelCall") SpecContract lowLevelCallContract) {
+            @Contract(contract = "PrecompileAliasXfer", creationGas = 5_000_000) SpecContract transferContract,
+            @Contract(contract = "LowLevelCall", creationGas = 3_000_000) SpecContract lowLevelCallContract) {
         final var transferFunction = new Function("transferNFTThanRevertCall(address,address,address,int64)");
         return hapiTest(
                 recordStreamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
@@ -262,14 +262,14 @@ public class NaturalDispatchOrderingTest {
     @HapiTest
     @DisplayName("removable child stream items are as expected")
     final Stream<DynamicTest> removableChildItemsAsExpected(
-            @Contract(contract = "OuterCreator") SpecContract outerCreatorContract,
-            @Contract(contract = "LowLevelCall") SpecContract lowLevelCallContract) {
+            @Contract(contract = "OuterCreator", creationGas = 2_000_000) SpecContract outerCreatorContract,
+            @Contract(contract = "LowLevelCall", creationGas = 2_000_000) SpecContract lowLevelCallContract) {
         final var startChainFn = new Function("startChain(bytes)");
         final var emptyMessage = new byte[0];
         return hapiTest(
                 recordStreamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(removableChildValidator(), "nestedCreations", "revertedCreations")),
-                outerCreatorContract.call("startChain", emptyMessage).with(txn -> txn.gas(2_000_000)
+                outerCreatorContract.call("startChain", emptyMessage).with(txn -> txn.gas(5_000_000)
                         .via("nestedCreations")),
                 withOpContext((spec, opLog) -> {
                     final var calldata = startChainFn.encodeCallWithArgs(emptyMessage);

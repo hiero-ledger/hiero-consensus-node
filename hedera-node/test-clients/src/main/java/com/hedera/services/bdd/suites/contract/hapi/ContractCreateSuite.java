@@ -912,6 +912,22 @@ public class ContractCreateSuite {
                 }));
     }
 
+    @HapiTest
+    final Stream<DynamicTest> contractCreateGas() {
+        final String txn = "contractCreateGas";
+        return hapiTest(
+                uploadInitCode("Storage"),
+                contractCreate("Storage").gas(124_000L).via(txn).logged(),
+                getTxnRecord(txn).andAllChildRecords().logged().saveTxnRecordToRegistry(txn),
+                withOpContext((spec, ignore) -> {
+                    final var gasUsed = spec.registry()
+                            .getTransactionRecord(txn)
+                            .getContractCreateResult()
+                            .getGasUsed();
+                    assertEquals(117661, gasUsed);
+                }));
+    }
+
     private TransactionRecord getRecord(HapiSpec spec, String txn, ResponseCodeEnum status) {
         final var hapiGetRecord = getTxnRecord(txn);
         allRunFor(spec, hapiGetRecord);

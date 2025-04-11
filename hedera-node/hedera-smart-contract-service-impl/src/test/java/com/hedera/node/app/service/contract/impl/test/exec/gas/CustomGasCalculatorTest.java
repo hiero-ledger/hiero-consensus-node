@@ -26,8 +26,8 @@ class CustomGasCalculatorTest {
     }
 
     @Test
-    void codeDepositCostIsZero() {
-        assertEquals(0, subject.codeDepositGasCost(Integer.MAX_VALUE));
+    void codeDepositCostIsUsingFrontierGasCost() {
+        assertEquals(200 * 1000, subject.codeDepositGasCost(1000));
     }
 
     @Test
