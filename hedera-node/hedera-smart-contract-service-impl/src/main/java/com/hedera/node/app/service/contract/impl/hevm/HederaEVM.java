@@ -192,6 +192,11 @@ public class HederaEVM extends EVM {
                 frame.setExceptionalHaltReason(Optional.of(ExceptionalHaltReason.INSUFFICIENT_GAS));
                 frame.setState(State.EXCEPTIONAL_HALT);
             } else {
+                /*
+                 ** Important:  This is the code that has been updated verses the parent class from Besu.
+                 ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
+                 ** against new versions of the EVM class.
+                 */
                 incrementHederaGasUsage(frame, hederaGasSchedule.getOrDefault(opcode, result.getGasCost()));
             }
 
