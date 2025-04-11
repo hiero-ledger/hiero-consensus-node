@@ -873,13 +873,13 @@ public class ThrottleAccumulator {
         }
     }
 
-    private long maxGasPerSecOf(ContractsConfig contractsConfig) {
+    private long maxGasPerSecOf(@NonNull final ContractsConfig contractsConfig) {
         return throttleType.equals(ThrottleType.BACKEND_THROTTLE)
                 ? contractsConfig.maxGasPerSecBackend()
                 : contractsConfig.maxGasPerSec();
     }
 
-    private int gasThrottleBurstSecondsOf(ContractsConfig contractsConfig) {
+    private int gasThrottleBurstSecondsOf(@NonNull final ContractsConfig contractsConfig) {
         return throttleType.equals(ThrottleType.BACKEND_THROTTLE)
                 ? contractsConfig.gasThrottleBurstSeconds()
                 : DEFAULT_BURST_SECONDS;
@@ -892,7 +892,7 @@ public class ThrottleAccumulator {
         if (jumboConfig.isEnabled() && bytesPerSec == 0) {
             log.warn("{} jumbo transactions are enabled, but limited to 0 bytes/sec", throttleType.name());
         }
-        bytesThrottle = new LeakyBucketDeterministicThrottle(bytesPerSec, "Bytes", 1);
+        bytesThrottle = new LeakyBucketDeterministicThrottle(bytesPerSec, "Bytes", DEFAULT_BURST_SECONDS);
         if (throttleMetrics != null) {
             throttleMetrics.setupBytesThrottleMetric(bytesThrottle, configuration);
         }
