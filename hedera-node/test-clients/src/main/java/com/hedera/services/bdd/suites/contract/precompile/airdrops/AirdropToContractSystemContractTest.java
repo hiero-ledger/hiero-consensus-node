@@ -33,7 +33,6 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fra
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
@@ -63,7 +62,6 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -1110,9 +1108,8 @@ public class AirdropToContractSystemContractTest {
             }));
         }
 
-        @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
-        @DisplayName(
-                "Airdrop token to a hollow account that would create pending airdrop then deploy a contract on the same address")
+        @HapiTest
+        @DisplayName("Airdrop token to a hollow account then deploy a contract on the same address")
         public Stream<DynamicTest> airdropToHollowAccThenCreate2OnSameAddress(
                 @FungibleToken(initialSupply = 1_000_000L) SpecFungibleToken token) {
             final var create2Contract = "Create2Factory";
@@ -1128,9 +1125,6 @@ public class AirdropToContractSystemContractTest {
             return hapiTest(withOpContext((spec, opLog) -> {
                 allRunFor(
                         spec,
-                        // We need to disable the unlimited auto associations in order to create hollow account with
-                        // maxAutoAssociations != -1
-                        overriding("entities.unlimitedAutoAssociationsEnabled", "false"),
                         sender.associateTokens(token),
                         uploadInitCode(create2Contract),
                         token.treasury().transferUnitsTo(sender, 1_000L, token),
@@ -1162,7 +1156,7 @@ public class AirdropToContractSystemContractTest {
                                 getAccountBalance(hollowCreationAddress.get()).hasTokenBalance(token.name(), 0L)),
                         sourcing(() -> getAccountInfo(hollowCreationAddress.get())
                                 .logged()
-                                .has(AccountInfoAsserts.accountWith().maxAutoAssociations(0))),
+                                .has(AccountInfoAsserts.accountWith().maxAutoAssociations(-1))),
                         // Airdrop token to the contract's alias
                         sourcing(() -> contractCall(
                                         airdropContract.name(),
@@ -1174,12 +1168,6 @@ public class AirdropToContractSystemContractTest {
                                 .sending(85_000_000L)
                                 .gas(1_500_000L)
                                 .via("pendingFTAirdrop")),
-                        // Check for the pending airdrop records
-                        sourcing(() -> getTxnRecord("pendingFTAirdrop")
-                                .logged()
-                                .hasChildRecords(recordWith()
-                                        .pendingAirdrops(includingFungiblePendingAirdrop(moving(10, token.name())
-                                                .between(sender.name(), hollowCreationAddress.get()))))),
                         sourcing(() -> contractCall(create2Contract, DEPLOY, testContractInitcode.get(), salt)
                                 .payingWith(GENESIS)
                                 .gas(10_000_000L)
@@ -1187,8 +1175,7 @@ public class AirdropToContractSystemContractTest {
                                 .via(CREATE_2_TXN)),
                         // Check for receiver balance again
                         sourcing(() ->
-                                getAccountBalance(hollowCreationAddress.get()).hasTokenBalance(token.name(), 0L)));
-                overriding("entities.unlimitedAutoAssociationsEnabled", "true");
+                                getAccountBalance(hollowCreationAddress.get()).hasTokenBalance(token.name(), 10L)));
             }));
         }
     }

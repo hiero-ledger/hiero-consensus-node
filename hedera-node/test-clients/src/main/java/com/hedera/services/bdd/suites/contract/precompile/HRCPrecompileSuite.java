@@ -20,7 +20,6 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
@@ -29,14 +28,12 @@ import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -524,110 +521,5 @@ public class HRCPrecompileSuite {
                                         .contractCallResult(resultWith()
                                                 .contractCallResult(htsPrecompileResult()
                                                         .withStatus(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES)))))));
-    }
-
-    @LeakyHapiTest(overrides = {"tokens.maxPerAccount", "entities.limitTokenAssociations"})
-    final Stream<DynamicTest> hrcTooManyTokenAssociateShouldFail() {
-        final AtomicReference<String> fungibleTokenNum1 = new AtomicReference<>();
-        final AtomicReference<String> fungibleTokenNum2 = new AtomicReference<>();
-        final AtomicReference<String> fungibleTokenNum3 = new AtomicReference<>();
-
-        return hapiTest(
-                overriding("tokens.maxPerAccount", "2"),
-                overriding("entities.limitTokenAssociations", "true"),
-                newKeyNamed(MULTI_KEY),
-                newKeyNamed(RANDOM_KEY),
-                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .supplyType(TokenSupplyType.INFINITE)
-                        .initialSupply(1)
-                        .name(TOKEN_NAME)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(MULTI_KEY)
-                        .supplyKey(MULTI_KEY)
-                        .exposingCreatedIdTo(fungibleTokenNum1::set),
-                tokenCreate(FUNGIBLE_TOKEN_2)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .supplyType(TokenSupplyType.INFINITE)
-                        .initialSupply(1)
-                        .name(TOKEN_NAME)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(MULTI_KEY)
-                        .supplyKey(MULTI_KEY)
-                        .exposingCreatedIdTo(fungibleTokenNum2::set),
-                tokenCreate(FUNGIBLE_TOKEN_3)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .supplyType(TokenSupplyType.INFINITE)
-                        .initialSupply(0)
-                        .name(TOKEN_NAME)
-                        .treasury(ACCOUNT)
-                        .adminKey(MULTI_KEY)
-                        .supplyKey(MULTI_KEY)
-                        .exposingCreatedIdTo(fungibleTokenNum3::set),
-                uploadInitCode(HRC),
-                contractCreate(HRC),
-                withOpContext((spec, opLog) -> {
-                    var fungibleTokenAddress1 = asHexedSolidityAddress(asToken(fungibleTokenNum1.get()));
-                    var fungibleTokenAddress2 = asHexedSolidityAddress(asToken(fungibleTokenNum2.get()));
-                    var fungibleTokenAddress3 = asHexedSolidityAddress(asToken(fungibleTokenNum3.get()));
-                    allRunFor(
-                            spec,
-                            // Associate fungible token
-                            contractCallWithFunctionAbi(
-                                            fungibleTokenAddress1,
-                                            getABIFor(
-                                                    com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION,
-                                                    ASSOCIATE,
-                                                    HRC))
-                                    .payingWith(ACCOUNT)
-                                    .gas(1_000_000)
-                                    .via(ASSOCIATE_TXN),
-                            contractCallWithFunctionAbi(
-                                            fungibleTokenAddress2,
-                                            getABIFor(
-                                                    com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION,
-                                                    ASSOCIATE,
-                                                    HRC))
-                                    .payingWith(ACCOUNT)
-                                    .gas(1_000_000)
-                                    .via(ASSOCIATE_TXN_2),
-                            contractCallWithFunctionAbi(
-                                            fungibleTokenAddress3,
-                                            getABIFor(
-                                                    com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION,
-                                                    ASSOCIATE,
-                                                    HRC))
-                                    .payingWith(ACCOUNT)
-                                    .gas(1_000_000)
-                                    .via(ASSOCIATE_TXN_3));
-                }),
-                withOpContext((spec, ignore) -> allRunFor(
-                        spec,
-                        childRecordsCheck(
-                                ASSOCIATE_TXN,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                ASSOCIATE_TXN_2,
-                                SUCCESS,
-                                recordWith()
-                                        .status(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED)))),
-                        childRecordsCheck(
-                                ASSOCIATE_TXN_3,
-                                SUCCESS,
-                                recordWith()
-                                        .status(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED)))))));
     }
 }

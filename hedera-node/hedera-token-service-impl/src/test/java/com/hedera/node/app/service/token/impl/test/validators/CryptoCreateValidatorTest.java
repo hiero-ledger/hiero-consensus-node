@@ -13,9 +13,7 @@ import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -30,9 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class CryptoCreateValidatorTest {
     private CryptoCreateValidator subject;
-    private TokensConfig tokensConfig;
     private LedgerConfig ledgerConfig;
-    private EntitiesConfig entitiesConfig;
 
     private Configuration configuration;
 
@@ -46,9 +42,7 @@ class CryptoCreateValidatorTest {
         subject = new CryptoCreateValidator();
         testConfigBuilder = HederaTestConfigBuilder.create()
                 .withValue("ledger.maxAutoAssociations", 5000)
-                .withValue("entities.limitTokenAssociations", false)
-                .withValue("tokens.maxPerAccount", 1000)
-                .withValue("entities.unlimitedAutoAssociations", true);
+                .withValue("tokens.maxPerAccount", 1000);
     }
 
     @Test
@@ -90,31 +84,25 @@ class CryptoCreateValidatorTest {
 
     @Test
     void checkTooManyAutoAssociations() {
-        testConfigBuilder = testConfigBuilder.withValue("entities.unlimitedAutoAssociationsEnabled", true);
         configuration = testConfigBuilder.getOrCreateConfig();
         getConfigs(configuration);
-        assertTrue(subject.tooManyAutoAssociations(5001, ledgerConfig, entitiesConfig, tokensConfig));
-        assertFalse(subject.tooManyAutoAssociations(3000, ledgerConfig, entitiesConfig, tokensConfig));
-        assertFalse(subject.tooManyAutoAssociations(-1, ledgerConfig, entitiesConfig, tokensConfig));
+        assertTrue(subject.tooManyAutoAssociations(5001, ledgerConfig));
+        assertFalse(subject.tooManyAutoAssociations(3000, ledgerConfig));
+        assertFalse(subject.tooManyAutoAssociations(-1, ledgerConfig));
     }
 
     @Test
     void checkDiffTooManyAutoAssociations() {
-        testConfigBuilder = testConfigBuilder
-                .withValue("entities.limitTokenAssociations", true)
-                .withValue("entities.unlimitedAutoAssociationsEnabled", true);
         configuration = testConfigBuilder.getOrCreateConfig();
         getConfigs(configuration);
-        assertTrue(subject.tooManyAutoAssociations(1001, ledgerConfig, entitiesConfig, tokensConfig));
-        assertFalse(subject.tooManyAutoAssociations(999, ledgerConfig, entitiesConfig, tokensConfig));
-        assertFalse(subject.tooManyAutoAssociations(-1, ledgerConfig, entitiesConfig, tokensConfig));
-        assertTrue(subject.tooManyAutoAssociations(-2, ledgerConfig, entitiesConfig, tokensConfig));
-        assertTrue(subject.tooManyAutoAssociations(-100000, ledgerConfig, entitiesConfig, tokensConfig));
+        assertFalse(subject.tooManyAutoAssociations(1001, ledgerConfig));
+        assertFalse(subject.tooManyAutoAssociations(999, ledgerConfig));
+        assertFalse(subject.tooManyAutoAssociations(-1, ledgerConfig));
+        assertTrue(subject.tooManyAutoAssociations(-2, ledgerConfig));
+        assertTrue(subject.tooManyAutoAssociations(-100000, ledgerConfig));
     }
 
     private void getConfigs(Configuration configuration) {
-        tokensConfig = configuration.getConfigData(TokensConfig.class);
         ledgerConfig = configuration.getConfigData(LedgerConfig.class);
-        entitiesConfig = configuration.getConfigData(EntitiesConfig.class);
     }
 }

@@ -258,12 +258,9 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final long newMax = builderAccount.maxAutoAssociations();
             // first validate if the associations are limited and the new max is within
             validateFalse(
-                    entitiesConfig.limitTokenAssociations() && newMax > tokensConfig.maxPerAccount(),
+                    newMax > tokensConfig.maxPerAccount(),
                     REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT);
-            validateFalse(
-                    newMax < -1 && entitiesConfig.unlimitedAutoAssociationsEnabled()
-                            || newMax < 0 && !entitiesConfig.unlimitedAutoAssociationsEnabled(),
-                    INVALID_MAX_AUTO_ASSOCIATIONS);
+            validateFalse(newMax < -1, INVALID_MAX_AUTO_ASSOCIATIONS);
             validateFalse(
                     newMax < updateAccount.usedAutoAssociations() && newMax != -1,
                     EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT);
@@ -392,8 +389,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         // When dispatching transaction body for hollow account we don't have update account set
         final var account = accountStore.getAccountById(op.accountIDToUpdateOrElse(AccountID.DEFAULT));
         final var autoRenewconfig = configuration.getConfigData(AutoRenewConfig.class);
-        final var entityConfig = configuration.getConfigData(EntitiesConfig.class);
-        final var unlimitedAutoAssoc = entityConfig.unlimitedAutoAssociationsEnabled();
         final var explicitAutoAssocSlotLifetime = autoRenewconfig.expireAccounts() ? 0L : THREE_MONTHS_IN_SECONDS;
 
         final var keySize = op.hasKey() ? getAccountKeyStorageSize(CommonPbjConverters.fromPbj(op.keyOrThrow())) : 0L;
@@ -421,19 +416,10 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 cryptoAutoRenewRb(account), oldLifetime, sharedFixedBytes + newVariableBytes, newLifetime);
 
         final var oldSlotsUsage = (account == null ? 0 : account.maxAutoAssociations()) * UPDATE_SLOT_MULTIPLIER;
-        final var newSlotsUsage = op.hasMaxAutomaticTokenAssociations() && !unlimitedAutoAssoc
-                ? op.maxAutomaticTokenAssociations().longValue() * UPDATE_SLOT_MULTIPLIER
-                : oldSlotsUsage;
         // If given an explicit auto-assoc slot lifetime, we use it as a lower bound for both old and new lifetimes
-        final long slotRbsDelta = ESTIMATOR_UTILS.changeInBsUsage(
-                oldSlotsUsage,
-                Math.max(explicitAutoAssocSlotLifetime, oldLifetime),
-                newSlotsUsage,
-                Math.max(explicitAutoAssocSlotLifetime, newLifetime));
         return feeCalculator
                 .addBytesPerTransaction(baseSize)
                 .addRamByteSeconds(rbsDelta > 0 ? rbsDelta : 0)
-                .addRamByteSeconds(slotRbsDelta > 0 ? slotRbsDelta : 0)
                 .calculate();
     }
 }

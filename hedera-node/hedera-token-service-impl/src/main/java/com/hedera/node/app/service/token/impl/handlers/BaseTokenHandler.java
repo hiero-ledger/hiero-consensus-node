@@ -8,7 +8,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_MINT_AMOU
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUNT_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_MAX_SUPPLY_REACHED;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -333,17 +332,12 @@ public class BaseTokenHandler {
                 MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
 
         final var account = accountStore.get(accountId);
-        // Check is number of used associations is less than maxAutoAssociations
         final var numAssociations = account.numberAssociations();
-        validateFalse(
-                entitiesConfig.limitTokenAssociations() && numAssociations >= tokensConfig.maxPerAccount(),
-                TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED);
-
         final var maxAutoAssociations = account.maxAutoAssociations();
         final var usedAutoAssociations = account.usedAutoAssociations();
 
         // only validate remaining associations if unlimitedAutoAssociations is disabled for the account
-        if (!hasUnlimitedAutoAssociations(account, entitiesConfig)) {
+        if (!hasUnlimitedAutoAssociations(account)) {
             validateFalse(usedAutoAssociations >= maxAutoAssociations, NO_REMAINING_AUTOMATIC_ASSOCIATIONS);
         }
         // Create new token relation and commit to store
@@ -475,15 +469,12 @@ public class BaseTokenHandler {
      * Checks if the given account has unlimited auto-associations enabled.
      *
      * @param account        the account to check; must not be null
-     * @param entitiesConfig the configuration settings to check against; must not be null
      * @return               {@code true} if unlimited auto-associations is enabled and the account's
      *                       max auto-associations is set to {@code UNLIMITED_AUTOMATIC_ASSOCIATIONS},
      *                       otherwise {@code false}
      * @throws NullPointerException if either {@code account} or {@code entitiesConfig} is null
      */
-    public static boolean hasUnlimitedAutoAssociations(
-            @NonNull final Account account, @NonNull EntitiesConfig entitiesConfig) {
-        return entitiesConfig.unlimitedAutoAssociationsEnabled()
-                && account.maxAutoAssociations() == UNLIMITED_AUTOMATIC_ASSOCIATIONS;
+    public static boolean hasUnlimitedAutoAssociations(@NonNull final Account account) {
+        return account.maxAutoAssociations() == UNLIMITED_AUTOMATIC_ASSOCIATIONS;
     }
 }

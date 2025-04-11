@@ -2,23 +2,23 @@
 package com.hedera.services.bdd.suites.hip904;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungibleMovement;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungiblePendingAirdrop;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingNftPendingAirdrop;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingNonfungibleMovement;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAutoCreatedAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -35,7 +35,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenReject;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
-import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFeeInheritingRoyaltyCollector;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
@@ -43,6 +42,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.roy
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop.pendingAirdrop;
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingToken;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUniqueWithAllowance;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithAllowance;
@@ -50,22 +50,21 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FREEZE_ADMIN;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
-import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.DEPLOY;
-import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.GET_BYTECODE;
-import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.setExpectedCreate2Address;
+import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
+import static com.hedera.services.bdd.suites.crypto.CryptoDeleteSuite.TREASURY;
 import static com.hedera.services.bdd.suites.crypto.TransferWithCustomFixedFees.htsFee;
+import static com.hedera.services.bdd.suites.regression.factories.IdFuzzingProviderFactory.FUNGIBLE_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
@@ -86,6 +85,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PENDING_NFT_AIRDROP_ALREADY_EXISTS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
@@ -100,17 +100,18 @@ import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.EmbeddedReason;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
+import com.hederahashgraph.api.proto.java.TokenTransferList;
+import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -139,15 +140,12 @@ public class TokenAirdropTest extends TokenAirdropBase {
     static void beforeAll(@NonNull final TestLifecycle lifecycle) {
         lifecycle.overrideInClass(Map.of(
                 "tokens.airdrops.enabled", "false",
-                "tokens.airdrops.claim.enabled", "false",
-                "entities.unlimitedAutoAssociationsEnabled", "false"));
+                "tokens.airdrops.claim.enabled", "false"));
         // create some entities with disabled airdrops
         lifecycle.doAdhoc(setUpEntitiesPreHIP904());
         // enable airdrops
         lifecycle.doAdhoc(
-                overriding("tokens.airdrops.enabled", "true"),
-                overriding("tokens.airdrops.claim.enabled", "true"),
-                overriding("entities.unlimitedAutoAssociationsEnabled", "true"));
+                overriding("tokens.airdrops.enabled", "true"), overriding("tokens.airdrops.claim.enabled", "true"));
         lifecycle.doAdhoc(setUpTokensAndAllReceivers());
     }
 
@@ -1290,33 +1288,6 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     getAliasedAccountBalance(evmAddress).hasTokenBalance(FUNGIBLE_TOKEN, 10),
                     // Any new auto-creation needs to explicitly associate token. So it will be $0.1
                     validateChargedUsd("evmAddressReceiver", 0.1, 1));
-        }
-
-        // AIRDROP_19
-        @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
-        final Stream<DynamicTest>
-                airdropNFTToNonExistingEvmAddressWithoutAutoAssociationsResultingInPendingAirdropToHollowAccount() {
-            final var validAliasForAirdrop = "validAliasForAirdrop";
-            return defaultHapiSpec(
-                            "Send one NFT from EOA to EVM address without auto-associations resulting in the creation of Hollow account and pending airdrop")
-                    .given()
-                    .when(tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 7L).between(OWNER, validAliasForAirdrop))
-                            .payingWith(OWNER)
-                            .signedBy(OWNER)
-                            .via("EVM address NFT airdrop"))
-                    .then(
-                            getTxnRecord("EVM address NFT airdrop")
-                                    .hasPriority(recordWith()
-                                            .pendingAirdrops(
-                                                    includingNftPendingAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 7L)
-                                                            .between(OWNER, validAliasForAirdrop)))),
-                            // assert hollow account
-                            getAliasedAccountInfo(validAliasForAirdrop)
-                                    .isHollow()
-                                    .hasAlreadyUsedAutomaticAssociations(0)
-                                    .hasMaxAutomaticAssociations(0)
-                                    .hasNoTokenRelationship(NON_FUNGIBLE_TOKEN),
-                            validateChargedUsd("EVM address NFT airdrop", 0.1, 10));
         }
 
         @HapiTest
@@ -2633,62 +2604,171 @@ public class TokenAirdropTest extends TokenAirdropBase {
         }
 
         @HapiTest
-        @LeakyHapiTest(
-                requirement = PROPERTY_OVERRIDES,
-                overrides = {"entities.unlimitedAutoAssociationsEnabled"})
-        @DisplayName("airdrop NFT to hollow account remains when we deploy a contract on it's address")
-        final Stream<DynamicTest> nftToHollowAccountRemainsOnCreate2() {
-            final var contract = "Create2Factory";
-            final var adminKey = "adminKey";
-            final var salt = BigInteger.valueOf(42);
-            final AtomicReference<String> factoryEvmAddress = new AtomicReference<>();
-            final AtomicReference<String> expectedCreate2Address = new AtomicReference<>();
-            final AtomicReference<byte[]> testContractInitcode = new AtomicReference<>();
-            return hapiTest(flattened(
-                    // turning this off so when we create the contract it's with maxAutoAssociation value of 0
-                    overriding("entities.unlimitedAutoAssociationsEnabled", "false"),
-                    newKeyNamed(adminKey),
-                    uploadInitCode(contract),
-                    contractCreate(contract)
-                            .payingWith(GENESIS)
-                            .adminKey(adminKey)
-                            .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+        final Stream<DynamicTest> createHollowAccountOnDeletedAliasViaHBARTransferAndCompleteIt() {
+            final var hollowAccountKey = "hollowAccountKey";
+            final AtomicReference<ByteString> treasuryAlias = new AtomicReference<>();
+            final AtomicReference<ByteString> hollowAccountAlias = new AtomicReference<>();
+            final var transferHBARSToHollowAccountTxn = "transferHBARSToHollowAccountTxn";
+            return hapiTest(
+                    newKeyNamed(hollowAccountKey).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(TREASURY).balance(10_000 * ONE_HBAR),
+                    withOpContext((spec, opLog) -> {
+                        final var registry = spec.registry();
+                        final var treasuryAccountId = registry.getAccountID(TREASURY);
+                        treasuryAlias.set(ByteString.copyFrom(asSolidityAddress(treasuryAccountId)));
+                        // Save the alias for the hollow account
+                        final var ecdsaKey = spec.registry()
+                                .getKey(hollowAccountKey)
+                                .getECDSASecp256K1()
+                                .toByteArray();
+                        final var evmAddressBytes = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
+                        hollowAccountAlias.set(evmAddressBytes);
+                    }),
+                    withOpContext((spec, opLog) -> {
+                        // Create a hollow account
+                        var hollowCreate = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
+                                        .addAccountAmounts(aaWith(treasuryAlias.get(), -3 * ONE_HBAR))
+                                        .addAccountAmounts(aaWith(hollowAccountAlias.get(), +3 * ONE_HBAR))))
+                                .payingWith(TREASURY)
+                                .signedBy(TREASURY)
+                                .via(transferHBARSToHollowAccountTxn);
 
-                    // GET BYTECODE OF THE CREATE2 CONTRACT
-                    sourcing(() -> contractCallLocal(
-                                    contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
-                            .exposingTypedResultsTo(results -> {
-                                final var tcInitcode = (byte[]) results[0];
-                                testContractInitcode.set(tcInitcode);
-                            })
-                            .payingWith(GENESIS)
-                            .nodePayment(ONE_HBAR)),
+                        final HapiGetTxnRecord hapiGetTxnRecord = getTxnRecord(transferHBARSToHollowAccountTxn)
+                                .andAllChildRecords()
+                                .assertingNothingAboutHashes();
+                        allRunFor(spec, hollowCreate, hapiGetTxnRecord);
+                        if (!hapiGetTxnRecord.getChildRecords().isEmpty()) {
+                            final var newAccountID = hapiGetTxnRecord
+                                    .getFirstNonStakingChildRecord()
+                                    .getReceipt()
+                                    .getAccountID();
+                            spec.registry().saveAccountId(hollowAccountKey, newAccountID);
+                        }
+                        // Verify maxAutomaticAssociations is set to -1
+                        var getInfo = getAliasedAccountInfo(hollowAccountKey)
+                                .has(accountWith().hasEmptyKey())
+                                .hasAlreadyUsedAutomaticAssociations(0)
+                                .hasMaxAutomaticAssociations(-1)
+                                .exposingIdTo(id -> spec.registry().saveAccountId(hollowAccountKey, id));
 
-                    // GET THE ADDRESS WHERE THE CONTRACT WILL BE DEPLOYED
-                    sourcing(() ->
-                            setExpectedCreate2Address(contract, salt, expectedCreate2Address, testContractInitcode)),
+                        // Delete the account
+                        var delete = cryptoDelete(hollowAccountKey)
+                                .sigMapPrefixes(uniqueWithFullPrefixesFor(hollowAccountKey))
+                                .hasKnownStatus(SUCCESS);
+                        allRunFor(spec, getInfo, delete);
+                    }),
+                    withOpContext((spec, opLog) -> {
+                        // Create hollow account with the deleted account alias
+                        var hollowCreate2 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
+                                        .addAccountAmounts(aaWith(treasuryAlias.get(), -2 * ONE_HBAR))
+                                        .addAccountAmounts(aaWith(hollowAccountAlias.get(), +2 * ONE_HBAR))))
+                                .payingWith(TREASURY)
+                                .signedBy(TREASURY)
+                                .via(transferHBARSToHollowAccountTxn);
 
-                    // Creating the hollow account
-                    newKeyNamed(expectedCreate2Address.toString()),
-                    cryptoTransfer(moving(1, FUNGIBLE_TOKEN).between(OWNER, expectedCreate2Address.toString()))
-                            .payingWith(OWNER),
+                        // Verify new hollow account is created and has no associations
+                        var getInfo2 = getAliasedAccountInfo(hollowAccountKey)
+                                .has(accountWith().hasEmptyKey())
+                                .hasAlreadyUsedAutomaticAssociations(0)
+                                .hasMaxAutomaticAssociations(-1)
+                                .exposingIdTo(id -> spec.registry().saveAccountId(hollowAccountKey, id));
 
-                    // Making the first airdrop to the hollow account
-                    tokenAirdrop(movingUnique(NFT_FOR_CONTRACT_TESTS, 11)
-                                    .between(OWNER, expectedCreate2Address.toString()))
-                            .payingWith(OWNER),
+                        // Sends HBAR from hollow account
+                        var hollowAccountTransferHBAR = cryptoTransfer(
+                                        movingHbar(ONE_HBAR).between(hollowAccountKey, TREASURY))
+                                .payingWith(hollowAccountKey)
+                                .signedBy(hollowAccountKey, TREASURY)
+                                .sigMapPrefixes(uniqueWithFullPrefixesFor(hollowAccountKey))
+                                .via(transferHBARSToHollowAccountTxn);
 
-                    // deploy create2
-                    sourcing(() -> contractCall(contract, DEPLOY, testContractInitcode.get(), salt)
-                            .payingWith(GENESIS)
-                            .gas(4_000_000L)
-                            .sending(1_234L)),
+                        // Verify hollow account is completed
+                        var getInfo3 = getAliasedAccountInfo(hollowAccountKey)
+                                .hasAlreadyUsedAutomaticAssociations(0)
+                                .hasMaxAutomaticAssociations(-1);
+                        allRunFor(spec, hollowCreate2, getInfo2, hollowAccountTransferHBAR, getInfo3);
+                    }));
+        }
 
-                    // Making the same airdrop to the contract and verifying that there is an existing airdrop
-                    tokenAirdrop(movingUnique(NFT_FOR_CONTRACT_TESTS, 11)
-                                    .between(OWNER, expectedCreate2Address.toString()))
-                            .payingWith(OWNER)
-                            .hasKnownStatus(PENDING_NFT_AIRDROP_ALREADY_EXISTS)));
+        @HapiTest
+        final Stream<DynamicTest> createHollowAccountOnDeletedAliasViaFtTransferAndCompleteIt() {
+            final var hollowAccountKey = "hollowAccountKey";
+            final AtomicReference<TokenID> fungibleTokenId = new AtomicReference<>();
+            final AtomicReference<ByteString> treasuryAlias = new AtomicReference<>();
+            final AtomicReference<ByteString> hollowAccountAlias = new AtomicReference<>();
+            final var transferFtToHollowAccountTxn = "transferFtToHollowAccountTxn";
+            return hapiTest(
+                    newKeyNamed(hollowAccountKey).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(TREASURY).balance(10_000 * ONE_HBAR),
+                    tokenCreate(FUNGIBLE_TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(10L)
+                            .treasury(TREASURY),
+                    withOpContext((spec, opLog) -> {
+                        final var registry = spec.registry();
+                        final var treasuryAccountId = registry.getAccountID(TREASURY);
+                        treasuryAlias.set(ByteString.copyFrom(asSolidityAddress(treasuryAccountId)));
+                        // Save the alias for the hollow account
+                        final var ecdsaKey = spec.registry()
+                                .getKey(hollowAccountKey)
+                                .getECDSASecp256K1()
+                                .toByteArray();
+                        final var evmAddressBytes = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
+                        hollowAccountAlias.set(evmAddressBytes);
+                        fungibleTokenId.set(registry.getTokenID(FUNGIBLE_TOKEN));
+                    }),
+                    withOpContext((spec, opLog) -> {
+                        // Create a hollow account
+                        var hollowCreate = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
+                                        .addAccountAmounts(aaWith(treasuryAlias.get(), -3 * ONE_HBAR))
+                                        .addAccountAmounts(aaWith(hollowAccountAlias.get(), +3 * ONE_HBAR))))
+                                .payingWith(TREASURY)
+                                .signedBy(TREASURY)
+                                .via(transferFtToHollowAccountTxn);
+
+                        final HapiGetTxnRecord hapiGetTxnRecord = getTxnRecord(transferFtToHollowAccountTxn)
+                                .andAllChildRecords()
+                                .assertingNothingAboutHashes();
+                        allRunFor(spec, hollowCreate, hapiGetTxnRecord);
+                        if (!hapiGetTxnRecord.getChildRecords().isEmpty()) {
+                            final var newAccountID = hapiGetTxnRecord
+                                    .getFirstNonStakingChildRecord()
+                                    .getReceipt()
+                                    .getAccountID();
+                            spec.registry().saveAccountId(hollowAccountKey, newAccountID);
+                        }
+                        // Verify maxAutomaticAssociations is set to 0
+                        var getInfo = getAccountInfo(hollowAccountKey)
+                                .hasAlreadyUsedAutomaticAssociations(0)
+                                .has(accountWith().hasEmptyKey())
+                                .hasMaxAutomaticAssociations(-1)
+                                .exposingIdTo(id -> spec.registry().saveAccountId(hollowAccountKey, id));
+
+                        // Delete the account
+                        var delete = cryptoDelete(hollowAccountKey)
+                                .sigMapPrefixes(uniqueWithFullPrefixesFor(hollowAccountKey))
+                                .hasKnownStatus(SUCCESS);
+                        allRunFor(spec, getInfo, delete);
+                    }),
+                    withOpContext((spec, opLog) -> {
+
+                        // Create hollow account with the deleted account alias
+                        var hollowCreate2 = cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
+                                        .setToken(fungibleTokenId.get())
+                                        .addTransfers(aaWith(treasuryAlias.get(), -1))
+                                        .addTransfers(aaWith(hollowAccountAlias.get(), +1))))
+                                .payingWith(TREASURY)
+                                .signedBy(TREASURY)
+                                .via(transferFtToHollowAccountTxn);
+
+                        // Verify new hollow account is created and has an association
+                        var getInfo2 = getAliasedAccountInfo(hollowAccountKey)
+                                .has(accountWith().hasEmptyKey())
+                                .hasAlreadyUsedAutomaticAssociations(1)
+                                .hasMaxAutomaticAssociations(-1)
+                                .exposingIdTo(id -> spec.registry().saveAccountId(hollowAccountKey, id));
+
+                        allRunFor(spec, hollowCreate2, getInfo2);
+                    }));
         }
     }
 }

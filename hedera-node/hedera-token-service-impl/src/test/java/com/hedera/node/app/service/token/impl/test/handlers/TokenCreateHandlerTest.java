@@ -20,8 +20,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_TOKEN_NAME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_TOKEN_SYMBOL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NAME_TOO_LONG;
@@ -51,7 +49,6 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenSupplyType;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -253,126 +250,6 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
         assertThat(feeCollectorRel.frozen()).isFalse();
         assertThat(feeCollectorRel.nextToken()).isNull();
         assertThat(feeCollectorRel.previousToken()).isNull();
-    }
-
-    @Test
-    void failsIfAssociationLimitExceeded() {
-        setUpTxnContext();
-        final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("entities.limitTokenAssociations", "true")
-                .withValue("tokens.maxPerAccount", "0")
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configOverride);
-        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
-        given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))
-                .willReturn(new ExpiryMeta(1L, THREE_MONTHS_IN_SECONDS, null));
-
-        assertThat(writableTokenStore.get(newTokenId)).isNull();
-        assertThat(writableTokenRelStore.get(treasuryId, newTokenId)).isNull();
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED));
-    }
-
-    @Test
-    void failsIfAssociationAlreadyExists() {
-        setUpTxnContext();
-        final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("entities.limitTokenAssociations", "true")
-                .withValue("tokens.maxPerAccount", "10")
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configOverride);
-        assertThat(writableTokenStore.get(newTokenId)).isNull();
-        assertThat(writableTokenRelStore.get(treasuryId, newTokenId)).isNull();
-        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
-        given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))
-                .willReturn(new ExpiryMeta(1L, THREE_MONTHS_IN_SECONDS, null));
-
-        // Just to simulate existing token association , add to store. Only for testing
-        writableTokenRelStore.put(TokenRelation.newBuilder()
-                .tokenId(newTokenId)
-                .accountId(treasuryId)
-                .balance(1000L)
-                .build());
-        assertThat(writableTokenRelStore.get(treasuryId, newTokenId)).isNotNull();
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT));
-    }
-
-    @Test
-    void failsIfAssociationLimitExceededWhileAssociatingCollector() {
-        setUpTxnContext();
-        final var customFees = List.of(
-                withFixedFee(hbarFixedFee
-                        .copyBuilder()
-                        .denominatingTokenId(TokenID.newBuilder().tokenNum(0L).build())
-                        .build()),
-                withFractionalFee(fractionalFee));
-        txn = new TokenCreateBuilder().withCustomFees(customFees).build();
-        given(handleContext.body()).willReturn(txn);
-
-        final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("entities.limitTokenAssociations", "true")
-                .withValue("tokens.maxPerAccount", "1")
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configOverride);
-
-        assertThat(writableTokenStore.get(newTokenId)).isNull();
-        assertThat(writableTokenRelStore.get(treasuryId, newTokenId)).isNull();
-        assertThat(writableTokenRelStore.get(payerId, newTokenId)).isNull();
-        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
-        given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))
-                .willReturn(new ExpiryMeta(1L, THREE_MONTHS_IN_SECONDS, null));
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED));
-    }
-
-    @Test
-    void doesntCreateAssociationIfItAlreadyExistsWhileAssociatingCollector() {
-        setUpTxnContext();
-        final var customFees = List.of(
-                withFixedFee(hbarFixedFee
-                        .copyBuilder()
-                        .denominatingTokenId(TokenID.newBuilder().tokenNum(0L).build())
-                        .build()),
-                withFractionalFee(fractionalFee));
-        txn = new TokenCreateBuilder().withCustomFees(customFees).build();
-        given(handleContext.body()).willReturn(txn);
-
-        final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("entities.limitTokenAssociations", "true")
-                .withValue("tokens.maxPerAccount", "10")
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configOverride);
-        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
-        given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))
-                .willReturn(new ExpiryMeta(1L, THREE_MONTHS_IN_SECONDS, null));
-
-        assertThat(writableTokenStore.get(newTokenId)).isNull();
-        assertThat(writableTokenRelStore.get(treasuryId, newTokenId)).isNull();
-
-        // Just to simulate existing token association , add to store. Only for testing
-        final var prebuiltTokenRel = TokenRelation.newBuilder()
-                .tokenId(newTokenId)
-                .accountId(feeCollectorId)
-                .balance(1000L)
-                .build();
-        writableTokenRelStore.put(prebuiltTokenRel);
-        assertThat(writableTokenRelStore.get(feeCollectorId, newTokenId)).isNotNull();
-
-        subject.handle(handleContext);
-
-        final var relAfterHandle = writableTokenRelStore.get(feeCollectorId, newTokenId);
-
-        assertThat(relAfterHandle).isNotNull();
-        assertThat(relAfterHandle.tokenId()).isEqualTo(prebuiltTokenRel.tokenId());
-        assertThat(relAfterHandle.accountId()).isEqualTo(prebuiltTokenRel.accountId());
-        assertThat(relAfterHandle.balance()).isEqualTo(prebuiltTokenRel.balance());
     }
 
     @Test

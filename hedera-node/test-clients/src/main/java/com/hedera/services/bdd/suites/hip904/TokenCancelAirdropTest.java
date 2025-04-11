@@ -59,8 +59,6 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                 "tokens.airdrops.cancel.enabled",
                 "true",
                 "tokens.airdrops.claim.enabled",
-                "true",
-                "entities.unlimitedAutoAssociationsEnabled",
                 "true"));
         lifecycle.doAdhoc(setUpTokensAndAllReceivers());
     }

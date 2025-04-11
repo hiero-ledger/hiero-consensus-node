@@ -219,7 +219,6 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         given(handleContext.payer()).willReturn(id);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("ledger.maxAutoAssociations", 5000)
-                .withValue("entities.limitTokenAssociations", false)
                 .withValue("tokens.maxPerAccount", 1000)
                 .withValue("hedera.shard", shard)
                 .withValue("hedera.realm", realm)
@@ -767,7 +766,6 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     private void setupConfig() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("ledger.maxAutoAssociations", 5000)
-                .withValue("entities.limitTokenAssociations", false)
                 .withValue("tokens.maxPerAccount", 1000)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);

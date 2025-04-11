@@ -12,9 +12,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -76,21 +74,12 @@ public class CryptoCreateValidator {
      * or in the case of unlimited auto associations, check if the number is less than -1 or 0 if disabled.
      * @param numAssociations number to check
      * @param ledgerConfig LedgerConfig
-     * @param entitiesConfig EntitiesConfig
-     * @param tokensConfig TokensConfig
      * @return true the given number is greater than the max number of auto associations
      * or negative and unlimited auto associations are disabled
      * or less than -1 if unlimited auto associations are enabled
      */
-    public boolean tooManyAutoAssociations(
-            final int numAssociations,
-            @NonNull final LedgerConfig ledgerConfig,
-            @NonNull final EntitiesConfig entitiesConfig,
-            @NonNull final TokensConfig tokensConfig) {
-        return (entitiesConfig.limitTokenAssociations() && numAssociations > tokensConfig.maxPerAccount())
-                || numAssociations > ledgerConfig.maxAutoAssociations()
-                || (numAssociations < UNLIMITED_AUTOMATIC_ASSOCIATIONS
-                        && entitiesConfig.unlimitedAutoAssociationsEnabled())
-                || (numAssociations < 0 && !entitiesConfig.unlimitedAutoAssociationsEnabled());
+    public boolean tooManyAutoAssociations(final int numAssociations, @NonNull final LedgerConfig ledgerConfig) {
+        return numAssociations > ledgerConfig.maxAutoAssociations()
+                || numAssociations < UNLIMITED_AUTOMATIC_ASSOCIATIONS;
     }
 }

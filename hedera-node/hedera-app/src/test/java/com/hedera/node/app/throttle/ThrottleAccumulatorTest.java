@@ -639,9 +639,6 @@ class ThrottleAccumulatorTest {
         given(transactionInfo.txBody()).willReturn(txn);
         given(state.getReadableStates(any())).willReturn(readableStates);
 
-        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
-
         // when
         subject.rebuildFor(defs);
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
@@ -683,9 +680,6 @@ class ThrottleAccumulatorTest {
 
         given(state.getReadableStates(any())).willReturn(readableStates);
 
-        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
-
         // when
         subject.rebuildFor(defs);
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
@@ -726,9 +720,6 @@ class ThrottleAccumulatorTest {
 
         given(state.getReadableStates(any())).willReturn(readableStates);
 
-        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
-
         // when
         subject.rebuildFor(defs);
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
@@ -768,8 +759,6 @@ class ThrottleAccumulatorTest {
         givenTransferWithImplicitCreations(numImplicitCreations);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
@@ -810,9 +799,6 @@ class ThrottleAccumulatorTest {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(tokenRels);
 
-        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
-
         // when
         subject.rebuildFor(defs);
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
@@ -850,8 +836,6 @@ class ThrottleAccumulatorTest {
         givenTransferWithImplicitCreations(10);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
@@ -891,9 +875,6 @@ class ThrottleAccumulatorTest {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(tokenRels);
 
-        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
-
         // when
         subject.rebuildFor(defs);
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
@@ -932,8 +913,6 @@ class ThrottleAccumulatorTest {
         givenTransferWithImplicitCreations(1);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(any())).willReturn(aliases);
-        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
 
         // when
         subject.rebuildFor(defs);
@@ -1674,8 +1653,6 @@ class ThrottleAccumulatorTest {
         given(contractsConfig.throttleThrottleByGas()).willReturn(false);
         given(configuration.getConfigData(SchedulingConfig.class)).willReturn(schedulingConfig);
         given(schedulingConfig.longTermEnabled()).willReturn(longTermEnabled);
-        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(true);
         given(jumboTransactionsConfig.allowedHederaFunctionalities()).willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));

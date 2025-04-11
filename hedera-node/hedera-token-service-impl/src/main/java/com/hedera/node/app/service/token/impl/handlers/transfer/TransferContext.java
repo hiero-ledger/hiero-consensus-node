@@ -32,9 +32,8 @@ public interface TransferContext {
      * is not found in the account store.
      *
      * @param alias                  the alias of the account
-     * @param reqMaxAutoAssociations the maximum number of auto-associations allowed for the account
      */
-    void createFromAlias(Bytes alias, int reqMaxAutoAssociations);
+    void createFromAlias(Bytes alias);
 
     /**
      * Returns the number of auto-creation of accounts in current transfer.
