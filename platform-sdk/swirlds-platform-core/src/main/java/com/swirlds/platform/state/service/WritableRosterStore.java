@@ -18,9 +18,6 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 
 /**
  * Read-write implementation for accessing rosters states.
@@ -59,6 +56,7 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
 
     /**
      * Adopts the candidate roster as the active roster, starting in the given round.
+     *
      * @param roundNumber the round number in which the candidate roster should be adopted as the active roster
      */
     public void adoptCandidateRoster(final long roundNumber) {
@@ -95,8 +93,8 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
      * The roster must be valid according to rules codified in {@link com.swirlds.platform.roster.RosterValidator}.
      *
      * @param roster an active roster to set
-     * @param round the round number in which the roster became active.
-     *              It must be a positive number greater than the round number of the current active roster.
+     * @param round  the round number in which the roster became active.
+     *               It must be a positive number greater than the round number of the current active roster.
      */
     public void putActiveRoster(@NonNull final Roster roster, final long round) {
         requireNonNull(roster);
@@ -153,17 +151,17 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
      * the RosterService states to a vanilla state, for example to reproduce the genesis state.
      */
     public void resetRosters() {
+        for (final RoundRosterPair roundRosterPair :
+                requireNonNull(rosterState.get()).roundRosterPairs()) {
+            rosterMap.remove(new ProtoBytes(roundRosterPair.activeRosterHash()));
+        }
+        rosterMap.remove(new ProtoBytes(requireNonNull(rosterState.get()).candidateRosterHash()));
         rosterState.put(RosterState.DEFAULT);
-
-        // To avoid modifying the map while iterating over all the keys, collect them into a list first:
-        final List<ProtoBytes> keys = StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(rosterMap.keys(), Spliterator.ORDERED), false)
-                .toList();
-        keys.forEach(rosterMap::remove);
     }
 
     /**
      * Returns the roster state; or the default roster state if the roster state is not yet set at genesis.
+     *
      * @return the roster state
      */
     @NonNull

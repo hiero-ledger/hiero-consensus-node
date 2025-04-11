@@ -47,7 +47,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
 import org.junit.jupiter.api.BeforeEach;
@@ -370,7 +369,7 @@ class FreezeHandlerTest {
         given(upgradeFileStore.peek(fileUpgradeFileId))
                 .willReturn(File.newBuilder().build());
         given(upgradeFileStore.getFull(fileUpgradeFileId)).willReturn(Bytes.wrap("Upgrade file bytes"));
-        given(nodeStore.keys()).willReturn(mock(Iterator.class));
+        given(nodeStore.keys()).willReturn(mock(List.class));
 
         for (FreezeType freezeType : freezeTypes) {
             TransactionID txnId = TransactionID.newBuilder()
@@ -402,7 +401,7 @@ class FreezeHandlerTest {
         given(upgradeFileStore.peek(fileUpgradeFileId))
                 .willReturn(File.newBuilder().build());
         given(upgradeFileStore.getFull(fileUpgradeFileId)).willReturn(Bytes.wrap("Upgrade file bytes"));
-        given(nodeStore.keys()).willReturn(List.of(new EntityNumber(0)).iterator());
+        given(nodeStore.keys()).willReturn(List.of(new EntityNumber(0)));
         given(nodeStore.sizeOfState()).willReturn(1L);
 
         TransactionID txnId = TransactionID.newBuilder()
@@ -432,7 +431,7 @@ class FreezeHandlerTest {
         given(upgradeFileStore.peek(anotherFileUpgradeFileId))
                 .willReturn(File.newBuilder().build());
         given(upgradeFileStore.getFull(anotherFileUpgradeFileId)).willReturn(Bytes.wrap("Upgrade file bytes"));
-        given(nodeStore.keys()).willReturn(List.of(new EntityNumber(0)).iterator());
+        given(nodeStore.keys()).willReturn(List.of(new EntityNumber(0)));
         given(nodeStore.sizeOfState()).willReturn(1L);
 
         TransactionID txnId = TransactionID.newBuilder()

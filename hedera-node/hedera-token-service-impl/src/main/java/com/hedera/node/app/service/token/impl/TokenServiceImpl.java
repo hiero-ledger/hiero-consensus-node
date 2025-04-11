@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.service.token.impl.schemas.V0500TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema;
 import com.hedera.node.app.spi.AppContext;
@@ -32,7 +31,6 @@ public class TokenServiceImpl implements TokenService {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
         registry.register(new V0490TokenSchema());
-        registry.register(new V0500TokenSchema(idFactory));
         registry.register(new V0530TokenSchema());
         registry.register(new V0610TokenSchema());
     }

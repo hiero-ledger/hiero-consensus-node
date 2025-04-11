@@ -27,6 +27,7 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableKVState;
@@ -60,8 +61,8 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     private final WritableKVState<NodeId, CrsPublicationTransactionBody> crsPublications;
     private final WritableSingletonState<CRSState> crsState;
 
-    public WritableHintsStoreImpl(@NonNull final WritableStates states) {
-        super(states);
+    public WritableHintsStoreImpl(@NonNull final WritableStates states, final WritableEntityCounters entityCounters) {
+        super(states, entityCounters);
         this.hintsKeys = states.get(HINTS_KEY_SETS_KEY);
         this.nextConstruction = states.getSingleton(NEXT_HINT_CONSTRUCTION_KEY);
         this.activeConstruction = states.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY);

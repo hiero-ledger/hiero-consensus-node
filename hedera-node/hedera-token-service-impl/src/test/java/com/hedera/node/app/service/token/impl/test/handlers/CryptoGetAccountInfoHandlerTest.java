@@ -462,7 +462,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .value(id, stakingNodeInfo)
                 .build();
         given(readableStates4.<AccountID, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
-        final var readableStakingInfoStore = new ReadableStakingInfoStoreImpl(readableStates4);
+        final var readableStakingInfoStore = new ReadableStakingInfoStoreImpl(readableStates4, readableEntityCounters);
         when(context.createStore(ReadableStakingInfoStore.class)).thenReturn(readableStakingInfoStore);
     }
 

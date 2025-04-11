@@ -489,7 +489,7 @@ class ReadableFreezeUpgradeActionsTest {
                 .build();
         given(readableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(readableNodeState);
         nodeStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
-        given(readableEntityCounters.getCounterFor(EntityType.NODE)).willReturn(4L);
+        given(readableEntityCounters.getCounterFor(EntityType.NODE)).willReturn(5L);
         subject = new FreezeUpgradeActions(
                 configuration,
                 writableFreezeStore,

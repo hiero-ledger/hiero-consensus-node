@@ -18,8 +18,10 @@ import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -31,9 +33,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 
 /**
  * Provides read access to the {@link HintsConstruction} and {@link PreprocessingVote} instances in state.
@@ -45,8 +44,9 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
     private final ReadableKVState<PreprocessingVoteId, PreprocessingVote> votes;
     private final ReadableSingletonState<CRSState> crs;
     private final ReadableKVState<NodeId, CrsPublicationTransactionBody> crsPublications;
+    private final ReadableEntityCounters entityCounters;
 
-    public ReadableHintsStoreImpl(@NonNull final ReadableStates states) {
+    public ReadableHintsStoreImpl(@NonNull final ReadableStates states, final ReadableEntityCounters entityCounters) {
         requireNonNull(states);
         this.hintsKeys = states.get(HINTS_KEY_SETS_KEY);
         this.nextConstruction = states.getSingleton(NEXT_HINT_CONSTRUCTION_KEY);
@@ -54,6 +54,7 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
         this.votes = states.get(PREPROCESSING_VOTES_KEY);
         this.crs = states.getSingleton(CRS_STATE_KEY);
         this.crsPublications = states.get(CRS_PUBLICATIONS_KEY);
+        this.entityCounters = requireNonNull(entityCounters);
     }
 
     @Override
@@ -129,10 +130,16 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
 
     @Override
     public List<CrsPublicationTransactionBody> getCrsPublications() {
-        return StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(crsPublications.keys(), Spliterator.ORDERED), false)
-                .map(crsPublications::get)
-                .toList();
+        final var nodesSize = entityCounters.getCounterFor(EntityType.NODE);
+        final var publications = new ArrayList<CrsPublicationTransactionBody>();
+        for (int i = 0; i < nodesSize; i++) {
+            final var nodeId = new NodeId(i);
+            final var publication = crsPublications.get(nodeId);
+            if (publication != null) {
+                publications.add(publication);
+            }
+        }
+        return publications;
     }
 
     @Override

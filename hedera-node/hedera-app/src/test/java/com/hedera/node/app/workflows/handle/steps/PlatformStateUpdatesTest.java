@@ -94,7 +94,8 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
         freezeTimeBackingStore = new AtomicReference<>(null);
         platformStateBackingStore = new AtomicReference<>(V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE);
         rosterStateBackingStore = new AtomicReference<>(ROSTER_STATE);
-        entityCountsBackingStore = new AtomicReference<>(EntityCounts.DEFAULT);
+        entityCountsBackingStore = new AtomicReference<>(
+                EntityCounts.newBuilder().numNodes(3).numStakingInfos(3).build());
 
         when(writableStates.getSingleton(ENTITY_COUNTS_KEY))
                 .then(invocation -> new WritableSingletonStateBase<>(

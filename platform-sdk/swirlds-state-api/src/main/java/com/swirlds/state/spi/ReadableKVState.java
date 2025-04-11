@@ -57,6 +57,8 @@ public interface ReadableKVState<K, V> {
     /**
      * Used during migration ONLY. PLEASE DO NOT COME TO RELY ON THIS METHOD! It will be hopelessly
      * slow on large data sets like on disk!
+     * After migrating to MegaMap, this method will be extremely slow.
+     * DO NOT USE IT in production code.
      *
      * @return an iterator over all keys in the state
      */

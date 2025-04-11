@@ -6,7 +6,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Iterator;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -53,9 +53,9 @@ public interface ReadableNodeStore {
     default void warm(final long nodeId) {}
 
     /**
-     * Returns an iterator over the keys in the state.
-     * @return an iterator over the keys in the state
+     * Returns a list of all the keys in the state.
+     * @return a list of all the keys in the state.
      */
     @NonNull
-    Iterator<EntityNumber> keys();
+    List<EntityNumber> keys();
 }

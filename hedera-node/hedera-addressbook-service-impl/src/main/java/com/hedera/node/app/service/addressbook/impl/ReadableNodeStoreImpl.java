@@ -17,7 +17,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
 
@@ -28,7 +27,9 @@ import java.util.function.Function;
  * <p>This class is not exported from the module. It is an internal implementation detail.
  */
 public class ReadableNodeStoreImpl implements ReadableNodeStore {
-    /** The underlying data storage class that holds the node data. */
+    /**
+     * The underlying data storage class that holds the node data.
+     */
     private final ReadableKVState<EntityNumber, Node> nodesState;
 
     private final ReadableEntityCounters entityCounters;
@@ -47,7 +48,7 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
 
     @Override
     public Roster snapshotOfFutureRoster(Function<Long, Long> weightFunction) {
-        return constructFromNodesStateWithStakingInfoWeight(nodesState(), weightFunction);
+        return constructFromNodesStateWithStakingInfoWeight(this, weightFunction);
     }
 
     /**
@@ -64,6 +65,7 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
 
     /**
      * Returns the number of topics in the state.
+     *
      * @return the number of topics in the state
      */
     public long sizeOfState() {
@@ -75,17 +77,24 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
     }
 
     @NonNull
-    public Iterator<EntityNumber> keys() {
-        return nodesState().keys();
+    public List<EntityNumber> keys() {
+        final var size = sizeOfState();
+        final var keys = new ArrayList<EntityNumber>();
+        for (int i = 0; i < size; i++) {
+            final var key = new EntityNumber(i);
+            final var node = nodesState.get(key);
+            if (node != null) {
+                keys.add(key);
+            }
+        }
+        return keys;
     }
 
     private Roster constructFromNodesStateWithStakingInfoWeight(
-            @NonNull final ReadableKVState<EntityNumber, Node> nodesState,
-            @NonNull final Function<Long, Long> weightProvider) {
+            @NonNull final ReadableNodeStoreImpl nodeStore, @NonNull final Function<Long, Long> weightProvider) {
         final var rosterEntries = new ArrayList<RosterEntry>();
-        for (final var it = nodesState.keys(); it.hasNext(); ) {
-            final var nodeNumber = it.next();
-            final var node = requireNonNull(nodesState.get(nodeNumber));
+        for (final var nodeNumber : nodeStore.keys()) {
+            final var node = requireNonNull(nodeStore.get(nodeNumber.number()));
             var nodeEndpoints = node.gossipEndpoint();
             // we want to swap the internal and external node endpoints
             // so that the external one is at index 0
