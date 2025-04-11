@@ -261,7 +261,7 @@ public class TipsetEventCreator implements EventCreator {
         TipsetAdvancementWeight bestAdvancementWeight = ZERO_ADVANCEMENT_WEIGHT;
         for (final PlatformEvent otherParent : possibleOtherParents) {
             final TipsetAdvancementWeight advancementWeight = tipsetWeightCalculator.getTheoreticalAdvancementWeight(
-                    List.of(otherParent), lastSelfEvent.getDescriptor());
+                    List.of(lastSelfEvent.getDescriptor(), otherParent.getDescriptor()));
             if (advancementWeight.isGreaterThan(bestAdvancementWeight)) {
                 bestOtherParent = otherParent;
                 bestAdvancementWeight = advancementWeight;
@@ -304,14 +304,15 @@ public class TipsetEventCreator implements EventCreator {
             final int selfishness =
                     tipsetWeightCalculator.getSelfishnessScoreForNode(possibleIgnoredNode.getCreatorId());
 
-            final List<PlatformEvent> theoreticalParents = new ArrayList<>(2);
-            theoreticalParents.add(possibleIgnoredNode);
+            final List<EventDescriptorWrapper> theoreticalParents = new ArrayList<>(2);
+            theoreticalParents.add(possibleIgnoredNode.getDescriptor());
             if (lastSelfEvent == null) {
                 throw new IllegalStateException("no known self parent");
             }
+            theoreticalParents.add(lastSelfEvent.getDescriptor());
 
             final TipsetAdvancementWeight advancementWeight = tipsetWeightCalculator.getTheoreticalAdvancementWeight(
-                    theoreticalParents, lastSelfEvent.getDescriptor());
+                    theoreticalParents);
 
             if (selfishness > 1) {
                 if (advancementWeight.isNonZero()) {

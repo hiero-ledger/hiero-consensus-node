@@ -1,10 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.tipset;
 
+import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
+import static com.swirlds.platform.event.creation.tipset.Tipset.merge;
+import static com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
 import com.swirlds.platform.event.creation.tipset.Tipset;
@@ -26,18 +38,11 @@ import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
-import static com.swirlds.platform.event.creation.tipset.Tipset.merge;
-import static com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
-import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
 
 @DisplayName("TipsetWeightCalculator Tests")
 class TipsetWeightCalculatorTests {
@@ -50,16 +55,27 @@ class TipsetWeightCalculatorTests {
      * @param nGen    the non-deterministic generation of the event
      * @return the event
      */
-//    private PlatformEvent newEventDescriptor(@NonNull final NodeId creator, final long nGen) {
-//        return eventBuilder
-//                .setCreatorId(creator)
-//                .setBirthRound(EventConstants.BIRTH_ROUND_UNDEFINED)
-//                .setNGen(nGen)
-//                .build();
-        //        return new EventDescriptorWrapper(
-        //                new EventDescriptor(hash.getBytes(), creator.id(), EventConstants.BIRTH_ROUND_UNDEFINED,
-        // generation));
-//    }
+    private PlatformEvent newEvent(@NonNull final Random random, @NonNull final NodeId creator, final long nGen) {
+        return new TestingEventBuilder(random)
+                .setCreatorId(creator)
+                .setNGen(nGen)
+                .setBirthRound(EventConstants.BIRTH_ROUND_UNDEFINED)
+                .build();
+    }
+
+    private PlatformEvent newEvent(
+            @NonNull final Random random,
+            final long nGen,
+            @NonNull final PlatformEvent selfParent,
+            @NonNull final List<PlatformEvent> otherParents) {
+        return new TestingEventBuilder(random)
+                .setCreatorId(selfParent.getCreatorId())
+                .setNGen(nGen)
+                .setBirthRound(EventConstants.BIRTH_ROUND_UNDEFINED)
+                .setSelfParent(selfParent)
+                .setOtherParents(otherParents)
+                .build();
+    }
 
     @Test
     @DisplayName("Basic Behavior Test")
@@ -69,7 +85,8 @@ class TipsetWeightCalculatorTests {
 
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
 
-        final Roster roster = RandomRosterBuilder.create(random).withSize(nodeCount).build();
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(nodeCount).build();
 
         final Map<NodeId, Long> weightMap = new HashMap<>();
         long totalWeight = 0;
@@ -78,13 +95,15 @@ class TipsetWeightCalculatorTests {
             totalWeight += address.weight();
         }
 
-        final NodeId selfId = NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
+        final NodeId selfId =
+                NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create().build();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
 
         // FUTURE WORK: Expand test to include birth round based ancient threshold.
-        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), selfId, roster,
-                AncientMode.GENERATION_THRESHOLD);
+        final TipsetTracker tipsetTracker =
+                new TipsetTracker(Time.getCurrent(), selfId, roster, AncientMode.GENERATION_THRESHOLD);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(platformContext, roster, selfId, tipsetTracker, childlessEventTracker);
@@ -95,7 +114,8 @@ class TipsetWeightCalculatorTests {
 
         for (int eventIndex = 0; eventIndex < 1000; eventIndex++) {
             System.out.println(eventIndex);
-            final NodeId creator = NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
+            final NodeId creator = NodeId.of(
+                    roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
             final long nGen;
             if (latestEvents.containsKey(creator)) {
                 nGen = latestEvents.get(creator).getNGen() + 1;
@@ -107,7 +127,8 @@ class TipsetWeightCalculatorTests {
             final Set<NodeId> desiredOtherParents = new HashSet<>();
             final int maxParentCount = random.nextInt(nodeCount);
             for (int parentIndex = 0; parentIndex < maxParentCount; parentIndex++) {
-                final NodeId parent = NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
+                final NodeId parent = NodeId.of(
+                        roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
 
                 // We are only trying to generate a random number of parents, the exact count is unimportant.
                 // So it doesn't matter if the actual number of parents is less than the number we requested.
@@ -151,16 +172,17 @@ class TipsetWeightCalculatorTests {
             }
 
             // Manually calculate the advancement score.
-            final List<Tipset> parentTipsets = new ArrayList<>(event.getAllParents().size());
+            final List<Tipset> parentTipsets =
+                    new ArrayList<>(event.getAllParents().size());
             for (final EventDescriptorWrapper parent : event.getAllParents()) {
                 parentTipsets.add(tipsetTracker.getTipset(parent));
             }
 
             final Tipset newTipset;
             if (parentTipsets.isEmpty()) {
-                newTipset = new Tipset(roster);//.advance(creator, nGen);
+                newTipset = new Tipset(roster);
             } else {
-                newTipset = merge(parentTipsets);//.advance(creator, nGen);
+                newTipset = merge(parentTipsets);
             }
 
             final TipsetAdvancementWeight expectedAdvancementScoreChange =
@@ -202,370 +224,373 @@ class TipsetWeightCalculatorTests {
         }
     }
 
-    //    @Test
-    //    @DisplayName("Selfish Node Test")
-    //    void selfishNodeTest() {
-    //        final Random random = getRandomPrintSeed();
-    //        final int nodeCount = 4;
-    //
-    //        final Roster roster = RandomRosterBuilder.create(random)
-    //                .withSize(nodeCount)
-    //                .withWeightGenerator(WeightGenerators.BALANCED)
-    //                .build();
-    //
-    //        // In this test, we simulate from the perspective of node A. All nodes have 1 weight.
-    //        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
-    //        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
-    //        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
-    //        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
-    //
-    //        final PlatformContext platformContext =
-    //                TestPlatformContextBuilder.create().build();
-    //
-    //        // FUTURE WORK: Expand test to include birth round based ancient threshold.
-    //        final TipsetTracker tracker = new TipsetTracker(Time.getCurrent(), roster,
-    // AncientMode.GENERATION_THRESHOLD);
-    //        final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
-    //        final TipsetWeightCalculator calculator =
-    //                new TipsetWeightCalculator(platformContext, roster, nodeA, tracker, childlessEventTracker);
-    //
-    //        final Tipset snapshot1 = calculator.getSnapshot();
-    //
-    //        // Each node creates an event.
-    //        final EventDescriptorWrapper eventA1 = newEventDescriptor(randomHash(random), nodeA, 1);
-    //        tracker.addPeerEvent(eventA1, List.of());
-    //        childlessEventTracker.addEvent(eventA1, List.of());
-    //        final EventDescriptorWrapper eventB1 = newEventDescriptor(randomHash(random), nodeB, 1);
-    //        tracker.addPeerEvent(eventB1, List.of());
-    //        childlessEventTracker.addEvent(eventB1, List.of());
-    //        final EventDescriptorWrapper eventC1 = newEventDescriptor(randomHash(random), nodeC, 1);
-    //        tracker.addPeerEvent(eventC1, List.of());
-    //        childlessEventTracker.addEvent(eventC1, List.of());
-    //        final EventDescriptorWrapper eventD1 = newEventDescriptor(randomHash(random), nodeD, 1);
-    //        tracker.addPeerEvent(eventD1, List.of());
-    //        childlessEventTracker.addEvent(eventD1, List.of());
-    //
-    //        assertEquals(ZERO_ADVANCEMENT_WEIGHT, calculator.getTheoreticalAdvancementWeight(List.of()));
-    //        assertEquals(ZERO_ADVANCEMENT_WEIGHT, calculator.addEventAndGetAdvancementWeight(eventA1));
-    //        assertSame(snapshot1, calculator.getSnapshot());
-    //
-    //        // Each node creates another event. All nodes use all available other parents except the event from D.
-    //        final EventDescriptorWrapper eventA2 = newEventDescriptor(randomHash(random), nodeA, 2);
-    //        tracker.addPeerEvent(eventA2, List.of(eventA1, eventB1, eventC1));
-    //        childlessEventTracker.addEvent(eventA2, List.of(eventA1, eventB1, eventC1));
-    //        final EventDescriptorWrapper eventB2 = newEventDescriptor(randomHash(random), nodeB, 2);
-    //        tracker.addPeerEvent(eventB2, List.of(eventA1, eventB1, eventC1));
-    //        childlessEventTracker.addEvent(eventB2, List.of(eventA1, eventB1, eventC1));
-    //        final EventDescriptorWrapper eventC2 = newEventDescriptor(randomHash(random), nodeC, 2);
-    //        tracker.addPeerEvent(eventC2, List.of(eventA1, eventB1, eventC1));
-    //        childlessEventTracker.addEvent(eventC2, List.of(eventA1, eventB1, eventC1));
-    //        final EventDescriptorWrapper eventD2 = newEventDescriptor(randomHash(random), nodeD, 2);
-    //        tracker.addPeerEvent(eventD2, List.of(eventA1, eventB1, eventC1, eventD1));
-    //        childlessEventTracker.addEvent(eventD2, List.of(eventA1, eventB1, eventC1, eventD1));
-    //
-    //        assertEquals(
-    //                TipsetAdvancementWeight.of(2, 0),
-    //                calculator.getTheoreticalAdvancementWeight(List.of(eventA1, eventB1, eventC1)));
-    //        assertEquals(TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA2));
-    //
-    //        // This should have been enough to advance the snapshot window by 1.
-    //        final Tipset snapshot2 = calculator.getSnapshot();
-    //        assertNotSame(snapshot1, snapshot2);
-    //
-    //        // D should have a selfishness score of 1, all others a score of 0.
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeA));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeB));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeC));
-    //        assertEquals(1, calculator.getSelfishnessScoreForNode(nodeD));
-    //        assertEquals(1, calculator.getMaxSelfishnessScore());
-    //
-    //        // Create another batch of events where D is bullied.
-    //        final EventDescriptorWrapper eventA3 = newEventDescriptor(randomHash(random), nodeA, 3);
-    //        tracker.addPeerEvent(eventA3, List.of(eventA2, eventB2, eventC2));
-    //        childlessEventTracker.addEvent(eventA3, List.of(eventA2, eventB2, eventC2));
-    //        final EventDescriptorWrapper eventB3 = newEventDescriptor(randomHash(random), nodeB, 3);
-    //        tracker.addPeerEvent(eventB3, List.of(eventA2, eventB2, eventC2));
-    //        childlessEventTracker.addEvent(eventB3, List.of(eventA2, eventB2, eventC2));
-    //        final EventDescriptorWrapper eventC3 = newEventDescriptor(randomHash(random), nodeC, 3);
-    //        tracker.addPeerEvent(eventC3, List.of(eventA2, eventB2, eventC2));
-    //        childlessEventTracker.addEvent(eventC3, List.of(eventA2, eventB2, eventC2));
-    //        final EventDescriptorWrapper eventD3 = newEventDescriptor(randomHash(random), nodeD, 3);
-    //        tracker.addPeerEvent(eventD3, List.of(eventA2, eventB2, eventC2, eventD2));
-    //        childlessEventTracker.addEvent(eventD3, List.of(eventA2, eventB2, eventC2, eventD2));
-    //
-    //        assertEquals(
-    //                TipsetAdvancementWeight.of(2, 0),
-    //                calculator.getTheoreticalAdvancementWeight(List.of(eventA2, eventB2, eventC2)));
-    //        assertEquals(TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA3));
-    //
-    //        final Tipset snapshot3 = calculator.getSnapshot();
-    //        assertNotSame(snapshot2, snapshot3);
-    //
-    //        // D should have a selfishness score of 2, all others a score of 0.
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeA));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeB));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeC));
-    //        assertEquals(2, calculator.getSelfishnessScoreForNode(nodeD));
-    //        assertEquals(2, calculator.getMaxSelfishnessScore());
-    //
-    //        // Create a bach of events that don't ignore D. Let's all ignore C, because C is a jerk.
-    //        final EventDescriptorWrapper eventA4 = newEventDescriptor(randomHash(random), nodeA, 4);
-    //        tracker.addPeerEvent(eventA4, List.of(eventA3, eventB3, eventD3));
-    //        childlessEventTracker.addEvent(eventA4, List.of(eventA3, eventB3, eventD3));
-    //        final EventDescriptorWrapper eventB4 = newEventDescriptor(randomHash(random), nodeB, 4);
-    //        tracker.addPeerEvent(eventB4, List.of(eventA3, eventB3, eventD3));
-    //        childlessEventTracker.addEvent(eventB4, List.of(eventA3, eventB3, eventD3));
-    //        final EventDescriptorWrapper eventC4 = newEventDescriptor(randomHash(random), nodeC, 4);
-    //        tracker.addPeerEvent(eventC4, List.of(eventA3, eventB3, eventC3, eventD3));
-    //        childlessEventTracker.addEvent(eventC4, List.of(eventA3, eventB3, eventC3, eventD3));
-    //        final EventDescriptorWrapper eventD4 = newEventDescriptor(randomHash(random), nodeD, 4);
-    //        tracker.addPeerEvent(eventD4, List.of(eventA3, eventB3, eventD3));
-    //        childlessEventTracker.addEvent(eventD4, List.of(eventA3, eventB3, eventD3));
-    //
-    //        assertEquals(
-    //                TipsetAdvancementWeight.of(2, 0),
-    //                calculator.getTheoreticalAdvancementWeight(List.of(eventA3, eventB3, eventD3)));
-    //        assertEquals(TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA4));
-    //
-    //        final Tipset snapshot4 = calculator.getSnapshot();
-    //        assertNotSame(snapshot3, snapshot4);
-    //
-    //        // Now, all nodes should have a selfishness score of 0 except for C, which should have a score of 1.
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeA));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeB));
-    //        assertEquals(1, calculator.getSelfishnessScoreForNode(nodeC));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeD));
-    //        assertEquals(1, calculator.getMaxSelfishnessScore());
-    //
-    //        // Stop ignoring C. D stops creating events.
-    //        final EventDescriptorWrapper eventA5 = newEventDescriptor(randomHash(random), nodeA, 5);
-    //        tracker.addPeerEvent(eventA5, List.of(eventA4, eventB4, eventC4, eventD4));
-    //        childlessEventTracker.addEvent(eventA5, List.of(eventA4, eventB4, eventC4, eventD4));
-    //        final EventDescriptorWrapper eventB5 = newEventDescriptor(randomHash(random), nodeB, 5);
-    //        tracker.addPeerEvent(eventB5, List.of(eventA4, eventB4, eventC4, eventD4));
-    //        childlessEventTracker.addEvent(eventB5, List.of(eventA4, eventB4, eventC4, eventD4));
-    //        final EventDescriptorWrapper eventC5 = newEventDescriptor(randomHash(random), nodeC, 5);
-    //        tracker.addPeerEvent(eventC5, List.of(eventA4, eventB4, eventC4, eventD4));
-    //        childlessEventTracker.addEvent(eventC5, List.of(eventA4, eventB4, eventC4, eventD4));
-    //
-    //        assertEquals(
-    //                TipsetAdvancementWeight.of(3, 0),
-    //                calculator.getTheoreticalAdvancementWeight(List.of(eventA4, eventB4, eventC4, eventD4)));
-    //        assertEquals(TipsetAdvancementWeight.of(3, 0), calculator.addEventAndGetAdvancementWeight(eventA5));
-    //
-    //        final Tipset snapshot5 = calculator.getSnapshot();
-    //        assertNotSame(snapshot4, snapshot5);
-    //
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeA));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeB));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeC));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeD));
-    //        assertEquals(0, calculator.getMaxSelfishnessScore());
-    //
-    //        // D still is not creating events. Since there is no legal event from D to use as a parent, this doesn't
-    //        // count as being selfish.
-    //        final EventDescriptorWrapper eventA6 = newEventDescriptor(randomHash(random), nodeA, 6);
-    //        tracker.addPeerEvent(eventA6, List.of(eventA5, eventB5, eventC5));
-    //        childlessEventTracker.addEvent(eventA6, List.of(eventA5, eventB5, eventC5));
-    //        final EventDescriptorWrapper eventB6 = newEventDescriptor(randomHash(random), nodeB, 6);
-    //        tracker.addPeerEvent(eventB6, List.of(eventA5, eventB5, eventC5));
-    //        childlessEventTracker.addEvent(eventB6, List.of(eventA5, eventB5, eventC5));
-    //        final EventDescriptorWrapper eventC6 = newEventDescriptor(randomHash(random), nodeC, 6);
-    //        tracker.addPeerEvent(eventC6, List.of(eventA5, eventB5, eventC5));
-    //        childlessEventTracker.addEvent(eventC6, List.of(eventA5, eventB5, eventC5));
-    //
-    //        assertEquals(
-    //                TipsetAdvancementWeight.of(2, 0),
-    //                calculator.getTheoreticalAdvancementWeight(List.of(eventA5, eventB5, eventC5)));
-    //        assertEquals(TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA6));
-    //
-    //        final Tipset snapshot6 = calculator.getSnapshot();
-    //        assertNotSame(snapshot5, snapshot6);
-    //
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeA));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeB));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeC));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeD));
-    //        assertEquals(0, calculator.getMaxSelfishnessScore());
-    //
-    //        // Rinse and repeat.
-    //        final EventDescriptorWrapper eventA7 = newEventDescriptor(randomHash(random), nodeA, 7);
-    //        tracker.addPeerEvent(eventA7, List.of(eventA6, eventB6, eventC6));
-    //        childlessEventTracker.addEvent(eventA7, List.of(eventA6, eventB6, eventC6));
-    //        final EventDescriptorWrapper eventB7 = newEventDescriptor(randomHash(random), nodeB, 7);
-    //        tracker.addPeerEvent(eventB7, List.of(eventA6, eventB6, eventC6));
-    //        childlessEventTracker.addEvent(eventB7, List.of(eventA6, eventB6, eventC6));
-    //        final EventDescriptorWrapper eventC7 = newEventDescriptor(randomHash(random), nodeC, 7);
-    //        tracker.addPeerEvent(eventC7, List.of(eventA6, eventB6, eventC6));
-    //        childlessEventTracker.addEvent(eventC7, List.of(eventA6, eventB6, eventC6));
-    //
-    //        assertEquals(
-    //                TipsetAdvancementWeight.of(2, 0),
-    //                calculator.getTheoreticalAdvancementWeight(List.of(eventA6, eventB6, eventC6)));
-    //        assertEquals(TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA7));
-    //
-    //        final Tipset snapshot7 = calculator.getSnapshot();
-    //        assertNotSame(snapshot6, snapshot7);
-    //
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeA));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeB));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeC));
-    //        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeD));
-    //        assertEquals(0, calculator.getMaxSelfishnessScore());
-    //    }
-    //
-    //    @Test
-    //    @DisplayName("Zero Stake Node Test")
-    //    void zeroWeightNodeTest() {
-    //        final Random random = getRandomPrintSeed();
-    //        final int nodeCount = 4;
-    //
-    //        Roster roster = RandomRosterBuilder.create(random)
-    //                .withSize(nodeCount)
-    //                .withWeightGenerator(WeightGenerators.BALANCED)
-    //                .build();
-    //
-    //        // In this test, we simulate from the perspective of node A.
-    //        // All nodes have 1 weight except for D, which has 0 weight.
-    //        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
-    //        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
-    //        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
-    //        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
-    //
-    //        roster = Roster.newBuilder()
-    //                .rosterEntries(roster.rosterEntries().stream()
-    //                        .map(entry -> {
-    //                            if (entry.nodeId() == nodeD.id()) {
-    //                                return entry.copyBuilder().weight(0).build();
-    //                            } else {
-    //                                return entry;
-    //                            }
-    //                        })
-    //                        .toList())
-    //                .build();
-    //
-    //        final PlatformContext platformContext =
-    //                TestPlatformContextBuilder.create().build();
-    //
-    //        // FUTURE WORK: Expand test to include birth round based ancient threshold.
-    //        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), roster,
-    // AncientMode.GENERATION_THRESHOLD);
-    //        final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
-    //        final TipsetWeightCalculator calculator =
-    //                new TipsetWeightCalculator(platformContext, roster, nodeA, builder, childlessEventTracker);
-    //
-    //        final Tipset snapshot1 = calculator.getSnapshot();
-    //
-    //        // Each node creates an event.
-    //        final EventDescriptorWrapper eventA1 = newEventDescriptor(randomHash(random), nodeA, 1);
-    //        builder.addPeerEvent(eventA1, List.of());
-    //        final EventDescriptorWrapper eventB1 = newEventDescriptor(randomHash(random), nodeB, 1);
-    //        builder.addPeerEvent(eventB1, List.of());
-    //        final EventDescriptorWrapper eventC1 = newEventDescriptor(randomHash(random), nodeC, 1);
-    //        builder.addPeerEvent(eventC1, List.of());
-    //        final EventDescriptorWrapper eventD1 = newEventDescriptor(randomHash(random), nodeD, 1);
-    //        builder.addPeerEvent(eventD1, List.of());
-    //
-    //        assertEquals(ZERO_ADVANCEMENT_WEIGHT, calculator.getTheoreticalAdvancementWeight(List.of()));
-    //        assertEquals(ZERO_ADVANCEMENT_WEIGHT, calculator.addEventAndGetAdvancementWeight(eventA1));
-    //        assertSame(snapshot1, calculator.getSnapshot());
-    //
-    //        // Create a node "on top of" B1.
-    //        final EventDescriptorWrapper eventA2 = newEventDescriptor(randomHash(random), nodeA, 2);
-    //        builder.addPeerEvent(eventA2, List.of(eventA1, eventB1));
-    //        final TipsetAdvancementWeight advancement1 = calculator.addEventAndGetAdvancementWeight(eventA2);
-    //        assertEquals(TipsetAdvancementWeight.of(1, 0), advancement1);
-    //
-    //        // Snapshot should not have advanced.
-    //        assertSame(snapshot1, calculator.getSnapshot());
-    //
-    //        // If we get 1 more advancement point then the snapshot will advance. But building
-    //        // on top of a zero stake node will not contribute to this and the snapshot will not
-    //        // advance. Build on top of node D.
-    //        final EventDescriptorWrapper eventA3 = newEventDescriptor(randomHash(random), nodeA, 3);
-    //        builder.addPeerEvent(eventA3, List.of(eventA2, eventD1));
-    //        final TipsetAdvancementWeight advancement2 = calculator.addEventAndGetAdvancementWeight(eventA3);
-    //        assertEquals(TipsetAdvancementWeight.of(0, 1), advancement2);
-    //
-    //        // Snapshot should not have advanced.
-    //        assertSame(snapshot1, calculator.getSnapshot());
-    //
-    //        // Now, build on top of C. This should push us into the next snapshot.
-    //        final EventDescriptorWrapper eventA4 = newEventDescriptor(randomHash(random), nodeA, 4);
-    //        builder.addPeerEvent(eventA4, List.of(eventA3, eventC1));
-    //        final TipsetAdvancementWeight advancement3 = calculator.addEventAndGetAdvancementWeight(eventA4);
-    //        assertEquals(TipsetAdvancementWeight.of(1, 0), advancement3);
-    //
-    //        final Tipset snapshot2 = calculator.getSnapshot();
-    //        assertNotEquals(snapshot1, snapshot2);
-    //        assertEquals(snapshot2, builder.getTipset(eventA4));
-    //    }
-    //
-    //    @Test
-    //    @DisplayName("Ancient Parent Test")
-    //    void ancientParentTest() {
-    //        final Random random = getRandomPrintSeed();
-    //        final int nodeCount = 4;
-    //
-    //        final Roster roster = RandomRosterBuilder.create(random)
-    //                .withSize(nodeCount)
-    //                .withWeightGenerator(WeightGenerators.BALANCED)
-    //                .build();
-    //
-    //        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
-    //        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
-    //        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
-    //        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
-    //
-    //        final PlatformContext platformContext =
-    //                TestPlatformContextBuilder.create().build();
-    //
-    //        // FUTURE WORK: Expand test to include birth round based ancient threshold.
-    //        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), roster,
-    // AncientMode.GENERATION_THRESHOLD);
-    //        final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
-    //        final TipsetWeightCalculator calculator =
-    //                new TipsetWeightCalculator(platformContext, roster, nodeA, builder, childlessEventTracker);
-    //
-    //        // Create generation 1 events.
-    //        final EventDescriptorWrapper eventA1 = newEventDescriptor(randomHash(random), nodeA, 1);
-    //        builder.addPeerEvent(eventA1, List.of());
-    //        final EventDescriptorWrapper eventB1 = newEventDescriptor(randomHash(random), nodeB, 1);
-    //        builder.addPeerEvent(eventB1, List.of());
-    //        final EventDescriptorWrapper eventC1 = newEventDescriptor(randomHash(random), nodeC, 1);
-    //        builder.addPeerEvent(eventC1, List.of());
-    //        final EventDescriptorWrapper eventD1 = newEventDescriptor(randomHash(random), nodeD, 1);
-    //        builder.addPeerEvent(eventD1, List.of());
-    //
-    //        // Create some generation 2 events. A does not create an event yet.
-    //        final EventDescriptorWrapper eventB2 = newEventDescriptor(randomHash(random), nodeB, 2);
-    //        builder.addPeerEvent(eventB2, List.of(eventA1, eventB1, eventC1, eventD1));
-    //        final EventDescriptorWrapper eventC2 = newEventDescriptor(randomHash(random), nodeC, 2);
-    //        builder.addPeerEvent(eventC2, List.of(eventA1, eventB1, eventC1, eventD1));
-    //        final EventDescriptorWrapper eventD2 = newEventDescriptor(randomHash(random), nodeD, 2);
-    //        builder.addPeerEvent(eventD2, List.of(eventA1, eventB1, eventC1, eventD1));
-    //
-    //        // FUTURE WORK: Change the test to use birthRound instead of generation for ancient.
-    //        // Mark generation 1 as ancient.
-    //        final EventWindow eventWindow =
-    //                new EventWindow(1, 2, 0 /* ignored in this context */, AncientMode.GENERATION_THRESHOLD);
-    //        builder.setEventWindow(eventWindow);
-    //        childlessEventTracker.pruneOldEvents(eventWindow);
-    //
-    //        // We shouldn't be able to find tipsets for ancient events.
-    //        assertNull(builder.getTipset(eventA1));
-    //        assertNull(builder.getTipset(eventB1));
-    //        assertNull(builder.getTipset(eventC1));
-    //        assertNull(builder.getTipset(eventD1));
-    //
-    //        // Including generation 1 events as parents shouldn't cause us to throw. (Angry log messages are ok).
-    //        assertDoesNotThrow(() -> {
-    //            calculator.getTheoreticalAdvancementWeight(List.of(eventA1, eventB2, eventC2, eventD1));
-    //            final EventDescriptorWrapper eventA2 = newEventDescriptor(randomHash(random), nodeA, 2);
-    //            builder.addPeerEvent(eventA2, List.of(eventA1, eventB2, eventC2, eventD1));
-    //            calculator.addEventAndGetAdvancementWeight(eventA2);
-    //        });
-    //    }
+    @Test
+    @DisplayName("Selfish Node Test")
+    void selfishNodeTest() {
+        final Random random = getRandomPrintSeed();
+        final int nodeCount = 4;
+
+        final Roster roster = RandomRosterBuilder.create(random)
+                .withSize(nodeCount)
+                .withWeightGenerator(WeightGenerators.BALANCED)
+                .build();
+
+        // In this test, we simulate from the perspective of node A. All nodes have 1 weight.
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
+        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
+        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
+        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
+
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
+
+        // FUTURE WORK: Expand test to include birth round based ancient threshold.
+        final TipsetTracker tipsetTracker =
+                new TipsetTracker(Time.getCurrent(), nodeA, roster, AncientMode.GENERATION_THRESHOLD);
+        final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
+        final TipsetWeightCalculator calculator =
+                new TipsetWeightCalculator(platformContext, roster, nodeA, tipsetTracker, childlessEventTracker);
+
+        final Tipset snapshot1 = calculator.getSnapshot();
+
+        // Each node creates an event.
+        final PlatformEvent eventA1 = newEvent(random, nodeA, 1);
+        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA1));
+        final PlatformEvent eventB1 = newEvent(random, nodeB, 1);
+        tipsetTracker.addPeerEvent(eventB1);
+        childlessEventTracker.addEvent(eventB1);
+        final PlatformEvent eventC1 = newEvent(random, nodeC, 1);
+        tipsetTracker.addPeerEvent(eventC1);
+        childlessEventTracker.addEvent(eventC1);
+        final PlatformEvent eventD1 = newEvent(random, nodeD, 1);
+        tipsetTracker.addPeerEvent(eventD1);
+        childlessEventTracker.addEvent(eventD1);
+
+        assertEquals(ZERO_ADVANCEMENT_WEIGHT, calculator.getTheoreticalAdvancementWeight(List.of()));
+        assertEquals(ZERO_ADVANCEMENT_WEIGHT, calculator.addEventAndGetAdvancementWeight(eventA1.getDescriptor()));
+        assertSame(snapshot1, calculator.getSnapshot());
+
+        // Each node creates another event. All nodes use all available other parents except the event from D.
+        final PlatformEvent eventA2 = newEvent(random, 2, eventA1, List.of(eventB1, eventC1));
+        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA2));
+        final PlatformEvent eventB2 = newEvent(random, 2, eventB1, List.of(eventA1, eventC1));
+        tipsetTracker.addPeerEvent(eventB2);
+        childlessEventTracker.addEvent(eventB2);
+        final PlatformEvent eventC2 = newEvent(random, 2, eventC1, List.of(eventA1, eventB1));
+        tipsetTracker.addPeerEvent(eventC2);
+        childlessEventTracker.addEvent(eventC2);
+        final PlatformEvent eventD2 = newEvent(random, 2, eventD1, List.of(eventA1, eventB1, eventC1));
+        tipsetTracker.addPeerEvent(eventD2);
+        childlessEventTracker.addEvent(eventD2);
+
+        // Check the advancement weight for A2
+        assertEquals(
+                TipsetAdvancementWeight.of(2, 0),
+                calculator.getTheoreticalAdvancementWeight(eventA2.getAllParents()));
+        assertEquals(
+                TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA2.getDescriptor()));
+
+        // This should have been enough to advance the snapshot window by 1.
+        final Tipset snapshot2 = calculator.getSnapshot();
+        assertNotSame(snapshot1, snapshot2);
+
+        // D should have a selfishness score of 1, all others a score of 0.
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeA));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeB));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeC));
+        assertEquals(1, calculator.getSelfishnessScoreForNode(nodeD));
+        assertEquals(1, calculator.getMaxSelfishnessScore());
+
+        // Create another batch of events where D is bullied.
+        final PlatformEvent eventA3 = newEvent(random, 3, eventA2, List.of(eventB2, eventC2));
+        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA3));
+        final PlatformEvent eventB3 = newEvent(random, 3, eventB2, List.of(eventA2, eventC2));
+        tipsetTracker.addPeerEvent(eventB3);
+        childlessEventTracker.addEvent(eventB3);
+        final PlatformEvent eventC3 = newEvent(random, 3, eventC2, List.of(eventA2, eventB2));
+        tipsetTracker.addPeerEvent(eventC3);
+        childlessEventTracker.addEvent(eventC3);
+        final PlatformEvent eventD3 = newEvent(random, 3, eventD2, List.of(eventA2, eventB2, eventC2));
+        tipsetTracker.addPeerEvent(eventD3);
+        childlessEventTracker.addEvent(eventD3);
+
+        assertEquals(
+                TipsetAdvancementWeight.of(2, 0),
+                calculator.getTheoreticalAdvancementWeight(eventA3.getAllParents()));
+        assertEquals(
+                TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA3.getDescriptor()));
+
+        final Tipset snapshot3 = calculator.getSnapshot();
+        assertNotSame(snapshot2, snapshot3);
+
+        // D should have a selfishness score of 2, all others a score of 0.
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeA));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeB));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeC));
+        assertEquals(2, calculator.getSelfishnessScoreForNode(nodeD));
+        assertEquals(2, calculator.getMaxSelfishnessScore());
+
+        // Create a batch of events that don't ignore D. Let's all ignore C, because C is a jerk.
+        final PlatformEvent eventA4 = newEvent(random, 4, eventA3, List.of(eventB3, eventD3));
+        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA4));
+        final PlatformEvent eventB4 = newEvent(random, 4, eventB3, List.of(eventA3, eventD3));
+        tipsetTracker.addPeerEvent(eventB4);
+        childlessEventTracker.addEvent(eventB4);
+        final PlatformEvent eventC4 = newEvent(random, 4, eventC3, List.of(eventA3, eventB3, eventD3));
+        tipsetTracker.addPeerEvent(eventC4);
+        childlessEventTracker.addEvent(eventC4);
+        final PlatformEvent eventD4 = newEvent(random, 4, eventD3, List.of(eventA3, eventB3));
+        tipsetTracker.addPeerEvent(eventD4);
+        childlessEventTracker.addEvent(eventD4);
+
+        assertEquals(
+                TipsetAdvancementWeight.of(2, 0),
+                calculator.getTheoreticalAdvancementWeight(eventA4.getAllParents()));
+        assertEquals(
+                TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA4.getDescriptor()));
+
+        final Tipset snapshot4 = calculator.getSnapshot();
+        assertNotSame(snapshot3, snapshot4);
+
+        // Now, all nodes should have a selfishness score of 0 except for C, which should have a score of 1.
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeA));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeB));
+        assertEquals(1, calculator.getSelfishnessScoreForNode(nodeC));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeD));
+        assertEquals(1, calculator.getMaxSelfishnessScore());
+
+        // Stop ignoring C. D stops creating events.
+        final PlatformEvent eventA5 = newEvent(random, 5, eventA4, List.of(eventB4, eventC4, eventD4));
+        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA5));
+        final PlatformEvent eventB5 = newEvent(random, 5, eventB4, List.of(eventA4, eventC4, eventD4));
+        tipsetTracker.addPeerEvent(eventB5);
+        childlessEventTracker.addEvent(eventB5);
+        final PlatformEvent eventC5 = newEvent(random, 5, eventC4, List.of(eventA4, eventB4, eventD4));
+        tipsetTracker.addPeerEvent(eventC5);
+        childlessEventTracker.addEvent(eventC5);
+
+        assertEquals(
+                TipsetAdvancementWeight.of(3, 0),
+                calculator.getTheoreticalAdvancementWeight(eventA5.getAllParents()));
+        assertEquals(
+                TipsetAdvancementWeight.of(3, 0), calculator.addEventAndGetAdvancementWeight(eventA5.getDescriptor()));
+
+        final Tipset snapshot5 = calculator.getSnapshot();
+        assertNotSame(snapshot4, snapshot5);
+
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeA));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeB));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeC));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeD));
+        assertEquals(0, calculator.getMaxSelfishnessScore());
+
+        // D still is not creating events. Since there is no legal event from D to use as a parent, this doesn't
+        // count as being selfish.
+        final PlatformEvent eventA6 = newEvent(random, 6, eventA5, List.of(eventB5, eventC5));
+        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA6));
+        final PlatformEvent eventB6 = newEvent(random, 6, eventB5, List.of(eventA5, eventC5));
+        tipsetTracker.addPeerEvent(eventB6);
+        childlessEventTracker.addEvent(eventB6);
+        final PlatformEvent eventC6 = newEvent(random, 6, eventC5, List.of(eventA5, eventB5));
+        tipsetTracker.addPeerEvent(eventC6);
+        childlessEventTracker.addEvent(eventC6);
+
+        assertEquals(
+                TipsetAdvancementWeight.of(2, 0),
+                calculator.getTheoreticalAdvancementWeight(eventA6.getAllParents()));
+        assertEquals(
+                TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA6.getDescriptor()));
+
+        final Tipset snapshot6 = calculator.getSnapshot();
+        assertNotSame(snapshot5, snapshot6);
+
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeA));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeB));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeC));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeD));
+        assertEquals(0, calculator.getMaxSelfishnessScore());
+
+        // Rinse and repeat.
+        final PlatformEvent eventA7 = newEvent(random, 7, eventA6, List.of(eventB6, eventC6));
+        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA7));
+        final PlatformEvent eventB7 = newEvent(random, 7, eventB6, List.of(eventA6, eventC6));
+        tipsetTracker.addPeerEvent(eventB7);
+        childlessEventTracker.addEvent(eventB7);
+        final PlatformEvent eventC7 = newEvent(random, 7, eventC6, List.of(eventA6, eventB6));
+        tipsetTracker.addPeerEvent(eventC7);
+        childlessEventTracker.addEvent(eventC7);
+
+        assertEquals(
+                TipsetAdvancementWeight.of(2, 0),
+                calculator.getTheoreticalAdvancementWeight(eventA7.getAllParents()));
+        assertEquals(
+                TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA7.getDescriptor()));
+
+        final Tipset snapshot7 = calculator.getSnapshot();
+        assertNotSame(snapshot6, snapshot7);
+
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeA));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeB));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeC));
+        assertEquals(0, calculator.getSelfishnessScoreForNode(nodeD));
+        assertEquals(0, calculator.getMaxSelfishnessScore());
+    }
+
+    @Test
+    @DisplayName("Zero Stake Node Test")
+    void zeroWeightNodeTest() {
+        final Random random = getRandomPrintSeed();
+        final int nodeCount = 4;
+
+        Roster roster = RandomRosterBuilder.create(random)
+                .withSize(nodeCount)
+                .withWeightGenerator(WeightGenerators.BALANCED)
+                .build();
+
+        // In this test, we simulate from the perspective of node A.
+        // All nodes have 1 weight except for D, which has 0 weight.
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
+        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
+        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
+        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
+
+        roster = Roster.newBuilder()
+                .rosterEntries(roster.rosterEntries().stream()
+                        .map(entry -> {
+                            if (entry.nodeId() == nodeD.id()) {
+                                return entry.copyBuilder().weight(0).build();
+                            } else {
+                                return entry;
+                            }
+                        })
+                        .toList())
+                .build();
+
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
+
+        // FUTURE WORK: Expand test to include birth round based ancient threshold.
+        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, roster,
+                AncientMode.GENERATION_THRESHOLD);
+        final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
+        final TipsetWeightCalculator calculator =
+                new TipsetWeightCalculator(platformContext, roster, nodeA, builder, childlessEventTracker);
+
+        final Tipset snapshot1 = calculator.getSnapshot();
+
+        // Each node creates an event.
+        final PlatformEvent eventA1 = newEvent(random, nodeA, 1);
+        builder.addSelfEvent(toUnsignedEvent(eventA1));
+        final PlatformEvent eventB1 = newEvent(random, nodeB, 1);
+        builder.addPeerEvent(eventB1);
+        final PlatformEvent eventC1 = newEvent(random, nodeC, 1);
+        builder.addPeerEvent(eventC1);
+        final PlatformEvent eventD1 = newEvent(random, nodeD, 1);
+        builder.addPeerEvent(eventD1);
+
+        assertEquals(ZERO_ADVANCEMENT_WEIGHT, calculator.getTheoreticalAdvancementWeight(eventA1.getAllParents()));
+        assertEquals(ZERO_ADVANCEMENT_WEIGHT, calculator.addEventAndGetAdvancementWeight(eventA1.getDescriptor()));
+        assertSame(snapshot1, calculator.getSnapshot());
+
+        // Create a node "on top of" B1.
+        final PlatformEvent eventA2 = newEvent(random, 2, eventA1, List.of(eventB1));
+        builder.addPeerEvent(eventA2);
+        final TipsetAdvancementWeight advancement1 = calculator.addEventAndGetAdvancementWeight(
+                eventA2.getDescriptor());
+        assertEquals(TipsetAdvancementWeight.of(1, 0), advancement1);
+
+        // Snapshot should not have advanced.
+        assertSame(snapshot1, calculator.getSnapshot());
+
+        // If we get 1 more advancement point then the snapshot will advance. But building
+        // on top of a zero stake node will not contribute to this and the snapshot will not
+        // advance. Build on top of node D.
+        final PlatformEvent eventA3 = newEvent(random, 3, eventA2, List.of(eventD1));
+        builder.addSelfEvent(toUnsignedEvent(eventA3));
+        final TipsetAdvancementWeight advancement2 = calculator.addEventAndGetAdvancementWeight(
+                eventA3.getDescriptor());
+        assertEquals(TipsetAdvancementWeight.of(0, 1), advancement2);
+
+        // Snapshot should not have advanced.
+        assertSame(snapshot1, calculator.getSnapshot());
+
+        // Now, build on top of C. This should push us into the next snapshot.
+        final PlatformEvent eventA4 = newEvent(random, 4, eventA3, List.of(eventC1));
+        builder.addSelfEvent(toUnsignedEvent(eventA4));
+        final TipsetAdvancementWeight advancement3 = calculator.addEventAndGetAdvancementWeight(
+                eventA4.getDescriptor());
+        assertEquals(TipsetAdvancementWeight.of(1, 0), advancement3);
+
+        final Tipset snapshot2 = calculator.getSnapshot();
+        assertNotEquals(snapshot1, snapshot2);
+        assertEquals(snapshot2, builder.getTipset(eventA4.getDescriptor()));
+    }
+
+    @Test
+    @DisplayName("Ancient Parent Test")
+    void ancientParentTest() {
+        final Random random = getRandomPrintSeed();
+        final int nodeCount = 4;
+
+        final Roster roster = RandomRosterBuilder.create(random)
+                .withSize(nodeCount)
+                .withWeightGenerator(WeightGenerators.BALANCED)
+                .build();
+
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
+        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
+        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
+        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
+
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
+
+        // FUTURE WORK: Expand test to include birth round based ancient threshold.
+        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, roster,
+                AncientMode.GENERATION_THRESHOLD);
+        final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
+        final TipsetWeightCalculator calculator =
+                new TipsetWeightCalculator(platformContext, roster, nodeA, builder, childlessEventTracker);
+
+        // Create generation 1 events.
+        final PlatformEvent eventA0 = newEvent(random, nodeA, 0);
+        builder.addSelfEvent(toUnsignedEvent(eventA0));
+        final PlatformEvent eventB0 = newEvent(random, nodeB, 0);
+        builder.addPeerEvent(eventB0);
+        final PlatformEvent eventC0 = newEvent(random, nodeC, 0);
+        builder.addPeerEvent(eventC0);
+        final PlatformEvent eventD0 = newEvent(random, nodeD, 0);
+        builder.addPeerEvent(eventD0);
+
+        // Create some generation 1 events. A does not create an event yet.
+        final PlatformEvent eventB1 = newEvent(random, 1, eventB0, List.of(eventA0, eventC0, eventD0));
+        builder.addPeerEvent(eventB1);
+        final PlatformEvent eventC1 = newEvent(random, 1, eventC0, List.of(eventA0, eventB0, eventD0));
+        builder.addPeerEvent(eventC1);
+        final PlatformEvent eventD1 = newEvent(random, 1, eventD0, List.of(eventA0, eventB0, eventC0));
+        builder.addPeerEvent(eventD1);
+
+        // FUTURE WORK: Change the test to use birthRound instead of generation for ancient.
+        // Mark generation 0 as ancient.
+        final EventWindow eventWindow =
+                new EventWindow(1, 1, 0 /* ignored in this context */, AncientMode.GENERATION_THRESHOLD);
+        builder.setEventWindow(eventWindow);
+        childlessEventTracker.pruneOldEvents(eventWindow);
+
+        // We shouldn't be able to find tipsets for ancient events.
+        assertNull(builder.getTipset(eventA0.getDescriptor()));
+        assertNull(builder.getTipset(eventB0.getDescriptor()));
+        assertNull(builder.getTipset(eventC0.getDescriptor()));
+        assertNull(builder.getTipset(eventD0.getDescriptor()));
+
+        // Including generation 1 events as parents shouldn't cause us to throw. (Angry log messages are ok).
+        assertDoesNotThrow(() -> {
+            final PlatformEvent eventA1 = newEvent(random, 1, eventA0, List.of(eventB0, eventC0, eventD0));
+            calculator.getTheoreticalAdvancementWeight(eventA1.getAllParents());
+            builder.addSelfEvent(toUnsignedEvent(eventA1));
+            calculator.addEventAndGetAdvancementWeight(eventA1.getDescriptor());
+        });
+    }
 
     private UnsignedEvent toUnsignedEvent(final PlatformEvent potentialEvent) {
         final UnsignedEvent event = new UnsignedEvent(

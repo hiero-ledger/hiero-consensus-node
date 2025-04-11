@@ -205,34 +205,32 @@ public class TipsetWeightCalculator {
      * @return the advancement weight we would get by creating an event with the given parents
      */
     public TipsetAdvancementWeight getTheoreticalAdvancementWeight(
-            @NonNull final List<PlatformEvent> otherParents, @Nullable final EventDescriptorWrapper selfParent) {
-        if (otherParents.isEmpty() && selfParent == null) {
+            @NonNull final List<EventDescriptorWrapper> parents) {
+        if (parents.isEmpty()) {
             return ZERO_ADVANCEMENT_WEIGHT;
         }
 
-        final List<Tipset> parentTipsets = new ArrayList<>(otherParents.size());
-        for (final PlatformEvent otherParent : otherParents) {
-            final Tipset otherParentTipset = tipsetTracker.getTipset(otherParent.getDescriptor());
+        final List<Tipset> parentTipsets = new ArrayList<>(parents.size());
+        for (final EventDescriptorWrapper parent : parents) {
+            final Tipset parentTipset = tipsetTracker.getTipset(parent);
 
-            if (otherParentTipset == null) {
+            if (parentTipset == null) {
                 // For some reason we are trying to use an ancient parent. In theory possible that a self
                 // parent may be ancient. But we shouldn't even be considering non-self parents that are ancient.
-                ancientParentLogger.error(
-                        EXCEPTION.getMarker(),
-                        "When looking at possible parents, we should never "
-                                + "consider ancient parents that are not self parents. "
-                                + "Parent ID = {}, parent ancient threshold = {}, minimum threshold non-ancient = {}",
-                        otherParent.getCreatorId(),
-                        tipsetTracker.getEventWindow().getAncientMode().selectIndicator(otherParent.getDescriptor()),
-                        tipsetTracker.getEventWindow());
+                if (!parent.creator().equals(selfId)) {
+                    ancientParentLogger.error(
+                            EXCEPTION.getMarker(),
+                            "When looking at possible parents, we should never "
+                                    + "consider ancient parents that are not self parents. "
+                                    + "Parent ID = {}, parent generation = {}, minimum generation non-ancient = {}",
+                            parent.creator(),
+                            parent.eventDescriptor().generation(),
+                            tipsetTracker.getEventWindow());
+                }
                 continue;
             }
 
-            parentTipsets.add(otherParentTipset);
-        }
-
-        if (selfParent != null) {
-            parentTipsets.add(tipsetTracker.getTipset(selfParent));
+            parentTipsets.add(parentTipset);
         }
 
         if (parentTipsets.isEmpty()) {
