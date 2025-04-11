@@ -10,6 +10,7 @@ testModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.common.test.fixtures")
     requires("org.hiero.base.concurrent")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
 }

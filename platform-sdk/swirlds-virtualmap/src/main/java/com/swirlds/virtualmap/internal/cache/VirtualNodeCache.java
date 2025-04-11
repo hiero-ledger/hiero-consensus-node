@@ -37,7 +37,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.futures.StandardFuture;
-import org.hiero.base.utility.exceptions.PlatformException;
+import org.hiero.base.exceptions.PlatformException;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.io.SelfSerializable;
 import org.hiero.consensus.model.io.streams.SerializableDataInputStream;

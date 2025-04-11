@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.base.utility;
+package org.hiero.base;
 
 /**
  * This class is a convenience wrapper around for the java stack trace.

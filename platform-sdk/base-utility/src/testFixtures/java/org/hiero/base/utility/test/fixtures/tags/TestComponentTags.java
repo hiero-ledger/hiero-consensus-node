@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.test.fixtures.junit.tags;
+package org.hiero.base.utility.test.fixtures.tags;
 
 /**
  * Tags that denote the component that a test is verifying.

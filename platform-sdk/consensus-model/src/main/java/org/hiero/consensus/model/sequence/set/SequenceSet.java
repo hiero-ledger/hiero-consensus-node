@@ -3,7 +3,7 @@ package org.hiero.consensus.model.sequence.set;
 
 import java.util.List;
 import java.util.function.Consumer;
-import org.hiero.base.utility.Clearable;
+import org.hiero.base.Clearable;
 import org.hiero.consensus.model.sequence.Shiftable;
 
 /**

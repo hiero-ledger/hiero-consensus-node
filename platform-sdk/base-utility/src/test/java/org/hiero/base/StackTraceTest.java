@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.base.utility;
+package org.hiero.base;
 
-import static org.hiero.base.utility.StackTrace.getStackTrace;
+import static org.hiero.base.StackTrace.getStackTrace;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.regex.Pattern;

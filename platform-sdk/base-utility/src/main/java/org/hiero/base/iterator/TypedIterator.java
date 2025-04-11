@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.utility;
+package org.hiero.base.iterator;
 
 import java.util.Iterator;
 import java.util.Objects;

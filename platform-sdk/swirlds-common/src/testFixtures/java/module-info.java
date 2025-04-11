@@ -5,7 +5,6 @@ open module com.swirlds.common.test.fixtures {
     exports com.swirlds.common.test.fixtures.crypto;
     exports com.swirlds.common.test.fixtures.dummy;
     exports com.swirlds.common.test.fixtures.io;
-    exports com.swirlds.common.test.fixtures.junit.tags;
     exports com.swirlds.common.test.fixtures.map;
     exports com.swirlds.common.test.fixtures.merkle;
     exports com.swirlds.common.test.fixtures.merkle.util;
