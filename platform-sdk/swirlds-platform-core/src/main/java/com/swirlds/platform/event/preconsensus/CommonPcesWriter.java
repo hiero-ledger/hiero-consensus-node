@@ -5,6 +5,7 @@ import static com.swirlds.common.units.DataUnit.UNIT_BYTES;
 import static com.swirlds.common.units.DataUnit.UNIT_MEGABYTES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.LongRunningAverage;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -251,6 +252,7 @@ public class CommonPcesWriter {
      */
     public boolean prepareOutputStream(@NonNull final PlatformEvent eventToWrite) throws IOException {
         boolean fileClosed = false;
+        fileManager.updateEventSizeMetric(GossipEvent.PROTOBUF.measureRecord(eventToWrite.getGossipEvent()));
         if (currentMutableFile != null) {
             final boolean fileCanContainEvent = currentMutableFile.canContain(fileType.selectIndicator(eventToWrite));
             final boolean fileIsFull =

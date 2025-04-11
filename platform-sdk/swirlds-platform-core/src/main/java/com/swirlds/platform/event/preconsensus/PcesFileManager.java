@@ -300,4 +300,11 @@ public class PcesFileManager {
                     .set(((double) totalFileByteCount) / files.getFileCount() * UnitConstants.BYTES_TO_MEBIBYTES);
         }
     }
+
+    /**
+     * Update metrics with the event size.
+     */
+    public void updateEventSizeMetric(final int i) {
+        metrics.updateAvgEventSize(i);
+    }
 }

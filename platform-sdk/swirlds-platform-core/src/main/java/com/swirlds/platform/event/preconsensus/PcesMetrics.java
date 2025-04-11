@@ -6,6 +6,8 @@ import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 
 /**
  * Metrics for preconsensus events.
@@ -13,6 +15,7 @@ import com.swirlds.metrics.api.Metrics;
 public class PcesMetrics {
 
     private static final String CATEGORY = "platform";
+    private final Metrics metrics;
 
     private static final LongGauge.Config PRECONSENSUS_EVENT_FILE_COUNT_CONFIG = new LongGauge.Config(
                     CATEGORY, "preconsensusEventFileCount")
@@ -68,12 +71,16 @@ public class PcesMetrics {
             .withDescription("The age of the oldest preconsensus event file, in seconds.");
     private final LongGauge preconsensusEventFileOldestSeconds;
 
+    static final RunningAverageMetric.Config AVG_EVENT_SIZE =
+            new RunningAverageMetric.Config(CATEGORY, "avgEventSize").withDescription("The average size of an event");
+
     /**
      * Construct preconsensus event metrics.
      *
      * @param metrics the metrics manager for the platform
      */
-    public PcesMetrics(final Metrics metrics) {
+    public PcesMetrics(final @NonNull Metrics metrics) {
+        this.metrics = Objects.requireNonNull(metrics);
         preconsensusEventFileCount = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_COUNT_CONFIG);
         preconsensusEventFileAverageSizeMB = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_AVERAGE_SIZE_MB_CONFIG);
         preconsensusEventFileTotalSizeGB = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_TOTAL_SIZE_GB_CONFIG);
@@ -148,5 +155,12 @@ public class PcesMetrics {
      */
     public LongGauge getPreconsensusEventFileOldestSeconds() {
         return preconsensusEventFileOldestSeconds;
+    }
+
+    /**
+     * Updates the event size
+     */
+    public void updateAvgEventSize(final int i) {
+        metrics.getOrCreate(AVG_EVENT_SIZE).update(i);
     }
 }
