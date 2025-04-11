@@ -12,7 +12,7 @@ module com.hedera.node.app.service.addressbook.impl {
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.token;
     requires com.swirlds.config.api;
-    requires org.hiero.consensus.model;
+    requires org.hiero.base.utility;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires static transitive com.github.spotbugs.annotations;

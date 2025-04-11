@@ -12,7 +12,7 @@ import org.hiero.base.io.SerializableWithKnownLength;
 import org.hiero.base.io.exceptions.BadIOException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 /**
  * A cryptographic hash of some data.
