@@ -313,6 +313,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     public void repair(final long firstLeafPath, final long lastLeafPath, final MemoryIndexDiskKeyValueStore store)
             throws IOException {
+        final long start = System.currentTimeMillis();
         logger.info(
                 MERKLE_DB.getMarker(),
                 "Rebuilding HDHM {}, leaf path range [{},{}]",
@@ -378,6 +379,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             }
         }
         endWriting();
+        logger.info(
+                MERKLE_DB.getMarker(),
+                "Rebuilding HDHM {} done, took {} ms",
+                storeName,
+                System.currentTimeMillis() - start);
     }
 
     /** {@inheritDoc} */
