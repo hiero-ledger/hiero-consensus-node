@@ -10,8 +10,8 @@ import com.swirlds.virtualmap.VirtualValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A {@link VirtualValue} used for storing the actual value. In our system, a state might have

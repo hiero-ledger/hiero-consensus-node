@@ -3,7 +3,7 @@ package com.swirlds.virtualmap;
 
 import com.swirlds.common.FastCopyable;
 import java.nio.ByteBuffer;
-import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.base.io.SelfSerializable;
 
 /**
  * A {@link VirtualValue} is a "virtual" value, and is part of the API for the {@code VirtualMap}.

@@ -13,8 +13,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * This merkle leaf stores a string randomly generated using seed. When serialized in abbreviated

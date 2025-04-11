@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.Path;
@@ -27,6 +26,7 @@ import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

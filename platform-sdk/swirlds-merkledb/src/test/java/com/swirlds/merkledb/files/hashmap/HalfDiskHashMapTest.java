@@ -18,7 +18,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Random;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;

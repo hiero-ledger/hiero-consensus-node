@@ -6,9 +6,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.List;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A leaf in a state proof tree. Contains data that modifies the hash. Data is opaque, meaning that it is not intended

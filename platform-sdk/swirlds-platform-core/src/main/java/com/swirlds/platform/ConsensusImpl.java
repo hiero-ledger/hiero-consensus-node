@@ -640,8 +640,9 @@ public class ConsensusImpl implements Consensus {
             @NonNull final CountingVote countingVote) {
         // a coin round. Vote randomly unless you strongly see a supermajority. Don't decide.
         consensusMetrics.coinRound();
-        final boolean vote =
-                countingVote.isSupermajority() ? countingVote.getVote() : ConsensusUtils.coin(votingWitness);
+        final boolean vote = countingVote.isSupermajority()
+                ? countingVote.getVote()
+                : ConsensusUtils.coin(votingWitness.getBaseEvent().getSignature());
 
         votingWitness.setVote(candidateWitness, vote);
     }

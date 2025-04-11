@@ -12,9 +12,9 @@ import java.security.PublicKey;
 import java.security.spec.EncodedKeySpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class SerializablePublicKey implements SelfSerializable {
     private static final long CLASS_ID = 0x2554c14f4f61cd9L;

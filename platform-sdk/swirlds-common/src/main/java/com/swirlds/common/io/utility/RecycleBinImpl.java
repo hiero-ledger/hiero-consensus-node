@@ -25,10 +25,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.CompareTo;
 import org.hiero.base.concurrent.locks.AutoClosableLock;
 import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.base.concurrent.locks.locked.Locked;
-import org.hiero.base.utility.CompareTo;
 
 /**
  * A standard implementation of a {@link RecycleBin}.

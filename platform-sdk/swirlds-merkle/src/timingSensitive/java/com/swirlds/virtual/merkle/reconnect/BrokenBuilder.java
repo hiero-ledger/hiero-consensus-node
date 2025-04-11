@@ -5,8 +5,8 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import java.io.IOException;
 import java.nio.file.Path;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public final class BrokenBuilder implements VirtualDataSourceBuilder {
 

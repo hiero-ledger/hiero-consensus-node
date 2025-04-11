@@ -19,10 +19,10 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import org.hiero.consensus.model.io.FunctionalSerialize;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.SerializableDet;
-import org.hiero.consensus.model.io.SerializableWithKnownLength;
+import org.hiero.base.io.FunctionalSerialize;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.SerializableDet;
+import org.hiero.base.io.SerializableWithKnownLength;
 
 /**
  * A drop-in replacement for {@link DataOutputStream}, which handles SerializableDet classes specially.

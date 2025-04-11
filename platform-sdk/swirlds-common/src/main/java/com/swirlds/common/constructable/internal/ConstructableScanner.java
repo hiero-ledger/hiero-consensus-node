@@ -12,7 +12,7 @@ import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import org.hiero.consensus.model.constructable.RuntimeConstructable;
+import org.hiero.base.constructable.RuntimeConstructable;
 
 /**
  * Scans the classpath for {@link RuntimeConstructable} classes

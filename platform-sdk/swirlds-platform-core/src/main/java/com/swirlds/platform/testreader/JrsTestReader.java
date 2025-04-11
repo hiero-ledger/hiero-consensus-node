@@ -28,7 +28,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
-import org.hiero.base.utility.CompareTo;
+import org.hiero.base.CompareTo;
 
 /**
  * Utilities for reading JRS test results and creating a report.
