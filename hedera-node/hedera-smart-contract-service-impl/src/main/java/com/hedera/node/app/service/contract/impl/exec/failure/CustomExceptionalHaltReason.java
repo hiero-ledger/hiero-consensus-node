@@ -26,7 +26,8 @@ public enum CustomExceptionalHaltReason implements ExceptionalHaltReason {
     NOT_SUPPORTED("Not supported."),
     CONTRACT_ENTITY_LIMIT_REACHED("Contract entity limit reached."),
     INVALID_FEE_SUBMITTED("Invalid fee submitted for an EVM call."),
-    INSUFFICIENT_CHILD_RECORDS("Result cannot be externalized due to insufficient child records");
+    INSUFFICIENT_CHILD_RECORDS("Result cannot be externalized due to insufficient child records"),
+    UNKNOWN_FUNCTION_SELECTOR("Unknown function selector");
 
     private final String description;
 

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.schedulenative;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.UNKNOWN_FUNCTION_SELECTOR;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
@@ -20,15 +22,18 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallFactory;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Optional;
 import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 
 /**
  * Handle a call to schedule a native function call.
@@ -72,7 +77,17 @@ public class ScheduleNativeCall extends AbstractCall {
         // Create the native call implied by the call data passed to scheduleNative()
         final var nativeAttempt =
                 htsCallFactory.createCallAttemptFrom(contractID, innerCallData, DIRECT_OR_PROXY_REDIRECT, frame);
-        final var call = requireNonNull(nativeAttempt.asExecutableCall());
+        final var call = nativeAttempt.asExecutableCall();
+        if (call == null) {
+            return gasOnly(
+                    new FullResult(
+                            PrecompiledContract.PrecompileContractResult.halt(
+                                    Bytes.EMPTY, Optional.of(UNKNOWN_FUNCTION_SELECTOR)),
+                            frame.getRemainingGas(),
+                            null),
+                    CONTRACT_EXECUTION_EXCEPTION,
+                    false);
+        }
         final var scheduleTransactionBody = call.asSchedulableDispatchIn();
         final var scheduleCreateTransactionBody = bodyForScheduleCreate(scheduleTransactionBody);
         final var gasRequirement = dispatchGasCalculator.gasRequirement(
@@ -102,7 +117,7 @@ public class ScheduleNativeCall extends AbstractCall {
      * @param scheduleTransactionBody
      * @return
      */
-    private @NonNull TransactionBody bodyForScheduleCreate(SchedulableTransactionBody scheduleTransactionBody) {
+    private @NonNull TransactionBody bodyForScheduleCreate(final SchedulableTransactionBody scheduleTransactionBody) {
         return TransactionBody.newBuilder()
                 .transactionID(nativeOperations().getTransactionID())
                 .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
