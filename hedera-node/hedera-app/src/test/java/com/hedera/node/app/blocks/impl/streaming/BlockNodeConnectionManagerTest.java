@@ -3,6 +3,8 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -22,56 +24,78 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith({MockitoExtension.class, LogCaptureExtension.class})
 class BlockNodeConnectionManagerTest {
     private static final Duration INITIAL_DELAY = Duration.ofMillis(10);
 
-    @LoggingSubject
-    BlockNodeConnectionManager blockNodeConnectionManager;
-
     @LoggingTarget
     private LogCaptor logCaptor;
+
+    @LoggingSubject
+    private BlockNodeConnectionManager blockNodeConnectionManager;
 
     @Mock
     private Supplier<Void> mockSupplier;
 
     @Mock
-    BlockNodeConnection mockConnection;
+    private BlockNodeConnection mockConnection;
 
     @Mock
-    BlockStreamStateManager mockStateManager;
+    private BlockStreamStateManager mockStateManager;
 
-    @Mock
-    BlockNodeConfigExtractorImpl blockNodeConfigExtractorImpl;
+    private static BlockNodeConfigExtractor mockBlockNodeConfigExtractor;
 
-    private static Server testServer;
+    private static final List<Server> testServers = new ArrayList<>();
 
     @BeforeAll
-    static void beforeAll() throws IOException {
-        final var blockNodeConfigExtractorImpl = new BlockNodeConfigExtractorImpl("./src/test/resources/bootstrap");
-        final int testServerPort =
-                blockNodeConfigExtractorImpl.getAllNodes().getFirst().port();
-        testServer = ServerBuilder.forPort(testServerPort)
-                .addService(new BlockStreamServiceTestImpl())
-                .build();
-        testServer.start();
+    static void beforeAll() {
+        mockBlockNodeConfigExtractor = Mockito.mock(BlockNodeConfigExtractor.class);
+        when(mockBlockNodeConfigExtractor.getAllNodes())
+                .thenReturn(List.of(localBlockNodeConfigEntry(8080, 1), localBlockNodeConfigEntry(8081, 2)));
+
+        mockBlockNodeConfigExtractor.getAllNodes().forEach(node -> {
+            try {
+                testServers.add(ServerBuilder.forPort(node.port())
+                        .addService(new BlockStreamServiceTestImpl())
+                        .build());
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to start test server", e);
+            }
+        });
+
+        testServers.forEach(server -> {
+            try {
+                server.start();
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to start test server", e);
+            }
+        });
     }
 
     @BeforeEach
     void setUp() {
-        blockNodeConnectionManager = new BlockNodeConnectionManager(blockNodeConfigExtractorImpl, mockStateManager);
+        blockNodeConnectionManager = new BlockNodeConnectionManager(mockBlockNodeConfigExtractor, mockStateManager);
+    }
+
+    @AfterAll
+    static void afterAll() {
+        testServers.forEach(server -> {
+            try {
+                server.shutdownNow();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to stop test server", e);
+            }
+        });
     }
 
     @Test
@@ -105,13 +129,35 @@ class BlockNodeConnectionManagerTest {
     }
 
     @Test
-    void testScheduleReconnect() throws InterruptedException {
-        when(mockConnection.getNodeConfig()).thenReturn(new BlockNodeConfig("localhost", 8080));
-        when(mockConnection.getIsActiveLock()).thenReturn(new ReentrantLock());
+    void testScheduleReconnect_WithPriority() throws InterruptedException {
+        when(mockConnection.getNodeConfig())
+                .thenReturn(BlockNodeConfig.newBuilder()
+                        .address("localhost")
+                        .port(8080)
+                        .priority(1)
+                        .build());
 
         blockNodeConnectionManager.scheduleReconnect(mockConnection);
+
+        // There should be no immediate attempt to establish a stream
         verify(mockConnection, times(0)).establishStream();
 
+        Thread.sleep(BlockNodeConnectionManager.INITIAL_RETRY_DELAY.plusMillis(100));
+
+        final var retryLog = logCaptor.debugLogs().stream()
+                .filter(log -> log.contains("Retrying in"))
+                .findFirst();
+        assertThat(retryLog).isNotEmpty();
+        verify(mockConnection, times(1)).establishStream();
+    }
+
+    @Test
+    void testScheduleReconnect_WithoutPriority() throws InterruptedException {
+        given(mockConnection.getNodeConfig())
+                .willReturn(BlockNodeConfig.newBuilder().build());
+        blockNodeConnectionManager.scheduleReconnect(mockConnection);
+
+        verify(mockConnection, never()).establishStream(); // there should be no immediate attempt to establish a stream
         final var initialDelay = BlockNodeConnectionManager.INITIAL_RETRY_DELAY;
         Thread.sleep(initialDelay.plusMillis(100));
 
@@ -119,9 +165,47 @@ class BlockNodeConnectionManagerTest {
         verify(mockConnection, times(1)).establishStream();
     }
 
-    @AfterAll
-    static void afterAll() {
-        testServer.shutdownNow();
+    @Test
+    void testEstablishConnection_PrioritizesNodes() {
+        // Establishes connections indirectly via waitForConnections
+        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+
+        final List<String> infoLogs = logCaptor.infoLogs();
+        assertThat(infoLogs.get(0)).contains("Establishing connection to primary block node");
+
+        // Verify the order of connection attempts: The high priority node should be the first
+        assertThat(infoLogs.get(1)).contains("Connecting to block node localhost:8080");
+    }
+
+    @Test
+    void handleConnectionError_shouldAddToRetryAndScheduleReconnect() throws InterruptedException {
+        // Given established connection
+        blockNodeConnectionManager.establishConnection();
+
+        // When connection error occurs
+        final var activeConnection =
+                blockNodeConnectionManager.getActiveConnection().orElseThrow();
+        blockNodeConnectionManager.handleConnectionError(activeConnection);
+
+        Thread.sleep(BlockNodeConnectionManager.INITIAL_RETRY_DELAY.plusMillis(100));
+
+        // Verify that the initial connection is scheduled for retry
+        assertThat(logCaptor.debugLogs())
+                .containsAnyElementsOf(generateExpectedRetryLogs((BlockNodeConnectionManager.INITIAL_RETRY_DELAY)));
+
+        // Verify that we successfully connected to the fallback node
+        assertThat(logCaptor.infoLogs())
+                .contains(
+                        "Connecting to block node localhost:8081",
+                        "Successfully connected to block node localhost:8081");
+
+        // Verify that the active connection config is now the fallback node with priority 2
+        assertThat(blockNodeConnectionManager
+                        .getActiveConnection()
+                        .orElseThrow()
+                        .getNodeConfig()
+                        .priority())
+                .isEqualTo(2L);
     }
 
     private List<String> generateExpectedRetryLogs(Duration delay) {
@@ -135,9 +219,15 @@ class BlockNodeConnectionManagerTest {
         return logs;
     }
 
-    private static class BlockStreamServiceTestImpl extends BlockStreamServiceGrpc.BlockStreamServiceImplBase {
-        private static final Logger logger = LogManager.getLogger(BlockStreamServiceTestImpl.class);
+    private static BlockNodeConfig localBlockNodeConfigEntry(int port, int priority) {
+        return BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .port(port)
+                .priority(priority)
+                .build();
+    }
 
+    private static class BlockStreamServiceTestImpl extends BlockStreamServiceGrpc.BlockStreamServiceImplBase {
         @Override
         public StreamObserver<PublishStreamRequest> publishBlockStream(
                 StreamObserver<PublishStreamResponse> responseObserver) {
