@@ -55,18 +55,31 @@ public class ParameterCombinationExtension implements TestTemplateInvocationCont
 
         final List<String> paramNames = getParameterNames(testMethod);
         final List<List<Object>> valueLists = new ArrayList<>();
-        for (ParamSource source : useSources.value()) {
-            if (!paramNames.contains(source.param())) {
-                throw new IllegalStateException(
-                        ParamSource.class.getSimpleName() + ":" + source.param() + " could not be found in any: "
-                                + ParamName.class.getSimpleName() + " for " + testMethod.getName());
-            }
+        for (String name : paramNames) {
+            final ParamSource source = getParamSource(name, useSources, testMethod);
             valueLists.add(invokeSourceMethod(context, source.method()));
         }
 
         final List<List<Object>> combinations = com.google.common.collect.Lists.cartesianProduct(valueLists);
 
         return combinations.stream().map(combo -> new Context(paramNames, combo));
+    }
+
+    private static ParamSource getParamSource(
+            final String name, final UseParameterSources useSources, final Method testMethod) {
+        ParamSource source = null;
+        for (ParamSource s : useSources.value()) {
+            if (name.equals(s.param())) {
+                source = s;
+                break;
+            }
+        }
+        if (source == null) {
+            throw new IllegalStateException(
+                    ParamName.class.getSimpleName() + ":" + name + " could not be found in any: "
+                            + ParamSource.class.getSimpleName() + " for " + testMethod.getName());
+        }
+        return source;
     }
 
     @SuppressWarnings("unchecked")
