@@ -27,7 +27,6 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
-import com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
@@ -48,10 +47,10 @@ public class NumericValidationTest {
     public static final long EXPIRY_RENEW = 3_000_000L;
     public static final long EXPIRY_SECOND = 10L;
 
-    @Contract(contract = "NumericContract", creationGas = 1_000_000L)
+    @Contract(contract = "NumericContract", creationGas = 8_000_000L)
     static SpecContract numericContract;
 
-    @Contract(contract = "NumericContractComplex", creationGas = 1_000_000L)
+    @Contract(contract = "NumericContractComplex", creationGas = 8_000_000L)
     static SpecContract numericContractComplex;
 
     @Account(maxAutoAssociations = 10, tinybarBalance = ONE_MILLION_HBARS)
@@ -387,9 +386,6 @@ public class NumericValidationTest {
         public static void beforeAll(final @NonNull TestLifecycle lifecycle) {
             lifecycle.doAdhoc(
                     fungibleToken.authorizeContracts(numericContractComplex),
-                    nft.authorizeContracts(numericContractComplex, numericContract)
-                            .alsoAuthorizing(TokenKeyType.METADATA_KEY, TokenKeyType.SUPPLY_KEY),
-                    nft.authorizeContracts(numericContractComplex),
                     alice.transferHBarsTo(numericContractComplex, ONE_HUNDRED_HBARS),
                     numericContractComplex.getBalance().andAssert(balance -> balance.hasTinyBars(ONE_HUNDRED_HBARS)));
         }
