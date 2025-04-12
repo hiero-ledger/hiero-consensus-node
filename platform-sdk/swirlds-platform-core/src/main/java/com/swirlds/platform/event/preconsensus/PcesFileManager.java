@@ -254,6 +254,7 @@ public class PcesFileManager {
         metrics.getPreconsensusEventAverageFileSpan().update(file.getSpan());
         metrics.getPreconsensusEventAverageUnUtilizedFileSpan().update(file.getUnUtilizedSpan());
         updateFileSizeMetrics();
+        metrics.updateMetricsWithPcesFileWritingStats(file.stats());
     }
 
     /**
@@ -299,12 +300,5 @@ public class PcesFileManager {
             metrics.getPreconsensusEventFileAverageSizeMB()
                     .set(((double) totalFileByteCount) / files.getFileCount() * UnitConstants.BYTES_TO_MEBIBYTES);
         }
-    }
-
-    /**
-     * Update metrics with the event size.
-     */
-    public void updateEventSizeMetric(final int i) {
-        metrics.updateAvgEventSize(i);
     }
 }
