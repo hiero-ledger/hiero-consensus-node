@@ -185,6 +185,7 @@ public class PcesMetrics {
         metrics.getOrCreate(PcesMetrics.PCES_AVG_SYNC_DURATION).update(stats.averageSyncDuration());
         metrics.getOrCreate(PcesMetrics.PCES_AVG_WRITE_DURATION).update(stats.averageFsWriteDuration());
         metrics.getOrCreate(PcesMetrics.PCES_AVG_TOTAL_WRITE_DURATION).update(stats.averageTotalWriteDuration());
-        metrics.getOrCreate(PcesMetrics.PCES_BUFFER_EXPANSIONS_COUNTER).add(stats.totalExpansions());
+        if (stats.totalExpansions() > 0)
+            metrics.getOrCreate(PcesMetrics.PCES_BUFFER_EXPANSIONS_COUNTER).add(stats.totalExpansions());
     }
 }
