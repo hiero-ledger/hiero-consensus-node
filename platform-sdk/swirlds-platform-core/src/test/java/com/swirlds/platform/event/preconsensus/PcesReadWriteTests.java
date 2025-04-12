@@ -236,7 +236,7 @@ class PcesReadWriteTests {
     void truncatedEventTest(
             final @NonNull @ParamName("ancientMode") AncientMode ancientMode,
             final @ParamName("truncateOnBoundary") boolean truncateOnBoundary,
-            final @ParamName("pcesFileWriterType2") PcesFileWriterType pcesFileWriterType)
+            final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
