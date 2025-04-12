@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.base.utility.MemoryUtils;
 
 /**
  * Writes preconsensus events to a file using a {@link FileChannel}.
@@ -23,9 +24,9 @@ public class PcesFileChannelWriter implements PcesFileWriter {
     /** The file channel for writing events */
     private final FileChannel channel;
     /** The buffer used to hold data being written to the file */
-    private final ByteBuffer buffer;
+    private ByteBuffer buffer;
     /** Wraps a ByteBuffer so that the protobuf codec can write to it */
-    private final WritableSequentialData writableSequentialData;
+    private WritableSequentialData writableSequentialData;
     /** Tracks the size of the file in bytes */
     private int fileSize;
 
@@ -64,7 +65,13 @@ public class PcesFileChannelWriter implements PcesFileWriter {
 
     @Override
     public void writeEvent(@NonNull final GossipEvent event) throws IOException {
-        buffer.putInt(GossipEvent.PROTOBUF.measureRecord(event));
+        final int size = GossipEvent.PROTOBUF.measureRecord(event);
+        if (size > buffer.capacity()) {
+            MemoryUtils.closeDirectByteBuffer(buffer);
+            buffer = ByteBuffer.allocateDirect(size);
+            writableSequentialData = BufferedData.wrap(buffer);
+        }
+        buffer.putInt(size);
         GossipEvent.PROTOBUF.write(event, writableSequentialData);
         flipWriteClear();
     }
