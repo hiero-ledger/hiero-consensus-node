@@ -99,7 +99,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 public class AirdropToContractSystemContractTest {
 
-    @Contract(contract = "Airdrop", maxAutoAssociations = -1)
+    @Contract(contract = "Airdrop", maxAutoAssociations = -1, creationGas = 3_000_000)
     static SpecContract airdropContract;
 
     @Account(tinybarBalance = 100_000_000_000_000_000L)
@@ -117,7 +117,8 @@ public class AirdropToContractSystemContractTest {
         @HapiTest
         @DisplayName("Can airdrop fungible token to a contract that is already associated to it")
         public Stream<DynamicTest> airdropToContract(
-                @Contract(contract = "AssociateContract", isImmutable = true) SpecContract receiverContract,
+                @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
+                        SpecContract receiverContract,
                 @FungibleToken(initialSupply = 1000L) SpecFungibleToken token) {
             return hapiTest(
                     receiverContract.call("associateTokenToThisContract", token).gas(1_000_000L),
@@ -311,7 +312,8 @@ public class AirdropToContractSystemContractTest {
         @DisplayName(
                 "Airdropped token with custom fees (net of transfers = true) to be paid by the contract receiver should be paid by the sender")
         public Stream<DynamicTest> airdropWithCustomFeesNetOfTransfersTrue(
-                @Contract(contract = "AssociateContract", isImmutable = true) SpecContract receiverContract,
+                @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
+                        SpecContract receiverContract,
                 @NonNull
                         @FungibleToken(
                                 initialSupply = 1_000_000L,
