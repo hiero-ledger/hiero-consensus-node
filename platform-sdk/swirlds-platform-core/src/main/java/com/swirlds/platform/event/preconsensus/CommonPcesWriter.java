@@ -26,11 +26,6 @@ public class CommonPcesWriter {
     private static final Logger logger = LogManager.getLogger(CommonPcesWriter.class);
 
     /**
-     *  If {@code true} {@code FileChannel} is used to write to the file and if {@code false} {@code OutputStream} is used.
-     */
-    private static final boolean USE_FILE_CHANNEL_WRITER = false;
-
-    /**
      * Keeps track of the event stream files on disk.
      */
     private final PcesFileManager fileManager;
