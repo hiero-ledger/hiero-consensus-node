@@ -171,13 +171,6 @@ public class PcesMetrics {
     }
 
     /**
-     * Updates the event size
-     */
-    public void updateAvgEventSize(final int i) {
-        metrics.getOrCreate(AVG_EVENT_SIZE).update(i);
-    }
-
-    /**
      * Updates the metrics with the stats reported by the writer
      */
     public void updateMetricsWithPcesFileWritingStats(final PcesFileWritingStats stats) {
