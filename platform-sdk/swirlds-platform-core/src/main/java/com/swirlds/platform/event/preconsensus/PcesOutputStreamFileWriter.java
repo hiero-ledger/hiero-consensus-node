@@ -24,6 +24,8 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
     private final FileDescriptor fileDescriptor;
     /** Counts the bytes written to the file */
     private final CountingStreamExtension counter;
+    /** Keeps stats of the writing process */
+    private final PcesFileWritingStats stats;
 
     /**
      * Create a new file writer.
@@ -35,6 +37,7 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
         counter = new CountingStreamExtension(false);
         final FileOutputStream fileOutputStream = new FileOutputStream(filePath.toFile());
         fileDescriptor = fileOutputStream.getFD();
+        this.stats = new PcesFileWritingStats();
         out = new SerializableDataOutputStreamImpl(
                 new ExtendableOutputStream(new BufferedOutputStream(fileOutputStream), counter));
     }
@@ -46,7 +49,18 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
 
     @Override
     public void writeEvent(@NonNull final GossipEvent event) throws IOException {
-        out.writePbjRecord(event, GossipEvent.PROTOBUF);
+        long startTartTime = System.currentTimeMillis();
+        try {
+            out.writePbjRecord(event, GossipEvent.PROTOBUF);
+        } finally {
+            stats.updateWriteStats(
+                    startTartTime,
+                    startTartTime,
+                    System.currentTimeMillis(),
+                    GossipEvent.PROTOBUF.measureRecord(event),
+                    false,
+                    System.currentTimeMillis());
+        }
     }
 
     @Override
@@ -56,11 +70,14 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
 
     @Override
     public void sync() throws IOException {
+        long startTartTime = System.currentTimeMillis();
         out.flush();
         try {
             fileDescriptor.sync();
         } catch (final SyncFailedException e) {
             throw new IOException("Failed to sync file", e);
+        } finally {
+            stats.updateSyncStats(startTartTime, System.currentTimeMillis());
         }
     }
 
@@ -72,5 +89,10 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
     @Override
     public long fileSize() {
         return counter.getCount();
+    }
+
+    @Override
+    public PcesFileWritingStats getStats() {
+        return stats;
     }
 }

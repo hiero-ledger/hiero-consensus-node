@@ -29,6 +29,8 @@ public class PcesFileChannelWriter implements PcesFileWriter {
     private WritableSequentialData writableSequentialData;
     /** Tracks the size of the file in bytes */
     private int fileSize;
+    /** Keeps stats of the writing process */
+    private final PcesFileWritingStats stats;
 
     /**
      * Create a new writer that writes events to a file using a {@link FileChannel}.
@@ -55,6 +57,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
         this.channel = FileChannel.open(filePath, allOpenOptions.toArray(OpenOption[]::new));
         this.buffer = ByteBuffer.allocateDirect(BUFFER_CAPACITY);
         this.writableSequentialData = BufferedData.wrap(buffer);
+        this.stats = new PcesFileWritingStats();
     }
 
     @Override
@@ -65,15 +68,27 @@ public class PcesFileChannelWriter implements PcesFileWriter {
 
     @Override
     public void writeEvent(@NonNull final GossipEvent event) throws IOException {
+        long startTartTime = System.currentTimeMillis();
         final int size = GossipEvent.PROTOBUF.measureRecord(event);
-        if (size > buffer.capacity()) {
-            MemoryUtils.closeDirectByteBuffer(buffer);
-            buffer = ByteBuffer.allocateDirect(size);
-            writableSequentialData = BufferedData.wrap(buffer);
+        boolean bufferExpanded = false;
+        long writeStart = startTartTime;
+        long writeFinish = -1;
+        try {
+            if (size > buffer.capacity()) {
+                MemoryUtils.closeDirectByteBuffer(buffer);
+                buffer = ByteBuffer.allocateDirect(size);
+                writableSequentialData = BufferedData.wrap(buffer);
+                bufferExpanded = true;
+            }
+            buffer.putInt(size);
+            writeStart = System.currentTimeMillis();
+            GossipEvent.PROTOBUF.write(event, writableSequentialData);
+            writeFinish = System.currentTimeMillis();
+            flipWriteClear();
+        } finally {
+            stats.updateWriteStats(
+                    startTartTime, writeStart, writeFinish, size, bufferExpanded, System.currentTimeMillis());
         }
-        buffer.putInt(size);
-        GossipEvent.PROTOBUF.write(event, writableSequentialData);
-        flipWriteClear();
     }
 
     /**
@@ -99,8 +114,11 @@ public class PcesFileChannelWriter implements PcesFileWriter {
 
     @Override
     public void sync() throws IOException {
+        long startTartTime = System.currentTimeMillis();
         // benchmarks show that this has horrible performance for the channel writer (in mac-os)
         channel.force(false);
+
+        stats.updateSyncStats(startTartTime, System.currentTimeMillis());
     }
 
     @Override
@@ -111,5 +129,9 @@ public class PcesFileChannelWriter implements PcesFileWriter {
     @Override
     public long fileSize() {
         return fileSize;
+    }
+
+    public PcesFileWritingStats getStats() {
+        return stats;
     }
 }

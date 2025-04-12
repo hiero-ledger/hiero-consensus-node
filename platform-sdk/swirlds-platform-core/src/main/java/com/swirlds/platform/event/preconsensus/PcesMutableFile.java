@@ -155,4 +155,8 @@ public class PcesMutableFile {
     public String toString() {
         return descriptor.toString();
     }
+
+    public PcesFileWritingStats stats() {
+        return writer.getStats();
+    }
 }
