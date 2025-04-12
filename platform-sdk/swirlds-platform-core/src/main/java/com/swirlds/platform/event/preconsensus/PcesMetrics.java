@@ -80,12 +80,13 @@ public class PcesMetrics {
             .withDescription("The average duration of the sync method");
     public static final RunningAverageMetric.Config PCES_AVG_WRITE_DURATION = new RunningAverageMetric.Config(
                     CATEGORY, "pcesAvgWriteDuration")
-            .withDescription("The average duration of the sync method");
+            .withDescription("The average duration of the write fs call");
     public static final RunningAverageMetric.Config PCES_AVG_TOTAL_WRITE_DURATION = new RunningAverageMetric.Config(
                     CATEGORY, "pcesAvgTotalWriteDuration")
-            .withDescription("The average duration of the sync method");
-    public static final Counter.Config PCES_BUFFER_EXPANSIONS_COUNTER =
-            new Counter.Config(CATEGORY, "pcesBufferExpansionCounter");
+            .withDescription("The average of the total duration of the write method");
+    public static final Counter.Config PCES_BUFFER_EXPANSIONS_COUNTER = new Counter.Config(
+                    CATEGORY, "pcesBufferExpansionCounter")
+            .withDescription("How many times the write buffer needed to be expanded");
 
     /**
      * Construct preconsensus event metrics.
