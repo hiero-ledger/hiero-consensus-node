@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -15,44 +14,34 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.test.fixtures.TestFileSystemManager;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContexts;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.IOException;
-import java.util.stream.Stream;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 
+// TODO #18810 do not use mock for testing
 class CommonPcesWriterTest {
 
     private PcesFileManager fileManager;
     private CommonPcesWriter commonPcesWriter;
     private PcesMutableFile pcesMutableFile;
 
-
-    protected static Stream<Arguments> ancientModes() {
-        return Stream.of(Arguments.of(GENERATION_THRESHOLD), Arguments.of(BIRTH_ROUND_THRESHOLD));
-    }
-
-
     @BeforeEach
     void setUp() throws Exception {
-        final PlatformContext platformContext = TestPlatformContextBuilder.create().build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final PlatformContext platformContext = mock(PlatformContext.class);
+        when(platformContext.getConfiguration()).thenReturn(configuration);
 
-        fileManager = new PcesFileManager(platformContext, new PcesFileTracker(BIRTH_ROUND_THRESHOLD), NodeId.of(0), 100);
+        fileManager = mock(PcesFileManager.class);
+        final PcesFile pcesFile = mock(PcesFile.class);
+        when(fileManager.getNextFileDescriptor(anyLong(), anyLong())).thenReturn(pcesFile);
+        pcesMutableFile = mock(PcesMutableFile.class);
+        when(pcesFile.getMutableFile(any())).thenReturn(pcesMutableFile);
 
         // Initialize CommonPcesWriter with mocks
         commonPcesWriter = new CommonPcesWriter(platformContext, fileManager);
@@ -85,7 +74,8 @@ class CommonPcesWriterTest {
 
     @Test
     void testUpdateNonAncientEventBoundary() {
-        EventWindow mockWindow = new EventWindow(999, 100, 10, BIRTH_ROUND_THRESHOLD);
+        EventWindow mockWindow = mock(EventWindow.class);
+        when(mockWindow.getAncientThreshold()).thenReturn(100L);
 
         commonPcesWriter.updateNonAncientEventBoundary(mockWindow);
 

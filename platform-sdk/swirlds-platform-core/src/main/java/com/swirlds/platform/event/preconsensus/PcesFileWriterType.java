@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.List;
 
 /**
  * Represents a type of writers for PCES files.
@@ -24,7 +25,7 @@ public enum PcesFileWriterType {
         return switch (this) {
             case OUTPUT_STREAM -> new PcesOutputStreamFileWriter(path);
             case FILE_CHANNEL -> new PcesFileChannelWriter(path);
-            case FILE_CHANNEL_SYNC -> new PcesFileChannelWriter(path, StandardOpenOption.DSYNC);
+            case FILE_CHANNEL_SYNC -> new PcesFileChannelWriter(path, List.of(StandardOpenOption.DSYNC));
         };
     }
 }
