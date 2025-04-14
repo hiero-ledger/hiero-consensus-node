@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.io;
+package org.hiero.base.io;
 
-import org.hiero.consensus.model.constructable.RuntimeConstructable;
+import org.hiero.base.constructable.RuntimeConstructable;
 
 /**
  * An object implementing this interface will have a way of serializing and deserializing itself. This

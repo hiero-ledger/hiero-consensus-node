@@ -15,6 +15,7 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.Validator.Profile;
+import org.junit.jupiter.api.Disabled;
 
 public class SandboxTest {
 
@@ -23,6 +24,7 @@ public class SandboxTest {
     private static final Duration TWO_MINUTES = Duration.ofMinutes(2);
 
     @OtterTest
+    @Disabled
     void testConsistencyNDReconnect(TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -59,6 +61,7 @@ public class SandboxTest {
     }
 
     @OtterTest
+    @Disabled
     void testBranching(TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();

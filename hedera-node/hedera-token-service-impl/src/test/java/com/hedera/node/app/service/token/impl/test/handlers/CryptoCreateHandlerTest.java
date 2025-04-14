@@ -74,7 +74,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -210,7 +210,11 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     void validateNonZeroShardAndRealm() {
         final long shard = 5;
         final long realm = 10;
-        txn = new CryptoCreateBuilder().withStakedAccountId(3).build();
+        txn = new CryptoCreateBuilder()
+                .withStakedAccountId(3)
+                .withShardId(shard)
+                .withRealmId(realm)
+                .build();
         given(handleContext.body()).willReturn(txn);
         given(pureChecksContext.body()).willReturn(txn);
 

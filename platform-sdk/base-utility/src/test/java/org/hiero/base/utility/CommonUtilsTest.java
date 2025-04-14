@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.utility;
+package org.hiero.base.utility;
 
 import static com.swirlds.common.utility.CommonUtils.byteCountToDisplaySize;
 import static com.swirlds.common.utility.CommonUtils.intToBytes;
-import static org.hiero.consensus.model.utility.CommonUtils.hex;
-import static org.hiero.consensus.model.utility.CommonUtils.unhex;
+import static org.hiero.base.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;

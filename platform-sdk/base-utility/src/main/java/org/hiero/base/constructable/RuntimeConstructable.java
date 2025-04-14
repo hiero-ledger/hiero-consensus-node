@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.constructable;
+package org.hiero.base.constructable;
 
 public interface RuntimeConstructable {
     /**

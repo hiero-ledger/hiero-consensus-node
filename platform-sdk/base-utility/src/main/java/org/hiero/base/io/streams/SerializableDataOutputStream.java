@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.io.streams;
+package org.hiero.base.io.streams;
 
 import com.hedera.pbj.runtime.Codec;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -9,7 +9,7 @@ import java.io.OutputStream;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
-import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.base.io.SelfSerializable;
 
 /**
  * A drop-in replacement for {@link DataOutputStream}, which handles SerializableDet classes specially.

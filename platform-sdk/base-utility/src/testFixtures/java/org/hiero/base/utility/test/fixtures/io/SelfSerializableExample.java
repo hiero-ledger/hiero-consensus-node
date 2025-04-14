@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.test.fixtures.io;
+package org.hiero.base.utility.test.fixtures.io;
 
 import java.io.IOException;
 import java.util.Objects;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class SelfSerializableExample implements SelfSerializable {
     private static final long CLASS_ID = 0x157bddfb3b8a7c75L;

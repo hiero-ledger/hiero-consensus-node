@@ -216,6 +216,8 @@ public class VirtualMapReconnectTestBase {
                         e.printStackTrace(System.err);
                     }
                     assertTrue(failureExpected, "We did not expect an exception on this reconnect attempt! " + e);
+                    teacherBuilder.nextAttempt();
+                    learnerBuilder.nextAttempt();
                 }
 
                 // Reference counts should not "leak" when a reconnect fails

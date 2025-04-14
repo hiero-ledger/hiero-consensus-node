@@ -5,9 +5,9 @@ import com.swirlds.virtualmap.VirtualValue;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.CommonUtils;
 
 public final class TestValue implements VirtualValue {
 

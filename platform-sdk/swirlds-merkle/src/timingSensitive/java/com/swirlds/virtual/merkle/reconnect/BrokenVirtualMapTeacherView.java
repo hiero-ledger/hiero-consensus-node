@@ -11,7 +11,7 @@ import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
 import java.io.IOException;
 import java.util.Queue;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * An intentionally broken teacher tree view. Throws an IO exception after a certain number of nodes have been

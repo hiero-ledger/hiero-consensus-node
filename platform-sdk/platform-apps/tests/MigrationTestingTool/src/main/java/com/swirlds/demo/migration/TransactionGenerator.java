@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.security.SignatureException;
 import java.util.Random;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Generates and executes transactions for the migration testing tool.
