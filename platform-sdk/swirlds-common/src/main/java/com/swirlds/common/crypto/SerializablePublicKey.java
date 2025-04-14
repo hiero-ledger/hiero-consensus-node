@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.crypto;
 
-import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.logging.legacy.LogMarker;
@@ -12,9 +12,9 @@ import java.security.PublicKey;
 import java.security.spec.EncodedKeySpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class SerializablePublicKey implements SelfSerializable {
     private static final long CLASS_ID = 0x2554c14f4f61cd9L;

@@ -5,7 +5,7 @@ import static com.swirlds.common.constructable.constructables.scannable.Primitiv
 
 import com.swirlds.common.constructable.ConstructableClass;
 import com.swirlds.common.constructable.constructors.PrimitiveAndObjectConstructor;
-import org.hiero.consensus.model.constructable.RuntimeConstructable;
+import org.hiero.base.constructable.RuntimeConstructable;
 
 @ConstructableClass(value = CLASS_ID, constructorType = PrimitiveAndObjectConstructor.class)
 public class PrimitiveAndObjectConstructable implements RuntimeConstructable {

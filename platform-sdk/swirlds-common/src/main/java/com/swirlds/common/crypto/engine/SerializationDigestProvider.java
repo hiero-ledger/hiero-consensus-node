@@ -8,9 +8,9 @@ import com.swirlds.logging.legacy.LogMarker;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A {@link CachingOperationProvider} capable of computing hashes for {@link SelfSerializable} objects by hashing the

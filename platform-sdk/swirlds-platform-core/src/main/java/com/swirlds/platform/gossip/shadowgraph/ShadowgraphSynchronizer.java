@@ -18,7 +18,6 @@ import com.swirlds.common.threading.framework.Stoppable;
 import com.swirlds.common.threading.framework.Stoppable.StopBehavior;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.common.threading.pool.ParallelExecutor;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
@@ -41,6 +40,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -341,6 +341,8 @@ public class ShadowgraphSynchronizer {
         final List<PlatformEvent> eventsTheyMayNeed =
                 sendSet.stream().map(ShadowEvent::getEvent).collect(Collectors.toCollection(ArrayList::new));
 
+        SyncUtils.sort(eventsTheyMayNeed);
+
         List<PlatformEvent> sendList;
         if (filterLikelyDuplicates) {
             final long startFilterTime = time.nanoTime();
@@ -350,8 +352,6 @@ public class ShadowgraphSynchronizer {
         } else {
             sendList = eventsTheyMayNeed;
         }
-
-        SyncUtils.sort(eventsTheyMayNeed);
 
         if (maximumEventsPerSync > 0 && sendList.size() > maximumEventsPerSync) {
             sendList = sendList.subList(0, maximumEventsPerSync);

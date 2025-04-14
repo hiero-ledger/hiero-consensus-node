@@ -3,7 +3,7 @@ package com.hedera.node.app.ids;
 
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;

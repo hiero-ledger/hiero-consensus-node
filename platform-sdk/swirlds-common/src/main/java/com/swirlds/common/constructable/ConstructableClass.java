@@ -5,7 +5,7 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import org.hiero.consensus.model.constructable.RuntimeConstructable;
+import org.hiero.base.constructable.RuntimeConstructable;
 
 /**
  * Used to annotate constructable classes. Currently, this is needed if a custom constructor type is needed instead of

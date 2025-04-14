@@ -12,7 +12,7 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasN
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.utility.CommonUtils.unhex;
+import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.common.primitives.Ints;

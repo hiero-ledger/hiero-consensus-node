@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
-import com.swirlds.platform.sequence.set.SequenceSet;
-import com.swirlds.platform.sequence.set.StandardSequenceSet;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
-import org.hiero.base.utility.Clearable;
+import org.hiero.base.Clearable;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.sequence.set.SequenceSet;
+import org.hiero.consensus.model.sequence.set.StandardSequenceSet;
 
 /**
  * Stores all output of consensus used in testing. This output can be used to validate consensus results.

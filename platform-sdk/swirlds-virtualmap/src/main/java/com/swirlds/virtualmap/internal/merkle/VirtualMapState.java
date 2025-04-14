@@ -8,8 +8,8 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.Path;
 import java.io.IOException;
 import java.util.Objects;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Contains state for a {@link VirtualMap}. This state is stored in memory in the merkle tree as

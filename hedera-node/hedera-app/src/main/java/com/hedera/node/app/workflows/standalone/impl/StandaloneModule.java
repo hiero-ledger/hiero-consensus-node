@@ -5,7 +5,6 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACK
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
@@ -17,7 +16,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.SnapshotPlatformStateAccessor;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import dagger.Binds;
@@ -27,7 +25,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import java.util.function.IntSupplier;
 import javax.inject.Singleton;
 
@@ -56,16 +53,14 @@ public interface StandaloneModule {
     static ThrottleAccumulator provideBackendThrottleAccumulator(
             @NonNull final ConfigProvider configProvider,
             final boolean disableThrottling,
-            @NonNull final Metrics metrics,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final Metrics metrics) {
         final var throttleMetrics = new ThrottleMetrics(metrics, BACKEND_THROTTLE);
         return new ThrottleAccumulator(
                 () -> 1,
                 configProvider::getConfiguration,
                 disableThrottling ? NOOP_THROTTLE : BACKEND_THROTTLE,
                 throttleMetrics,
-                ThrottleAccumulator.Verbose.YES,
-                softwareVersionFactory);
+                ThrottleAccumulator.Verbose.YES);
     }
 
     @Provides

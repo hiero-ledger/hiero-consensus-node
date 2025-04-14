@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -17,6 +17,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import org.hiero.base.iterator.TypedIterator;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.crypto.Hashable;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -24,7 +25,6 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
-import org.hiero.consensus.model.utility.TypedIterator;
 
 /**
  * A class used to hold information about an event throughout its lifecycle.
@@ -465,6 +465,12 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     @Override
     public Hash getHash() {
         return metadata.getHash();
+    }
+
+    @NonNull
+    @Override
+    public Iterator<EventDescriptorWrapper> allParentsIterator() {
+        return new TypedIterator<>(metadata.getAllParents().iterator());
     }
 
     @Override

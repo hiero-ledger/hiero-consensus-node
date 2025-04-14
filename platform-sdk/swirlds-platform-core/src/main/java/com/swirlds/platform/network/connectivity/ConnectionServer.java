@@ -14,7 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
+import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 
 /**
  * Listens on a server socket for incoming connections. All new connections are passed on to the supplied handler.

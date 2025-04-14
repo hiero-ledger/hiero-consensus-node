@@ -40,8 +40,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.zip.GZIPInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 @SuppressWarnings({"DataFlowIssue", "removal"})
 public class RecordStreamV6Verifier {

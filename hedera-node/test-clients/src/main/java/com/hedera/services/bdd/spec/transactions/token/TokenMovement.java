@@ -5,7 +5,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdForKeyLookU
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdWithAlias;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTokenId;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.utility.CommonUtils.unhex;
+import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 public class TokenMovement {
     private final long amount;

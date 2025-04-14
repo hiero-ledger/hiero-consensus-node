@@ -29,7 +29,6 @@ import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -66,7 +65,6 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
     /** sleep this many milliseconds after each sync */
     public final int sleepPeriod = 100;
 
-    private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
@@ -150,14 +148,6 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
             // The community as a whole will decide the order of the transactions
             platform.createTransaction(transaction);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
     }
 
     /**
