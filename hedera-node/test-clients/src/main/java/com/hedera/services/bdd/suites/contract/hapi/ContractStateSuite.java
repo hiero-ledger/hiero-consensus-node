@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateAnyLogAfter;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static java.lang.Integer.MAX_VALUE;
@@ -37,7 +38,8 @@ public class ContractStateSuite {
         final var contract = "ThreeSlots";
         return hapiTest(
                 uploadInitCode(contract),
-                contractCreate(contract).gas(7_000_000),
+                overriding("contracts.evm.version", "v0.51"),
+                contractCreate(contract).gas(500_000),
                 // Use slot 'b' only
                 contractCall(contract, "setAB", BigInteger.ZERO, BigInteger.ONE),
                 // Clear slot 'b', use slot 'a' (net-zero slot usage but first key impact)
