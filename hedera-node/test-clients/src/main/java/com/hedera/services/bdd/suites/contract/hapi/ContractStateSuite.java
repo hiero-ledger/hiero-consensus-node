@@ -37,7 +37,7 @@ public class ContractStateSuite {
     final Stream<DynamicTest> netZeroSlotUsageUpdateLogsNoErrors() {
         final var contract = "ThreeSlots";
         return hapiTest(
-                overriding("contracts.maxGasPerSec", "15_000_000"),
+                overriding("contracts.maxGasPerSec", "15_000_000_000"),
                 uploadInitCode(contract),
                 contractCreate(contract).gas(500_000),
                 // Use slot 'b' only
