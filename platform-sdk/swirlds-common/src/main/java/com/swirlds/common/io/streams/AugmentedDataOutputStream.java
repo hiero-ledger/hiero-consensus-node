@@ -9,8 +9,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.time.Instant;
 import java.util.List;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.CommonUtils;
 
 /**
  * This data output stream provides additional functionality for serializing various basic data structures.

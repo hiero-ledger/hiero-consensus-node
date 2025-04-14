@@ -4,8 +4,8 @@ package com.swirlds.demo.iss;
 import static com.swirlds.common.utility.NonCryptographicHashing.hash64;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static org.hiero.base.utility.CompareTo.isGreaterThan;
-import static org.hiero.base.utility.CompareTo.isLessThan;
+import static org.hiero.base.CompareTo.isGreaterThan;
+import static org.hiero.base.CompareTo.isLessThan;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;

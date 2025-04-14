@@ -73,7 +73,6 @@ import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -396,11 +395,7 @@ public class TransactionExecutorsTest {
                 () -> DEFAULT_NODE_INFO,
                 () -> NO_OP_METRICS,
                 new AppThrottleFactory(
-                        () -> config,
-                        () -> state,
-                        () -> ThrottleDefinitions.DEFAULT,
-                        ThrottleAccumulator::new,
-                        v -> new ServicesSoftwareVersion()),
+                        () -> config, () -> state, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
                 () -> NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(config));
         registerServices(appContext, servicesRegistry);
@@ -410,8 +405,7 @@ public class TransactionExecutorsTest {
                 state,
                 servicesRegistry,
                 null,
-                new ServicesSoftwareVersion(
-                        bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion()),
+                bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion(),
                 new ConfigProviderImpl().getConfiguration(),
                 config,
                 NO_OP_METRICS,

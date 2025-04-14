@@ -17,7 +17,7 @@ import com.swirlds.state.State;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 public final class PlatformStateUtils {
 

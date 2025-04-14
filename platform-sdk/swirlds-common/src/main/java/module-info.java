@@ -46,15 +46,10 @@ module com.swirlds.common {
     exports com.swirlds.common.platform;
     exports com.swirlds.common.stream;
     exports com.swirlds.common.stream.internal;
-    exports com.swirlds.common.threading;
     exports com.swirlds.common.threading.framework;
     exports com.swirlds.common.threading.framework.config;
-    exports com.swirlds.common.threading.futures;
-    exports com.swirlds.common.threading.locks;
-    exports com.swirlds.common.threading.locks.locked;
     exports com.swirlds.common.threading.manager;
     exports com.swirlds.common.threading.pool;
-    exports com.swirlds.common.threading.utility;
     exports com.swirlds.common.time;
     exports com.swirlds.common.utility;
     exports com.swirlds.common.utility.throttle;
@@ -127,8 +122,6 @@ module com.swirlds.common {
             com.swirlds.platform.test,
             com.swirlds.platform.gui;
     exports com.swirlds.common.startup;
-    exports com.swirlds.common.threading.atomic;
-    exports com.swirlds.common.concurrent;
     exports com.swirlds.common.merkle.synchronization.stats;
 
     requires transitive com.hedera.pbj.runtime;
@@ -137,6 +130,7 @@ module com.swirlds.common {
     requires transitive com.swirlds.logging;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.metrics.impl;
+    requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires transitive com.fasterxml.jackson.core;
