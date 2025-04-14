@@ -27,7 +27,6 @@ jmhModuleInfo {
     requires("jmh.core")
     requires("org.apache.logging.log4j")
     requires("org.hiero.consensus.model")
-    requires("org.hiero.base.utility")
     requiresStatic("com.github.spotbugs.annotations")
     runtimeOnly("com.swirlds.config.impl")
 }
