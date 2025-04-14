@@ -64,7 +64,6 @@ import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPushVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
-import com.swirlds.virtualmap.internal.reconnect.ReconnectHashLeafFlusher;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashListener;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectNodeRemover;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectState;
@@ -321,8 +320,6 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
      */
     private VirtualRootNode<K, V> originalMap;
 
-    private ReconnectHashLeafFlusher<K, V> reconnectFlusher;
-
     private ReconnectNodeRemover<K, V> nodeRemover;
 
     private final long fastCopyVersion;
@@ -500,11 +497,14 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
                 firstLeafPath,
                 lastLeafPath,
                 getRoute());
-        // Full leaf rehashing has nothing to do with reconnects, but existing reconnect mechanisms,
-        // flusher and hash listener, work just fine in this scenario
-        final ReconnectHashLeafFlusher<K, V> flusher = new ReconnectHashLeafFlusher<>(
-                keySerializer, valueSerializer, dataSource, virtualMapConfig.flushInterval(), statistics);
-        final ReconnectHashListener<K, V> hashListener = new ReconnectHashListener<>(flusher);
+        final FullLeafRehashHashListener<K, V> hashListener = new FullLeafRehashHashListener<>(
+                firstLeafPath,
+                lastLeafPath,
+                keySerializer,
+                valueSerializer,
+                dataSource,
+                virtualMapConfig.flushInterval(),
+                statistics);
 
         // This background thread will be responsible for hashing the tree and sending the
         // data to the hash listener to flush.
@@ -1510,17 +1510,8 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
         assert originalMap != null;
         // During reconnect we want to look up state from the original records
         final VirtualStateAccessor originalState = originalMap.getState();
-        reconnectFlusher = new ReconnectHashLeafFlusher<>(
-                keySerializer,
-                valueSerializer,
-                reconnectRecords.getDataSource(),
-                virtualMapConfig.flushInterval(),
-                statistics);
         nodeRemover = new ReconnectNodeRemover<>(
-                originalMap.getRecords(),
-                originalState.getFirstLeafPath(),
-                originalState.getLastLeafPath(),
-                reconnectFlusher);
+                originalMap.getRecords(), originalState.getFirstLeafPath(), originalState.getLastLeafPath());
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PUSH -> new LearnerPushVirtualTreeView<>(
                     reconnectConfig, this, originalMap.records, originalState, reconnectState, nodeRemover, mapStats);
@@ -1586,9 +1577,17 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
     }
 
     public void prepareReconnectHashing(final long firstLeafPath, final long lastLeafPath) {
-        assert reconnectFlusher != null : "Cannot prepare reconnect hashing, since reconnect is not started";
+        assert nodeRemover != null : "Cannot prepare reconnect hashing, since reconnect is not started";
         // The hash listener will be responsible for flushing stuff to the reconnect data source
-        final ReconnectHashListener<K, V> hashListener = new ReconnectHashListener<>(reconnectFlusher);
+        final ReconnectHashListener<K, V> hashListener = new ReconnectHashListener<>(
+                firstLeafPath,
+                lastLeafPath,
+                keySerializer,
+                valueSerializer,
+                reconnectRecords.getDataSource(),
+                virtualMapConfig.reconnectFlushInterval(),
+                statistics,
+                nodeRemover);
 
         // This background thread will be responsible for hashing the tree and sending the
         // data to the hash listener to flush.

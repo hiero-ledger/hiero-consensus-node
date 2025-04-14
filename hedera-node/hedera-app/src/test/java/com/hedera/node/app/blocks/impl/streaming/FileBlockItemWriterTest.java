@@ -68,6 +68,7 @@ class FileBlockItemWriterTest {
     protected void testOpenBlock() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
@@ -91,6 +92,7 @@ class FileBlockItemWriterTest {
     protected void testOpenBlockCannotInitializeTwice() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
@@ -109,6 +111,7 @@ class FileBlockItemWriterTest {
     protected void testOpenBlockNegativeBlockNumber() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
@@ -122,6 +125,7 @@ class FileBlockItemWriterTest {
     protected void testWriteItem() throws IOException {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
@@ -163,6 +167,7 @@ class FileBlockItemWriterTest {
     protected void testWriteItemBeforeOpen() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
@@ -179,6 +184,7 @@ class FileBlockItemWriterTest {
     protected void testCloseCompleteBlock() throws IOException {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
@@ -206,6 +212,7 @@ class FileBlockItemWriterTest {
     protected void testCloseCompleteBlockNotOpen() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
@@ -220,6 +227,7 @@ class FileBlockItemWriterTest {
     protected void testCloseCompleteBlockAlreadyClosed() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
         when(blockStreamConfig.blockFileDir()).thenReturn("N/A");
         when(fileSystem.getPath(anyString())).thenReturn(tempDir);
 
@@ -246,6 +254,7 @@ class FileBlockItemWriterTest {
     void flushingPendingRenamesZippedItemsToPndAndIncludesProofContext() throws IOException, ParseException {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.compressFilesOnCreation()).thenReturn(true);
         when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
 
         final var subject = new FileBlockItemWriter(configProvider, selfNodeInfo, FileSystems.getDefault());

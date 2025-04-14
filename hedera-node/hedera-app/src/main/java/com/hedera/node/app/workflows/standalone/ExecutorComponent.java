@@ -8,6 +8,7 @@ import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.platform.PlatformStateModule;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
@@ -49,6 +50,7 @@ import javax.inject.Singleton;
             HederaStateInjectionModule.class,
             ThrottleServiceModule.class,
             FacilityInitModule.class,
+            PlatformStateModule.class,
         })
 public interface ExecutorComponent {
     @Component.Builder

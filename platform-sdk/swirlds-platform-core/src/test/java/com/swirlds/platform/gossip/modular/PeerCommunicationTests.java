@@ -15,15 +15,11 @@ import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.crypto.PublicStores;
 import com.swirlds.platform.gossip.ProtocolConfig;
-import com.swirlds.platform.network.PeerCommunication;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.handshake.VersionCompareHandshake;
 import com.swirlds.platform.network.protocol.HeartbeatProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadInfo;
-import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,13 +36,12 @@ public class PeerCommunicationTests {
 
     private static final int MAX_NODES = 10;
     private static final int CHECK_LOOPS = 30;
-    private static final int LOOP_WAIT = 500;
+    private static final int LOOP_WAIT = 200;
 
     private Map<NodeId, KeysAndCerts> perNodeCerts;
     private PlatformContext platformContext;
     private List<PeerInfo> allPeers;
     private PeerCommunication[] peerCommunications;
-    private final List<TestPeerProtocol> protocolsForDebug = Collections.synchronizedList(new ArrayList<>());
     private final ArrayList<CommunicationEvent> events = new ArrayList<>();
 
     @BeforeEach
@@ -66,7 +61,6 @@ public class PeerCommunicationTests {
 
         this.platformContext = PlatformContext.create(configuration);
         events.clear();
-        protocolsForDebug.clear();
     }
 
     @AfterEach
@@ -108,8 +102,7 @@ public class PeerCommunicationTests {
             final List<ProtocolRunnable> handshakeProtocols = List.of(versionCompareHandshake);
 
             List<Protocol> protocols = new ArrayList<>();
-            var testProtocol = new TestProtocol(selfPeer.nodeId(), events, protocolsForDebug);
-            protocols.add(testProtocol);
+            protocols.add(new TestProtocol(selfPeer.nodeId(), events));
             protocols.add(HeartbeatProtocol.create(platformContext, pc.getNetworkMetrics()));
 
             pc.initialize(threadManager, handshakeProtocols, protocols);
@@ -161,22 +154,6 @@ public class PeerCommunicationTests {
         }
 
         synchronized (events) {
-            // if we haven't done early exit, something is fishy, even if we succeed just afterwards
-            // let's dump whatever metadata we can
-
-            synchronized (protocolsForDebug) {
-                protocolsForDebug.forEach(protocol -> {
-                    System.out.println(protocol.getDebugInfo());
-                });
-            }
-
-            // this is a temporary debug code, will be removed
-            ThreadMXBean threadMxBean = ManagementFactory.getThreadMXBean();
-
-            for (ThreadInfo ti : threadMxBean.dumpAllThreads(true, true)) {
-                System.out.print(ti.toString());
-            }
-
             assertTrue(
                     events.stream().filter(evt -> evt.isFrom(nodeA, nodeB)).count() >= threshold,
                     () -> "Expected communication between " + nodeA + " and " + nodeB);

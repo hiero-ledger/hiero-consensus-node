@@ -4,7 +4,6 @@ package com.hedera.node.app.services;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
@@ -13,6 +12,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.lifecycle.StartupNetworks;
@@ -21,6 +21,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -59,8 +60,8 @@ public class OrderedServiceMigrator implements ServiceMigrator {
     public List<StateChanges.Builder> doMigrations(
             @NonNull final MerkleNodeState state,
             @NonNull final ServicesRegistry servicesRegistry,
-            @Nullable final SemanticVersion previousVersion,
-            @NonNull final SemanticVersion currentVersion,
+            @Nullable final SoftwareVersion previousVersion,
+            @NonNull final SoftwareVersion currentVersion,
             @NonNull final Configuration appConfig,
             @NonNull final Configuration platformConfig,
             @NonNull final Metrics metrics,
@@ -76,6 +77,9 @@ public class OrderedServiceMigrator implements ServiceMigrator {
 
         final Map<String, Object> sharedValues = new HashMap<>();
         final var migrationStateChanges = new MigrationStateChanges(state, appConfig, storeMetricsService);
+        final var deserializedPbjVersion = Optional.ofNullable(previousVersion)
+                .map(SoftwareVersion::getPbjSemanticVersion)
+                .orElse(null);
         servicesRegistry.registrations().forEach(registration -> {
             // FUTURE We should have metrics here to keep track of how long it takes to
             // migrate each service
@@ -85,8 +89,8 @@ public class OrderedServiceMigrator implements ServiceMigrator {
             final var registry = (MerkleSchemaRegistry) registration.registry();
             registry.migrate(
                     state,
-                    previousVersion,
-                    currentVersion,
+                    deserializedPbjVersion,
+                    currentVersion.getPbjSemanticVersion(),
                     appConfig,
                     platformConfig,
                     metrics,

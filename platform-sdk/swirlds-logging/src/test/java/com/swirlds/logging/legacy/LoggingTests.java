@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
+import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.logging.legacy.json.JsonLogEntry;
 import com.swirlds.logging.legacy.json.JsonParser;
 import com.swirlds.logging.legacy.payload.ReconnectLoadFailurePayload;
@@ -23,7 +24,6 @@ import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -146,10 +145,6 @@ public final class ParsedBucket extends Bucket {
         }
     }
 
-    public void forEachEntry(final Consumer<BucketEntry> consumer) {
-        entries.forEach(consumer);
-    }
-
     public void readFrom(final ReadableSequentialData in) {
         // defaults
         bucketIndex = 0;
@@ -230,7 +225,7 @@ public final class ParsedBucket extends Bucket {
      * in a bucket, and a bucket entry already exists for the same key, instead of creating
      * a new entry, we just update the value in the existing entry.
      */
-    public static class BucketEntry {
+    private static class BucketEntry {
 
         /** Key hash code */
         private final int hashCode;

@@ -24,6 +24,7 @@ import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -48,6 +49,7 @@ import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
@@ -99,7 +101,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected final AtomicInteger nextNano = new AtomicInteger(0);
     protected final Metrics metrics;
     protected final Hedera hedera;
-    protected final SemanticVersion version;
+    protected final ServicesSoftwareVersion version;
     protected final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
     /**
@@ -164,7 +166,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                         this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
                 metrics,
                 new PlatformStateFacade());
-        version = hedera.getSemanticVersion();
+        version = (ServicesSoftwareVersion) hedera.getSoftwareVersion();
         blockStreamEnabled = hedera.isBlockStreamEnabled();
         Runtime.getRuntime().addShutdownHook(new Thread(executorService::shutdownNow));
     }
@@ -219,7 +221,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     }
 
     @Override
-    public SemanticVersion version() {
+    public SoftwareVersion version() {
         return version;
     }
 
@@ -268,7 +270,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 nodeAccountId,
                 switch (syntheticVersion) {
                     case PAST -> EARLIER_SEMVER;
-                    case PRESENT -> version;
+                    case PRESENT -> version.getPbjSemanticVersion();
                     case FUTURE -> LATER_SEMVER;
                 });
     }
@@ -357,12 +359,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         requireNonNull(nodeAccountId);
         requireNonNull(nodeId);
         // Bypass ingest for any other node, but make a little noise to remind test author this happens
-        log.warn(
-                "Bypassing ingest checks for transaction to node{} ({}.{}.{})",
-                nodeId,
-                nodeAccountId.getShardNum(),
-                nodeAccountId.getRealmNum(),
-                nodeAccountId.getAccountNum());
+        log.warn("Bypassing ingest checks for transaction to node{} (0.0.{})", nodeId, nodeAccountId.getAccountNum());
     }
 
     private static boolean isFree(@NonNull final Query query) {

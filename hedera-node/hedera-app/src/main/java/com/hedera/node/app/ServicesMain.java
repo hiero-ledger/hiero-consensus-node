@@ -145,7 +145,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      */
     @Override
     public SemanticVersion getSemanticVersion() {
-        return hederaOrThrow().getSemanticVersion();
+        return hederaOrThrow().getSoftwareVersion().getPbjSemanticVersion();
     }
 
     /**
@@ -285,7 +285,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         hedera = newHedera(metrics, platformStateFacade);
-        final var version = hedera.getSemanticVersion();
+        final var version = hedera.getSoftwareVersion();
         final AtomicReference<Network> genesisNetwork = new AtomicReference<>();
         logger.info("Starting node {} with version {}", selfId, version);
 
@@ -307,7 +307,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final HashedReservedSignedState reservedState = loadInitialState(
                 platformConfig,
                 recycleBin,
-                version,
+                version.getPbjSemanticVersion(),
                 () -> {
                     Network network;
                     try {
@@ -352,7 +352,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final var platformBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
                         Hedera.SWIRLD_NAME,
-                        version,
+                        version.getPbjSemanticVersion(),
                         initialState,
                         consensusStateEventHandler,
                         selfId,

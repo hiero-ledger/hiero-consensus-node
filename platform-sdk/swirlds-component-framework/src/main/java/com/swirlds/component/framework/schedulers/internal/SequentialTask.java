@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.schedulers.internal;
 
+import com.swirlds.common.concurrent.AbstractTask;
 import com.swirlds.common.metrics.extensions.FractionalTimer;
 import com.swirlds.component.framework.counters.ObjectCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -8,7 +9,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
-import org.hiero.base.concurrent.AbstractTask;
 
 /**
  * A task in a {@link SequentialTaskScheduler}.

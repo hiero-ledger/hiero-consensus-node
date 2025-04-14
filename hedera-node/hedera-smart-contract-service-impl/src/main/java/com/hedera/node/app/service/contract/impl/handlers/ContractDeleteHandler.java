@@ -26,6 +26,7 @@ import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractDeleteStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.service.token.api.TokenServiceApi.FreeAliasOnDeletion;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -107,7 +108,12 @@ public class ContractDeleteHandler implements TransactionHandler {
         final var deletedId = toBeDeleted.accountIdOrThrow();
         context.storeFactory()
                 .serviceApi(TokenServiceApi.class)
-                .deleteAndTransfer(deletedId, obtainer.accountIdOrThrow(), context.expiryValidator(), recordBuilder);
+                .deleteAndTransfer(
+                        deletedId,
+                        obtainer.accountIdOrThrow(),
+                        context.expiryValidator(),
+                        recordBuilder,
+                        FreeAliasOnDeletion.YES);
         recordBuilder.contractID(asNumericContractId(entityIdFactory, deletedId));
     }
 

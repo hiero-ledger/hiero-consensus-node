@@ -13,7 +13,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
-import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.Transaction;
@@ -88,10 +87,5 @@ public class FakeEvent implements Event {
     @NonNull
     public HederaFunctionality function() {
         return TransactionParts.from(transaction.getApplicationTransaction()).function();
-    }
-
-    @NonNull
-    public Hash getHash() {
-        return new Hash();
     }
 }

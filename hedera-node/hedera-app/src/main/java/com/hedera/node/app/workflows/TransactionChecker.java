@@ -376,10 +376,17 @@ public class TransactionChecker {
     void checkJumboTransactionBody(TransactionInfo txInfo) throws PreCheckException {
         final var jumboTxnEnabled = jumboTransactionsConfig.isEnabled();
         final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
+        final var maxJumboEthereumCallDataSize = jumboTransactionsConfig.ethereumMaxCallDataSize();
 
         if (jumboTxnEnabled
                 && txInfo.serializedTransaction().length() > hederaConfig.transactionMaxBytes()
                 && !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))) {
+            throw new PreCheckException(TRANSACTION_OVERSIZE);
+        }
+
+        if (txInfo.txBody() != null
+                && txInfo.txBody().hasEthereumTransaction()
+                && txInfo.txBody().ethereumTransaction().ethereumData().length() > maxJumboEthereumCallDataSize) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
     }

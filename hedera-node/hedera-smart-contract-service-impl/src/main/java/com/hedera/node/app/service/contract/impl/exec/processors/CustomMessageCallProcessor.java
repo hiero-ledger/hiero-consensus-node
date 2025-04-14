@@ -29,6 +29,7 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
@@ -191,10 +192,11 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
     }
 
     /**
+     * @param config the current configuration
      * @return whether the implicit creation is currently enabled
      */
-    public boolean isImplicitCreationEnabled() {
-        return featureFlags.isImplicitCreationEnabled();
+    public boolean isImplicitCreationEnabled(@NonNull Configuration config) {
+        return featureFlags.isImplicitCreationEnabled(config);
     }
 
     private void handleNonExtantSystemAccount(

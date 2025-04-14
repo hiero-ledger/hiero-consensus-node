@@ -14,11 +14,13 @@ import com.hedera.node.config.ConfigProvider;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -38,7 +40,7 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
     private final Executor executor;
     private final ConfigProvider configProvider;
     private final StartupNetworks startupNetworks;
-    private final SemanticVersion softwareVersionFactory;
+    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
     private final EntityIdFactory entityIdFactory;
 
     @Inject
@@ -47,7 +49,7 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
             @NonNull @Named("FreezeService") final Executor executor,
             @NonNull final ConfigProvider configProvider,
             @NonNull final StartupNetworks startupNetworks,
-            @NonNull final SemanticVersion softwareVersionFactory,
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
         this.stateAccessor = requireNonNull(stateAccessor);
         this.executor = requireNonNull(executor);

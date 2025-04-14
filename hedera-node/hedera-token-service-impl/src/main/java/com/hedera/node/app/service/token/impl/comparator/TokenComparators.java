@@ -18,7 +18,7 @@ import java.util.Objects;
  */
 public final class TokenComparators {
     private TokenComparators() {
-        throw new UnsupportedOperationException("Utility Class");
+        throw new IllegalStateException("Utility Class");
     }
 
     /**

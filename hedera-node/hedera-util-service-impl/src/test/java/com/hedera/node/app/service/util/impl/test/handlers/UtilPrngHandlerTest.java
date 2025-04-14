@@ -67,7 +67,9 @@ class UtilPrngHandlerTest {
 
     @BeforeEach
     void setUp() {
-        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("utilPrng.isEnabled", true)
+                .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
 
         subject = new UtilPrngHandler();

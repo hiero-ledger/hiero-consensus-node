@@ -26,6 +26,7 @@ import com.swirlds.platform.consensus.CountingVote;
 import com.swirlds.platform.consensus.InitJudges;
 import com.swirlds.platform.consensus.RoundElections;
 import com.swirlds.platform.event.EventUtils;
+import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.roster.RosterUtils;
@@ -43,7 +44,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
@@ -640,9 +640,8 @@ public class ConsensusImpl implements Consensus {
             @NonNull final CountingVote countingVote) {
         // a coin round. Vote randomly unless you strongly see a supermajority. Don't decide.
         consensusMetrics.coinRound();
-        final boolean vote = countingVote.isSupermajority()
-                ? countingVote.getVote()
-                : ConsensusUtils.coin(votingWitness.getBaseEvent().getSignature());
+        final boolean vote =
+                countingVote.isSupermajority() ? countingVote.getVote() : ConsensusUtils.coin(votingWitness);
 
         votingWitness.setVote(candidateWitness, vote);
     }

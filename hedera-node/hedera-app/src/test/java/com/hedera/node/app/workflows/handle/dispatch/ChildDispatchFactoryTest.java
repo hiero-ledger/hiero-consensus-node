@@ -37,6 +37,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.Dispatch;
@@ -145,7 +146,8 @@ class ChildDispatchFactoryTest {
                 serviceScopeLookup,
                 exchangeRateManager,
                 transactionChecker,
-                deduplicationCache);
+                deduplicationCache,
+                ServicesSoftwareVersion::new);
     }
 
     @Test

@@ -142,7 +142,8 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
 
         @Override
         public boolean createTransaction(@NonNull byte[] transaction) {
-            return queue.add(new FakeEvent(defaultNodeId, now(), version, createAppPayloadWrapper(transaction)));
+            return queue.add(new FakeEvent(
+                    defaultNodeId, now(), version.getPbjSemanticVersion(), createAppPayloadWrapper(transaction)));
         }
 
         /**
@@ -195,10 +196,13 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
                     requireNonNull(roster),
                     List.of(new FakeConsensusEvent(
                             new FakeEvent(
-                                    defaultNodeId, firstRoundTime, version, createAppPayloadWrapper(serializedTxn)),
+                                    defaultNodeId,
+                                    firstRoundTime,
+                                    version.getPbjSemanticVersion(),
+                                    createAppPayloadWrapper(serializedTxn)),
                             consensusOrder.getAndIncrement(),
                             firstRoundTime,
-                            version)));
+                            version.getPbjSemanticVersion())));
         }
     }
 }

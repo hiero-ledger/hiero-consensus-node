@@ -13,6 +13,7 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.CryptoFeeBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.service.token.api.TokenServiceApi.FreeAliasOnDeletion;
 import com.hedera.node.app.service.token.records.CryptoDeleteStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -78,7 +79,8 @@ public class CryptoDeleteHandler implements TransactionHandler {
                         op.deleteAccountIDOrThrow(),
                         op.transferAccountIDOrThrow(),
                         context.expiryValidator(),
-                        context.savepointStack().getBaseBuilder(CryptoDeleteStreamBuilder.class));
+                        context.savepointStack().getBaseBuilder(CryptoDeleteStreamBuilder.class),
+                        accountsConfig.releaseAliasAfterDeletion() ? FreeAliasOnDeletion.YES : FreeAliasOnDeletion.NO);
     }
 
     @NonNull

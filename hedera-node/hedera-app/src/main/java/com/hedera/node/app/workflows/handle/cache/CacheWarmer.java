@@ -19,10 +19,12 @@ import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -44,14 +46,14 @@ public class CacheWarmer {
     private final HederaConfig hederaConfig;
 
     @NonNull
-    private final SemanticVersion softwareVersionFactory;
+    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     @Inject
     public CacheWarmer(
             @NonNull final TransactionChecker checker,
             @NonNull final TransactionDispatcher dispatcher,
             @NonNull @Named("CacheWarmer") final Executor executor,
-            @NonNull final SemanticVersion softwareVersionFactory,
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
             @NonNull final ConfigProvider configProvider) {
         this.checker = requireNonNull(checker);
         this.dispatcher = requireNonNull(dispatcher);

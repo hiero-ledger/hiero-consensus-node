@@ -39,6 +39,7 @@ import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -51,11 +52,13 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.Instant;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -141,7 +144,7 @@ class ParentTxnTest {
     @Mock
     private Consumer<StateSignatureTransaction> stateSignatureTxnCallback;
 
-    private SemanticVersion softwareVersionFactory = SemanticVersion.DEFAULT;
+    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory = ServicesSoftwareVersion::new;
 
     @BeforeEach
     void setUp() {

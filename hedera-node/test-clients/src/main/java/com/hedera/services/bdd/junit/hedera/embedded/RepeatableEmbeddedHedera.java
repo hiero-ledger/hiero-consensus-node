@@ -191,7 +191,8 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
 
         @Override
         public boolean createTransaction(@NonNull final byte[] transaction) {
-            lastCreatedEvent = new FakeEvent(defaultNodeId, time.now(), version, createAppPayloadWrapper(transaction));
+            lastCreatedEvent = new FakeEvent(
+                    defaultNodeId, time.now(), version.getPbjSemanticVersion(), createAppPayloadWrapper(transaction));
             return true;
         }
 
@@ -213,10 +214,13 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
                     requireNonNull(roster),
                     List.of(new FakeConsensusEvent(
                             new FakeEvent(
-                                    defaultNodeId, firstRoundTime, version, createAppPayloadWrapper(serializedTxn)),
+                                    defaultNodeId,
+                                    firstRoundTime,
+                                    version.getPbjSemanticVersion(),
+                                    createAppPayloadWrapper(serializedTxn)),
                             consensusOrder.getAndIncrement(),
                             firstRoundTime,
-                            version)));
+                            version.getPbjSemanticVersion())));
         }
 
         private Round nextConsensusRound() {

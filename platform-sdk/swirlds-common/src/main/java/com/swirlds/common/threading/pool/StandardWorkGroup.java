@@ -4,6 +4,7 @@ package com.swirlds.common.threading.pool;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
+import com.swirlds.common.threading.futures.ConcurrentFuturePool;
 import com.swirlds.common.threading.manager.ThreadManager;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -13,7 +14,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.concurrent.futures.ConcurrentFuturePool;
 
 /**
  * A group of {@link Thread}s designed to support the following paradigm:

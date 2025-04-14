@@ -17,6 +17,7 @@ import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
@@ -27,13 +28,14 @@ class FallenBehindManagerTest {
             RandomRosterBuilder.create(Randotron.create()).withSize(numNodes).build();
     private final double fallenBehindThreshold = 0.5;
     private final NodeId selfId = NodeId.of(roster.rosterEntries().get(0).nodeId());
+    private final AtomicInteger fallenBehindNotification = new AtomicInteger(0);
     private final ReconnectConfig config = new TestConfigBuilder()
             .withValue(ReconnectConfig_.FALLEN_BEHIND_THRESHOLD, fallenBehindThreshold)
             .getOrCreateConfig()
             .getConfigData(ReconnectConfig.class);
     final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
-    private final FallenBehindManager manager =
-            new FallenBehindManagerImpl(selfId, peers.size(), mock(StatusActionSubmitter.class), config);
+    private final FallenBehindManager manager = new FallenBehindManagerImpl(
+            selfId, peers.size(), mock(StatusActionSubmitter.class), fallenBehindNotification::incrementAndGet, config);
 
     @Test
     void test() {
@@ -69,6 +71,7 @@ class FallenBehindManagerTest {
         assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
 
         manager.resetFallenBehind();
+        fallenBehindNotification.set(0);
         assertFallenBehind(false, 0, "resetting should return to default");
     }
 
@@ -111,6 +114,7 @@ class FallenBehindManagerTest {
         assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
 
         manager.resetFallenBehind();
+        fallenBehindNotification.set(0);
         assertFallenBehind(false, 0, "resetting should return to default");
     }
 
@@ -118,5 +122,16 @@ class FallenBehindManagerTest {
             final boolean expectedFallenBehind, final int expectedNumFallenBehind, final String message) {
         assertEquals(expectedFallenBehind, manager.hasFallenBehind(), message);
         assertEquals(expectedNumFallenBehind, manager.numReportedFallenBehind(), message);
+        if (expectedFallenBehind) {
+            assertEquals(
+                    1,
+                    fallenBehindNotification.get(),
+                    "if fallen behind, the platform should be notified exactly once");
+        } else {
+            assertEquals(
+                    0,
+                    fallenBehindNotification.get(),
+                    "if not fallen behind, the platform should not have been notified");
+        }
     }
 }

@@ -40,7 +40,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.Timestamp;
@@ -67,6 +66,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -197,7 +197,7 @@ class IngestCheckerTest extends AppTestBase {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                SemanticVersion.DEFAULT,
+                ServicesSoftwareVersion::new,
                 null);
     }
 
@@ -265,7 +265,7 @@ class IngestCheckerTest extends AppTestBase {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                SemanticVersion.DEFAULT,
+                ServicesSoftwareVersion::new,
                 null);
 
         // Then the checker should throw a PreCheckException

@@ -105,9 +105,6 @@ jobs:
   hapi-tests-iss:
     name: HAPI Tests (ISS)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - dependency-check
-      - spotless
     with:
       custom-job-label: Standard
       enable-unit-tests: false

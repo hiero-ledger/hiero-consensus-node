@@ -11,6 +11,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -24,7 +25,7 @@ import java.util.function.Function;
  * Defines the {@link PlatformState} singleton and initializes it at genesis.
  */
 public class V0540PlatformStateSchema extends Schema {
-    private static final Function<Configuration, SemanticVersion> UNAVAILABLE_VERSION_FN = config -> {
+    private static final Function<Configuration, SoftwareVersion> UNAVAILABLE_VERSION_FN = config -> {
         throw new IllegalStateException("No version information available");
     };
 
@@ -39,13 +40,13 @@ public class V0540PlatformStateSchema extends Schema {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(54).patch(0).build();
 
-    private final Function<Configuration, SemanticVersion> versionFn;
+    private final Function<Configuration, SoftwareVersion> versionFn;
 
     public V0540PlatformStateSchema() {
         this(UNAVAILABLE_VERSION_FN);
     }
 
-    public V0540PlatformStateSchema(@NonNull final Function<Configuration, SemanticVersion> versionFn) {
+    public V0540PlatformStateSchema(@NonNull final Function<Configuration, SoftwareVersion> versionFn) {
         super(VERSION);
         this.versionFn = requireNonNull(versionFn);
     }
@@ -73,7 +74,7 @@ public class V0540PlatformStateSchema extends Schema {
 
     private Consumer<PlatformStateModifier> genesisStateSpec(@NonNull final MigrationContext ctx) {
         return v -> {
-            v.setCreationSoftwareVersion(versionFn.apply(ctx.appConfig()));
+            v.setCreationSoftwareVersion(versionFn.apply(ctx.appConfig()).getPbjSemanticVersion());
             v.setRound(0);
             v.setLegacyRunningEventHash(null);
             v.setConsensusTimestamp(Instant.EPOCH);

@@ -22,13 +22,16 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
-import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.GasLimitDeterministicThrottle;
+import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -76,28 +79,32 @@ class AppThrottleFactoryTest {
     private DeterministicThrottle lastThrottle;
 
     @Mock
-    private LeakyBucketDeterministicThrottle gasThrottle;
-
-    @Mock
-    private LeakyBucketDeterministicThrottle bytesThrottle;
+    private GasLimitDeterministicThrottle gasThrottle;
 
     @Mock
     private AppThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;
 
     private AppThrottleFactory subject;
-    private SemanticVersion softwareVersionFactory;
+    private Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     @BeforeEach
     void setUp() {
-        softwareVersionFactory = SemanticVersion.DEFAULT;
+        softwareVersionFactory = v -> new ServicesSoftwareVersion();
         subject = new AppThrottleFactory(
-                config, () -> state, () -> ThrottleDefinitions.DEFAULT, throttleAccumulatorFactory);
+                config,
+                () -> state,
+                () -> ThrottleDefinitions.DEFAULT,
+                throttleAccumulatorFactory,
+                softwareVersionFactory);
     }
 
     @Test
     void initializesAccumulatorFromCurrentConfigAndGivenDefinitions() {
         given(throttleAccumulatorFactory.newThrottleAccumulator(
-                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
+                        eq(config),
+                        argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR),
+                        eq(BACKEND_THROTTLE),
+                        eq(softwareVersionFactory)))
                 .willReturn(throttleAccumulator);
         given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
         given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);

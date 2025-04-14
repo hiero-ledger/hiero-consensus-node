@@ -353,7 +353,7 @@ public final class MerkleDb {
         final int tableId = getNextTableId();
         tableConfigs.set(tableId, new TableMetadata(tableId, label, tableConfig));
         final MerkleDbDataSource dataSource =
-                new MerkleDbDataSource(this, configuration, label, tableId, tableConfig, dbCompactionEnabled, false);
+                new MerkleDbDataSource(this, label, tableId, tableConfig, dbCompactionEnabled, false);
         dataSources.set(tableId, dataSource);
         // New tables are always primary
         primaryTables.add(tableId);
@@ -383,7 +383,7 @@ public final class MerkleDb {
         final String label = dataSource.getTableName();
         final int tableId = getNextTableId();
         importDataSource(dataSource, tableId, !makeCopyPrimary, makeCopyPrimary); // import to itself == copy
-        return getDataSource(configuration, tableId, label, makeCopyPrimary, offlineUse);
+        return getDataSource(tableId, label, makeCopyPrimary, offlineUse);
     }
 
     private void importDataSource(
@@ -414,10 +414,6 @@ public final class MerkleDb {
         storeMetadata();
     }
 
-    public MerkleDbDataSource getDataSource(final String name, final boolean dbCompactionEnabled) throws IOException {
-        return getDataSource(configuration, name, dbCompactionEnabled);
-    }
-
     /**
      * Returns a data source with the given name. If the data source isn't opened yet (e.g. on
      * restore from a snapshot), opens it first. If there is no table configuration for the given
@@ -428,22 +424,17 @@ public final class MerkleDb {
      *     data source. If the data source was previously opened, this flag is ignored
      * @return The datasource
      */
-    public MerkleDbDataSource getDataSource(
-            final Configuration config, final String name, final boolean dbCompactionEnabled) throws IOException {
+    public MerkleDbDataSource getDataSource(final String name, final boolean dbCompactionEnabled) throws IOException {
         final TableMetadata metadata = getTableMetadata(name);
         if (metadata == null) {
             throw new IllegalStateException("Unknown table: " + name);
         }
         final int tableId = metadata.getTableId();
-        return getDataSource(config, tableId, name, dbCompactionEnabled, false);
+        return getDataSource(tableId, name, dbCompactionEnabled, false);
     }
 
     private MerkleDbDataSource getDataSource(
-            final Configuration config,
-            final int tableId,
-            final String tableName,
-            final boolean dbCompactionEnabled,
-            final boolean useDiskIndices)
+            final int tableId, final String tableName, final boolean dbCompactionEnabled, final boolean useDiskIndices)
             throws IOException {
         final MerkleDbTableConfig tableConfig = getTableConfig(tableId);
         if (tableConfig == null) {
@@ -456,7 +447,7 @@ public final class MerkleDb {
             }
             try {
                 return new MerkleDbDataSource(
-                        this, config, tableName, tableId, tableConfig, dbCompactionEnabled, useDiskIndices);
+                        this, tableName, tableId, tableConfig, dbCompactionEnabled, useDiskIndices);
             } catch (final IOException z) {
                 rethrowIO.set(z);
                 return null;

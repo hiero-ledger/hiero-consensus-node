@@ -75,6 +75,7 @@ import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -132,7 +133,7 @@ public class SystemTransactions {
     private final BlockStreamManager blockStreamManager;
     private final ExchangeRateManager exchangeRateManager;
     private final HederaRecordCache recordCache;
-    private final SemanticVersion softwareVersionFactory;
+    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
 
     private int nextDispatchNonce = 1;
 
@@ -152,7 +153,7 @@ public class SystemTransactions {
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final HederaRecordCache recordCache,
-            @NonNull final SemanticVersion softwareVersionFactory) {
+            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
         this.initTrigger = initTrigger;
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);

@@ -46,7 +46,6 @@ module com.hedera.node.app {
     requires com.swirlds.merkle;
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
-    requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
