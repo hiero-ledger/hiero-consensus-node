@@ -8,8 +8,8 @@ import com.swirlds.common.FastCopyable;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import java.io.IOException;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class ExampleLongKeyFixedSize implements VirtualKey, FastCopyable {
 

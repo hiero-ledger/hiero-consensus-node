@@ -267,7 +267,7 @@ public class BookEntryPojo {
         try {
             final var crtBytes = Files.readAllBytes(Paths.get(baseDir, String.format("node%d.crt", nodeId)));
             final var crtHash = CommonUtils.noThrowSha384HashOf(crtBytes);
-            return org.hiero.consensus.model.utility.CommonUtils.hex(crtHash);
+            return org.hiero.base.utility.CommonUtils.hex(crtHash);
         } catch (final Exception e) {
             throw new IllegalStateException(e);
         }
@@ -276,7 +276,7 @@ public class BookEntryPojo {
     static String asHexEncodedDerPubKey(final String baseDir, final long nodeId) {
         try {
             final var pubKeyBytes = Files.readAllBytes(Paths.get(baseDir, String.format("node%d.der", nodeId)));
-            return org.hiero.consensus.model.utility.CommonUtils.hex(pubKeyBytes);
+            return org.hiero.base.utility.CommonUtils.hex(pubKeyBytes);
         } catch (final Exception e) {
             throw new IllegalStateException(e);
         }

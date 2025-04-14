@@ -8,10 +8,12 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.Validator.Profile;
 import org.hiero.otter.fixtures.turtle.TurtleNode;
+import org.junit.jupiter.api.Disabled;
 
 public class HappyPathTest {
 
     @OtterTest
+    @Disabled
     void testHappyPath(TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();

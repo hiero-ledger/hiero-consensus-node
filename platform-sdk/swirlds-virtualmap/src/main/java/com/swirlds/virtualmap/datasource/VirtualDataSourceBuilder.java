@@ -3,7 +3,7 @@ package com.swirlds.virtualmap.datasource;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
-import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.base.io.SelfSerializable;
 
 /**
  * Manages {@link VirtualDataSource} instances. An instance of a data source builder is provided

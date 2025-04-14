@@ -12,9 +12,9 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.consensus.model.io.exceptions.BadIOException;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.io.exceptions.BadIOException;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.utility.CommonUtils;
 
 /**
  * This data input stream provides additional functionality for deserializing various basic data structures.
