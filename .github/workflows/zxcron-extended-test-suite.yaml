@@ -460,7 +460,10 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
           EMAIL: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-email }}
         run: |
-          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list"  -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" '.members[] | select(.profile.email == $email) | .name')
+          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
+            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
+            '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
+
           if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
             echo "No Slack user found for email: ${EMAIL}"
             SLACK_USER_ID="No matching slack user found"

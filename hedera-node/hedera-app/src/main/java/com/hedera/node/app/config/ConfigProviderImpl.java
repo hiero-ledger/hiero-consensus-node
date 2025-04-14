@@ -11,8 +11,6 @@ import com.hedera.node.config.sources.PropertyConfigSource;
 import com.hedera.node.config.sources.SettingsConfigSource;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.threading.locks.AutoClosableLock;
-import com.swirlds.common.threading.locks.Locks;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -25,6 +23,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.locks.AutoClosableLock;
+import org.hiero.base.concurrent.locks.Locks;
 
 /**
  * Implementation of the {@link ConfigProvider} interface.

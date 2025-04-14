@@ -59,7 +59,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
-import org.hiero.base.utility.CompareTo;
+import org.hiero.base.CompareTo;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.junit.jupiter.api.AfterEach;
