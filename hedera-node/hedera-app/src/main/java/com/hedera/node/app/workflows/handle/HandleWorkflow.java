@@ -17,6 +17,7 @@ import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.swirlds.platform.consensus.ConsensusUtils.coin;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
 import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static java.util.Objects.requireNonNull;
@@ -24,6 +25,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
+import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -92,13 +94,17 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -248,13 +254,21 @@ public class HandleWorkflow {
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
+
         try {
             transactionsDispatched |= handleEvents(state, round, stateSignatureTxnCallback);
             try {
-                transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
-                        state,
-                        boundaryStateChangeListener.lastConsensusTimeOrThrow().plusNanos(1),
-                        systemTransactions);
+                // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
+                // Dispatch rewards for active nodes after atleast one user transaction is handled
+                final var timeStamp = boundaryStateChangeListener.lastConsensusTime();
+                if (timeStamp != null) {
+                    transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
+                            state,
+                            boundaryStateChangeListener
+                                    .lastConsensusTimeOrThrow()
+                                    .plusNanos(1),
+                            systemTransactions);
+                }
             } catch (Exception e) {
                 logger.warn("Failed to reward active nodes", e);
             }
@@ -271,8 +285,7 @@ public class HandleWorkflow {
             recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
         }
         try {
-            reconcileTssState(
-                    state, boundaryStateChangeListener.lastConsensusTimeOrThrow(), round.getConsensusTimestamp());
+            reconcileTssState(state, round.getConsensusTimestamp());
         } catch (Exception e) {
             logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
         }
@@ -282,8 +295,8 @@ public class HandleWorkflow {
      * Applies all effects of the events in the given round to the given state, writing stream items
      * that capture these effects in the process.
      *
-     * @param state the state to apply the effects to
-     * @param round the round to apply the effects of
+     * @param state                     the state to apply the effects to
+     * @param round                     the round to apply the effects of
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     private boolean handleEvents(
@@ -293,10 +306,7 @@ public class HandleWorkflow {
         boolean transactionsDispatched = false;
         for (final var event : round) {
             if (streamMode != RECORDS) {
-                final var headerItem = BlockItem.newBuilder()
-                        .eventHeader(new EventHeader(event.getEventCore(), event.getSignature()))
-                        .build();
-                blockStreamManager.writeItem(headerItem);
+                writeEventHeader(event);
             }
             final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
             if (creator == null) {
@@ -366,13 +376,49 @@ public class HandleWorkflow {
     }
 
     /**
+     * Writes an event header to the block stream. The event header contains:
+     * 1. The event core data
+     * 2. References to parent events (either as event descriptors or indices)
+     * 3. A boolean, which if true, the middle bit of the event's signature is set.
+     * <p>
+     * The method first tracks the event hash in the block stream manager, then builds a list of parent
+     * event references. For each parent event, it either:
+     * - Uses the full event descriptor if the parent is not in the current block
+     * - Uses an index reference if the parent is in the current block
+     *
+     * @param event the consensus event to write the header for
+     */
+    private void writeEventHeader(ConsensusEvent event) {
+        blockStreamManager.trackEventHash(event.getHash());
+        List<ParentEventReference> parents = new ArrayList<>();
+        final Iterator<EventDescriptorWrapper> iterator = event.allParentsIterator();
+        while (iterator.hasNext()) {
+            final EventDescriptorWrapper parent = iterator.next();
+            Optional<Integer> parentHash = blockStreamManager.getEventIndex(parent.hash());
+            if (parentHash.isEmpty()) {
+                parents.add(ParentEventReference.newBuilder()
+                        .eventDescriptor(parent.eventDescriptor())
+                        .build());
+            } else {
+                parents.add(ParentEventReference.newBuilder()
+                        .index(parentHash.get())
+                        .build());
+            }
+        }
+        final BlockItem headerItem = BlockItem.newBuilder()
+                .eventHeader(new EventHeader(event.getEventCore(), parents, coin(event.getSignature())))
+                .build();
+        blockStreamManager.writeItem(headerItem);
+    }
+
+    /**
      * Handles a platform transaction. This method is responsible for creating a {@link ParentTxn} and
      * executing the workflow for the transaction. This produces a stream of records that are then passed to the
      * {@link BlockRecordManager} to be externalized.
      *
-     * @param state the writable {@link State} that this transaction will work on
-     * @param creator the {@link NodeInfo} of the creator of the transaction
-     * @param txn the {@link ConsensusTransaction} to be handled
+     * @param state      the writable {@link State} that this transaction will work on
+     * @param creator    the {@link NodeInfo} of the creator of the transaction
+     * @param txn        the {@link ConsensusTransaction} to be handled
      * @param txnVersion the software version for the event containing the transaction
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
@@ -849,16 +895,13 @@ public class HandleWorkflow {
      * Notice that when TSS is enabled but the signer is not yet ready, <b>only</b> the round timestamp advances,
      * since we don't create block boundaries until we can sign them.
      *
-     * @param state the state to use when reconciling the TSS system state with the active rosters
-     * @param boundaryTimestamp the current boundary state changes timestamp
+     * @param state          the state to use when reconciling the TSS system state with the active rosters
      * @param roundTimestamp the current round timestamp
      */
-    private void reconcileTssState(
-            @NonNull final State state,
-            @NonNull final Instant boundaryTimestamp,
-            @NonNull final Instant roundTimestamp) {
+    private void reconcileTssState(@NonNull final State state, @NonNull final Instant roundTimestamp) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
+            final var boundaryTimestamp = boundaryStateChangeListener.lastConsensusTimeOrThrow();
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var activeRosters = ActiveRosters.from(rosterStore);
             final var isActive = currentPlatformStatus.get() == ACTIVE;

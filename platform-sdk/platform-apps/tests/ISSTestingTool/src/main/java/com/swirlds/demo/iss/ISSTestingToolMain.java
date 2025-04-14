@@ -12,7 +12,6 @@ import com.swirlds.common.constructable.ClassConstructorPair;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.IssListener;
@@ -37,7 +36,6 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
 
     private static final Logger logger = LogManager.getLogger(ISSTestingToolMain.class);
 
-    private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
@@ -108,14 +106,6 @@ public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
     @Override
     public ConsensusStateEventHandler<ISSTestingToolState> newConsensusStateEvenHandler() {
         return new ISSTestingToolConsensusStateEventHandler();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
     }
 
     /**

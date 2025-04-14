@@ -11,7 +11,7 @@ import com.swirlds.common.constructable.constructables.scannable.StringConstruct
 import com.swirlds.common.constructable.constructables.scannable.subpackage.SubpackageConstructable;
 import com.swirlds.common.constructable.constructors.StringConstructor;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.constructable.RuntimeConstructable;
+import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;

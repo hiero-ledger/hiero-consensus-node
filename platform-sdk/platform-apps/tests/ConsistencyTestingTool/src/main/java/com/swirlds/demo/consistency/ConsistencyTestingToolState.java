@@ -3,7 +3,7 @@ package com.swirlds.demo.consistency;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static org.hiero.consensus.utility.ByteUtils.byteArrayToLong;
+import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;

@@ -3,7 +3,7 @@ package com.swirlds.common.constructable.internal;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.consensus.model.constructable.RuntimeConstructable;
+import org.hiero.base.constructable.RuntimeConstructable;
 
 /**
  * A list of {@link RuntimeConstructable} with an interface that represents their constructor type

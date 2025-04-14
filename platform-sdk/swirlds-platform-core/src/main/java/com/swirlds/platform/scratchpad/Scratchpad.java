@@ -8,7 +8,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.base.io.SelfSerializable;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

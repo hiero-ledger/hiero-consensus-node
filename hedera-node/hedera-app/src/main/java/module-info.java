@@ -46,7 +46,8 @@ module com.hedera.node.app {
     requires com.swirlds.merkle;
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
-    requires org.hiero.consensus.utility;
+    requires org.hiero.base.concurrent;
+    requires org.hiero.base.utility;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires io.grpc.netty;
@@ -87,7 +88,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.components;
     exports com.hedera.node.app.workflows.handle;
     exports com.hedera.node.app.workflows.prehandle;
-    exports com.hedera.node.app.version;
     exports com.hedera.node.app.validation;
     exports com.hedera.node.app.state.listeners;
     exports com.hedera.node.app.services;

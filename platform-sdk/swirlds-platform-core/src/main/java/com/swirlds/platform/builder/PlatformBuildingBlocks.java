@@ -11,7 +11,6 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.pool.TransactionPoolNexus;
 import com.swirlds.platform.roster.RosterHistory;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -31,6 +30,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.streams;
 
-import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.base.io.SelfSerializable;
 
 public final class SerializableStreamConstants {
 

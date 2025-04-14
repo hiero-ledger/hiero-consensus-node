@@ -2,7 +2,6 @@
 package com.swirlds.common.context;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.concurrent.ExecutorFactory;
 import com.swirlds.common.context.internal.PlatformUncaughtExceptionHandler;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
@@ -14,6 +13,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.Thread.UncaughtExceptionHandler;
+import org.hiero.base.concurrent.ExecutorFactory;
 
 /**
  * Public interface of the platform context that provides access to all basic services and resources. By using the

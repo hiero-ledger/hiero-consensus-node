@@ -5,7 +5,7 @@ import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHa
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverterTest.randomPlatformState;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.nextInt;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
@@ -16,7 +16,7 @@ import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.merkle.singleton.WritableSingletonStateImpl;
 import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -9,7 +9,7 @@ import com.swirlds.common.threading.framework.ThreadSeed;
 import com.swirlds.common.threading.framework.TypedStoppableThread;
 import com.swirlds.common.threading.manager.ThreadManager;
 import java.time.Duration;
-import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
+import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 
 /**
  * Boilerplate getters, setters, and configuration for stoppable configuration.

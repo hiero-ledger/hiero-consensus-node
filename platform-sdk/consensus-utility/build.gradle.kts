@@ -7,4 +7,4 @@ plugins {
 
 description = "Consensus Utility"
 
-testModuleInfo { requires("org.junit.jupiter.api") }
+mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }

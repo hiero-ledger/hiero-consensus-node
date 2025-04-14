@@ -40,6 +40,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_PAUSED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hederahashgraph.api.proto.java.TokenPauseStatus.Paused;
 import static com.hederahashgraph.api.proto.java.TokenPauseStatus.Unpaused;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -365,6 +366,16 @@ public class TokenPauseSpecs {
                         tokenUnpause(NON_FUNGIBLE_UNIQUE_PRIMARY)
                                 .signedBy(GENESIS)
                                 .hasKnownStatus(ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> unpauseDeletedToken() {
+        return hapiTest(
+                cryptoCreate(PAUSE_KEY),
+                cryptoCreate(ADMIN_KEY),
+                tokenCreate(PRIMARY).adminKey(ADMIN_KEY).pauseKey(PAUSE_KEY),
+                tokenDelete(PRIMARY),
+                tokenUnpause(PRIMARY).hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     public static class TokenIdOrderingAsserts extends BaseErroringAssertsProvider<List<TokenTransferList>> {

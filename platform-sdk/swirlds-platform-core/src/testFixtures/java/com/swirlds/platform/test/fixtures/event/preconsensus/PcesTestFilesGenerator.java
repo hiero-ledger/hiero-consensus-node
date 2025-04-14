@@ -15,8 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Predicate;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A utility class for generating test PCES (Preconsensus event stream) files.
