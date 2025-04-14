@@ -315,7 +315,7 @@ public class BlockNodeConnectionManager {
             @NonNull final BlockNodeConfig blockNodeConfig, @Nullable final Long blockNumber) {
         requireNonNull(blockNodeConfig);
 
-        final Long latestBlock = lastVerifiedBlockPerConnection.computeIfAbsent(blockNodeConfig, key -> -1L);
+        final Long latestBlock = getLastVerifiedBlock(blockNodeConfig);
         if (blockNumber != null && blockNumber > latestBlock) {
             lastVerifiedBlockPerConnection.put(blockNodeConfig, blockNumber);
         } else {
@@ -325,5 +325,24 @@ public class BlockNodeConnectionManager {
                     blockNumber,
                     latestBlock);
         }
+    }
+
+    /**
+     * @param blockNodeConfig the configuration for the block node
+     * @return the last verified block number by the given block node.
+     */
+    public Long getLastVerifiedBlock(@NonNull final BlockNodeConfig blockNodeConfig) {
+        requireNonNull(blockNodeConfig);
+        return lastVerifiedBlockPerConnection.computeIfAbsent(blockNodeConfig, key -> -1L);
+    }
+
+    /**
+     * @param blockNumber the block number to check for acknowledgements
+     * @return whether the block has been acknowledged by any connection.
+     */
+    public boolean isBlockAlreadyAcknowledged(@NonNull final Long blockNumber) {
+        requireNonNull(blockNumber);
+        return lastVerifiedBlockPerConnection.values().stream()
+                .anyMatch(verifiedBlock -> verifiedBlock.equals(blockNumber));
     }
 }

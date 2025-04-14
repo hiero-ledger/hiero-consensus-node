@@ -7,8 +7,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.sequence.map.SequenceMap;
-import com.swirlds.platform.sequence.map.StandardSequenceMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -25,6 +23,8 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.sequence.map.SequenceMap;
+import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
 
 /**
  * Links events to their parents. Expects events to be provided in topological order.

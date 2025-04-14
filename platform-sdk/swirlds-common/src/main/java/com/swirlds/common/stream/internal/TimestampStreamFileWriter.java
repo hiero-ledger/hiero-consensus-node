@@ -29,11 +29,11 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.crypto.RunningHash;
 import org.hiero.consensus.model.crypto.RunningHashable;
 import org.hiero.consensus.model.crypto.SerializableHashable;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;
 

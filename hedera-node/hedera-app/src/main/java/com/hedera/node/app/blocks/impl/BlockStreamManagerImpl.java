@@ -64,6 +64,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -81,6 +82,7 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
 
 @Singleton
@@ -115,6 +117,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Instant lastHandleTime = Instant.EPOCH;
     // All this state is scoped to producing the current block
     private long blockNumber;
+    private int eventIndex = 0;
+    private final Map<Hash, Integer> eventIndexInBlock = new HashMap<>();
+
     // Set to the round number of the last round handled before entering a freeze period
     private long freezeRoundNumber = -1;
     // The last non-empty (i.e., not skipped) round number that will eventually get a start-of-state hash
@@ -461,6 +466,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 DiskStartupNetworks.writeNetworkInfo(
                         state, exportPath, EnumSet.allOf(InfoType.class), platformStateFacade);
             }
+
+            // Clear the eventIndexInBlock map for the next block
+            eventIndexInBlock.clear();
+            eventIndex = 0;
         }
         if (fatalShutdownFuture != null) {
             pendingBlocks.forEach(block -> log.fatal("Skipping incomplete block proof for block {}", block.number()));
@@ -844,5 +853,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 .completeOnTimeout(null, timeout.toSeconds(), TimeUnit.SECONDS)
                 .join();
         log.fatal("Block stream fatal shutdown complete");
+    }
+
+    @Override
+    public void trackEventHash(@NonNull Hash eventHash) {
+        eventIndexInBlock.put(eventHash, eventIndex++);
+    }
+
+    @Override
+    public Optional<Integer> getEventIndex(@NonNull Hash eventHash) {
+        return Optional.ofNullable(eventIndexInBlock.get(eventHash));
     }
 }

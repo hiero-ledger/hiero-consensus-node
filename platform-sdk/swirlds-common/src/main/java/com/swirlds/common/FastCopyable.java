@@ -2,7 +2,7 @@
 package com.swirlds.common;
 
 import com.swirlds.base.state.Mutable;
-import org.hiero.base.utility.Copyable;
+import org.hiero.base.Copyable;
 import org.hiero.consensus.model.crypto.Hashable;
 
 /**

@@ -2,7 +2,7 @@
 package org.hiero.base.concurrent.futures;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static org.hiero.base.utility.StackTrace.getStackTrace;
+import static org.hiero.base.StackTrace.getStackTrace;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;

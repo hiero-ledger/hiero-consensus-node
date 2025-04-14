@@ -14,8 +14,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongBinaryOperator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.StackTrace;
 import org.hiero.base.utility.ByteUtils;
-import org.hiero.base.utility.StackTrace;
 
 /**
  * A utility that measures the fraction of time that is spent in one of two phases. For example, can be used to track

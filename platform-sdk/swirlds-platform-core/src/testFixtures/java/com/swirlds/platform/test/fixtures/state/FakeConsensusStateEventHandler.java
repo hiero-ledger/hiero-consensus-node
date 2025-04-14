@@ -28,7 +28,6 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.address.AddressBook;
@@ -110,7 +109,8 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
     }
 
     public List<StateChanges.Builder> initPlatformState(@NonNull final MerkleNodeState state) {
-        final var schema = new V0540PlatformStateSchema(config -> new BasicSoftwareVersion(1));
+        final var schema = new V0540PlatformStateSchema(
+                config -> SemanticVersion.newBuilder().minor(1).build());
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> {

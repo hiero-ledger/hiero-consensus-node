@@ -6,7 +6,7 @@ import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 
 /**
  * Utility methods for migration testing tool transactions

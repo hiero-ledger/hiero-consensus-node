@@ -100,7 +100,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 
 @SuppressWarnings("java:S1192")

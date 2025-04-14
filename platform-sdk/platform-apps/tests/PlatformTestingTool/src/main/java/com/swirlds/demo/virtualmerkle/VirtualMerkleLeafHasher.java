@@ -38,8 +38,8 @@ import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 // Note: This class is intended to be used with a human in the loop who is watching standard in and standard err.
 
