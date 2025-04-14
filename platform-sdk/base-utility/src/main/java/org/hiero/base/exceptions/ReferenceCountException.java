@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.exceptions;
+package org.hiero.base.exceptions;
 
 /**
  * This exception is thrown when there are problems with reference counts.
