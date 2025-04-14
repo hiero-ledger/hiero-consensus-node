@@ -11,6 +11,7 @@ import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -741,41 +742,54 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Serializes the current object to an array of bytes in a deterministic manner.
-     *
-     * @param dos
-     * 		the {@link java.io.DataOutputStream} to which the object's binary form should be written
-     * @throws IOException
-     * 		if there are problems during serialization
+     * {@inheritDoc}
      */
     @Override
-    public synchronized void serialize(final SerializableDataOutputStream dos) throws IOException {
-        dos.writeSerializableIterableWithSize(iterator(), size(), true, false);
-    }
-
-    @Override
-    public synchronized void deserialize(final SerializableDataInputStream dis, final int version) throws IOException {
-        if (version >= ClassVersion.REMOVED_HASH) {
-            deserializeV3(dis);
-        } else {
-            deserializeV2(dis);
-        }
+    public synchronized void serialize(final SerializableDataOutputStream out) throws IOException {
+        out.writeSerializableIterableWithSize(iterator(), size(), true, false);
     }
 
     /**
-     * @deprecated Remove this method after v0.36 data migration.
+     * Create a shallow detached copy to avoid holding references to the entire queue should the original
+     * copy remain reserved for a long time (e.g., during reconnect).
      */
-    @Deprecated(forRemoval = true)
-    private void deserializeV2(final SerializableDataInputStream dis) throws IOException {
-        // These two reads are intentionally ignored. They are for the backward compatibility.
-        dis.readInt();
-        dis.readFully(new byte[DIGEST_TYPE.digestLength()]);
+    private void detach() {
+        if (!isImmutable()) {
+            throw new IllegalStateException("tried to serialize a mutable FCQueue");
+        }
+        if (head == null || tail == null || tail.runningHash == null) {
+            throw new IllegalStateException("tried to serialize an unhashed FCQueue");
+        }
 
-        dis.readSerializableIterableWithSize(MAX_ELEMENTS, this::add);
+        Node<E> src = head;
+        Node<E> dst = new Node<>();
+        head = dst;
+        while (src != tail) {
+            dst.element = src.element;
+            dst.runningHash = src.runningHash;
+            dst.next = new Node<>();
+            src = src.next;
+            dst = dst.next;
+        }
+        dst.runningHash = src.runningHash;
+        tail = dst;
     }
 
-    private void deserializeV3(final SerializableDataInputStream dis) throws IOException {
-        dis.readSerializableIterableWithSize(MAX_ELEMENTS, this::add);
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void serialize(final SerializableDataOutputStream out, final Path outputDirectory) throws IOException {
+        detach();
+        serialize(out);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public synchronized void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
+        in.readSerializableIterableWithSize(MAX_ELEMENTS, this::add);
     }
 
     /**
