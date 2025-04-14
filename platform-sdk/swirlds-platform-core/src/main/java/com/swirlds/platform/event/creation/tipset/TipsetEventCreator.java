@@ -245,7 +245,7 @@ public class TipsetEventCreator implements EventCreator {
         // reach consensus if the self parent is also the other parent.
         // Unexpected, but harmless. So just use the same event
         // as both parents until that issue is resolved.
-        return buildAndProcessEvent(lastSelfEvent.getDescriptor());
+        return buildAndProcessEvent(lastSelfEvent == null ? null : lastSelfEvent.getDescriptor());
     }
 
     /**
