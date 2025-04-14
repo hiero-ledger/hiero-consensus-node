@@ -331,7 +331,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final var amountToCharge = Math.min(amount, payerAccount.tinybarBalance());
         chargePayer(payerAccount, amountToCharge, cb);
         // We may be charging for preceding child record fees, which are additive to the base fee
-        rb.transactionFee(rb.transactionFee() + amountToCharge);
+        // The callback is not null for the atomic batch transactions.
+        // For each atomic batch transaction, the transaction fee of inner transactions is
+        // accumulated in the inner transaction
+        if (cb == null) {
+            rb.transactionFee(rb.transactionFee() + amountToCharge);
+        }
         distributeToNetworkFundingAccounts(amountToCharge, cb);
         return amountToCharge == amount;
     }
@@ -371,7 +376,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
 
         chargePayer(payerAccount, amountToCharge, cb);
         // Record the amount charged into the record builder
-        rb.transactionFee(amountToCharge);
+        // The callback is not null for the atomic batch transactions.
+        // For each atomic batch transaction, the transaction fee of inner transactions is
+        // accumulated in the inner transaction
+        if (cb == null) {
+            rb.transactionFee(amountToCharge);
+        }
         distributeToNetworkFundingAccounts(amountToDistributeToFundingAccounts, cb);
 
         if (chargeableNodeFee > 0) {
