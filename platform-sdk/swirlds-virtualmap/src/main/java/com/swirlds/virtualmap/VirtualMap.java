@@ -4,7 +4,7 @@ package com.swirlds.virtualmap;
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
 import static com.swirlds.virtualmap.VirtualMap.CLASS_ID;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.utility.CommonUtils.getNormalisedStringBytes;
+import static org.hiero.base.utility.CommonUtils.getNormalisedStringBytes;
 
 import com.swirlds.common.constructable.ConstructableClass;
 import com.swirlds.common.io.ExternalSelfSerializable;
