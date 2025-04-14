@@ -101,7 +101,8 @@ public class TipsetTracker {
      * Add a new self event to the tracker. We track the tipset for all events, including self events, but since self
      * advancement never counts toward the advancement score, the latest self generation is never updated.
      *
-     * @param event the self event to add
+     * @param selfEventDesc the descriptor of the self event being added
+     * @param parents       the parent descriptors of the self event being added
      * @return the tipset for the new self event
      */
     @NonNull

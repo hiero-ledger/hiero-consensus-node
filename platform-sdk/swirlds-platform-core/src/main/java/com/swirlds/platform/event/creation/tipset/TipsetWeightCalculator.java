@@ -199,8 +199,7 @@ public class TipsetWeightCalculator {
     /**
      * Figure out what advancement weight we would get if we created an event with a given list of parents.
      *
-     * @param otherParents the proposed other parents of an event
-     * @param selfParent   the proposed self parent of an event
+     * @param parents the proposed parents of an event
      * @return the advancement weight we would get by creating an event with the given parents
      */
     public TipsetAdvancementWeight getTheoreticalAdvancementWeight(
