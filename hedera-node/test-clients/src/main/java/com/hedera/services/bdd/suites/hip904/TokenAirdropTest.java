@@ -70,6 +70,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_AMOUNT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_HAS_PENDING_AIRDROPS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_CHARGING_EXCEEDED_MAX_RECURSION_DEPTH;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_TOKEN_TRANSFER_BODY;
@@ -83,7 +84,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RECEIV
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PENDING_NFT_AIRDROP_ALREADY_EXISTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY;
@@ -1359,6 +1359,25 @@ public class TokenAirdropTest extends TokenAirdropBase {
         }
 
         @HapiTest
+        @DisplayName("containing multiple senders")
+        final Stream<DynamicTest> airdropWithMultipleSenders() {
+            return hapiTest(
+                    cryptoCreate("sender1"),
+                    cryptoCreate("sender2"),
+                    cryptoCreate("receiver"),
+                    tokenAssociate("sender1", FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
+                    tokenAssociate("sender2", FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
+                    tokenAirdrop(
+                                    moving(5, FUNGIBLE_TOKEN).between("sender1", "receiver"),
+                                    moving(5, FUNGIBLE_TOKEN).between("sender2", "receiver"))
+                            .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN),
+                    tokenAirdrop(
+                                    movingUnique(NON_FUNGIBLE_TOKEN, 1).between("sender1", "receiver"),
+                                    movingUnique(NON_FUNGIBLE_TOKEN, 2).between("sender2", "receiver"))
+                            .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN));
+        }
+
+        @HapiTest
         @DisplayName("containing invalid token transfer decimals")
         final Stream<DynamicTest> airdropInvalidDecimals() {
             return hapiTest(
@@ -2095,7 +2114,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
             return hapiTest(tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(OWNER, OWNER))
                     .signedBy(OWNER)
                     .payingWith(OWNER)
-                    .hasPrecheck(INVALID_TRANSACTION_BODY));
+                    .hasPrecheck(AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN));
         }
 
         @HapiTest

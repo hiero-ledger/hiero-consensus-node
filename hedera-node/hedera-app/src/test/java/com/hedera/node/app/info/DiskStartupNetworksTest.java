@@ -18,6 +18,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -36,7 +37,6 @@ import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.tss.TssBaseServiceImpl;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -289,9 +289,10 @@ class DiskStartupNetworksTest {
         final var tssBaseService = new TssBaseServiceImpl();
         given(startupNetworks.genesisNetworkOrThrow(DEFAULT_CONFIG)).willReturn(network);
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
-        ServicesSoftwareVersion currentVersion = new ServicesSoftwareVersion(
-                bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion());
-        PLATFORM_STATE_SERVICE.setAppVersionFn(ServicesSoftwareVersion::from);
+        SemanticVersion currentVersion =
+                bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion();
+        PLATFORM_STATE_SERVICE.setAppVersionFn(
+                config -> config.getConfigData(VersionConfig.class).servicesVersion());
         Set.of(
                         tssBaseService,
                         PLATFORM_STATE_SERVICE,

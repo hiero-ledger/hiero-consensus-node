@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.model.utility.interrupt.InterruptableConsumer;
+import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 
 /**
  * A utility for migrating data within a virtual map from one format to another.

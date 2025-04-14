@@ -5,7 +5,7 @@ import static com.swirlds.common.formatting.HorizontalAlignment.ALIGNED_RIGHT;
 import static com.swirlds.platform.testreader.TestStatus.FAIL;
 import static com.swirlds.platform.testreader.TestStatus.PASS;
 import static com.swirlds.platform.testreader.TestStatus.UNKNOWN;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
 import com.swirlds.platform.util.CommandResult;
 import com.swirlds.platform.util.VirtualTerminal;
@@ -28,7 +28,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
-import org.hiero.base.utility.CompareTo;
+import org.hiero.base.CompareTo;
 
 /**
  * Utilities for reading JRS test results and creating a report.
