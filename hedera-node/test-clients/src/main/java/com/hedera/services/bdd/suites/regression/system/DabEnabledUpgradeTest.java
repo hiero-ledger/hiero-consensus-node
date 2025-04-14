@@ -33,11 +33,14 @@ import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.configVersionOf;
+import static com.hedera.services.bdd.suites.utils.sysfiles.AddressBookPojo.nodeDetailsFrom;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_NODES_CREATED;
 import static java.util.stream.Collectors.toSet;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Fail.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -49,7 +52,11 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
+import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
+import com.hedera.services.bdd.suites.utils.sysfiles.AddressBookPojo;
+import com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo;
+import com.hederahashgraph.api.proto.java.NodeAddressBook;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -93,6 +100,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 public class DabEnabledUpgradeTest implements LifecycleTest {
     private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
     private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
+    private static final List<String> NODE_ACCOUNT_IDS = List.of("0.0.3", "0.0.4", "0.0.5", "0.0.6");
 
     // To test BirthRoundStateMigration, use,
     //    Map.of("event.useBirthRoundAncientThreshold", "true")
@@ -112,6 +120,36 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
 
     @HapiTest
     @Order(0)
+    final Stream<DynamicTest> addressBookAndNodeDetailsPopulated() {
+        final var file101 = String.format("%s.%s.%d", SHARD, REALM, 101);
+        final var file102 = String.format("%s.%s.%d", SHARD, REALM, 102);
+
+        return hapiTest(
+                QueryVerbs.getFileContents(file101).consumedBy(bytes -> {
+                    AddressBookPojo addressBook;
+                    try {
+                        addressBook = AddressBookPojo.addressBookFrom(NodeAddressBook.parseFrom(bytes));
+                    } catch (InvalidProtocolBufferException e) {
+                        fail("Failed to parse address book", e);
+                        throw new IllegalStateException("Needed for compilation; should never happen");
+                    }
+                    verifyAddressInfo(addressBook);
+                }),
+                QueryVerbs.getFileContents(file102).consumedBy(bytes -> {
+                    final AddressBookPojo pojoBook;
+                    try {
+                        pojoBook = nodeDetailsFrom(NodeAddressBook.parseFrom(bytes));
+                    } catch (InvalidProtocolBufferException e) {
+                        fail("Failed to parse node details", e);
+                        throw new IllegalStateException("Needed for compilation; should never happen");
+                    }
+
+                    verifyAddressInfo(pojoBook);
+                }));
+    }
+
+    @HapiTest
+    @Order(1)
     final Stream<DynamicTest> upgradeWithSameNodesExportsTheOriginalAddressBook() {
         final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
         return hapiTest(
@@ -130,7 +168,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(1)
+    @Order(2)
     final Stream<DynamicTest> nodeId1NotInCandidateRosterAfterRemovalAndStakerNotRewardedAfterUpgrade() {
         return hapiTest(
                 recordStreamMustIncludePassFrom(selectedItems(
@@ -146,7 +184,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(2)
+    @Order(3)
     final Stream<DynamicTest> nodeId3CanStillReconnectAfterRemovingNodeId1() {
         final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
         return hapiTest(
@@ -155,7 +193,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(3)
+    @Order(4)
     final Stream<DynamicTest> nodeId3NotInCandidateRosterAfterRemovalAndStakerNotRewardedAfterUpgrade() {
         return hapiTest(
                 recordStreamMustIncludePassFrom(selectedItems(
@@ -171,7 +209,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(4)
+    @Order(5)
     final Stream<DynamicTest> newNodeId4InCandidateRosterAfterAddition() {
         return hapiTest(
                 recordStreamMustIncludePassFrom(selectedItems(
@@ -190,7 +228,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     @Nested
-    @Order(4)
+    @Order(6)
     @DisplayName("with multipart DAB edits before and after prepare upgrade")
     @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
     class WithMultipartDabEditsBeforeAndAfterPrepareUpgrade {
@@ -264,6 +302,14 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L))
                             .setNode(classicFeeCollectorIdLiteralFor(0)));
         }
+    }
+
+    private static void verifyAddressInfo(final AddressBookPojo addressBook) {
+        final var entries = addressBook.getEntries().stream()
+                .map(BookEntryPojo::getNodeAccount)
+                .toList();
+        assertThat(entries).hasSizeGreaterThanOrEqualTo(NODE_ACCOUNT_IDS.size());
+        entries.forEach(nodeId -> assertThat(NODE_ACCOUNT_IDS).contains(nodeId));
     }
 
     /**

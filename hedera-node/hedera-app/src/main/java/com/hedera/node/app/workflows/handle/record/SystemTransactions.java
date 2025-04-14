@@ -212,9 +212,6 @@ public class SystemTransactions {
                             .build(),
                     i);
         }
-        // For a slightly more intuitive stream, now create the system files (which come next numerically)
-        final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
-        fileService.createSystemEntities(systemContext, nodeStore);
         // Create the treasury clones
         for (long i : LongStream.rangeClosed(FIRST_POST_SYSTEM_FILE_ENTITY, ledgerConfig.numReservedSystemEntities())
                 .filter(j -> j < FIRST_RESERVED_SYSTEM_CONTRACT || j > LAST_RESERVED_SYSTEM_CONTRACT)
@@ -309,6 +306,10 @@ public class SystemTransactions {
             });
         }
         networkInfo.updateFrom(state);
+
+        // Now that the node metadata is correct, create the system files
+        final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
+        fileService.createSystemEntities(systemContext, nodeStore);
     }
 
     /**
