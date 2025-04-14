@@ -62,7 +62,9 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.Key;
+import com.hederahashgraph.api.proto.java.TransactionRecord;
 import java.time.Instant;
+import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -454,8 +456,16 @@ public class AtomicBatchNegativeTest {
                             .hasKnownStatus(INNER_TRANSACTION_FAILED)
                             .via("batchTxn"),
                     // asserts
-                    getAccountRecords("Bob").exposingTo(records -> assertEquals(2, records.size())),
-                    getAccountRecords("Alice").exposingTo(records -> assertEquals(1, records.size())),
+                    getAccountRecords("Bob").exposingTo(records -> {
+                        assertEquals(2, records.size());
+                        // validate transactionFee matches the debit in the transferList
+                        validateTransactionFees(records);
+                    }),
+                    getAccountRecords("Alice").exposingTo(records -> {
+                        assertEquals(1, records.size());
+                        // validate transactionFee matches the debit in the transferList
+                        validateTransactionFees(records);
+                    }),
                     getAccountBalance("collector").hasTokenBalance("ftB", 0),
                     getAccountBalance("receiver").hasTokenBalance("ftA", 0),
                     getAccountBalance("receiver").hasTokenBalance("ftC", 0));
@@ -501,6 +511,16 @@ public class AtomicBatchNegativeTest {
                     // asserts
                     getAccountBalance("Alice").hasTinyBars(ONE_HBAR),
                     getAccountBalance("Bob").hasTinyBars(ONE_HBAR));
+        }
+    }
+
+    private void validateTransactionFees(final List<TransactionRecord> records) {
+        for (var record : records) {
+            final var debit = record.getTransferList().getAccountAmountsList().stream()
+                    .filter(aa -> aa.getAmount() < 0)
+                    .mapToInt(aa -> (int) -aa.getAmount())
+                    .sum();
+            assertEquals(debit, record.getTransactionFee());
         }
     }
 
